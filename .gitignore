@@ -1,0 +1,12 @@
+# 개인 설정과 생성 파일은 저장소 전체에서 제외합니다.
+.env
+.env.*
+!.env.example
+.gradle/
+build/
+.idea/
+*.iml
+*.log
+uploads/
+logs/
+.DS_Store

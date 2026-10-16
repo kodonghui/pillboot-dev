@@ -1,0 +1,10 @@
+@baseUrl = http://localhost:8080
+
+### Server health
+GET {{baseUrl}}/actuator/health
+
+### OpenAPI (local profile)
+GET {{baseUrl}}/v3/api-docs
+
+### Swagger (local profile)
+GET {{baseUrl}}/swagger-ui/index.html
