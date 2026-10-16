@@ -1,0 +1,14 @@
+# Qdrant(벡터 검색)만 띄우는 Compose 파일입니다. MySQL용 compose.yaml과 따로 둡니다.
+# 켜기: docker compose -f compose.qdrant.yaml up -d
+# 끄기: docker compose -f compose.qdrant.yaml down   (데이터는 qdrant_data volume에 남습니다)
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.19.2
+    ports:
+      - "127.0.0.1:6333:6333"   # REST API · 대시보드 (http://localhost:6333/dashboard)
+      - "127.0.0.1:6334:6334"   # gRPC (Spring의 Qdrant Java 클라이언트)
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+volumes:
+  qdrant_data:

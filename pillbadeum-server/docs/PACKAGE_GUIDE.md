@@ -6,7 +6,7 @@
 PillbadeumServerApplication
 common/
   ai/          OpenAI 텍스트·이미지·스트리밍·임베딩 클라이언트
-  config/      CORS·JPA 감사·시간대·캐시·스케줄링·Swagger·MVC 인터셉터
+  config/      CORS·JPA 감사·시간대·캐시·스케줄링·Swagger·MVC 인터셉터·Qdrant 연결(기본 꺼짐)
   entity/      BaseTimeEntity
   exception/   ErrorCode·BusinessException·GlobalExceptionHandler 및 개별 예외
   external/    공공데이터 클라이언트·HTTP 시간 제한·외부 실패 변환
