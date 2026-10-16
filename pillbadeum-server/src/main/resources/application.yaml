@@ -1,0 +1,101 @@
+# 공통 설정. 개인 값은 환경변수로 받으며, local 프로필만 .env를 읽습니다.
+
+spring:
+  application:
+    name: pillbadeum-server
+
+  profiles:
+    default: local
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    # 설명. 테이블은 sql/ 폴더의 DDL 로 만든다. (엔티티로 테이블을 자동 생성하지 않는다)
+    hibernate:
+      ddl-auto: none
+    # 설명. 컨트롤러 · 뷰까지 DB 연결을 붙잡지 않는다. 지연 로딩은 서비스(@Transactional) 안에서 끝낸다.
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        highlight_sql: true
+
+  sql:
+    init:
+      mode: never
+
+  jackson:
+    time-zone: Asia/Seoul
+
+  data:
+    web:
+      pageable:
+        one-indexed-parameters: true
+
+  threads:
+    virtual:
+      enabled: true
+
+  # 설명. 이미지 업로드 크기 (알약 앞 · 뒤 2장을 한 번에 올리므로 요청 전체는 더 크게)
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 25MB
+
+server:
+  port: ${SERVER_PORT:8080}
+
+# 설명. 업로드 파일 저장 위치 (프로젝트 바깥 폴더. Git 에 올라가지 않게)
+file:
+  upload:
+    windows:
+      path: ${FILE_UPLOAD_PATH_WINDOWS:C:/myWs/pillbadeum-uploads}
+    mac:
+      path: ${FILE_UPLOAD_PATH_MAC:/myWs/pillbadeum-uploads}
+
+app:
+  cors:
+    # 설명. 프론트엔드 주소. 여러 개면 쉼표로 구분한다.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+jwt:
+  secret: ${JWT_SECRET:}
+  # 1시간 (밀리초)
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  base-url: https://api.openai.com/v1
+  model:
+    chat: gpt-6-luna
+    vision: gpt-6-luna
+    embedding: text-embedding-3-small
+  # 설명. 모델이 지원하는 값만 쓴다. 추론 기능이 없는 모델이면 비워 둔다.
+  reasoning-effort: none
+  connect-timeout-ms: 5000
+  read-timeout-ms: 60000
+
+public-data:
+  base-url: https://apis.data.go.kr
+  # 설명. 공공데이터포털 마이페이지의 '일반 인증키(Decoding)' 값
+  service-key: ${PUBLIC_DATA_SERVICE_KEY:}
+  connect-timeout-ms: 3000
+  read-timeout-ms: 5000
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+    tags-sorter: alpha
+
+logging:
+  level:
+    org.hibernate.SQL: info
+    org.semiproject.pillbadeumserver: info
+  pattern:
+    level: '%5p [requestId=%X{requestId:-}]'
