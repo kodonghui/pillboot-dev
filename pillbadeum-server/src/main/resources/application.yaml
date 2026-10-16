@@ -86,6 +86,13 @@ public-data:
   connect-timeout-ms: 3000
   read-timeout-ms: 5000
 
+# 설명. 벡터 검색(Qdrant). 기본은 꺼짐. Docker로 Qdrant를 띄운 사람만 .env에 QDRANT_ENABLED=true (README 4번)
+qdrant:
+  enabled: ${QDRANT_ENABLED:false}
+  host: ${QDRANT_HOST:localhost}
+  # 설명. gRPC 포트. 6333은 REST · 대시보드용이다.
+  port: ${QDRANT_PORT:6334}
+
 springdoc:
   api-docs:
     enabled: false
