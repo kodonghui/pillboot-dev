@@ -46,6 +46,9 @@ dependencies {
     // WebSocket을 쓸 때만 추가
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
+    // 벡터 검색(Qdrant). 기본은 꺼져 있고 QDRANT_ENABLED=true일 때만 연결한다.
+    implementation 'io.qdrant:client:1.19.0'
+
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
 
     // Spring Boot 4의 테스트 의존성 구성은 프로젝트 예시를 따름

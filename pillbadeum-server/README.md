@@ -25,6 +25,7 @@ macOS/Linux에서는 `cp .env.example .env`를 사용합니다. 이미 `.env`가
 | `JWT_SECRET` | 아래 방법으로 생성하는 Base64URL 256비트 이상 키 |
 | `OPENAI_API_KEY` | 선택. 없으면 AI 호출만 503으로 거절 |
 | `PUBLIC_DATA_SERVICE_KEY` | 선택. 공공데이터포털의 일반 인증키(Decoding) |
+| `QDRANT_ENABLED` | 선택. Docker로 Qdrant를 띄운 사람만 `true` (4번 참고) |
 
 JWT는 세션을 만들지 않는 Bearer 토큰 인증입니다. `JWT_SECRET`은 사용자 토큰이 아니라 서버의 서명키입니다.
 키가 없거나 짧으면 시작하지 않습니다. 실제 키나 개인 `.env`는 공유하지 않습니다.
@@ -99,6 +100,21 @@ macOS/Linux: `./gradlew bootRun`.
 로그인·회원가입·약관 경로와 health는 공개하고 다른 경로는 JWT가 필요합니다.
 로그아웃은 기존 `TokenBlacklist`에 토큰을 등록하는 방식으로 연결합니다.
 정확한 공개 경로는 `common/security/SecurityConfig`에 있습니다.
+
+## 4. 선택: Qdrant (벡터 검색)
+
+대화 기능의 임베딩 저장 · 비슷한 과거 요약 검색(CHAT-004 · 006)에만 씁니다.
+기본은 꺼져 있어서 Docker가 없어도 서버와 테스트는 그대로 동작합니다. 켜려는 사람만 아래를 따릅니다.
+
+```text
+docker compose -f compose.qdrant.yaml up -d
+```
+
+개인 `.env`에 `QDRANT_ENABLED=true`를 넣고 서버를 다시 실행합니다.
+
+- 대시보드: http://localhost:6333/dashboard
+- 끄기: `docker compose -f compose.qdrant.yaml down` (데이터는 volume에 남음)
+- MySQL용 `compose.yaml`과 파일을 나눠서, Qdrant만 켤 때 MySQL 비밀번호 설정이 필요 없습니다.
 
 ## 설정 구분
 
