@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: ${MYSQL_TEST_URL:jdbc:mysql://127.0.0.1:3307/pill_test}
+    username: ${MYSQL_TEST_USER:pill}
+    password: ${MYSQL_TEST_PASSWORD:}
+  main:
+    keep-alive: false
+
+# 공개된 테스트 전용 키이며 실제 실행/배포에서는 사용하지 않습니다.
+jwt:
+  secret: cGlsbGJhZGV1bS10ZXN0LW9ubHktc2lnbmluZy1rZXktMzItYnl0ZXM
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
