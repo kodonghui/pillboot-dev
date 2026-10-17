@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Set;
@@ -43,10 +44,10 @@ class PillbadeumServerApplicationTests {
             try (var rows = statement.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()")) {
                 while (rows.next()) tables.add(rows.getString(1));
             }
-            assertThat(tables).containsExactlyInAnyOrder("member", "terms", "profile", "consent_history",
-                    "notification_setting", "drug", "my_drug", "chat_session", "chat_message", "chat_summary",
-                    "photo", "ocr_candidate", "dur_warning", "dur_interaction", "push_subscription");
-            try (var rows = statement.executeQuery("SELECT COUNT(*) FROM member")) {
+            assertThat(tables).containsExactlyInAnyOrder("MEMBER", "CONSENT", "PROFILE", "CONSENT_HISTORY",
+                    "notification_setting", "DRUG", "my_drug", "chat_session", "chat_message", "chat_summary",
+                    "PHOTO", "OCR_CANDIDATE", "DUR_WARNING", "DUR_INTERACTION");
+            try (var rows = statement.executeQuery("SELECT COUNT(*) FROM MEMBER")) {
                 rows.next();
                 if (rows.getInt(1) == 0) {
                     ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/02_PILLBADEUM_TEST_DATA.sql"));
@@ -54,9 +55,15 @@ class PillbadeumServerApplicationTests {
             }
             // 생성 SQL을 다시 실행해도 샘플 데이터가 지워지지 않아야 합니다.
             ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
-            try (var rows = statement.executeQuery("SELECT COUNT(*) FROM chat_message")) {
-                rows.next();
-                assertThat(rows.getInt(1)).isEqualTo(180);
+            assertRows(connection, "MEMBER", 5);
+            assertRows(connection, "PROFILE", 15);
+            assertRows(connection, "DRUG", 2);
+            assertRows(connection, "my_drug", 30);
+            assertRows(connection, "chat_session", 45);
+            assertRows(connection, "chat_message", 180);
+            assertRows(connection, "chat_summary", 45);
+            for (String table : Set.of("PHOTO", "OCR_CANDIDATE", "DUR_WARNING", "DUR_INTERACTION")) {
+                assertRows(connection, table, 0);
             }
             connection.setAutoCommit(false);
             try {
@@ -85,6 +92,13 @@ class PillbadeumServerApplicationTests {
         assertThat(denied.statusCode()).isEqualTo(401);
         assertThat(json.readTree(denied.body()).path("code").asString()).isEqualTo("UNAUTHENTICATED");
         assertThat(denied.headers().allValues("Set-Cookie")).noneMatch(value -> value.contains("JSESSIONID"));
+    }
+
+    private static void assertRows(Connection connection, String table, long expected) throws SQLException {
+        try (var statement = connection.createStatement(); var rows = statement.executeQuery("SELECT COUNT(*) FROM `" + table + "`")) {
+            assertThat(rows.next()).isTrue();
+            assertThat(rows.getLong(1)).as(table + " sample rows").isEqualTo(expected);
+        }
     }
 
     private HttpResponse<String> get(String path) throws Exception {

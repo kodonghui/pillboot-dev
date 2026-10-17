@@ -58,7 +58,8 @@ Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 ```
 
 클라이언트를 못 찾으면 `-MySqlClient 'C:\...\mysql.exe'`를 지정합니다.
-스키마는 기존 10개 + 첨부 ERD 누락 4개 + API의 푸시 구독 1개로 **MySQL 15개**입니다.
+스키마는 사용자가 제공한 **ERD Cloud 기준 MySQL 14개 테이블·114개 컬럼**입니다.
+ERD 밖의 API 기반 추가 표·컬럼은 포함하지 않으며, 표명 대소문자와 컬럼명도 원문을 따릅니다.
 Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 
 ### 신규 DB: Docker Compose
@@ -75,16 +76,16 @@ docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/01_PILLBADEUM_
 
 ### 이미 원본 10개 테이블이 있는 DB
 
-백업 후 [SQL 안내](sql/README.md)의 사전 조회와 `03_PILLBADEUM_UPGRADE_FROM_10_TABLES.sql`을 사용합니다.
-`01` 재실행은 기존 컬럼·제약을 변경하지 않습니다. 준비 스크립트도 업그레이드를 자동 적용하지 않습니다.
-`03`은 aa15bf7 원본 상태 전용 1회 변경이며, 중복이나 예상하지 못한 채팅 순서가 있으면 중단합니다.
-기존 DB에서 `02` 샘플을 다시 실행하지 마세요.
+이번 SQL은 비어 있는 개발 DB의 최초 설정용입니다. 기존 10개/15개 테이블 DB에 그대로 실행하지 마세요.
+`01`은 기존 컬럼·제약을 변경하지 않습니다. 데이터가 있으면 백업 후 새 DB에서 먼저 확인하고
+컬럼명·길이·필수값을 대조하여 별도로 옮깁니다. 이전 API 확장용 자동 업그레이드 파일은 제거했습니다.
 
 ### 선택: 샘플 데이터
 
 빈 개발 DB에서만 `02_PILLBADEUM_TEST_DATA.sql`을 한 번 실행합니다.
 준비 스크립트는 `-IncludeTestData`를 지원합니다.
-사진·후보·DUR·푸시 구독은 초기 데이터가 없어도 됩니다.
+사진·후보·DUR은 초기 데이터가 없어도 됩니다.
+ERD의 `DRUG.etc_otc UNIQUE`를 유지하므로 샘플 약은 ETC·OTC 각 1개입니다.
 샘플 품목 코드/약 이름의 공식 일치 여부와 샘플 비밀번호 평문은 검증하지 않았습니다.
 화면·관계 확인용 샘플을 실제 API·로그인 성공용 데이터로 간주하지 않습니다.
 
