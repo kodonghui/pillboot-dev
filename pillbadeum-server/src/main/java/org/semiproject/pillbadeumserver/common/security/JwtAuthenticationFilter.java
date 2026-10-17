@@ -19,7 +19,7 @@ import java.io.IOException;
  *  ----------------------------------------------------------------------------------
  *  1) 토큰이 없으면 : 아무것도 하지 않고 넘긴다. (비로그인 요청)
  *  2) 토큰이 유효하면 : SecurityContext 에 인증 정보를 넣는다.
- *  3) 토큰이 잘못됐거나(만료 · 위조) 로그아웃한 토큰이면 : 인증 정보를 넣지 않고, 이유만 요청에 적어 둔다.
+ *  3) 토큰이 잘못됐으면(만료 · 위조) : 인증 정보를 넣지 않고, 이유만 요청에 적어 둔다.
  *  ----------------------------------------------------------------------------------
  *  이 필터는 요청을 막지 않는다. 막을지 말지는 SecurityConfig 의 주소 규칙이 정하고,
  *  막힌 경우의 401 응답은 JwtAuthenticationEntryPoint 가 여기서 적어 둔 이유를 읽어서 만든다.
@@ -33,11 +33,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public static final String JWT_ERROR_ATTRIBUTE = "jwtError";
 
     private final JwtTokenProvider jwtTokenProvider;
-    private final TokenBlacklist tokenBlacklist;
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, TokenBlacklist tokenBlacklist) {
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
         this.jwtTokenProvider = jwtTokenProvider;
-        this.tokenBlacklist = tokenBlacklist;
     }
 
     @Override
@@ -49,20 +47,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (token != null) {
             try {
-                if (tokenBlacklist.contains(token)) {
-                    // 로그아웃한 토큰 (AUTH-004)
-                    request.setAttribute(JWT_ERROR_ATTRIBUTE, "로그아웃된 토큰입니다. 다시 로그인해주세요.");
+                CustomUserDetails user = jwtTokenProvider.parseAccessToken(token);
 
-                } else {
-                    CustomUserDetails user = jwtTokenProvider.parseAccessToken(token);
+                UsernamePasswordAuthenticationToken authentication =
+                        UsernamePasswordAuthenticationToken.authenticated(user, null, user.getAuthorities());
 
-                    UsernamePasswordAuthenticationToken authentication =
-                            UsernamePasswordAuthenticationToken.authenticated(user, null, user.getAuthorities());
-
-                    SecurityContext context = SecurityContextHolder.createEmptyContext();
-                    context.setAuthentication(authentication);
-                    SecurityContextHolder.setContext(context);
-                }
+                SecurityContext context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(authentication);
+                SecurityContextHolder.setContext(context);
 
             } catch (ExpiredJwtException e) {
                 request.setAttribute(JWT_ERROR_ATTRIBUTE, "토큰이 만료되었습니다. 다시 로그인해주세요.");

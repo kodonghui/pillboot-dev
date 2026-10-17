@@ -1,4 +1,4 @@
-package org.semiproject.pillbadeumserver.global.config;
+package org.semiproject.pillbadeumserver.common.config;
 
 import java.net.URI;
 import java.util.List;

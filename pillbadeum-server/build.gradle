@@ -43,9 +43,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
 
-    // WebSocket을 쓸 때만 추가
-    implementation 'org.springframework.boot:spring-boot-starter-websocket'
-
     // 벡터 검색(Qdrant). 기본은 꺼져 있고 QDRANT_ENABLED=true일 때만 연결한다.
     implementation 'io.qdrant:client:1.19.0'
 

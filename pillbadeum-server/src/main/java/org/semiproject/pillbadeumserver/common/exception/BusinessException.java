@@ -5,7 +5,7 @@ package org.semiproject.pillbadeumserver.common.exception;
  *  GlobalExceptionHandler 는 이 예외 하나만 잡으면, ErrorCode 를 보고 상태 코드와 응답을 만든다.
  *  그래서 새 예외를 만들 때 GlobalExceptionHandler 를 고칠 필요가 없다.
  *  - errorCode : 상태 코드 · 자체 코드 · 설명
- *  - message   : 화면에 보여줄 상세 내용 (ErrorResponse 의 detail 로 나간다)
+ *  - message   : 화면에 보여줄 안전한 문구 (ErrorResponse 의 message로 나간다)
  * */
 public class BusinessException extends RuntimeException {
 

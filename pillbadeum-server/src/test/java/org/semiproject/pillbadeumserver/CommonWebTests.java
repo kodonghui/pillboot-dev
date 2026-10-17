@@ -15,7 +15,6 @@ import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.common.exception.GlobalExceptionHandler;
 import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
 import org.semiproject.pillbadeumserver.common.security.*;
-import org.semiproject.pillbadeumserver.common.web.DuplicateRequestInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestComponent;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -34,15 +33,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest
 @ActiveProfiles("test")
 @Import({CommonWebTests.ProbeController.class, SecurityConfig.class, JwtTokenProvider.class,
-        TokenBlacklist.class, JwtAuthenticationEntryPoint.class, JwtAccessDeniedHandler.class,
-        CorsConfig.class, GlobalExceptionHandler.class, DuplicateRequestInterceptor.class,
-        org.semiproject.pillbadeumserver.common.config.WebConfig.class,
-        org.semiproject.pillbadeumserver.global.config.WebConfig.class})
+        JwtAuthenticationEntryPoint.class, JwtAccessDeniedHandler.class,
+        CorsConfig.class, GlobalExceptionHandler.class,
+        org.semiproject.pillbadeumserver.common.config.WebConfig.class})
 class CommonWebTests {
     private static final String TEST_KEY = "cGlsbGJhZGV1bS10ZXN0LW9ubHktc2lnbmluZy1rZXktMzItYnl0ZXM";
     @Autowired MockMvc mvc;
     @Autowired JwtTokenProvider tokens;
-    @Autowired TokenBlacklist blacklist;
 
     private String token(String role) {
         return tokens.createAccessToken(7L, UUID.randomUUID() + "@example.test", role);
@@ -52,9 +49,9 @@ class CommonWebTests {
     void unauthenticatedRequestUsesCommonErrorAndDoesNotCreateSession() throws Exception {
         mvc.perform(get("/api/probe/me"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("COMMON_003"))
-                .andExpect(jsonPath("$.description").isNotEmpty())
-                .andExpect(jsonPath("$.detail").isNotEmpty())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.message").isNotEmpty())
+                .andExpect(jsonPath("$.detail").doesNotExist())
                 .andExpect(header().exists("X-Request-Id"))
                 .andExpect(cookie().doesNotExist("JSESSIONID"))
                 .andExpect(result -> org.assertj.core.api.Assertions.assertThat(
@@ -73,26 +70,18 @@ class CommonWebTests {
     @Test
     void invalidAndExpiredTokensAreRejected() throws Exception {
         mvc.perform(get("/api/probe/me").header("Authorization", "Bearer invalid-token"))
-                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("COMMON_003"));
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         String expired = Jwts.builder().subject("7").claim("loginId", "expired@example.test")
                 .claim("role", "ROLE_USER").expiration(new Date(System.currentTimeMillis() - 60_000))
                 .signWith(Keys.hmacShaKeyFor(Decoders.BASE64URL.decode(TEST_KEY))).compact();
         mvc.perform(get("/api/probe/me").header("Authorization", "Bearer " + expired))
-                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("COMMON_003"));
-    }
-
-    @Test
-    void loggedOutTokenIsRejected() throws Exception {
-        String value = token("ROLE_USER");
-        blacklist.add(value, tokens.getExpiration(value));
-        mvc.perform(get("/api/probe/me").header("Authorization", "Bearer " + value))
-                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("COMMON_003"));
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
 
     @Test
     void adminRouteChecksTokenRole() throws Exception {
         mvc.perform(get("/api/admin/probe").header("Authorization", "Bearer " + token("ROLE_USER")))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("COMMON_004"));
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
         mvc.perform(get("/api/admin/probe").header("Authorization", "Bearer " + token("ROLE_ADMIN")))
                 .andExpect(status().isOk());
     }
@@ -131,36 +120,36 @@ class CommonWebTests {
         String value = token("ROLE_USER");
         mvc.perform(post("/api/probe/echo").header("Authorization", "Bearer " + value)
                         .contentType(MediaType.APPLICATION_JSON).content("{"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON_002"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         mvc.perform(post("/api/probe/echo").header("Authorization", "Bearer " + value)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON_001"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 
     @Test
     void queryConstraintsUseInputErrorCode() throws Exception {
         mvc.perform(get("/api/probe/positive").param("count", "0")
                         .header("Authorization", "Bearer " + token("ROLE_USER")))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON_001"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 
     @Test
-    void businessAndDatabaseFailuresUseExistingErrorContract() throws Exception {
+    void businessAndDatabaseFailuresUseDocumentedErrorContract() throws Exception {
         String value = token("ROLE_USER");
         mvc.perform(get("/api/probe/not-found").header("Authorization", "Bearer " + value))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("COMMON_005"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
         mvc.perform(get("/api/probe/conflict").header("Authorization", "Bearer " + value))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("COMMON_006"))
+                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
                 .andExpect(content().string(not(containsString("private_table"))));
         mvc.perform(get("/api/probe/timeout").header("Authorization", "Bearer " + value))
-                .andExpect(status().isGatewayTimeout()).andExpect(jsonPath("$.code").value("COMMON_010"));
+                .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("EXTERNAL_TIMEOUT"));
     }
 
     @Test
     void mvcErrorsPreserveStatusAndAllowHeader() throws Exception {
         String value = token("ROLE_USER");
         mvc.perform(get("/api/probe/missing-route").header("Authorization", "Bearer " + value))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("COMMON_998"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
         mvc.perform(get("/api/probe/echo").header("Authorization", "Bearer " + value))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(header().string("Allow", containsString("POST")));
@@ -169,7 +158,7 @@ class CommonWebTests {
     @Test
     void unexpectedErrorHidesInternalDetails() throws Exception {
         mvc.perform(get("/api/probe/failure").header("Authorization", "Bearer " + token("ROLE_USER")))
-                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("COMMON_999"))
+                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
                 .andExpect(content().string(not(containsString("private_table"))));
     }
 

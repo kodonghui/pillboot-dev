@@ -31,7 +31,7 @@ public class JwtAccessDeniedHandler implements AccessDeniedHandler {
                        AccessDeniedException accessDeniedException) throws IOException {
 
         ErrorResponse errorResponse = new ErrorResponse(
-                ErrorCode.FORBIDDEN.getCode(), ErrorCode.FORBIDDEN.getDescription(), "이 요청을 처리할 권한이 없습니다.");
+                ErrorCode.FORBIDDEN.getCode(), "이 요청을 처리할 권한이 없습니다.");
 
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

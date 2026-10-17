@@ -31,16 +31,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
-    private final TokenBlacklist tokenBlacklist;
     private final JwtAuthenticationEntryPoint authenticationEntryPoint;
     private final JwtAccessDeniedHandler accessDeniedHandler;
 
     public SecurityConfig(JwtTokenProvider jwtTokenProvider,
-                          TokenBlacklist tokenBlacklist,
                           JwtAuthenticationEntryPoint authenticationEntryPoint,
                           JwtAccessDeniedHandler accessDeniedHandler) {
         this.jwtTokenProvider = jwtTokenProvider;
-        this.tokenBlacklist = tokenBlacklist;
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
     }
@@ -50,7 +47,10 @@ public class SecurityConfig {
             @Value("${springdoc.api-docs.enabled:false}") boolean docsEnabled) throws Exception {
 
         http
-                /* 목차. 1. 세션 · 기본 로그인 화면 · Basic 인증 · CSRF 끄기 (토큰 방식이므로 필요 없다) */
+                /* 목차. 1. 세션 없이 Authorization Bearer 토큰을 받는다.
+                 * 브라우저가 자동 전송하는 인증 쿠키를 쓰지 않으므로 이 방식에서는 CSRF를 끈다.
+                 * 쿠키 인증으로 바꿀 경우 CORS·CSRF·로그인/로그아웃 응답도 함께 재검토한다.
+                 */
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -68,19 +68,21 @@ public class SecurityConfig {
                     auth
 
                         /* 목차. 3-1. 공통 */
-                        // SSE(챗봇 답변 스트리밍)가 끝날 때의 내부 처리. 첫 요청에서 이미 검사를 통과했다.
+                        // 첫 요청에서 인증을 마친 비동기 처리·오류 응답의 내부 재디스패치.
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
 
                         /* 목차. 3-2. 회원 (AUTH) */
-                        // 회원가입 약관 · 동의 항목 조회 (AUTH-001)
-                        .requestMatchers(HttpMethod.GET, "/api/auth/terms", "/api/auth/terms/**").permitAll()
+                        // 회원가입 약관 · 이메일 중복 미리 확인 (AUTH-001, AUTH-002)
+                        .requestMatchers(HttpMethod.GET, "/api/auth/consent-policies",
+                                "/api/auth/email-availability").permitAll()
                         // 회원가입 (AUTH-002)
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup").permitAll()
                         // 로그인 (AUTH-003)
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        // 로그아웃(AUTH-004)은 토큰이 있어야 하므로 기본 규칙(authenticated)을 따른다.
+                        // 로그아웃 (AUTH-004): 화면에서 토큰을 지운다. 만료·미보유 상태도 허용한다.
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
 
                         /* 목차. 3-3. 프로필 (PROF)        /api/profiles/** */
 
@@ -106,7 +108,7 @@ public class SecurityConfig {
                 )
 
                 /* 목차. 5. JWT 필터 등록 */
-                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklist),
+                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),
                         UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

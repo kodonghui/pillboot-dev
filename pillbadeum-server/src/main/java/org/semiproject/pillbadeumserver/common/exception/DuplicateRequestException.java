@@ -1,7 +1,7 @@
 package org.semiproject.pillbadeumserver.common.exception;
 
 /* 설명. 같은 요청이 아직 처리 중인데 또 들어왔을 때 -> 409 Conflict (COMMON-002)
- *  @PreventDuplicateRequest 가 붙은 API 에서 DuplicateRequestInterceptor 가 던진다. */
+ *  사진 회원 단위/채팅방 단위의 처리 중 제어를 구현하는 서비스에서 던집니다. */
 public class DuplicateRequestException extends BusinessException {
 
     public DuplicateRequestException() {

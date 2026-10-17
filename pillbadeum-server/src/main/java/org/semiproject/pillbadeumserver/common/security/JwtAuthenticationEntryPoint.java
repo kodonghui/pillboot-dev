@@ -16,7 +16,7 @@ import java.io.IOException;
  *  ----------------------------------------------------------------------------------
  *  보안 필터에서 생긴 거절은 GlobalExceptionHandler 까지 가지 않으므로, ErrorResponse 를 여기서 직접 JSON 으로 쓴다.
  *  프론트엔드는 401 을 받으면 저장된 토큰을 지우고 로그인 화면으로 보내면 된다.
- *  - 401 : 누구인지 모른다 (토큰 없음, 만료, 위조, 로그아웃한 토큰)   -> 이 클래스
+ *  - 401 : 누구인지 모른다 (토큰 없음, 만료, 위조)                    -> 이 클래스
  *  - 403 : 누구인지는 아는데 권한이 없다                               -> JwtAccessDeniedHandler
  * */
 @Component
@@ -36,8 +36,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         Object jwtError = request.getAttribute(JwtAuthenticationFilter.JWT_ERROR_ATTRIBUTE);
         String detail = jwtError != null ? jwtError.toString() : "로그인이 필요합니다.";
 
-        ErrorResponse errorResponse = new ErrorResponse(
-                ErrorCode.UNAUTHORIZED.getCode(), ErrorCode.UNAUTHORIZED.getDescription(), detail);
+        ErrorResponse errorResponse = new ErrorResponse(ErrorCode.UNAUTHORIZED.getCode(), detail);
 
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
