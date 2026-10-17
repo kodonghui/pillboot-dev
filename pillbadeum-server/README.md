@@ -5,8 +5,6 @@ Java 21 / Spring Boot 4.1.1 / Gradle Wrapper 9.8.1 / MySQL 8.4.
 
 [패키지 안내](docs/PACKAGE_GUIDE.md) · [SQL 안내](sql/README.md)
 
-실제 수업 소스 대조 결과: 제공된 9개 수업 폴더에서 기본 구현과 선택 확장을 구분했습니다.
-
 ## 1. 개인 설정
 
 명령은 이 폴더(`pillbadeum-server`)에서 실행합니다. 이미 있는 개인 `.env`는 덮어쓰지 마세요.
