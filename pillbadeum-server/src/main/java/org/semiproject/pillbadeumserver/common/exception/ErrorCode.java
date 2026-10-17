@@ -8,11 +8,14 @@ import org.springframework.http.HttpStatus;
  *  예외를 던질 때 상태 코드를 직접 고르지 않고 이 목록에서 고르면, 같은 상황에 같은 응답이 나간다.
  *  ----------------------------------------------------------------------------------
  *  사용 규칙
- *  1) 대부분은 공통 예외로 충분하다. (NotFoundException, ForbiddenException, DuplicateException 등)
+ *  1) 대부분은 공통 예외로 충분하다. (NotFoundException, ForbiddenException, InvalidFileException 등)
  *     예) throw new NotFoundException("존재하지 않는 프로필입니다.");
- *  2) 내 기능만의 코드가 꼭 필요하면 아래 '도메인별 코드' 자리에 내 도메인 접두사로 추가하고
+ *  2) 중복 값·중복 요청·로그인 실패는 별도 예외 클래스 없이 기존 코드를 사용한다.
+ *     예) throw new BusinessException(ErrorCode.DUPLICATE, "이미 등록된 값입니다.");
+ *     같은 방식으로 ErrorCode.DUPLICATE_REQUEST, ErrorCode.LOGIN_FAILED 를 사용한다.
+ *  3) 내 기능만의 코드가 꼭 필요하면 아래 '도메인별 코드' 자리에 내 도메인 접두사로 추가하고
  *     throw new BusinessException(ErrorCode.XXX, "상세 메시지"); 로 던진다.
- *  3) 외부에 보내는 code는 API 명세의 영문 이름을 사용한다.
+ *  4) 외부에 보내는 code는 API 명세의 영문 이름을 사용한다.
  *     기능별 실패는 해당 API의 오류 표에 맞는 코드를 추가한다.
  * */
 public enum ErrorCode {

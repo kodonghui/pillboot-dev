@@ -67,7 +67,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ''
 Write-Host 'Database/account/schema setup completed. Existing data and passwords were preserved.'
 Write-Host 'This script creates missing objects only; it does not upgrade existing columns or constraints.'
-Write-Host 'For the original 10-table database, read sql/README.md and apply the explicit 03 upgrade after backup.'
+Write-Host 'Use an empty development database for the ERD Cloud schema. For existing databases, read sql/README.md first.'
 Write-Host 'Copy .env.example to .env if needed, then fill DB_USERNAME, DB_PASSWORD and JWT_SECRET.'
 Write-Host 'Run .\gradlew.bat bootRun from the project directory.'
 Write-Host 'Sample data is optional; use -IncludeTestData only on a fresh empty development database.'

@@ -16,15 +16,15 @@ import java.util.Date;
  *  ----------------------------------------------------------------------------------
  *  토큰에 담는 값 (Payload)
  *  - sub     : 회원 PK
- *  - loginId : 로그인 아이디
+ *  - loginId : 회원 email에서 전달한 인증 식별자 (별도 login_id 컬럼을 요구하지 않음)
  *  - role    : 권한 ('ROLE_USER' 등)
  *  - iat, exp: 발급 시각, 만료 시각
  *  주의. 페이로드는 암호화되지 않는다. 누구나 디코딩해서 읽을 수 있으므로 이름 · 연락처 · 복용 약 같은 정보는 넣지 않는다.
  *  ----------------------------------------------------------------------------------
  *  로그인 흐름 (회원 담당 MemberService 에서)
- *  1) loginId 로 회원을 찾는다. 없으면 LoginFailedException
- *  2) passwordEncoder.matches(입력 비밀번호, 저장된 해시) 가 false 면 LoginFailedException
- *  3) jwtTokenProvider.createAccessToken(member.getMemberId(), member.getLoginId(), member.getRole())
+ *  1) email 로 회원을 찾고 passwordEncoder.matches(입력 비밀번호, 저장된 해시)로 비밀번호를 확인한다.
+ *  2) 회원이 없거나 비밀번호가 틀리면 BusinessException(ErrorCode.LOGIN_FAILED, "이메일 또는 비밀번호가 맞지 않습니다.")를 던진다.
+ *  3) 회원의 member_id, email, user_role 값을 createAccessToken(memberId, email, userRole)에 전달한다.
  * */
 @Component
 public class JwtTokenProvider {

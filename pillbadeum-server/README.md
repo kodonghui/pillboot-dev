@@ -1,10 +1,11 @@
 # pillbadeum-server
 
 Java 21 / Spring Boot 4.1.1 / Gradle Wrapper 9.8.1 / MySQL 8.4.
-팀 설계와 수업 자료를 대조해 실행 환경·공통 코드·SQL을 정리한 작업본입니다.
-회원가입·로그인·업무 Controller/Entity 전체를 구현한 상태는 아닙니다.
+팀 설계와 실제 학원 소스를 대조해 실행 환경·공통 코드·SQL을 정리했습니다.
 
-검토 근거와 결정 기록 · [패키지 안내](docs/PACKAGE_GUIDE.md) · [SQL 안내](sql/README.md)
+[패키지 안내](docs/PACKAGE_GUIDE.md) · [SQL 안내](sql/README.md)
+
+실제 수업 소스 대조 결과: 제공된 9개 수업 폴더에서 기본 구현과 선택 확장을 구분했습니다.
 
 ## 1. 개인 설정
 
@@ -57,7 +58,8 @@ Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 ```
 
 클라이언트를 못 찾으면 `-MySqlClient 'C:\...\mysql.exe'`를 지정합니다.
-스키마는 기존 10개 + 첨부 ERD 누락 4개 + API의 푸시 구독 1개로 **MySQL 15개**입니다.
+스키마는 사용자가 제공한 **ERD Cloud 기준 MySQL 14개 테이블·114개 컬럼**입니다.
+ERD 밖의 API 기반 추가 표·컬럼은 포함하지 않으며, 표명 대소문자와 컬럼명도 원문을 따릅니다.
 Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 
 ### 신규 DB: Docker Compose
@@ -74,16 +76,16 @@ docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/01_PILLBADEUM_
 
 ### 이미 원본 10개 테이블이 있는 DB
 
-백업 후 [SQL 안내](sql/README.md)의 사전 조회와 `03_PILLBADEUM_UPGRADE_FROM_10_TABLES.sql`을 사용합니다.
-`01` 재실행은 기존 컬럼·제약을 변경하지 않습니다. 준비 스크립트도 업그레이드를 자동 적용하지 않습니다.
-`03`은 aa15bf7 원본 상태 전용 1회 변경이며, 중복이나 예상하지 못한 채팅 순서가 있으면 중단합니다.
-기존 DB에서 `02` 샘플을 다시 실행하지 마세요.
+이번 SQL은 비어 있는 개발 DB의 최초 설정용입니다. 기존 10개/15개 테이블 DB에 그대로 실행하지 마세요.
+`01`은 기존 컬럼·제약을 변경하지 않습니다. 데이터가 있으면 백업 후 새 DB에서 먼저 확인하고
+컬럼명·길이·필수값을 대조하여 별도로 옮깁니다. 이전 API 확장용 자동 업그레이드 파일은 제거했습니다.
 
 ### 선택: 샘플 데이터
 
 빈 개발 DB에서만 `02_PILLBADEUM_TEST_DATA.sql`을 한 번 실행합니다.
 준비 스크립트는 `-IncludeTestData`를 지원합니다.
-사진·후보·DUR·푸시 구독은 초기 데이터가 없어도 됩니다.
+사진·후보·DUR은 초기 데이터가 없어도 됩니다.
+ERD의 `DRUG.etc_otc UNIQUE`를 유지하므로 샘플 약은 ETC·OTC 각 1개입니다.
 샘플 품목 코드/약 이름의 공식 일치 여부와 샘플 비밀번호 평문은 검증하지 않았습니다.
 화면·관계 확인용 샘플을 실제 API·로그인 성공용 데이터로 간주하지 않습니다.
 
@@ -104,6 +106,7 @@ macOS/Linux: `./gradlew bootRun`.
 **Bearer JWT / STATELESS / 1시간 / Refresh Token·차단목록 없음**을 적용합니다.
 로그인 담당자는 발급 토큰을 JSON 응답으로 제공하고, 프런트는 `Authorization: Bearer <토큰>`을 보냅니다.
 로그아웃은 프런트가 토큰을 제거하며 복사된 토큰은 원래 만료 시각까지 유효합니다.
+Refresh Token은 학원 보안 자료의 선택 확장 부록에 있습니다. 현재 프로젝트의 1시간 만료·재로그인 정책에 따라 도입하지 않습니다.
 공개 API는 GET 약관·이메일 확인과 POST 가입·로그인·로그아웃 5개이며 정확한 경로는 SecurityConfig에 있습니다.
 
 **API와 Functional Spec ver.4에는 ACCESS_TOKEN 쿠키 방식이 적혀 있습니다.**
