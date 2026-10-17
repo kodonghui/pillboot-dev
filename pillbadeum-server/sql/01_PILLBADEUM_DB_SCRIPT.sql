@@ -2,6 +2,7 @@
 -- vector_point는 Qdrant 모델이므로 MySQL 생성 대상에서 제외합니다.
 -- 원문의 PK/FK를 생성 시점에 유효하도록 CREATE TABLE 내부에 배치했습니다.
 -- CONSENT.terms_title의 VARHCHAR(30)는 실행 불가능한 자료형 오타여서 VARCHAR(30)로 수정했습니다.
+-- 사용자 결정에 따라 chat_session.snap_pregnant는 BOOLEAN으로 통일하고 기존 NULL 허용은 유지합니다.
 -- 나머지 표명/컬럼명/자료형/NULL/기본값/UNIQUE는 내보내기 원문을 유지합니다.
 -- 00번으로 DB를 준비한 뒤 대상 DB를 선택하여 실행하세요.
 -- 기존 테이블을 삭제하거나 변경하지 않습니다. 기존 DB의 변경은 별도 검토가 필요합니다.
@@ -112,7 +113,7 @@ CREATE TABLE IF NOT EXISTS `chat_session` (
 	`updated_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '마지막 대화 시각, 100일 뒤 삭제 기준',
 	`snap_birth_year`	BIGINT	NOT NULL	COMMENT '세션 시작 첫 질문에 들어갈 정보',
 	`snap_gender`	VARCHAR(10)	NOT NULL	COMMENT '//',
-	`snap_pregnant`	VARCHAR(10)	NULL	COMMENT '//',
+	`snap_pregnant`	BOOLEAN	NULL	COMMENT '//',
 	PRIMARY KEY (`session_id`),
 	FOREIGN KEY (`member_id`) REFERENCES `MEMBER` (`member_id`),
 	FOREIGN KEY (`profile_id`) REFERENCES `PROFILE` (`profile_id`)

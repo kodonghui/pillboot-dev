@@ -41,7 +41,7 @@ class SchemaContractTests {
             assertColumn(connection, "PROFILE", "realationship_type", "varchar", 10L, "NO", null);
             assertColumn(connection, "chat_message", "trun_no", "int", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_birth_year", "bigint", null, "NO", null);
-            assertColumn(connection, "chat_session", "snap_pregnant", "varchar", 10L, "YES", null);
+            assertColumn(connection, "chat_session", "snap_pregnant", "tinyint", null, "YES", null);
             assertColumn(connection, "my_drug", "end_date", "date", null, "NO", null);
             assertColumn(connection, "my_drug", "dose_times", "varchar", 50L, "NO", "07:00,11:00,17:00");
             assertColumn(connection, "CONSENT", "terms_title", "varchar", 30L, "NO", null);
@@ -83,6 +83,16 @@ class SchemaContractTests {
                 long room = insert(connection,
                         "INSERT INTO chat_session(member_id,profile_id,created_at,snap_birth_year,snap_gender) "
                                 + "VALUES(?,?,CURRENT_TIMESTAMP,2000,'FEMALE')", member, profile);
+                assertThat(count(connection, "SELECT COUNT(*) FROM chat_session WHERE session_id=? AND snap_pregnant IS NULL", room))
+                        .isEqualTo(1);
+                for (boolean pregnant : new boolean[]{false, true}) {
+                    execute(connection, "UPDATE PROFILE SET profile_pregnant=? WHERE profile_id=?", pregnant, profile);
+                    execute(connection, "UPDATE chat_session SET snap_pregnant="
+                            + "(SELECT profile_pregnant FROM PROFILE WHERE profile_id=?) WHERE session_id=?", profile, room);
+                    assertThat(count(connection, "SELECT COUNT(*) FROM chat_session cs JOIN PROFILE p ON p.profile_id=cs.profile_id "
+                            + "WHERE cs.session_id=? AND cs.snap_pregnant=p.profile_pregnant AND cs.snap_pregnant=?", room, pregnant))
+                            .isEqualTo(1);
+                }
                 execute(connection, "INSERT INTO chat_message(session_id,trun_no,role,content) VALUES(?,1,'user','question')", room);
                 execute(connection, "INSERT INTO chat_message(session_id,trun_no,role,content) VALUES(?,1,'assistant','answer')", room);
                 execute(connection, "INSERT INTO chat_summary(session_id,from_turn,to_turn,content,created_at) "

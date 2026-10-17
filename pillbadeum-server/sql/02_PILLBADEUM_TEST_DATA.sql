@@ -84,8 +84,7 @@ SELECT p.member_id, p.profile_id,
        CONCAT('resp_seed_', p.profile_id, '_', s.session_no),
        DATE_ADD('2026-10-11 09:00:00', INTERVAL (p.profile_id * 3 + s.session_no) HOUR),
        DATE_ADD('2026-10-11 09:10:00', INTERVAL (p.profile_id * 3 + s.session_no) HOUR),
-       p.profile_birth_year, p.profile_gender,
-       CASE WHEN p.profile_pregnant THEN 'TRUE' ELSE 'FALSE' END
+       p.profile_birth_year, p.profile_gender, p.profile_pregnant
 FROM PROFILE p
 CROSS JOIN (
     SELECT 1 AS session_no, '복용 방법' AS topic UNION ALL
