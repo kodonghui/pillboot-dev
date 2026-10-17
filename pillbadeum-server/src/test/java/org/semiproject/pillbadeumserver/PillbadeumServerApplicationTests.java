@@ -44,12 +44,35 @@ class PillbadeumServerApplicationTests {
             try (var rows = statement.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()")) {
                 while (rows.next()) tables.add(rows.getString(1));
             }
-            assertThat(tables).containsExactlyInAnyOrder("MEMBER", "CONSENT", "PROFILE", "CONSENT_HISTORY",
+            Set<String> expectedTables = Set.of("MEMBER", "CONSENT", "PROFILE", "CONSENT_HISTORY",
                     "notification_setting", "DRUG", "my_drug", "chat_session", "chat_message", "chat_summary",
                     "PHOTO", "OCR_CANDIDATE", "DUR_WARNING", "DUR_INTERACTION");
+            // Windows MySQL은 이름을 소문자로 보관할 수 있습니다. Linux 기본값에서는 원문 대소문자까지 검증합니다.
+            try (var rows = statement.executeQuery("SELECT @@lower_case_table_names")) {
+                rows.next();
+                if (rows.getInt(1) != 0) {
+                    tables = tables.stream().map(name -> name.toLowerCase(java.util.Locale.ROOT))
+                            .collect(java.util.stream.Collectors.toSet());
+                    expectedTables = expectedTables.stream().map(name -> name.toLowerCase(java.util.Locale.ROOT))
+                            .collect(java.util.stream.Collectors.toSet());
+                }
+            }
+            assertThat(tables).containsExactlyInAnyOrderElementsOf(expectedTables);
             try (var rows = statement.executeQuery("SELECT COUNT(*) FROM MEMBER")) {
                 rows.next();
                 if (rows.getInt(1) == 0) {
+                    // 롤백해도 AUTO_INCREMENT는 되돌아가지 않습니다. 샘플이 ID 1을 가정하지 않는지 검증합니다.
+                    connection.setAutoCommit(false);
+                    try {
+                        statement.executeUpdate("INSERT INTO MEMBER(email,password_hash,nickname,user_role,created_at,updated_at) "
+                                + "VALUES('seed-rollback@example.test','test-only','fixture','ROLE_USER',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+                        statement.executeUpdate("INSERT INTO CONSENT(terms_type,terms_version,terms_title,terms_content,"
+                                + "is_required,is_active,effective_at,created_at) "
+                                + "VALUES('ROLLBACK_TEST','test','fixture','fixture',FALSE,FALSE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+                    } finally {
+                        connection.rollback();
+                        connection.setAutoCommit(true);
+                    }
                     ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/02_PILLBADEUM_TEST_DATA.sql"));
                 }
             }

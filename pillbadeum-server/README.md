@@ -5,8 +5,6 @@ Java 21 / Spring Boot 4.1.1 / Gradle Wrapper 9.8.1 / MySQL 8.4.
 
 [패키지 안내](docs/PACKAGE_GUIDE.md) · [SQL 안내](sql/README.md)
 
-실제 수업 소스 대조 결과: 제공된 9개 수업 폴더에서 기본 구현과 선택 확장을 구분했습니다.
-
 ## 1. 개인 설정
 
 명령은 이 폴더(`pillbadeum-server`)에서 실행합니다. 이미 있는 개인 `.env`는 덮어쓰지 마세요.
@@ -154,6 +152,14 @@ MySQL이 원본이며 Qdrant 장애 시 최근 대화/요약으로 답하는 fal
 
 기본 테스트는 MySQL 없이 실제 보안 필터·CORS·공통 오류 및 로컬 HTTP 외부 호출을 검증합니다.
 실제 DB 검증은 별도 **pill_test** DB에서만 실행합니다.
+처음 실행하기 전에 관리자 연결에서 테스트 DB와 개발 계정 권한을 준비합니다.
+00번과 MySQL Compose는 업무 DB인 pilldb만 준비하므로 이 단계는 별도입니다.
+
+```sql
+CREATE DATABASE IF NOT EXISTS pill_test
+    CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+GRANT ALL PRIVILEGES ON pill_test.* TO 'pill'@'%';
+```
 
 ```powershell
 $env:MYSQL_TEST_URL = 'jdbc:mysql://localhost:3306/pill_test?connectionTimeZone=Asia/Seoul&forceConnectionTimeZoneToSession=true'

@@ -24,33 +24,40 @@ INSERT INTO CONSENT (terms_type, terms_version, terms_title, terms_content, is_r
 ('MEDICATION_REMINDER', '1.0', '복약 알림 수신 동의', '등록된 복약 시간에 맞추어 알림을 발송합니다.', FALSE, TRUE, '2026-10-01 00:00:00', '2026-10-01 00:00:00');
 
 -- 3-3. 회원당 본인·가족 프로필 3개, 총 15개
+-- 자동 증가 시작값과 관계없이 이메일로 방금 넣은 회원을 연결합니다.
 INSERT INTO PROFILE (member_id, profile_name, realationship_type, profile_birth_year, profile_gender, profile_height, profile_weight, profile_pregnant, created_at, updated_at) VALUES
-(1, '민지', 'SELF', 1995, 'FEMALE', 163, 52, FALSE, '2026-10-01 09:00:00', '2026-10-01 09:00:00'),
-(1, '엄마', 'MOTHER', 1968, 'FEMALE', 158, 57, FALSE, '2026-10-01 09:00:00', '2026-10-01 09:00:00'),
-(1, '아들 도윤', 'CHILD', 2020, 'MALE', 105, 17, FALSE, '2026-10-01 09:00:00', '2026-10-01 09:00:00'),
-(2, '준호', 'SELF', 1990, 'MALE', 178, 74, FALSE, '2026-10-02 10:00:00', '2026-10-02 10:00:00'),
-(2, '아버지', 'FATHER', 1962, 'MALE', 171, 70, FALSE, '2026-10-02 10:00:00', '2026-10-02 10:00:00'),
-(2, '딸 지아', 'CHILD', 2018, 'FEMALE', 116, 21, FALSE, '2026-10-02 10:00:00', '2026-10-02 10:00:00'),
-(3, '서연', 'SELF', 1993, 'FEMALE', 167, 55, FALSE, '2026-10-03 11:00:00', '2026-10-03 11:00:00'),
-(3, '할머니', 'FAMILY', 1945, 'FEMALE', 150, 48, FALSE, '2026-10-03 11:00:00', '2026-10-03 11:00:00'),
-(3, '남편', 'SPOUSE', 1991, 'MALE', 180, 78, FALSE, '2026-10-03 11:00:00', '2026-10-03 11:00:00'),
-(4, '현우', 'SELF', 1988, 'MALE', 175, 69, FALSE, '2026-10-04 12:00:00', '2026-10-04 12:00:00'),
-(4, '어머니', 'MOTHER', 1965, 'FEMALE', 155, 54, FALSE, '2026-10-04 12:00:00', '2026-10-04 12:00:00'),
-(4, '아들 민석', 'CHILD', 2016, 'MALE', 124, 25, FALSE, '2026-10-04 12:00:00', '2026-10-04 12:00:00'),
-(5, '관리자', 'SELF', 1985, 'UNKNOWN', NULL, NULL, FALSE, '2026-10-05 13:00:00', '2026-10-05 13:00:00'),
-(5, '부모님', 'PARENT', 1958, 'UNKNOWN', NULL, NULL, FALSE, '2026-10-05 13:00:00', '2026-10-05 13:00:00'),
-(5, '테스트 자녀', 'CHILD', 2015, 'UNKNOWN', NULL, NULL, FALSE, '2026-10-05 13:00:00', '2026-10-05 13:00:00');
+((SELECT member_id FROM MEMBER WHERE email = 'minji@pillbadeum.com'), '민지', 'SELF', 1995, 'FEMALE', 163, 52, FALSE, '2026-10-01 09:00:00', '2026-10-01 09:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'minji@pillbadeum.com'), '엄마', 'MOTHER', 1968, 'FEMALE', 158, 57, FALSE, '2026-10-01 09:00:00', '2026-10-01 09:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'minji@pillbadeum.com'), '아들 도윤', 'CHILD', 2020, 'MALE', 105, 17, FALSE, '2026-10-01 09:00:00', '2026-10-01 09:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'junho@pillbadeum.com'), '준호', 'SELF', 1990, 'MALE', 178, 74, FALSE, '2026-10-02 10:00:00', '2026-10-02 10:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'junho@pillbadeum.com'), '아버지', 'FATHER', 1962, 'MALE', 171, 70, FALSE, '2026-10-02 10:00:00', '2026-10-02 10:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'junho@pillbadeum.com'), '딸 지아', 'CHILD', 2018, 'FEMALE', 116, 21, FALSE, '2026-10-02 10:00:00', '2026-10-02 10:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'seoyeon@pillbadeum.com'), '서연', 'SELF', 1993, 'FEMALE', 167, 55, FALSE, '2026-10-03 11:00:00', '2026-10-03 11:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'seoyeon@pillbadeum.com'), '할머니', 'FAMILY', 1945, 'FEMALE', 150, 48, FALSE, '2026-10-03 11:00:00', '2026-10-03 11:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'seoyeon@pillbadeum.com'), '남편', 'SPOUSE', 1991, 'MALE', 180, 78, FALSE, '2026-10-03 11:00:00', '2026-10-03 11:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'hyunwoo@pillbadeum.com'), '현우', 'SELF', 1988, 'MALE', 175, 69, FALSE, '2026-10-04 12:00:00', '2026-10-04 12:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'hyunwoo@pillbadeum.com'), '어머니', 'MOTHER', 1965, 'FEMALE', 155, 54, FALSE, '2026-10-04 12:00:00', '2026-10-04 12:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'hyunwoo@pillbadeum.com'), '아들 민석', 'CHILD', 2016, 'MALE', 124, 25, FALSE, '2026-10-04 12:00:00', '2026-10-04 12:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'admin@pillbadeum.com'), '관리자', 'SELF', 1985, 'UNKNOWN', NULL, NULL, FALSE, '2026-10-05 13:00:00', '2026-10-05 13:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'admin@pillbadeum.com'), '부모님', 'PARENT', 1958, 'UNKNOWN', NULL, NULL, FALSE, '2026-10-05 13:00:00', '2026-10-05 13:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'admin@pillbadeum.com'), '테스트 자녀', 'CHILD', 2015, 'UNKNOWN', NULL, NULL, FALSE, '2026-10-05 13:00:00', '2026-10-05 13:00:00');
 
--- 3-4. 약관 동의 이력 3건
+-- 3-4. 약관 동의 이력 3건: 이메일·약관 종류·버전으로 샘플을 연결
 INSERT INTO CONSENT_HISTORY (member_id, terms_id, consent_status, recorded_at) VALUES
-(1, 1, 'AGREED', '2026-10-01 09:02:00'),
-(1, 2, 'AGREED', '2026-10-01 09:02:10'),
-(2, 3, 'WITHDRAWN', '2026-10-08 18:30:00');
+((SELECT member_id FROM MEMBER WHERE email = 'minji@pillbadeum.com'),
+ (SELECT terms_id FROM CONSENT WHERE terms_type = 'PERSONAL_INFO' AND terms_version = '1.0'),
+ 'AGREED', '2026-10-01 09:02:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'minji@pillbadeum.com'),
+ (SELECT terms_id FROM CONSENT WHERE terms_type = 'SENSITIVE_INFO' AND terms_version = '1.0'),
+ 'AGREED', '2026-10-01 09:02:10'),
+((SELECT member_id FROM MEMBER WHERE email = 'junho@pillbadeum.com'),
+ (SELECT terms_id FROM CONSENT WHERE terms_type = 'MARKETING' AND terms_version = '1.0'),
+ 'WITHDRAWN', '2026-10-08 18:30:00');
 
--- 3-5. 알림 설정: 회원 1은 켬, 회원 2는 끔
+-- 3-5. 알림 설정: 민지는 켬, 준호는 끔
 INSERT INTO notification_setting (member_id, push_enabled, updated_at) VALUES
-(1, TRUE, '2026-10-10 08:00:00'),
-(2, FALSE, '2026-10-10 08:05:00');
+((SELECT member_id FROM MEMBER WHERE email = 'minji@pillbadeum.com'), TRUE, '2026-10-10 08:00:00'),
+((SELECT member_id FROM MEMBER WHERE email = 'junho@pillbadeum.com'), FALSE, '2026-10-10 08:05:00');
 
 -- 3-6. ERD의 etc_otc UNIQUE에 맞춘 의약품 2개(분류값 자체를 가짜 고유값으로 바꾸지 않음)
 INSERT INTO DRUG (item_seq, name, maker, etc_otc, class_name, shape, color, form, matrial, synced_at) VALUES
