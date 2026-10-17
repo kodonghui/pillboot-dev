@@ -1,10 +1,11 @@
 # pillbadeum-server
 
 Java 21 / Spring Boot 4.1.1 / Gradle Wrapper 9.8.1 / MySQL 8.4.
-팀 설계와 수업 자료를 대조해 실행 환경·공통 코드·SQL을 정리한 작업본입니다.
-회원가입·로그인·업무 Controller/Entity 전체를 구현한 상태는 아닙니다.
+팀 설계와 실제 학원 소스를 대조해 실행 환경·공통 코드·SQL을 정리했습니다.
 
 검토 근거와 결정 기록 · [패키지 안내](docs/PACKAGE_GUIDE.md) · [SQL 안내](sql/README.md)
+
+실제 수업 소스 대조 결과: 제공된 9개 수업 폴더에서 기본 구현과 선택 확장을 구분했습니다.
 
 ## 1. 개인 설정
 
@@ -104,6 +105,7 @@ macOS/Linux: `./gradlew bootRun`.
 **Bearer JWT / STATELESS / 1시간 / Refresh Token·차단목록 없음**을 적용합니다.
 로그인 담당자는 발급 토큰을 JSON 응답으로 제공하고, 프런트는 `Authorization: Bearer <토큰>`을 보냅니다.
 로그아웃은 프런트가 토큰을 제거하며 복사된 토큰은 원래 만료 시각까지 유효합니다.
+Refresh Token은 학원 보안 자료의 선택 확장 부록에 있습니다. 현재 프로젝트의 1시간 만료·재로그인 정책에 따라 도입하지 않습니다.
 공개 API는 GET 약관·이메일 확인과 POST 가입·로그인·로그아웃 5개이며 정확한 경로는 SecurityConfig에 있습니다.
 
 **API와 Functional Spec ver.4에는 ACCESS_TOKEN 쿠키 방식이 적혀 있습니다.**

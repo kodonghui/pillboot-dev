@@ -208,7 +208,7 @@ public class OpenAiClient {
     }
 
     /* 설명. Responses API 요청 본문
-     *  - store : false 면 OpenAI 가 대화를 보관하지 않는다. (복용 약 · 건강 정보가 담기므로 끈다)
+     *  - store : false 로 Responses 응답 객체 저장을 비활성화한다. 제공자의 모든 보관 정책을 제어하는 값은 아니다.
      *  - reasoning.effort : 값이 있을 때만 보낸다. 추론 기능이 없는 모델에 보내면 오류가 난다.
      * */
     private Map<String, Object> requestBody(String model, String instructions, Object input, int maxOutputTokens) {
@@ -246,7 +246,7 @@ public class OpenAiClient {
 
         if ("incomplete".equals(response.path("status").asString())
                 || "failed".equals(response.path("status").asString())) {
-            throw ExternalApiException.failed(API_NAME, "응답이 출력 토큰 상한에서 끊겼습니다.", null);
+            throw ExternalApiException.failed(API_NAME, "AI 응답 생성이 완료되지 않았습니다.", null);
         }
 
         StringBuilder text = new StringBuilder();
