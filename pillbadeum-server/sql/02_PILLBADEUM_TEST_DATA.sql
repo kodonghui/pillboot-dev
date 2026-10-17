@@ -1,9 +1,12 @@
 -- 선택 실행: 테이블만 만든 비어 있는 개발 DB에 한 번만 실행하세요.
 -- 실제 사용자 DB에는 실행하지 않습니다. 로그인 API는 아직 구현되지 않았습니다.
+-- 약 item_seq와 약 이름/제조사의 조합은 공식 검증되지 않은 화면/DB용 fixture입니다.
+-- 실제 공공데이터 호출 테스트에는 공식 응답으로 검증한 코드로 별도 준비하세요.
+-- photo/ocr_candidate/DUR/push_subscription은 실제 처리 시 생성하므로 초기에는 비웁니다.
 
 START TRANSACTION;
 
--- 3-1. 회원 5명 (모든 비밀번호는 demo1234의 BCrypt 해시 예시)
+-- 3-1. 회원 5명 (원본 BCrypt 해시 예시 유지; 평문 비밀번호 검증 전 로그인 fixture로 사용 금지)
 INSERT INTO member (email, password_hash, nickname, user_role, created_at) VALUES
 ('minji@pillbadeum.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '김민지', 'ROLE_USER', '2026-10-01 09:00:00'),
 ('junho@pillbadeum.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '이준호', 'ROLE_USER', '2026-10-02 10:00:00'),
@@ -25,6 +28,10 @@ INSERT INTO profile (member_id, profile_name, relationship_type, profile_birth_y
 (3, '서연', 'SELF', 1993, 'FEMALE', 167, 55, FALSE), (3, '할머니', 'GRANDMOTHER', 1945, 'FEMALE', 150, 48, FALSE), (3, '남편', 'SPOUSE', 1991, 'MALE', 180, 78, FALSE),
 (4, '현우', 'SELF', 1988, 'MALE', 175, 69, FALSE), (4, '어머니', 'MOTHER', 1965, 'FEMALE', 155, 54, FALSE), (4, '아들 민석', 'CHILD', 2016, 'MALE', 124, 25, FALSE),
 (5, '관리자', 'SELF', 1985, 'UNKNOWN', NULL, NULL, FALSE), (5, '부모님', 'PARENT', 1958, 'UNKNOWN', NULL, NULL, FALSE), (5, '테스트 자녀', 'CHILD', 2015, 'UNKNOWN', NULL, NULL, FALSE);
+
+-- 서버의 8색 순서와 같은 예시 색상(회원별 기존 프로필 순서).
+UPDATE profile SET color = CASE MOD(profile_id - 1, 3)
+    WHEN 0 THEN '#E03131' WHEN 1 THEN '#F76707' ELSE '#F59F00' END;
 
 -- 3-4. 약관 동의 이력 3건
 INSERT INTO consent_history (member_id, terms_id, consent_status, recorded_at) VALUES
@@ -78,28 +85,28 @@ CROSS JOIN (
     SELECT 3, '부작용'
 ) s;
 
--- 각 세션에 사용자·AI 메시지 4개씩, 총 180개
+-- 각 세션에 2턴 × 사용자·AI 메시지 2개, 총 180개
 INSERT INTO chat_message (session_id, turn_no, role, content, token_count, created_at)
 SELECT cs.session_id, m.turn_no, m.role,
-       CASE m.turn_no
+       CASE m.message_order
            WHEN 1 THEN CONCAT(cs.title, '에 대해 알려주세요.')
            WHEN 2 THEN '등록된 약과 프로필 정보를 기준으로 일반적인 복약 안내를 드립니다. 처방 변경은 의료진과 상의하세요.'
            WHEN 3 THEN '복용할 때 주의할 점도 알려주세요.'
            ELSE '이상 반응이 있거나 증상이 지속되면 복용을 중단하고 의사 또는 약사에게 상담하세요.'
        END,
        CASE WHEN m.role = 'USER' THEN 18 ELSE 42 END,
-       DATE_ADD(cs.created_at, INTERVAL m.turn_no MINUTE)
+       DATE_ADD(cs.created_at, INTERVAL m.message_order MINUTE)
 FROM chat_session cs
 CROSS JOIN (
-    SELECT 1 AS turn_no, 'USER' AS role UNION ALL
-    SELECT 2, 'ASSISTANT' UNION ALL
-    SELECT 3, 'USER' UNION ALL
-    SELECT 4, 'ASSISTANT'
+    SELECT 1 AS message_order, 1 AS turn_no, 'USER' AS role UNION ALL
+    SELECT 2, 1, 'ASSISTANT' UNION ALL
+    SELECT 3, 2, 'USER' UNION ALL
+    SELECT 4, 2, 'ASSISTANT'
 ) m;
 
 -- 각 세션에 요약 1개씩, 총 45개
 INSERT INTO chat_summary (session_id, from_turn, to_turn, content, created_at)
-SELECT session_id, 1, 4,
+SELECT session_id, 1, 2,
        CONCAT(title, ' 대화에서 복용 방법과 주의사항을 안내했으며, 이상 반응 시 전문가 상담이 필요함을 고지했다.'),
        DATE_ADD(updated_at, INTERVAL 1 MINUTE)
 FROM chat_session;

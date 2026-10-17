@@ -44,7 +44,8 @@ class PillbadeumServerApplicationTests {
                 while (rows.next()) tables.add(rows.getString(1));
             }
             assertThat(tables).containsExactlyInAnyOrder("member", "terms", "profile", "consent_history",
-                    "notification_setting", "drug", "my_drug", "chat_session", "chat_message", "chat_summary");
+                    "notification_setting", "drug", "my_drug", "chat_session", "chat_message", "chat_summary",
+                    "photo", "ocr_candidate", "dur_warning", "dur_interaction", "push_subscription");
             try (var rows = statement.executeQuery("SELECT COUNT(*) FROM member")) {
                 rows.next();
                 if (rows.getInt(1) == 0) {
@@ -76,11 +77,13 @@ class PillbadeumServerApplicationTests {
         assertThat(health.headers().firstValue("X-Request-Id")).isPresent();
         var docs = get("/v3/api-docs");
         assertThat(docs.statusCode()).isEqualTo(200);
-        assertThat(json.readTree(docs.body()).path("paths").size()).isZero();
+        assertThat(json.readTree(docs.body()).path("openapi").asString()).startsWith("3.");
+        assertThat(json.readTree(docs.body()).path("components").path("securitySchemes")
+                .path("bearerAuth").path("scheme").asString()).isEqualTo("bearer");
         assertThat(get("/swagger-ui/index.html").statusCode()).isEqualTo(200);
         var denied = get("/api/members");
         assertThat(denied.statusCode()).isEqualTo(401);
-        assertThat(json.readTree(denied.body()).path("code").asString()).isEqualTo("COMMON_003");
+        assertThat(json.readTree(denied.body()).path("code").asString()).isEqualTo("UNAUTHENTICATED");
         assertThat(denied.headers().allValues("Set-Cookie")).noneMatch(value -> value.contains("JSESSIONID"));
     }
 

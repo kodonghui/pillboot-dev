@@ -2,17 +2,15 @@ package org.semiproject.pillbadeumserver.common.exception;
 
 import jakarta.validation.ConstraintViolationException;
 import org.semiproject.pillbadeumserver.common.ErrorResponse;
-import org.semiproject.pillbadeumserver.common.util.SecretMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatusCode;
+import org.springframework.http.HttpStatus;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -26,7 +24,7 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
  *  처리 순서
  *  1) BusinessException (우리가 던진 예외 전부)  -> ErrorCode 에 적힌 상태 코드
  *  2) 입력값 검증 실패 · 요청 형식 오류          -> 400
- *  3) 업로드 용량 초과                           -> 413
+ *  3) 업로드 용량 초과                           -> 400 FILE_TOO_LARGE
  *  4) Spring MVC 표준 예외 (404, 405 등)         -> 원래 상태 코드
  *  5) 그 밖의 예외                              -> 500 (원인은 로그에만 남기고 화면에는 숨긴다)
  *  ----------------------------------------------------------------------------------
@@ -44,12 +42,12 @@ public class GlobalExceptionHandler {
 
         ErrorCode errorCode = e.getErrorCode();
 
-        // 외부 API 실패는 원인을 찾을 수 있도록 원래 예외까지 로그로 남긴다. (서비스 키 등은 가린다)
-        if (e instanceof ExternalApiException) {
-            log.warn("[외부 API 실패] {} / 원인: {}", e.getMessage(),
-                    e.getCause() != null ? SecretMasker.mask(e.getCause().toString()) : "-");
+        // 외부 응답과 예외 메시지에는 키·프롬프트·건강정보가 섞일 수 있으므로 기록하지 않는다.
+        if (e instanceof ExternalApiException external) {
+            log.warn("[외부 API 실패] api={} code={} causeType={}", external.getApiName(), errorCode.getCode(),
+                    e.getCause() != null ? e.getCause().getClass().getSimpleName() : "-");
         } else {
-            log.info("[{}] {}", errorCode.getCode(), e.getMessage());
+            log.info("[업무 요청 실패] code={}", errorCode.getCode());
         }
 
         return toResponse(errorCode, e.getMessage());
@@ -59,17 +57,12 @@ public class GlobalExceptionHandler {
      *  - @RequestBody(JSON) 검증 실패 : MethodArgumentNotValidException
      *  - @ModelAttribute(form-data) 검증 실패 : BindException
      *  MethodArgumentNotValidException 이 BindException 을 상속하므로 BindException 하나로 둘 다 잡힌다.
-     *  여러 필드가 동시에 틀렸더라도 화면에 보여주기 쉽도록 첫 번째 메시지만 담는다.
+     *  검증 메시지에 거절된 입력값이 포함될 수 있으므로 공통 문구를 보낸다.
      * */
     @ExceptionHandler(BindException.class)
     public ResponseEntity<ErrorResponse> handleBindException(BindException e) {
 
-        FieldError fieldError = e.getBindingResult().getFieldError();
-        String detail = fieldError != null
-                ? fieldError.getField() + ": " + fieldError.getDefaultMessage()
-                : "입력값을 확인해주세요.";
-
-        return toResponse(ErrorCode.INVALID_INPUT, detail);
+        return toResponse(ErrorCode.INVALID_INPUT, "입력값을 확인해주세요.");
     }
 
     @ExceptionHandler({HandlerMethodValidationException.class, ConstraintViolationException.class})
@@ -79,7 +72,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataConflict(DataIntegrityViolationException e) {
-        return toResponse(ErrorCode.DUPLICATE, "데이터 조건이 충돌합니다. 입력값을 확인해주세요.");
+        // 이 예외만으로는 UNIQUE·NOT NULL·FK 중 어떤 제약인지 안전하게 알 수 없다.
+        // 예상한 이메일 중복 등은 서비스에서 해당 API의 BusinessException으로 처리한다.
+        log.error("[DB 제약 오류] type={} location={}", e.getClass().getSimpleName(), safeLocation(e));
+        return toResponse(ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.getDescription());
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -104,30 +100,20 @@ public class GlobalExceptionHandler {
 
         log.info("[요청 형식 오류] {}", e.getClass().getSimpleName());
 
-        String detail = switch (e) {
-            case MethodArgumentTypeMismatchException m -> m.getName() + " 값의 형식이 올바르지 않습니다.";
-            case MissingServletRequestParameterException m -> m.getParameterName() + " 값이 필요합니다.";
-            case MissingServletRequestPartException m -> m.getRequestPartName() + " 파일이 필요합니다.";
-            default -> "요청 본문을 읽을 수 없습니다. JSON 형식을 확인해주세요.";
-        };
-
-        return toResponse(ErrorCode.INVALID_REQUEST_FORMAT, detail);
+        return toResponse(ErrorCode.INVALID_REQUEST_FORMAT, "요청 형식과 필수 입력값을 확인해주세요.");
     }
 
-    /* 목차. 3. 업로드 용량 초과 -> 413 (application.yaml 의 spring.servlet.multipart.* 기준) */
+    /* 목차. 3. 업로드 용량 초과 -> 400 (API 공통 계약) */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException e) {
 
-        ErrorResponse body = new ErrorResponse(ErrorCode.INVALID_FILE.getCode(),
-                ErrorCode.INVALID_FILE.getDescription(), "업로드할 수 있는 파일 크기를 넘었습니다.");
-
-        return ResponseEntity.status(HttpStatusCode.valueOf(413)).body(body);
+        return toResponse(ErrorCode.FILE_TOO_LARGE, ErrorCode.FILE_TOO_LARGE.getDescription());
     }
 
     /* 목차. 4 ~ 5. 위에서 처리하지 못한 나머지 예외
      *  Spring MVC 의 표준 예외(없는 주소 404, 지원하지 않는 메서드 405 등)는
      *  org.springframework.web.ErrorResponse 를 구현하고 있으므로 원래 상태 코드를 살려서 응답한다.
-     *  그 밖의 예외는 500 으로 응답하되, 원인(e.getMessage())은 로그에만 남기고 화면에는 보내지 않는다.
+     *  그 밖의 예외는 500으로 응답한다. 원인 메시지·외부 응답 본문은 로그와 응답에 넣지 않는다.
      *  SQL, 테이블 이름, 내부 구조가 그대로 노출될 수 있기 때문이다. (COMMON-004)
      * */
     @ExceptionHandler(Exception.class)
@@ -137,21 +123,33 @@ public class GlobalExceptionHandler {
 
             log.info("[요청 처리 실패] {}", e.getClass().getSimpleName());
 
-            ErrorResponse body = new ErrorResponse(ErrorCode.REQUEST_FAILED.getCode(),
-                    ErrorCode.REQUEST_FAILED.getDescription(), springError.getBody().getDetail());
+            ErrorCode code = springError.getStatusCode().is5xxServerError() ? ErrorCode.INTERNAL_ERROR
+                    : springError.getStatusCode().value() == HttpStatus.NOT_FOUND.value() ? ErrorCode.NOT_FOUND
+                    : springError.getStatusCode().value() == HttpStatus.BAD_REQUEST.value() ? ErrorCode.INVALID_INPUT
+                    : ErrorCode.REQUEST_FAILED;
+            ErrorResponse body = new ErrorResponse(code.getCode(), code.getDescription());
 
             return new ResponseEntity<>(body, springError.getHeaders(), springError.getStatusCode());
         }
 
-        log.error("[서버 내부 오류] {}", e.getClass().getSimpleName());
+        log.error("[서버 내부 오류] type={} location={}", e.getClass().getSimpleName(), safeLocation(e));
 
         return toResponse(ErrorCode.INTERNAL_ERROR, "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
     }
 
     private ResponseEntity<ErrorResponse> toResponse(ErrorCode errorCode, String detail) {
 
-        ErrorResponse body = new ErrorResponse(errorCode.getCode(), errorCode.getDescription(), detail);
+        ErrorResponse body = new ErrorResponse(errorCode.getCode(), detail);
 
         return new ResponseEntity<>(body, errorCode.getStatus());
+    }
+
+    private String safeLocation(Exception e) {
+        for (StackTraceElement frame : e.getStackTrace()) {
+            if (frame.getClassName().startsWith("org.semiproject.pillbadeumserver.")) {
+                return frame.getClassName() + "." + frame.getMethodName() + ":" + frame.getLineNumber();
+            }
+        }
+        return "-";
     }
 }

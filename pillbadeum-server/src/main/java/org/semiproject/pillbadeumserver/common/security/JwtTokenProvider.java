@@ -83,14 +83,7 @@ public class JwtTokenProvider {
         );
     }
 
-    /* 목차. 3. 토큰의 만료 시각 (로그아웃 시 TokenBlacklist 에 넣을 때 쓴다) */
-    public Date getExpiration(String token) {
-        return parseClaims(token).getExpiration();
-    }
-
-    /* 목차. 4. 요청의 Authorization 헤더에서 토큰만 꺼낸다. 없으면 null
-     *  로그아웃 API 에서 쓴다. 예) tokenBlacklist.add(token, jwtTokenProvider.getExpiration(token));
-     * */
+    /* 목차. 3. 요청의 Authorization 헤더에서 토큰만 꺼낸다. 없으면 null */
     public String resolveToken(HttpServletRequest request) {
 
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);

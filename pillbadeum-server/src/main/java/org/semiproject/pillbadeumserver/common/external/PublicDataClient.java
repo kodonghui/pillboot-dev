@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 
 /* 설명. 공공데이터포털(apis.data.go.kr) 의약품 API 를 부르는 공통 클라이언트
  *  ----------------------------------------------------------------------------------
@@ -28,8 +29,10 @@ import java.util.Map;
  *      for (JsonNode item : items) { item.path("itemName").asString(); ... }
  *  ----------------------------------------------------------------------------------
  *  - serviceKey 와 type=json 은 자동으로 붙는다.
- *  - 결과 코드(resultCode)가 '00' 이 아니면 ExternalApiException(502) 을 던진다.
- *  - 시간 초과는 504 로 바뀐다. 자주 조회하는 결과는 CacheConfig 의 캐시를 붙인다. (COMMON-005)
+ *  - HTTP 일시 오류만 0.5초 뒤 1회 재시도한다. 인증/파라미터/응답 형식 오류는 재시도하지 않는다.
+ *  - 결과 코드(resultCode)가 '00' 이 아니면 503, 시간 초과도 구분된 코드의 503으로 바뀐다.
+ *  - DUR 저장/재사용 여부와 synced_at 갱신은 담당 서비스에서 처리한다.
+ *  - 이 클라이언트의 호출 제한만으로 여러 작업을 합친 요청 전체 90초가 보장되지는 않는다.
  * */
 @Component
 public class PublicDataClient {
@@ -39,16 +42,25 @@ public class PublicDataClient {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final String serviceKey;
+    private final Semaphore permits;
+    private final long permitTimeoutMs;
 
     public PublicDataClient(ObjectMapper objectMapper,
                             @Value("${public-data.base-url}") String baseUrl,
                             // .env 의 PUBLIC_DATA_SERVICE_KEY. 공공데이터포털의 '일반 인증키(Decoding)' 를 넣는다.
                             @Value("${public-data.service-key}") String serviceKey,
                             @Value("${public-data.connect-timeout-ms}") long connectTimeoutMs,
-                            @Value("${public-data.read-timeout-ms}") long readTimeoutMs) {
+                            @Value("${public-data.read-timeout-ms}") long readTimeoutMs,
+                            @Value("${public-data.max-concurrent-calls:4}") int maxConcurrentCalls,
+                            @Value("${public-data.permit-timeout-ms:1000}") long permitTimeoutMs) {
 
         this.objectMapper = objectMapper;
         this.serviceKey = serviceKey;
+        if (maxConcurrentCalls < 1 || permitTimeoutMs < 1) {
+            throw new IllegalArgumentException("공공데이터 동시 호출 수와 대기 시간은 양수여야 합니다.");
+        }
+        this.permits = new Semaphore(maxConcurrentCalls);
+        this.permitTimeoutMs = permitTimeoutMs;
         this.restClient = RestClientFactory.builder(baseUrl,
                 Duration.ofMillis(connectTimeoutMs), Duration.ofMillis(readTimeoutMs)).build();
     }
@@ -76,11 +88,12 @@ public class PublicDataClient {
             }
         });
 
-        String responseBody = ExternalApiCaller.call(API_NAME, () ->
+        String responseBody = ExternalApiCaller.withPermit(API_NAME, permits, permitTimeoutMs,
+                () -> ExternalApiCaller.callWithRetry(API_NAME, () ->
                 restClient.get()
                         .uri(uri.toString(), variables)
                         .retrieve()
-                        .body(String.class));
+                        .body(String.class)));
 
         return extractBody(responseBody);
     }
@@ -125,6 +138,10 @@ public class PublicDataClient {
             throw ExternalApiException.failed(API_NAME, "응답 형식이 올바르지 않습니다. (서비스 키 · 요청 파라미터를 확인하세요)", e);
         }
 
+        if (root == null || !root.isObject()) {
+            throw ExternalApiException.failed(API_NAME, "응답 형식이 올바르지 않습니다.", null);
+        }
+
         if (root.has("response")) {
             root = root.path("response");
         }
@@ -132,10 +149,13 @@ public class PublicDataClient {
         JsonNode header = root.path("header");
         String resultCode = header.path("resultCode").asString("");
         if (!resultCode.isEmpty() && !"00".equals(resultCode)) {
-            throw ExternalApiException.failed(API_NAME,
-                    "(" + resultCode + " " + header.path("resultMsg").asString("") + ")", null);
+            throw ExternalApiException.failed(API_NAME, "공공데이터 응답이 성공이 아닙니다.", null);
         }
 
-        return root.path("body");
+        JsonNode body = root.path("body");
+        if (!body.isObject()) {
+            throw ExternalApiException.failed(API_NAME, "공공데이터 본문이 없습니다.", null);
+        }
+        return body;
     }
 }

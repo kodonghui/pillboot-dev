@@ -1,4 +1,4 @@
-package org.semiproject.pillbadeumserver.global.filter;
+package org.semiproject.pillbadeumserver.common.web;
 
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;

@@ -44,7 +44,7 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
-      max-request-size: 25MB
+      max-request-size: 21MB
 
 server:
   port: ${SERVER_PORT:8080}
@@ -71,20 +71,26 @@ openai:
   api-key: ${OPENAI_API_KEY:}
   base-url: https://api.openai.com/v1
   model:
-    chat: gpt-6-luna
-    vision: gpt-6-luna
-    embedding: text-embedding-3-small
+    chat: ${OPENAI_CHAT_MODEL:}
+    vision: ${OPENAI_VISION_MODEL:}
+    embedding: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
   # 설명. 모델이 지원하는 값만 쓴다. 추론 기능이 없는 모델이면 비워 둔다.
-  reasoning-effort: none
-  connect-timeout-ms: 5000
-  read-timeout-ms: 60000
+  reasoning-effort: ${OPENAI_REASONING_EFFORT:}
+  connect-timeout-ms: 2000
+  short-read-timeout-ms: 10000
+  long-read-timeout-ms: 30000
+  # 개발용 기본 상한. 실제 외부 API 한도와 팀 부하에 맞춰 조정합니다.
+  max-concurrent-calls: ${OPENAI_MAX_CONCURRENT_CALLS:4}
+  permit-timeout-ms: 1000
 
 public-data:
   base-url: https://apis.data.go.kr
   # 설명. 공공데이터포털 마이페이지의 '일반 인증키(Decoding)' 값
   service-key: ${PUBLIC_DATA_SERVICE_KEY:}
-  connect-timeout-ms: 3000
+  connect-timeout-ms: 2000
   read-timeout-ms: 5000
+  max-concurrent-calls: ${PUBLIC_DATA_MAX_CONCURRENT_CALLS:4}
+  permit-timeout-ms: 1000
 
 # 설명. 벡터 검색(Qdrant). 기본은 꺼짐. Docker로 Qdrant를 띄운 사람만 .env에 QDRANT_ENABLED=true (README 4번)
 qdrant:
@@ -101,8 +107,10 @@ springdoc:
     tags-sorter: alpha
 
 logging:
+  # 로그 시각도 JVM 초기화 순서에 의존하지 않고 한국 시각으로 표시합니다.
+  pattern:
+    dateformat: yyyy-MM-dd'T'HH:mm:ss.SSSXXX,Asia/Seoul
+    level: '%5p [requestId=%X{requestId:-}]'
   level:
     org.hibernate.SQL: info
     org.semiproject.pillbadeumserver: info
-  pattern:
-    level: '%5p [requestId=%X{requestId:-}]'

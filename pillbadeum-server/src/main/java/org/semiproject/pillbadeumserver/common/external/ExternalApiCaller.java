@@ -2,7 +2,6 @@ package org.semiproject.pillbadeumserver.common.external;
 
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
-import org.semiproject.pillbadeumserver.common.util.SecretMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.client.ResourceAccessException;
@@ -11,22 +10,11 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.net.SocketTimeoutException;
 import java.net.http.HttpTimeoutException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-/* 설명. 외부 API 호출을 감싸서 실패 · 시간 초과를 공통 예외로 바꿔 주는 도구 (COMMON-001)
- *  ----------------------------------------------------------------------------------
- *  외부 API 가 실패하는 모양은 여러 가지다. (연결 안 됨, 시간 초과, 4xx/5xx, 응답 형식 오류)
- *  도메인마다 따로 try-catch 를 쓰지 않고 이걸로 감싸면, 화면은 항상 같은 모양(502/504)의 오류를 받는다.
- *  ----------------------------------------------------------------------------------
- *  사용 예)
- *      String body = ExternalApiCaller.call("공공데이터포털", () ->
- *              restClient.get().uri("/...").retrieve().body(String.class));
- *  ----------------------------------------------------------------------------------
- *  - 시간 초과        -> ExternalApiException.timeout()  (504)
- *  - 그 밖의 실패     -> ExternalApiException.failed()   (502)
- *  - 이미 우리 예외   -> 그대로 다시 던진다 (AiUnavailableException 등)
- *  로그에는 원인을 남기되 서비스 키 · API 키는 SecretMasker 로 가린다. (COMMON-004)
- * */
+/** 외부 호출의 예외 변환. 응답 본문, URL, 예외 메시지에는 키/건강정보가 있을 수 있어 로그에 넣지 않는다. */
 public final class ExternalApiCaller {
 
     private static final Logger log = LoggerFactory.getLogger(ExternalApiCaller.class);
@@ -35,47 +23,100 @@ public final class ExternalApiCaller {
     }
 
     public static <T> T call(String apiName, Supplier<T> request) {
-
-        long start = System.currentTimeMillis();
-
+        long start = System.nanoTime();
         try {
             T result = request.get();
-            log.debug("[외부 API] {} 성공 ({}ms)", apiName, System.currentTimeMillis() - start);
+            log.debug("[외부 API] api={} result=success durationMs={}", apiName, elapsedMillis(start));
             return result;
-
         } catch (BusinessException e) {
             throw e;
-
         } catch (ResourceAccessException e) {
-            // 연결 실패 · 시간 초과 (I/O 오류)
-            log.warn("[외부 API] {} 연결 실패 ({}ms) : {}", apiName,
-                    System.currentTimeMillis() - start, SecretMasker.mask(e.getMessage()));
+            log.warn("[외부 API] api={} type={} durationMs={}", apiName,
+                    e.getClass().getSimpleName(), elapsedMillis(start));
             if (isTimeout(e)) {
                 throw ExternalApiException.timeout(apiName, e);
             }
             throw ExternalApiException.failed(apiName, "서버에 연결할 수 없습니다.", e);
-
         } catch (RestClientResponseException e) {
-            // 상대 서버가 4xx / 5xx 를 돌려줌
-            log.warn("[외부 API] {} 오류 응답 HTTP {} : {}", apiName, e.getStatusCode().value(),
-                    SecretMasker.mask(e.getResponseBodyAsString()));
+            log.warn("[외부 API] api={} status={} durationMs={}", apiName,
+                    e.getStatusCode().value(), elapsedMillis(start));
             throw ExternalApiException.failed(apiName, "(HTTP " + e.getStatusCode().value() + ")", e);
-
         } catch (RestClientException e) {
-            // 응답을 객체로 바꾸지 못함 등
-            log.warn("[외부 API] {} 응답 처리 실패 : {}", apiName, SecretMasker.mask(e.getMessage()));
+            log.warn("[외부 API] api={} type={} durationMs={}", apiName,
+                    e.getClass().getSimpleName(), elapsedMillis(start));
             throw ExternalApiException.failed(apiName, "응답을 처리할 수 없습니다.", e);
         }
     }
 
-    /* 설명. 원인을 따라가며 시간 초과 예외가 있는지 본다. (JDK HttpClient 는 HttpTimeoutException 을 던진다) */
-    private static boolean isTimeout(Throwable e) {
+    /** 공공데이터 GET과 임베딩에만 사용한다. 응답 해석/업무 검증은 이 호출 바깥에서 수행한다. */
+    public static <T> T callWithRetry(String apiName, Supplier<T> request) {
+        return call(apiName, () -> {
+            try {
+                return request.get();
+            } catch (ResourceAccessException | RestClientResponseException e) {
+                if (!isTransient(e)) {
+                    throw e;
+                }
+                log.info("[외부 API] api={} retry=1 type={}", apiName, e.getClass().getSimpleName());
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw ExternalApiException.timeout(apiName, interrupted);
+                }
+                return request.get();
+            }
+        });
+    }
 
+    /** 가상 스레드 수와 별개로 실제 외부 호출 수를 제한하며 대기에도 상한을 둔다. */
+    public static <T> T withPermit(String apiName, Semaphore permits, long waitMillis, Supplier<T> request) {
+        boolean acquired;
+        try {
+            acquired = permits.tryAcquire(waitMillis, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw ExternalApiException.timeout(apiName, e);
+        }
+        if (!acquired) {
+            throw ExternalApiException.failed(apiName, "외부 서비스 요청이 많습니다. 잠시 후 다시 시도해주세요.", null);
+        }
+        try {
+            return request.get();
+        } finally {
+            permits.release();
+        }
+    }
+
+    private static boolean isTransient(RuntimeException e) {
+        if (Thread.currentThread().isInterrupted()) {
+            return false;
+        }
+        if (e instanceof ResourceAccessException) {
+            for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+                if (cause instanceof InterruptedException) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (e instanceof RestClientResponseException response) {
+            int status = response.getStatusCode().value();
+            return status == 408 || status == 429 || status >= 500;
+        }
+        return false;
+    }
+
+    private static boolean isTimeout(Throwable e) {
         for (Throwable cause = e; cause != null; cause = cause.getCause()) {
             if (cause instanceof HttpTimeoutException || cause instanceof SocketTimeoutException) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static long elapsedMillis(long start) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
     }
 }

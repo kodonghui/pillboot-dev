@@ -5,7 +5,7 @@ package org.semiproject.pillbadeumserver.common.exception;
 public class LoginFailedException extends BusinessException {
 
     public LoginFailedException() {
-        super(ErrorCode.LOGIN_FAILED, "아이디 또는 비밀번호가 올바르지 않습니다.");
+        super(ErrorCode.LOGIN_FAILED, "이메일 또는 비밀번호가 맞지 않습니다.");
     }
 
     public LoginFailedException(String detail) {

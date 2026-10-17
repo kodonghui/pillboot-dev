@@ -1,27 +1,19 @@
 package org.semiproject.pillbadeumserver.common;
 
-/* 설명. 예외 상황일 때 내려줄 공통 응답 형식
- *  정상 응답은 ResponseMessage, 예외 응답은 ErrorResponse 로 모양을 나눠 둔다.
- *  ----------------------------------------------------------------------------------
- *  - code        : 애플리케이션이 정한 에러 코드 (ErrorCode 의 code. 예: COMMON_005)
- *  - description : 어떤 상황인지에 대한 짧은 설명 (예: 조회 실패)
- *  - detail      : 화면에 보여줄 구체적인 내용 (예: 존재하지 않는 프로필입니다.)
- *  ----------------------------------------------------------------------------------
- *  주의. detail 에는 SQL, 내부 클래스 이름, API 키 같은 내부 정보를 넣지 않는다. (COMMON-004)
- * */
+/* API 명세의 공통 오류 응답. message에는 화면에 표시해도 되는 문구만 넣는다.
+ * 정상 응답은 각 API의 DTO를 직접 반환하고, 204 응답에는 본문을 넣지 않는다.
+ */
 public class ErrorResponse {
 
     private String code;
-    private String description;
-    private String detail;
+    private String message;
 
     public ErrorResponse() {
     }
 
-    public ErrorResponse(String code, String description, String detail) {
+    public ErrorResponse(String code, String message) {
         this.code = code;
-        this.description = description;
-        this.detail = detail;
+        this.message = message;
     }
 
     public String getCode() {
@@ -32,24 +24,16 @@ public class ErrorResponse {
         this.code = code;
     }
 
-    public String getDescription() {
-        return description;
+    public String getMessage() {
+        return message;
     }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getDetail() {
-        return detail;
-    }
-
-    public void setDetail(String detail) {
-        this.detail = detail;
+    public void setMessage(String message) {
+        this.message = message;
     }
 
     @Override
     public String toString() {
-        return "ErrorResponse{code='" + code + "', description='" + description + "', detail='" + detail + "'}";
+        return "ErrorResponse{code='" + code + "', message='" + message + "'}";
     }
 }

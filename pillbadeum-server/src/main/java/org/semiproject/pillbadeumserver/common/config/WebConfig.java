@@ -1,29 +1,37 @@
 package org.semiproject.pillbadeumserver.common.config;
 
-import org.semiproject.pillbadeumserver.common.web.DuplicateRequestInterceptor;
+import java.util.Map;
+import org.semiproject.pillbadeumserver.common.web.RequestIdFilter;
+import org.slf4j.MDC;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.core.Ordered;
+import org.springframework.core.task.TaskDecorator;
 
-/* 설명. Spring MVC 공통 설정
- *  ----------------------------------------------------------------------------------
- *  1) 중복 요청 막기 인터셉터 등록 (COMMON-002)
- *  ----------------------------------------------------------------------------------
- *  참고. 업로드 이미지를 /uploads/** 로 '누구나' 열어 두는 설정은 일부러 넣지 않았다.
- *       처방전 · 약봉투 사진에는 이름, 병원, 복용 약 같은 민감 정보가 들어 있기 때문이다. (COMMON-003, 004)
- *       이미지는 이미지 담당이 만드는 API(본인 확인 후 FileStorage.loadAsResource())로만 내려준다.
- * */
-@Configuration
-public class WebConfig implements WebMvcConfigurer {
-
-    private final DuplicateRequestInterceptor duplicateRequestInterceptor;
-
-    public WebConfig(DuplicateRequestInterceptor duplicateRequestInterceptor) {
-        this.duplicateRequestInterceptor = duplicateRequestInterceptor;
+/** 요청 추적과 비동기 로그 컨텍스트를 한 곳에서 등록합니다. */
+@Configuration(proxyBeanMethods = false)
+public class WebConfig {
+    @Bean
+    FilterRegistrationBean<RequestIdFilter> requestIdFilter() {
+        var registration = new FilterRegistrationBean<>(new RequestIdFilter());
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+        return registration;
     }
 
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(duplicateRequestInterceptor).addPathPatterns("/api/**");
+    @Bean
+    TaskDecorator loggingContextTaskDecorator() {
+        return task -> {
+            Map<String, String> captured = MDC.getCopyOfContextMap();
+            return () -> {
+                Map<String, String> previous = MDC.getCopyOfContextMap();
+                try {
+                    if (captured == null) MDC.clear(); else MDC.setContextMap(captured);
+                    task.run();
+                } finally {
+                    if (previous == null) MDC.clear(); else MDC.setContextMap(previous);
+                }
+            };
+        };
     }
 }
