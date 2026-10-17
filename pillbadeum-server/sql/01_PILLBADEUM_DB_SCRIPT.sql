@@ -1,6 +1,6 @@
 -- ERD Cloud 내보내기 SQL 기준: 관계형 14개 테이블, 114개 컬럼.
 -- vector_point는 Qdrant 모델이므로 MySQL 생성 대상에서 제외합니다.
--- 내보내기 옵션에서 빠진 PK/FK만 ERD의 키 표시와 관계에 맞춰 추가했습니다.
+-- 원문의 PK/FK를 생성 시점에 유효하도록 CREATE TABLE 내부에 배치했습니다.
 -- CONSENT.terms_title의 VARHCHAR(30)는 실행 불가능한 자료형 오타여서 VARCHAR(30)로 수정했습니다.
 -- 나머지 표명/컬럼명/자료형/NULL/기본값/UNIQUE는 내보내기 원문을 유지합니다.
 -- 00번으로 DB를 준비한 뒤 대상 DB를 선택하여 실행하세요.

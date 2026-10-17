@@ -23,7 +23,7 @@ import java.util.UUID;
  *  ----------------------------------------------------------------------------------
  *  저장 위치 : application.yaml 의 file.upload.* (OS 별 경로) / 하위 폴더
  *      예) C:/myWs/pillbadeum-uploads/prescriptions/3f2a...c1.jpg
- *  DB 에는 '저장된 파일명'(UUID)만 기록하고, 원래 파일명은 필요하면 따로 컬럼에 둔다.
+ *  ERD의 PHOTO.temp_path에는 UUID 이름의 임시 경로를 기록한다. 원래 파일명은 저장하지 않는다.
  *  ----------------------------------------------------------------------------------
  *  사용 예)
  *      String savedName = fileStorage.saveImage(file, FileStorage.DIR_PILL);          // 저장

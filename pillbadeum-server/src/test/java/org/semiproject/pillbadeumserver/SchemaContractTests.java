@@ -117,7 +117,7 @@ class SchemaContractTests {
     private static void assertColumn(Connection connection, String table, String column, String type,
             Long length, String nullable, String defaultValue) throws SQLException {
         try (var statement = connection.prepareStatement("SELECT data_type,character_maximum_length,is_nullable,column_default "
-                + "FROM information_schema.columns WHERE table_schema=DATABASE() AND BINARY table_name=? AND column_name=?")) {
+                + "FROM information_schema.columns WHERE table_schema=DATABASE() AND LOWER(table_name)=LOWER(?) AND column_name=?")) {
             statement.setString(1, table);
             statement.setString(2, column);
             try (var rows = statement.executeQuery()) {
