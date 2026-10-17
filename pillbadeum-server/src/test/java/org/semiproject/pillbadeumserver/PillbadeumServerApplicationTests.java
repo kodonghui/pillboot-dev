@@ -83,6 +83,11 @@ class PillbadeumServerApplicationTests {
             assertRows(connection, "DRUG", 2);
             assertRows(connection, "my_drug", 30);
             assertRows(connection, "chat_session", 45);
+            try (var rows = statement.executeQuery("SELECT COUNT(*) FROM chat_session cs JOIN PROFILE p ON p.profile_id=cs.profile_id "
+                    + "WHERE cs.snap_pregnant IS NULL OR cs.snap_pregnant<>p.profile_pregnant")) {
+                rows.next();
+                assertThat(rows.getLong(1)).as("Seed snapshots must preserve the profile pregnancy boolean").isZero();
+            }
             assertRows(connection, "chat_message", 180);
             assertRows(connection, "chat_summary", 45);
             for (String table : Set.of("PHOTO", "OCR_CANDIDATE", "DUR_WARNING", "DUR_INTERACTION")) {
