@@ -1,13 +1,15 @@
 -- ERD Cloud 내보내기 SQL 기준: 관계형 14개 테이블, 114개 컬럼.
 -- vector_point는 Qdrant 모델이므로 MySQL 생성 대상에서 제외합니다.
 -- 원문의 PK/FK를 생성 시점에 유효하도록 CREATE TABLE 내부에 배치했습니다.
--- CONSENT.terms_title의 VARHCHAR(30)는 실행 불가능한 자료형 오타여서 VARCHAR(30)로 수정했습니다.
+-- consent.terms_title의 VARHCHAR(30)는 실행 불가능한 자료형 오타여서 VARCHAR(30)로 수정했습니다.
 -- 사용자 결정에 따라 chat_session.snap_pregnant는 BOOLEAN으로 통일하고 기존 NULL 허용은 유지합니다.
--- 나머지 표명/컬럼명/자료형/NULL/기본값/UNIQUE는 내보내기 원문을 유지합니다.
+-- 최신 내보내기의 소문자 표명과 photo.kind VARCHAR(30)을 반영했습니다.
+-- 사용자 결정으로 drug.etc_otc UNIQUE를 제거하고 ETC/OTC만 허용하는 CHECK를 적용합니다.
+-- 위 교정·결정 외 컬럼명/자료형/NULL/기본값/제약은 내보내기 원문을 유지합니다.
 -- 00번으로 DB를 준비한 뒤 대상 DB를 선택하여 실행하세요.
 -- 기존 테이블을 삭제하거나 변경하지 않습니다. 기존 DB의 변경은 별도 검토가 필요합니다.
 
-CREATE TABLE IF NOT EXISTS `MEMBER` (
+CREATE TABLE IF NOT EXISTS `member` (
 	`member_id`	BIGINT AUTO_INCREMENT	NOT NULL	COMMENT '회원 코드',
 	`email`	VARCHAR(100)UNIQUE	NOT NULL	COMMENT '이메일(UK)',
 	`password_hash`	VARCHAR(255)	NOT NULL	COMMENT '비밀번호',
@@ -18,7 +20,7 @@ CREATE TABLE IF NOT EXISTS `MEMBER` (
 	PRIMARY KEY (`member_id`)
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `CONSENT` (
+CREATE TABLE IF NOT EXISTS `consent` (
 	`terms_id`	BIGINT AUTO_INCREMENT	NOT NULL	COMMENT '약관코드',
 	`terms_type`	VARCHAR(20)	NOT NULL	COMMENT '약관종류',
 	`terms_version`	VARCHAR(10)	NOT NULL	COMMENT '약관버전',
@@ -31,11 +33,11 @@ CREATE TABLE IF NOT EXISTS `CONSENT` (
 	PRIMARY KEY (`terms_id`)
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `DRUG` (
+CREATE TABLE IF NOT EXISTS `drug` (
 	`item_seq`	VARCHAR(100)	NOT NULL,
 	`name`	VARCHAR(50)	NOT NULL	COMMENT 'ITEM_NAME',
 	`maker`	VARCHAR(50)	NOT NULL	COMMENT 'ENTP_NAME',
-	`etc_otc`	VARCHAR(10) UNIQUE	NOT NULL	COMMENT 'UK',
+	`etc_otc`	VARCHAR(10)	NOT NULL,
 	`class_name`	VARCHAR(50)	NOT NULL,
 	`image_url`	VARCHAR(255)	NULL	COMMENT '이미지가 등록되지 않은약물 있음(nullable)',
 	`print_front`	VARCHAR(50)	NULL	COMMENT '앞 또는 뒤 식별기호없을 경우 있음',
@@ -47,10 +49,11 @@ CREATE TABLE IF NOT EXISTS `DRUG` (
 	`form`	VARCHAR(10)	NOT NULL	COMMENT '정제, 연질캡슐, 경질캡슐(통상적인 캡슐모양)',
 	`matrial`	VARCHAR(30)	NOT NULL,
 	`synced_at`	DATETIME	NOT NULL,
-	PRIMARY KEY (`item_seq`)
+	PRIMARY KEY (`item_seq`),
+	CONSTRAINT chk_drug_type CHECK (`etc_otc` IN ('ETC', 'OTC'))
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `PROFILE` (
+CREATE TABLE IF NOT EXISTS `profile` (
 	`profile_id`	BIGINT AUTO_INCREMENT	NOT NULL	COMMENT '프로필코드',
 	`member_id`	BIGINT	NOT NULL	COMMENT '회원 코드',
 	`profile_name`	VARCHAR(10)	NOT NULL	COMMENT '프로필명',
@@ -63,18 +66,18 @@ CREATE TABLE IF NOT EXISTS `PROFILE` (
 	`created_at`	DATETIME	NOT NULL	COMMENT '생성일시',
 	`updated_at`	DATETIME	NOT NULL	COMMENT '수정일시',
 	PRIMARY KEY (`profile_id`),
-	FOREIGN KEY (`member_id`) REFERENCES `MEMBER` (`member_id`)
+	FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`)
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `CONSENT_HISTORY` (
+CREATE TABLE IF NOT EXISTS `consent_history` (
 	`consent_history_id`	BIGINT AUTO_INCREMENT	NOT NULL	COMMENT '약관동의코드',
 	`member_id`	BIGINT	NOT NULL	COMMENT '회원 코드',
 	`terms_id`	BIGINT	NOT NULL	COMMENT '약관코드',
 	`consent_status`	VARCHAR(10)	NOT NULL	COMMENT '약관동의상태',
 	`recorded_at`	DATETIME	NOT NULL	COMMENT '동의일시',
 	PRIMARY KEY (`consent_history_id`),
-	FOREIGN KEY (`member_id`) REFERENCES `MEMBER` (`member_id`),
-	FOREIGN KEY (`terms_id`) REFERENCES `CONSENT` (`terms_id`)
+	FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`),
+	FOREIGN KEY (`terms_id`) REFERENCES `consent` (`terms_id`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `notification_setting` (
@@ -83,7 +86,7 @@ CREATE TABLE IF NOT EXISTS `notification_setting` (
 	`push_enabled`	BOOLEAN	NOT NULL	DEFAULT FALSE	COMMENT '알림 동의 여부와 연동',
 	`updated_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '알림 설정 마지막 변경 시각',
 	PRIMARY KEY (`setting_id`),
-	FOREIGN KEY (`member_id`) REFERENCES `MEMBER` (`member_id`)
+	FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `my_drug` (
@@ -99,8 +102,8 @@ CREATE TABLE IF NOT EXISTS `my_drug` (
 	`registered_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '내약 최초 등록 시각',
 	`updated_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '내약 정보 마지막 수정 시각',
 	PRIMARY KEY (`my_drug_id`),
-	FOREIGN KEY (`profile_id`) REFERENCES `PROFILE` (`profile_id`),
-	FOREIGN KEY (`item_seq`) REFERENCES `DRUG` (`item_seq`)
+	FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`),
+	FOREIGN KEY (`item_seq`) REFERENCES `drug` (`item_seq`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `chat_session` (
@@ -115,8 +118,8 @@ CREATE TABLE IF NOT EXISTS `chat_session` (
 	`snap_gender`	VARCHAR(10)	NOT NULL	COMMENT '//',
 	`snap_pregnant`	BOOLEAN	NULL	COMMENT '//',
 	PRIMARY KEY (`session_id`),
-	FOREIGN KEY (`member_id`) REFERENCES `MEMBER` (`member_id`),
-	FOREIGN KEY (`profile_id`) REFERENCES `PROFILE` (`profile_id`)
+	FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`),
+	FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `chat_message` (
@@ -142,11 +145,11 @@ CREATE TABLE IF NOT EXISTS `chat_summary` (
 	FOREIGN KEY (`session_id`) REFERENCES `chat_session` (`session_id`)
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `PHOTO` (
+CREATE TABLE IF NOT EXISTS `photo` (
 	`photo_id`	BIGINT AUTO_INCREMENT	NOT NULL,
 	`member_id`	BIGINT	NOT NULL	COMMENT '회원 코드',
 	`profile_id`	BIGINT	NULL	COMMENT '프로필코드',
-	`kind`	VARCHAR(10)	NOT NULL	COMMENT '처방전, 약봉투, 알약',
+	`kind`	VARCHAR(30)	NOT NULL	COMMENT '처방전, 약봉투, 알약',
 	`side`	VARCHAR(10)	NULL	COMMENT 'FRONT, BACK, 처방전은 NULL',
 	`temp_path`	VARCHAR(255)	NOT NULL	COMMENT 'UUID 파일 이름, 원본만',
 	`mime_type`	VARCHAR(30)	NOT NULL,
@@ -154,11 +157,11 @@ CREATE TABLE IF NOT EXISTS `PHOTO` (
 	`status`	VARCHAR(10)	NOT NULL	COMMENT 'UPLOADED 식별중 / IDENTIFIED 후보 확인 대기',
 	`uploaded_at`	DATETIME	NOT NULL	COMMENT '30분 지나면 정리 작업(10분 마다)이 삭제',
 	PRIMARY KEY (`photo_id`),
-	FOREIGN KEY (`member_id`) REFERENCES `MEMBER` (`member_id`),
-	FOREIGN KEY (`profile_id`) REFERENCES `PROFILE` (`profile_id`)
+	FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`),
+	FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `OCR_CANDIDATE` (
+CREATE TABLE IF NOT EXISTS `ocr_candidate` (
 	`ocr_candidate_id`	BIGINT AUTO_INCREMENT	NOT NULL,
 	`photo_id`	BIGINT	NOT NULL,
 	`read_no`	INT	NOT NULL	COMMENT '처방전에서 읽은 약 1-10/ 알약1',
@@ -167,10 +170,10 @@ CREATE TABLE IF NOT EXISTS `OCR_CANDIDATE` (
 	`lookup_status`	VARCHAR(10)	NULL	COMMENT 'OK/NOT_FOUND/FAILED',
 	`print_matched`	BOOLEAN	NULL,
 	PRIMARY KEY (`ocr_candidate_id`),
-	FOREIGN KEY (`photo_id`) REFERENCES `PHOTO` (`photo_id`)
+	FOREIGN KEY (`photo_id`) REFERENCES `photo` (`photo_id`)
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `DUR_WARNING` (
+CREATE TABLE IF NOT EXISTS `dur_warning` (
 	`dur_warning_id`	BIGINT AUTO_INCREMENT	NOT NULL,
 	`item_seq`	VARCHAR(100)	NOT NULL,
 	`type`	VARCHAR(50)	NULL	COMMENT '임부, 연령, 노인, 용량',
@@ -179,15 +182,15 @@ CREATE TABLE IF NOT EXISTS `DUR_WARNING` (
 	`content`	TEXT	NOT NULL	COMMENT 'API에서 받은 상세 금기 주의내용',
 	`synced_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '공공데이터를 가져온 시각',
 	PRIMARY KEY (`dur_warning_id`),
-	FOREIGN KEY (`item_seq`) REFERENCES `DRUG` (`item_seq`)
+	FOREIGN KEY (`item_seq`) REFERENCES `drug` (`item_seq`)
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `DUR_INTERACTION` (
+CREATE TABLE IF NOT EXISTS `dur_interaction` (
 	`dur_interaction_id`	BIGINT AUTO_INCREMENT	NOT NULL,
 	`item_seq2`	VARCHAR(100)	NOT NULL,
 	`mixture_item_seq`	VARCHAR(50)	NULL	COMMENT '병용금기 없는 약물의 경우 null',
 	`content`	VARCHAR(255)	NULL,
 	`synced_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '공공데이터를 가져온 시각',
 	PRIMARY KEY (`dur_interaction_id`),
-	FOREIGN KEY (`item_seq2`) REFERENCES `DRUG` (`item_seq`)
+	FOREIGN KEY (`item_seq2`) REFERENCES `drug` (`item_seq`)
 ) ENGINE=InnoDB;
