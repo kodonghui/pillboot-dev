@@ -12,7 +12,7 @@ public class Consent {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "terms_id")
-    private long memberId; // 약관 코드
+    private long termsId; // 약관 코드
 
     @Column(name = "terms_type")
     private String termsType; // 약관 종류
@@ -41,10 +41,10 @@ public class Consent {
     public Consent() {
     }
 
-    public Consent(long memberId, String termsType, String termsVersion, String termsTitle,
+    public Consent(long termsId, String termsType, String termsVersion, String termsTitle,
                    String termsContent, boolean required, boolean active, LocalDateTime effectiveAt,
                    LocalDateTime createdAt) {
-        this.memberId = memberId;
+        this.termsId = termsId;
         this.termsType = termsType;
         this.termsVersion = termsVersion;
         this.termsTitle = termsTitle;
@@ -56,11 +56,11 @@ public class Consent {
     }
 
     public long getMemberId() {
-        return memberId;
+        return termsId;
     }
 
     public void setMemberId(long memberId) {
-        this.memberId = memberId;
+        this.termsId = memberId;
     }
 
     public String getTermsType() {
