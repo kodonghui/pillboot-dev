@@ -12,7 +12,7 @@ public class Consent {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "terms_id")
-    private long termsId; // 약관 코드
+    private Long termsId; // 약관 코드
 
     @Column(name = "terms_type")
     private String termsType; // 약관 종류
