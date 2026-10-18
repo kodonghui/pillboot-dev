@@ -2,9 +2,18 @@ package org.semiproject.pillbadeumserver.member.service;
 
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
+import org.semiproject.pillbadeumserver.common.security.CustomUserDetails;
+import org.semiproject.pillbadeumserver.common.security.JwtTokenProvider;
 import org.semiproject.pillbadeumserver.member.domain.*;
+import org.semiproject.pillbadeumserver.member.dto.LoginRequest;
+import org.semiproject.pillbadeumserver.member.dto.LoginResponse;
+import org.semiproject.pillbadeumserver.member.dto.MemberResponse;
 import org.semiproject.pillbadeumserver.member.dto.SignupRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,14 +30,19 @@ public class AuthService {
     private final ConsentRepository consentRepository;
     private final ConsentHistoryRepository consentHistoryRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Autowired
     public AuthService(MemberRepository memberRepository, ConsentRepository consentRepository,
-                       ConsentHistoryRepository consentHistoryRepository, PasswordEncoder passwordEncoder) {
+                       ConsentHistoryRepository consentHistoryRepository, PasswordEncoder passwordEncoder,
+                       AuthenticationManager authenticationManager, JwtTokenProvider jwtTokenProvider) {
         this.memberRepository = memberRepository;
         this.consentRepository = consentRepository;
         this.consentHistoryRepository = consentHistoryRepository;
         this.passwordEncoder = passwordEncoder;
+        this.authenticationManager = authenticationManager;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
     /* 가입된 이메일이 없으면 true(사용가능), 이미 있는 상태면 false(사용불가)를 반환한다.  */
@@ -97,5 +111,45 @@ public class AuthService {
         }
     }
 
+    /* 로그인 */
+    /* 이메일과 비밀번호를 확인하고, 성공하면 토큰과 회원 정보를 반환한다. */
+    @Transactional(readOnly = true)
+    public LoginResponse login(LoginRequest loginRequest) {
+        Authentication authentication;
+
+        try {
+            // 아직 검사되지 않은 이메일·비밀번호를 한 묶음으로 만든다.
+            UsernamePasswordAuthenticationToken loginToken =
+                UsernamePasswordAuthenticationToken.unauthenticated(
+                    loginRequest.getEmail(),
+                    loginRequest.getPassword()
+                );
+
+            // 회원 조회와 비밀번호 비교를 Spring Security에 맡긴다.
+            authentication = authenticationManager.authenticate(loginToken);
+        } catch (AuthenticationException e) {
+            // 이메일이 없거나 비밀번호가 틀려도 같은 오류를 반환한다.
+            throw new BusinessException(
+                ErrorCode.LOGIN_FAILED,
+                "이메일 또는 비밀번호가 맞지 않습니다."
+            );
+        }
+
+        CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+        String accessToken = jwtTokenProvider.createAccessToken(
+            user.getMemberId(),
+            user.getLoginId(),
+            user.getRole()
+        );
+
+        Member member = memberRepository.findById(user.getMemberId())
+            .orElseThrow(() -> new BusinessException(
+                ErrorCode.LOGIN_FAILED,
+                "이메일 또는 비밀번호가 맞지 않습니다."
+            ));
+
+        return new LoginResponse(accessToken, MemberResponse.from(member));
+    }
 
 }

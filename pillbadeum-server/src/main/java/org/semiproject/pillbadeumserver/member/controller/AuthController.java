@@ -3,6 +3,8 @@ package org.semiproject.pillbadeumserver.member.controller;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.semiproject.pillbadeumserver.member.dto.ConsentPolicyResponse;
+import org.semiproject.pillbadeumserver.member.dto.LoginRequest;
+import org.semiproject.pillbadeumserver.member.dto.LoginResponse;
 import org.semiproject.pillbadeumserver.member.dto.SignupRequest;
 import org.semiproject.pillbadeumserver.member.service.AuthService;
 import org.semiproject.pillbadeumserver.member.service.ConsentService;
@@ -51,5 +53,12 @@ public class AuthController {
         authService.signup(signupRequest);
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    /* 로그인 요청을 서비스에 전달하고, 성공하면 토큰과 회원 정보를 반환한다. */
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
+        LoginResponse response = authService.login(loginRequest);
+        return ResponseEntity.ok(response);
     }
 }
