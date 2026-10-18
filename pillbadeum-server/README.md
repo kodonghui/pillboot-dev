@@ -58,8 +58,8 @@ Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 클라이언트를 못 찾으면 `-MySqlClient 'C:\...\mysql.exe'`를 지정합니다.
 스키마는 사용자가 제공한 **ERD Cloud 기준 MySQL 14개 테이블·114개 컬럼**입니다.
 ERD 밖의 API 기반 추가 표·컬럼은 포함하지 않으며, 표명 대소문자와 컬럼명도 원문을 따릅니다.
-최신 내보내기에 맞춰 테이블명은 소문자로 통일하고 `photo.kind`는 `VARCHAR(30)`으로 반영했습니다.
-사용자 결정으로 `chat_session.snap_pregnant`의 자료형은 `BOOLEAN`으로 맞췄으며 기존 NULL 허용은 유지합니다.
+테이블명은 소문자로 통일하고 `photo.kind`는 `VARCHAR(30)`으로 반영했습니다.
+`chat_session.snap_pregnant`의 자료형은 `BOOLEAN`으로 맞췄으며 기존 NULL 허용은 유지합니다.
 `drug.etc_otc`는 UNIQUE를 제거하고 `NOT NULL`과 `chk_drug_type CHECK (etc_otc IN ('ETC', 'OTC'))`를 적용했습니다.
 Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 
