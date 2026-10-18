@@ -44,25 +44,44 @@ class PillbadeumServerApplicationTests {
             try (var rows = statement.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()")) {
                 while (rows.next()) tables.add(rows.getString(1));
             }
-            assertThat(tables).containsExactlyInAnyOrder("MEMBER", "CONSENT", "PROFILE", "CONSENT_HISTORY",
-                    "notification_setting", "DRUG", "my_drug", "chat_session", "chat_message", "chat_summary",
-                    "PHOTO", "OCR_CANDIDATE", "DUR_WARNING", "DUR_INTERACTION");
-            try (var rows = statement.executeQuery("SELECT COUNT(*) FROM MEMBER")) {
+            Set<String> expectedTables = Set.of("member", "consent", "profile", "consent_history",
+                    "notification_setting", "drug", "my_drug", "chat_session", "chat_message", "chat_summary",
+                    "photo", "ocr_candidate", "dur_warning", "dur_interaction");
+            // 최신 ERD와 생성 SQL은 운영체제와 관계없이 테이블 이름을 소문자로 통일합니다.
+            assertThat(tables).containsExactlyInAnyOrderElementsOf(expectedTables);
+            try (var rows = statement.executeQuery("SELECT COUNT(*) FROM member")) {
                 rows.next();
                 if (rows.getInt(1) == 0) {
+                    // 롤백해도 AUTO_INCREMENT는 되돌아가지 않습니다. 샘플이 ID 1을 가정하지 않는지 검증합니다.
+                    connection.setAutoCommit(false);
+                    try {
+                        statement.executeUpdate("INSERT INTO member(email,password_hash,nickname,user_role,created_at,updated_at) "
+                                + "VALUES('seed-rollback@example.test','test-only','fixture','ROLE_USER',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+                        statement.executeUpdate("INSERT INTO consent(terms_type,terms_version,terms_title,terms_content,"
+                                + "is_required,is_active,effective_at,created_at) "
+                                + "VALUES('ROLLBACK_TEST','test','fixture','fixture',FALSE,FALSE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+                    } finally {
+                        connection.rollback();
+                        connection.setAutoCommit(true);
+                    }
                     ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/02_PILLBADEUM_TEST_DATA.sql"));
                 }
             }
             // 생성 SQL을 다시 실행해도 샘플 데이터가 지워지지 않아야 합니다.
             ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
-            assertRows(connection, "MEMBER", 5);
-            assertRows(connection, "PROFILE", 15);
-            assertRows(connection, "DRUG", 2);
+            assertRows(connection, "member", 5);
+            assertRows(connection, "profile", 15);
+            assertRows(connection, "drug", 2);
             assertRows(connection, "my_drug", 30);
             assertRows(connection, "chat_session", 45);
+            try (var rows = statement.executeQuery("SELECT COUNT(*) FROM chat_session cs JOIN profile p ON p.profile_id=cs.profile_id "
+                    + "WHERE cs.snap_pregnant IS NULL OR cs.snap_pregnant<>p.profile_pregnant")) {
+                rows.next();
+                assertThat(rows.getLong(1)).as("Seed snapshots must preserve the profile pregnancy boolean").isZero();
+            }
             assertRows(connection, "chat_message", 180);
             assertRows(connection, "chat_summary", 45);
-            for (String table : Set.of("PHOTO", "OCR_CANDIDATE", "DUR_WARNING", "DUR_INTERACTION")) {
+            for (String table : Set.of("photo", "ocr_candidate", "dur_warning", "dur_interaction")) {
                 assertRows(connection, table, 0);
             }
             connection.setAutoCommit(false);

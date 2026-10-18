@@ -32,43 +32,52 @@ class SchemaContractTests {
                     .isEqualTo(114);
             assertConstraintCount(connection, "PRIMARY KEY", 14);
             assertConstraintCount(connection, "FOREIGN KEY", 15);
-            assertConstraintCount(connection, "UNIQUE", 2);
-            assertConstraintCount(connection, "CHECK", 0);
+            assertConstraintCount(connection, "UNIQUE", 1);
+            assertConstraintCount(connection, "CHECK", 1);
+            assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.table_constraints "
+                    + "WHERE constraint_schema=DATABASE() AND table_name='drug' "
+                    + "AND constraint_type='CHECK' AND constraint_name='chk_drug_type' AND enforced='YES'"))
+                    .as("The drug type CHECK must be named and enforced").isEqualTo(1);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns "
                     + "WHERE table_schema=DATABASE() AND LOWER(extra) LIKE '%on update%'"))
                     .as("ERD does not declare automatic ON UPDATE timestamps").isZero();
-            assertColumn(connection, "PROFILE", "profile_pregnant", "tinyint", null, "NO", "0");
-            assertColumn(connection, "PROFILE", "realationship_type", "varchar", 10L, "NO", null);
+            assertColumn(connection, "profile", "profile_pregnant", "tinyint", null, "NO", "0");
+            assertColumn(connection, "profile", "realationship_type", "varchar", 10L, "NO", null);
             assertColumn(connection, "chat_message", "trun_no", "int", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_birth_year", "bigint", null, "NO", null);
-            assertColumn(connection, "chat_session", "snap_pregnant", "varchar", 10L, "YES", null);
+            assertColumn(connection, "chat_session", "snap_pregnant", "tinyint", null, "YES", null);
             assertColumn(connection, "my_drug", "end_date", "date", null, "NO", null);
             assertColumn(connection, "my_drug", "dose_times", "varchar", 50L, "NO", "07:00,11:00,17:00");
-            assertColumn(connection, "CONSENT", "terms_title", "varchar", 30L, "NO", null);
-            assertColumn(connection, "DRUG", "matrial", "varchar", 30L, "NO", null);
-            assertColumn(connection, "DUR_INTERACTION", "item_seq2", "varchar", 100L, "NO", null);
-            assertColumn(connection, "DUR_INTERACTION", "mixture_item_seq", "varchar", 50L, "YES", null);
+            assertColumn(connection, "consent", "terms_title", "varchar", 30L, "NO", null);
+            assertColumn(connection, "drug", "etc_otc", "varchar", 10L, "NO", null);
+            assertColumn(connection, "drug", "matrial", "varchar", 30L, "NO", null);
+            assertColumn(connection, "photo", "kind", "varchar", 30L, "NO", null);
+            assertColumn(connection, "dur_interaction", "item_seq2", "varchar", 100L, "NO", null);
+            assertColumn(connection, "dur_interaction", "mixture_item_seq", "varchar", 50L, "YES", null);
 
             connection.setAutoCommit(false);
             try {
                 String suffix = UUID.randomUUID().toString();
                 String itemSeq = "schema-test-" + suffix;
-                String category = suffix.substring(0, 8);
                 long member = insert(connection,
-                        "INSERT INTO MEMBER(email,password_hash,nickname,user_role,created_at,updated_at) "
+                        "INSERT INTO member(email,password_hash,nickname,user_role,created_at,updated_at) "
                                 + "VALUES(?, 'test-only', 'fixture', 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
                         "review-" + suffix + "@example.test");
                 long profile = insert(connection,
-                        "INSERT INTO PROFILE(member_id,profile_name,realationship_type,profile_birth_year,profile_gender,created_at,updated_at) "
+                        "INSERT INTO profile(member_id,profile_name,realationship_type,profile_birth_year,profile_gender,created_at,updated_at) "
                                 + "VALUES(?, 'fixture', 'SELF', 2000, 'FEMALE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", member);
-                assertThat(count(connection, "SELECT COUNT(*) FROM PROFILE WHERE profile_id=? AND profile_pregnant=FALSE", profile))
+                assertThat(count(connection, "SELECT COUNT(*) FROM profile WHERE profile_id=? AND profile_pregnant=FALSE", profile))
                         .isEqualTo(1);
-                execute(connection, "INSERT INTO DRUG(item_seq,name,maker,etc_otc,class_name,shape,color,form,matrial,synced_at) "
-                        + "VALUES(?, 'fixture', 'fixture', ?, 'fixture', 'ROUND', 'WHITE', 'TABLET', 'fixture', CURRENT_TIMESTAMP)", itemSeq, category);
-                assertSqlError(connection, 1062,
-                        "INSERT INTO DRUG(item_seq,name,maker,etc_otc,class_name,shape,color,form,matrial,synced_at) "
-                                + "VALUES(?, 'duplicate category', 'fixture', ?, 'fixture', 'ROUND', 'WHITE', 'TABLET', 'fixture', CURRENT_TIMESTAMP)",
-                        itemSeq + "-2", category);
+                String drugInsert = "INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,matrial,synced_at) "
+                        + "VALUES(?, 'fixture', 'fixture', ?, 'fixture', 'ROUND', 'WHITE', 'TABLET', 'fixture', CURRENT_TIMESTAMP)";
+                execute(connection, drugInsert, itemSeq, "OTC");
+                execute(connection, drugInsert, itemSeq + "-2", "OTC");
+                execute(connection, drugInsert, itemSeq + "-3", "ETC");
+                assertThat(count(connection, "SELECT COUNT(*) FROM drug WHERE item_seq IN (?,?) AND etc_otc='OTC'",
+                        itemSeq, itemSeq + "-2")).as("Different drugs may share the same OTC category").isEqualTo(2);
+                assertSqlError(connection, 1062, drugInsert, itemSeq, "ETC");
+                assertSqlError(connection, 3819, drugInsert, itemSeq + "-invalid", "UNKNOWN");
+                assertSqlError(connection, 1048, drugInsert, itemSeq + "-null", null);
 
                 long myDrug = insert(connection,
                         "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,source) "
@@ -83,26 +92,38 @@ class SchemaContractTests {
                 long room = insert(connection,
                         "INSERT INTO chat_session(member_id,profile_id,created_at,snap_birth_year,snap_gender) "
                                 + "VALUES(?,?,CURRENT_TIMESTAMP,2000,'FEMALE')", member, profile);
+                assertThat(count(connection, "SELECT COUNT(*) FROM chat_session WHERE session_id=? AND snap_pregnant IS NULL", room))
+                        .isEqualTo(1);
+                for (boolean pregnant : new boolean[]{false, true}) {
+                    execute(connection, "UPDATE profile SET profile_pregnant=? WHERE profile_id=?", pregnant, profile);
+                    execute(connection, "UPDATE chat_session SET snap_pregnant="
+                            + "(SELECT profile_pregnant FROM profile WHERE profile_id=?) WHERE session_id=?", profile, room);
+                    assertThat(count(connection, "SELECT COUNT(*) FROM chat_session cs JOIN profile p ON p.profile_id=cs.profile_id "
+                            + "WHERE cs.session_id=? AND cs.snap_pregnant=p.profile_pregnant AND cs.snap_pregnant=?", room, pregnant))
+                            .isEqualTo(1);
+                }
                 execute(connection, "INSERT INTO chat_message(session_id,trun_no,role,content) VALUES(?,1,'user','question')", room);
                 execute(connection, "INSERT INTO chat_message(session_id,trun_no,role,content) VALUES(?,1,'assistant','answer')", room);
                 execute(connection, "INSERT INTO chat_summary(session_id,from_turn,to_turn,content,created_at) "
                         + "VALUES(?,1,1,'summary',CURRENT_TIMESTAMP)", room);
 
                 long photo = insert(connection,
-                        "INSERT INTO PHOTO(member_id,profile_id,kind,temp_path,mime_type,size_bytes,status,uploaded_at) "
-                                + "VALUES(?,?,'PILL','fixture.jpg','image/jpeg',1,'IDENTIFIED',CURRENT_TIMESTAMP)", member, profile);
-                execute(connection, "INSERT INTO OCR_CANDIDATE(photo_id,read_no,candidate_rank) VALUES(?,1,1)", photo);
-                assertThat(count(connection, "SELECT COUNT(*) FROM OCR_CANDIDATE WHERE photo_id=? "
+                        "INSERT INTO photo(member_id,profile_id,kind,temp_path,mime_type,size_bytes,status,uploaded_at) "
+                                + "VALUES(?,?,'PRESCRIPTION','fixture.jpg','image/jpeg',1,'IDENTIFIED',CURRENT_TIMESTAMP)", member, profile);
+                assertThat(count(connection, "SELECT COUNT(*) FROM photo WHERE photo_id=? AND kind='PRESCRIPTION'", photo))
+                        .as("The photo kind must fit the prescription literal").isEqualTo(1);
+                execute(connection, "INSERT INTO ocr_candidate(photo_id,read_no,candidate_rank) VALUES(?,1,1)", photo);
+                assertThat(count(connection, "SELECT COUNT(*) FROM ocr_candidate WHERE photo_id=? "
                         + "AND read_name IS NULL AND lookup_status IS NULL AND print_matched IS NULL", photo)).isEqualTo(1);
                 // ERD의 FK에는 CASCADE가 없습니다. 자식을 먼저 지워야 부모를 삭제할 수 있습니다.
-                assertSqlError(connection, 1451, "DELETE FROM PHOTO WHERE photo_id=?", photo);
-                execute(connection, "DELETE FROM OCR_CANDIDATE WHERE photo_id=?", photo);
-                execute(connection, "DELETE FROM PHOTO WHERE photo_id=?", photo);
-                execute(connection, "INSERT INTO DUR_WARNING(item_seq,content) VALUES(?,'warning fixture')", itemSeq);
-                execute(connection, "INSERT INTO DUR_INTERACTION(item_seq2) VALUES(?)", itemSeq);
-                assertThat(count(connection, "SELECT COUNT(*) FROM DUR_INTERACTION WHERE item_seq2=? AND mixture_item_seq IS NULL", itemSeq))
+                assertSqlError(connection, 1451, "DELETE FROM photo WHERE photo_id=?", photo);
+                execute(connection, "DELETE FROM ocr_candidate WHERE photo_id=?", photo);
+                execute(connection, "DELETE FROM photo WHERE photo_id=?", photo);
+                execute(connection, "INSERT INTO dur_warning(item_seq,content) VALUES(?,'warning fixture')", itemSeq);
+                execute(connection, "INSERT INTO dur_interaction(item_seq2) VALUES(?)", itemSeq);
+                assertThat(count(connection, "SELECT COUNT(*) FROM dur_interaction WHERE item_seq2=? AND mixture_item_seq IS NULL", itemSeq))
                         .isEqualTo(1);
-                assertSqlError(connection, 1452, "INSERT INTO DUR_INTERACTION(item_seq2) VALUES(?)", "missing-" + suffix);
+                assertSqlError(connection, 1452, "INSERT INTO dur_interaction(item_seq2) VALUES(?)", "missing-" + suffix);
             } finally {
                 connection.rollback();
             }
@@ -117,7 +138,7 @@ class SchemaContractTests {
     private static void assertColumn(Connection connection, String table, String column, String type,
             Long length, String nullable, String defaultValue) throws SQLException {
         try (var statement = connection.prepareStatement("SELECT data_type,character_maximum_length,is_nullable,column_default "
-                + "FROM information_schema.columns WHERE table_schema=DATABASE() AND BINARY table_name=? AND column_name=?")) {
+                + "FROM information_schema.columns WHERE table_schema=DATABASE() AND LOWER(table_name)=LOWER(?) AND column_name=?")) {
             statement.setString(1, table);
             statement.setString(2, column);
             try (var rows = statement.executeQuery()) {
