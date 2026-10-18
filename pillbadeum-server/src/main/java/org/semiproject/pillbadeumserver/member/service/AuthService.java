@@ -2,8 +2,10 @@ package org.semiproject.pillbadeumserver.member.service;
 
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
+import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
 import org.semiproject.pillbadeumserver.common.security.CustomUserDetails;
 import org.semiproject.pillbadeumserver.common.security.JwtTokenProvider;
+import org.semiproject.pillbadeumserver.common.security.SecurityUtil;
 import org.semiproject.pillbadeumserver.member.domain.*;
 import org.semiproject.pillbadeumserver.member.dto.LoginRequest;
 import org.semiproject.pillbadeumserver.member.dto.LoginResponse;
@@ -152,4 +154,15 @@ public class AuthService {
         return new LoginResponse(accessToken, MemberResponse.from(member));
     }
 
+    /* 현재 로그인한 회원의 정보 조회 */
+    @Transactional(readOnly = true)
+    public MemberResponse getMe() {
+
+        Long memberId = SecurityUtil.getCurrentMemberId(); // 검증된 토큰에서 지금 요청한 회원의 ID를 꺼낸다.
+
+        Member member = memberRepository.findById(memberId)
+            .orElseThrow(() -> new NotFoundException("해당 회원이 존재하지 않습니다."));
+
+        return MemberResponse.from(member);
+    }
 }

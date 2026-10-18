@@ -2,10 +2,7 @@ package org.semiproject.pillbadeumserver.member.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.semiproject.pillbadeumserver.member.dto.ConsentPolicyResponse;
-import org.semiproject.pillbadeumserver.member.dto.LoginRequest;
-import org.semiproject.pillbadeumserver.member.dto.LoginResponse;
-import org.semiproject.pillbadeumserver.member.dto.SignupRequest;
+import org.semiproject.pillbadeumserver.member.dto.*;
 import org.semiproject.pillbadeumserver.member.service.AuthService;
 import org.semiproject.pillbadeumserver.member.service.ConsentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,10 +52,19 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    /* 로그인 요청을 서비스에 전달하고, 성공하면 토큰과 회원 정보를 반환한다. */
+    /* 로그인 요청을 서비스에 전달하고, 성공하면 토큰과 회원 정보를 반환 */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         LoginResponse response = authService.login(loginRequest);
         return ResponseEntity.ok(response);
+    }
+
+    /* 로그인 한 회원의 정보를 반환. 토큰에서 회원을 식별하기 때문에  request body는 없다. */
+    @GetMapping("/me")
+    public ResponseEntity<MemberResponse> getMe() {
+        MemberResponse member = authService.getMe();
+
+        return ResponseEntity.ok(member);
+
     }
 }
