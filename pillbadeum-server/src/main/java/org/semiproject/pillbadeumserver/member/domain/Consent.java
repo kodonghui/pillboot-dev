@@ -55,11 +55,11 @@ public class Consent {
         this.createdAt = createdAt;
     }
 
-    public long getMemberId() {
+    public long getTermsId() {
         return termsId;
     }
 
-    public void setMemberId(long memberId) {
+    public void setTermsId(long memberId) {
         this.termsId = memberId;
     }
 
