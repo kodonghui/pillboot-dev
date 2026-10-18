@@ -41,7 +41,7 @@ public class Consent {
     public Consent() {
     }
 
-    public Consent(long termsId, String termsType, String termsVersion, String termsTitle,
+    public Consent(Long termsId, String termsType, String termsVersion, String termsTitle,
                    String termsContent, boolean required, boolean active, LocalDateTime effectiveAt,
                    LocalDateTime createdAt) {
         this.termsId = termsId;
@@ -55,11 +55,11 @@ public class Consent {
         this.createdAt = createdAt;
     }
 
-    public long getTermsId() {
+    public Long getTermsId() {
         return termsId;
     }
 
-    public void setTermsId(long memberId) {
+    public void setTermsId(Long memberId) {
         this.termsId = memberId;
     }
 
