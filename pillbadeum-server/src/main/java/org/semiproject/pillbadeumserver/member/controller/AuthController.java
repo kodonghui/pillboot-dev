@@ -1,15 +1,15 @@
 package org.semiproject.pillbadeumserver.member.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.semiproject.pillbadeumserver.member.dto.ConsentPolicyResponse;
+import org.semiproject.pillbadeumserver.member.dto.SignupRequest;
 import org.semiproject.pillbadeumserver.member.service.AuthService;
 import org.semiproject.pillbadeumserver.member.service.ConsentService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -43,5 +43,13 @@ public class AuthController {
         boolean available = authService.isEmailAvailable(email);
 
         return ResponseEntity.ok(available);
+    }
+
+    /* 회원가입 요청을 검증한 뒤 서비스에 전달하고, 성공하면 201 created 반환 */
+    @PostMapping("/signup")
+    public ResponseEntity<Void> signup (@Valid @RequestBody SignupRequest signupRequest) {
+        authService.signup(signupRequest);
+
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }
