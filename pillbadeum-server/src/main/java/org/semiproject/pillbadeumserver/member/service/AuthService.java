@@ -3,6 +3,7 @@ package org.semiproject.pillbadeumserver.member.service;
 import org.semiproject.pillbadeumserver.member.domain.MemberRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthService {
@@ -15,6 +16,7 @@ public class AuthService {
     }
 
     /* 가입된 이메일이 없으면 true(사용가능), 이미 있는 상태면 false(사용불가)를 반환한다.  */
+    @Transactional(readOnly = true)
     public boolean isEmailAvailable(String email) {
         return !memberRepository.existsByEmail(email);
     }
