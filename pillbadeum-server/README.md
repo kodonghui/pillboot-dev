@@ -58,7 +58,9 @@ Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 클라이언트를 못 찾으면 `-MySqlClient 'C:\...\mysql.exe'`를 지정합니다.
 스키마는 사용자가 제공한 **ERD Cloud 기준 MySQL 14개 테이블·114개 컬럼**입니다.
 ERD 밖의 API 기반 추가 표·컬럼은 포함하지 않으며, 표명 대소문자와 컬럼명도 원문을 따릅니다.
+최신 내보내기에 맞춰 테이블명은 소문자로 통일하고 `photo.kind`는 `VARCHAR(30)`으로 반영했습니다.
 사용자 결정으로 `chat_session.snap_pregnant`의 자료형은 `BOOLEAN`으로 맞췄으며 기존 NULL 허용은 유지합니다.
+`drug.etc_otc`는 UNIQUE를 제거하고 `NOT NULL`과 `chk_drug_type CHECK (etc_otc IN ('ETC', 'OTC'))`를 적용했습니다.
 Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 
 ### 신규 DB: Docker Compose
@@ -84,7 +86,8 @@ docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/01_PILLBADEUM_
 빈 개발 DB에서만 `02_PILLBADEUM_TEST_DATA.sql`을 한 번 실행합니다.
 준비 스크립트는 `-IncludeTestData`를 지원합니다.
 사진·후보·DUR은 초기 데이터가 없어도 됩니다.
-ERD의 `DRUG.etc_otc UNIQUE`를 유지하므로 샘플 약은 ETC·OTC 각 1개입니다.
+샘플 약은 기존과 같이 ETC·OTC 각 1개입니다. 같은 분류의 약을 여러 개 저장할 수 있으며 ETC/OTC 이외의 분류는 CHECK로 거절합니다.
+공공데이터의 분류 표기가 다르면 약 저장 기능에서 ETC/OTC로 변환해야 합니다.
 샘플 품목 코드/약 이름의 공식 일치 여부와 샘플 비밀번호 평문은 검증하지 않았습니다.
 화면·관계 확인용 샘플을 실제 API·로그인 성공용 데이터로 간주하지 않습니다.
 
