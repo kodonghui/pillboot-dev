@@ -77,6 +77,7 @@ ERD 밖의 API 기반 추가 표·컬럼은 포함하지 않으며, 표명 대�
 컬럼명 오타 수정은 [오타 수정 SQL](sql/05_FIX_COLUMN_TYPOS.sql)을 04 다음에 한 번 적용합니다. 새 01에는 바른 이름이 들어 있습니다.
 일정 API·삭제 동작은 [복약 일정 안내](docs/MEDICATION_SCHEDULE.md)를 참고하세요.
 실시간 음성 대화 테스트는 [GPT-Live 안내](docs/MEDICATION_LIVE.md)를 참고하세요. local 실행 후 `/dev/medication-live`에서 시작합니다.
+프론트 전달 기준은 [복약지도 연결 계약](docs/MEDICATION_FRONTEND_HANDOFF.md), 실행 방법과 확인 결과는 [백엔드 검증 기록](docs/MEDICATION_VERIFICATION.md)에 정리했습니다. 복약 완료 체크·실제 복용 기록은 구현 범위에서 제외합니다.
 Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 
 ### 신규 DB: Docker Compose
