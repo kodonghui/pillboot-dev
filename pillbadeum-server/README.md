@@ -16,6 +16,11 @@ Copy-Item .env.example .env
 macOS/Linux: `cp .env.example .env`. Spring properties 형식이므로 값에 따옴표를 붙이지 않습니다.
 `.env`는 Git에서 제외하고 `.env.example`만 공유합니다.
 
+DB 연결은 `connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true`를 사용합니다.
+`%2B09:00`은 `+09:00`의 URL 표현이며, MySQL 시간대 표가 비어 있어도 한국 시간의 세션을 만듭니다.
+기존 `.env`의 `DB_URL`은 기본값보다 우선하므로, `Asia/Seoul`을 쓰던 개인 값도 직접 확인하세요.
+Java·Jackson·로그의 `Asia/Seoul` 설정은 유지합니다.
+
 | 항목 | 설정 |
 | --- | --- |
 | `DB_URL` | 예제의 pilldb 연결 주소. 포트 변경 시 함께 수정 |
@@ -169,7 +174,7 @@ GRANT ALL PRIVILEGES ON pill_test.* TO 'pill'@'%';
 ```
 
 ```powershell
-$env:MYSQL_TEST_URL = 'jdbc:mysql://localhost:3306/pill_test?connectionTimeZone=Asia/Seoul&forceConnectionTimeZoneToSession=true'
+$env:MYSQL_TEST_URL = 'jdbc:mysql://localhost:3306/pill_test?connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true'
 $env:MYSQL_TEST_USER = 'pill'
 $env:MYSQL_TEST_PASSWORD = '<테스트 DB 비밀번호>'
 .\gradlew.bat test bootJar

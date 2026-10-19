@@ -34,7 +34,7 @@ jobs:
           --health-timeout=3s
           --health-retries=30
     env:
-      MYSQL_TEST_URL: jdbc:mysql://127.0.0.1:3306/pill_test?connectionTimeZone=Asia/Seoul&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true&useSSL=false
+      MYSQL_TEST_URL: jdbc:mysql://127.0.0.1:3306/pill_test?connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true&useSSL=false
       MYSQL_TEST_USER: pill
       MYSQL_TEST_PASSWORD: pill-ci-only
     steps:
