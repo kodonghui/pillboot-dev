@@ -4,6 +4,7 @@ import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrug;
 import org.semiproject.pillbadeumserver.medication.domain.MedicationRepository;
+import org.semiproject.pillbadeumserver.medication.domain.MedicationTarget;
 import org.semiproject.pillbadeumserver.medication.dto.MedicationDtos.ScheduleRequest;
 import org.semiproject.pillbadeumserver.medication.dto.MedicationLiveDtos.*;
 import org.springframework.stereotype.Service;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +20,12 @@ import java.util.Map;
 /** 필수 정보와 기본값 위임 의사를 서버에서 검사한다. prepare 단계에서는 저장하지 않는다. */
 @Service
 public class MedicationLiveWorkflow {
-    public record Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome) {}
+    public record Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults) {}
+    public record Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal) {
+        public Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome) {
+            this(profileId, myDrugId, request, outcome, null);
+        }
+    }
     private final MedicationRepository reads;
     private final MedicationLivePlanner planner;
     private final MedicationScheduleService schedules;
@@ -35,8 +42,12 @@ public class MedicationLiveWorkflow {
         var candidates = reads.allDrugs(memberId);
         var plan = planner.plan(selection, today, candidates, transcript);
         if ("CANCEL".equals(plan.intent())) return question("이번 요청으로는 추가 저장하지 않을게요. 이미 저장된 일정은 그대로예요.", List.of());
+        String lastUser = normalize(lastTurn(transcript, "user"));
+        if (lastUser.matches("(아니|아니요|싫어|싫어요|안돼|안돼요)")) {
+            return question("그럼 바꿀 항목과 값만 말씀해주세요.", List.of("correction"));
+        }
         if ("TARGET_NOT_FOUND".equals(plan.intent())) return question("어느 프로필의 어떤 약을 등록할까요? 등록된 약 중에서 알려주세요.", List.of("target"));
-        if (!"SAVE".equals(plan.intent())) return question("선택한 약의 복용 일정을 어떻게 등록할까요?", List.of("request"));
+        if (!"SAVE".equals(plan.intent())) return question("약 이름과 기간을 말씀해주시면 나머지는 기본 설정으로 제안해드릴게요.", List.of("request"));
         long drugId = plan.myDrugId() == null ? selection.selectedMyDrugId() : plan.myDrugId();
         var target = candidates.stream().filter(choice -> choice.myDrugId() == drugId).findFirst();
         if (target.isEmpty()) return question("어느 프로필의 어떤 약을 등록할까요? 등록된 약 중에서 알려주세요.", List.of("target"));
@@ -54,8 +65,7 @@ public class MedicationLiveWorkflow {
                 end = calculated;
             }
             if (end == null) {
-                if (allowDefaults) { end = start; defaults.add("endDate"); }
-                else missing.add("endDate");
+                end = start; defaults.add("endDate"); missing.add("endDate");
             }
             if (end != null && start.isAfter(end)) throw invalid();
             if (plan.dailyCount() != null && (plan.dailyCount() < 1 || plan.dailyCount() > 3)) throw invalid();
@@ -68,30 +78,35 @@ public class MedicationLiveWorkflow {
                     return LocalTime.parse(value);
                 }).sorted().toList();
                 if (times.stream().distinct().count() != times.size()) throw invalid();
-            } else if (allowDefaults) {
-                times = MyDrug.DEFAULT_DOSE_TIMES.subList(0, plan.dailyCount() == null ? 3 : plan.dailyCount());
-                defaults.add("doseTimes");
-            } else missing.add("doseTimes");
+            } else {
+                times = proposedTimes(plan);
+                defaults.add("doseTimes"); missing.add("doseTimes");
+            }
             Integer dose = plan.dosePerTime();
             if (dose == null) {
-                if (allowDefaults) { dose = target.get().dosePerTime(); defaults.add("dosePerTime"); }
-                else missing.add("dosePerTime");
+                dose = target.get().dosePerTime(); defaults.add("dosePerTime"); missing.add("dosePerTime");
             }
             if (dose != null && (dose < 1 || dose > 10)) throw invalid();
             String timing = plan.timing();
             if (timing == null && allowDefaults) { timing = target.get().timing(); defaults.add("timing"); }
             if (timing != null && timing.length() > 20) throw invalid();
-            if (!missing.isEmpty()) {
-                String prompt = switch (missing.getFirst()) {
-                    case "endDate" -> "선택한 날짜부터 며칠 동안 등록할까요? 종료일로 알려주셔도 돼요.";
-                    case "doseTimes" -> "몇 시에 복용하는 일정으로 등록할까요? 구체적인 시각을 알려주세요.";
-                    default -> "한 번에 몇 개씩 복용하는 일정인가요?";
-                };
-                String lastUser = lastTurn(transcript, "user");
-                if (plan.useDefaults() || lastUser.matches("(?s).*(몰라|모르겠).*")) prompt = "빠진 항목을 기본값으로 채워 저장할까요?";
-                return question(prompt, List.copyOf(missing));
+            var request = new ScheduleRequest(start, end, times, dose, timing);
+            if (!missing.isEmpty() && rejectsDefaults(lastUser)) {
+                return question("그럼 바꿀 항목과 값만 말씀해주세요.", List.of("correction"));
             }
-            return new Decision(target.get().profileId(), drugId, new ScheduleRequest(start, end, times, dose, timing),
+            if (!missing.isEmpty() && !allowDefaults) {
+                if (timing == null && target.get().timing() != null) {
+                    timing = target.get().timing();
+                    if (timing.length() > 20) throw invalid();
+                    defaults.add("timing");
+                    request = new ScheduleRequest(start, end, times, dose, timing);
+                }
+                // 동의 전에는 저장 가능한 request를 반환하지 않고 제안 초안만 보관한다.
+                var proposal = new Proposal(target.get().profileId(), drugId, request, List.copyOf(defaults));
+                return new Decision(0, 0, null, new Outcome(proposalMessage(target.get(), request, today, defaults),
+                        List.copyOf(missing), List.of(), null), proposal);
+            }
+            return new Decision(target.get().profileId(), drugId, request,
                     new Outcome("저장 항목을 확인했습니다.", List.of(), List.copyOf(defaults), null));
         } catch (DateTimeException e) {
             throw invalid();
@@ -100,40 +115,72 @@ public class MedicationLiveWorkflow {
 
     public Outcome save(long memberId, Decision decision) {
         var saved = schedules.save(memberId, decision.profileId(), decision.myDrugId(), decision.request());
-        String message = saved.profileName() + "님의 약 일정을 " + saved.startDate() + "부터 " + saved.endDate() + "까지 저장했습니다.";
-        if (!decision.outcome().appliedDefaults().isEmpty()) message += " 빠진 항목에는 기본값을 적용했습니다.";
+        String message = saved.profileName() + "님의 " + saved.drugName() + " 일정을 등록했어요.";
         return new Outcome(message, List.of(), decision.outcome().appliedDefaults(), saved);
+    }
+
+    public Decision confirm(Proposal proposal) {
+        return new Decision(proposal.profileId(), proposal.myDrugId(), proposal.request(),
+                new Outcome("제안한 일정으로 저장할게요.", List.of(), proposal.defaults(), null));
+    }
+
+    static boolean isConfirmation(String text) {
+        return text.replaceAll("[\\s\\p{Punct}]", "").matches(
+                "(네|예|응|좋아|좋아요|그래|그래요|그렇게해줘|그렇게해|그대로해줘|오케이|ㅇㅋ|맞아|맞아요|저장해|저장해줘|등록해|등록해줘|네좋아요|네그렇게해줘|응저장해|응그렇게해줘)");
+    }
+
+    private List<LocalTime> proposedTimes(Plan plan) {
+        if (plan.dosePeriods() == null) {
+            return List.copyOf(MyDrug.DEFAULT_DOSE_TIMES.subList(0, plan.dailyCount() == null ? 3 : plan.dailyCount()));
+        }
+        if (plan.dosePeriods().isEmpty() || plan.dosePeriods().size() > 3
+                || plan.dailyCount() != null && plan.dailyCount() != plan.dosePeriods().size()) throw invalid();
+        var times = plan.dosePeriods().stream().map(period -> switch (period == null ? "" : period) {
+            case "MORNING" -> MyDrug.DEFAULT_DOSE_TIMES.get(0);
+            case "NOON" -> MyDrug.DEFAULT_DOSE_TIMES.get(1);
+            case "EVENING" -> MyDrug.DEFAULT_DOSE_TIMES.get(2);
+            default -> throw invalid();
+        }).sorted().toList();
+        if (times.stream().distinct().count() != times.size()) throw invalid();
+        return times;
+    }
+
+    private String proposalMessage(MedicationTarget target, ScheduleRequest request, LocalDate today, List<String> defaults) {
+        String from = request.startDate().equals(today) ? "오늘" : request.startDate().getMonthValue() + "월 " + request.startDate().getDayOfMonth() + "일";
+        long days = ChronoUnit.DAYS.between(request.startDate(), request.endDate()) + 1;
+        String times = request.doseTimes().stream().map(this::spokenTime).collect(java.util.stream.Collectors.joining("·"));
+        String message = "네, " + from + "부터 " + days + "일 동안 " + target.drugName() + " 등록 도와드릴게요. "
+                + (defaults.contains("doseTimes") ? "복용 시간은 기본 " : "복용 시간은 ")
+                + "하루 " + request.doseTimes().size() + "번, " + times + "로 하고, 1회 개수는 "
+                + (defaults.contains("dosePerTime") ? "기존 설정인 " : "") + request.dosePerTime() + "개"
+                + (request.timing() == null ? "" : ", 복용 때는 " + request.timing());
+        return message + "으로 적용해 저장할까요?";
+    }
+
+    private String spokenTime(LocalTime time) {
+        int hour = time.getHour() % 12;
+        return (time.getHour() < 12 ? "오전 " : "오후 ") + (hour == 0 ? 12 : hour) + "시"
+                + (time.getMinute() == 0 ? "" : " " + time.getMinute() + "분");
     }
 
     private Decision question(String message, List<String> missing) {
         return new Decision(0, 0, null, new Outcome(message, missing, List.of(), null));
     }
 
-    /** AI 플래그만으로 기본값을 허용하지 않는다. 실제 사용자 원문·직전 질문의 동의도 확인한다. */
+    /** 명시적 기본값 위임만 검증한다. 짧은 동의는 세션에 보관한 제안에만 적용한다. */
     private boolean defaultsAllowed(Plan plan, List<Map<String, Object>> transcript) {
         if (!plan.useDefaults() || plan.defaultEvidence() == null || plan.defaultEvidence().isBlank()) return false;
         String evidence = normalize(plan.defaultEvidence());
         String lastUser = normalize(lastTurn(transcript, "user"));
-        if (lastUser.matches(".*(기본|알아서).*(쓰지마|하지마|말고|말아|싫어).*")) return false;
+        if (rejectsDefaults(lastUser)) return false;
         StringBuilder allUser = new StringBuilder();
         for (var part : transcript) if ("user".equals(part.get("role"))) allUser.append(part.get("content"));
         if (!normalize(allUser.toString()).contains(evidence)) return false;
-        if (evidence.matches(".*(알아서|기본값?|기본설정|그냥).*(저장|등록|해줘|해요|해).*")) return true;
-        String priorAssistant = normalize(priorAssistant(transcript));
-        return lastUser.matches("(네|예|응|좋아|그래|그렇게해줘|그렇게해|오케이|ㅇㅋ|맞아)")
-                && evidence.equals(lastUser) && priorAssistant.contains("기본")
-                && (priorAssistant.contains("저장") || priorAssistant.contains("등록"));
+        return evidence.matches(".*(알아서|기본값?|기본설정|그냥).*(저장|등록|해줘|해요|해).*");
     }
 
-    private String priorAssistant(List<Map<String, Object>> transcript) {
-        int index = transcript.size() - 1;
-        while (index >= 0 && !"user".equals(transcript.get(index).get("role"))) index--;
-        while (index >= 0 && "user".equals(transcript.get(index).get("role"))) index--;
-        var text = new StringBuilder();
-        while (index >= 0 && "assistant".equals(transcript.get(index).get("role"))) {
-            text.insert(0, transcript.get(index--).get("content"));
-        }
-        return text.toString();
+    private boolean rejectsDefaults(String text) {
+        return text.matches(".*(기본|알아서).*(쓰지마|하지마|말고|말아|싫어).*");
     }
 
     private String lastTurn(List<Map<String, Object>> transcript, String role) {

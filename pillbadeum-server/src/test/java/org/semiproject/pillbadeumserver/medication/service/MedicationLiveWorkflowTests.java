@@ -28,22 +28,26 @@ class MedicationLiveWorkflowTests {
     private final StartRequest selection = new StartRequest("offer", 13L, 25L, DATE);
 
     @Test
-    void missingInformationIsAskedWithoutApplyingDefaultsOrSaving() {
+    void missingInformationIsProposedTogetherWithoutApplyingDefaultsOrSaving() {
         plan(new Plan("SAVE", null, null, null, null, null, null, null, null, false, null));
         var result = workflow.prepare(5, selection, DATE, List.of(user("약 일정 추가해줘")));
         assertThat(result.request()).isNull();
         assertThat(result.outcome().missingFields()).containsExactly("endDate", "doseTimes", "dosePerTime");
-        assertThat(result.outcome().message()).contains("며칠");
+        assertThat(result.outcome().message()).contains("오늘부터 1일", "하루 3번", "오전 7시·오전 11시·오후 5시", "기존 설정인 2개", "저장할까요");
+        assertThat(result.outcome().message()).doesNotContain("어떻게", "몇 시", "며칠");
+        assertThat(result.outcome().appliedDefaults()).isEmpty();
+        assertThat(result.proposal().request().endDate()).isEqualTo(DATE);
         verifyNoInteractions(schedules);
     }
 
     @Test
-    void dailyCountAloneStillRequiresSpecificTimes() {
+    void dailyCountAloneGetsSpecificDefaultTimesAsOneProposal() {
         plan(new Plan("SAVE", null, null, null, 7, null, 3, 1, null, false, null));
         var result = workflow.prepare(5, selection, DATE, List.of(user("일주일 동안 세 번 한 개씩")));
         assertThat(result.request()).isNull();
         assertThat(result.outcome().missingFields()).containsExactly("doseTimes");
-        assertThat(result.outcome().message()).contains("몇 시");
+        assertThat(result.outcome().message()).contains("하루 3번", "저장할까요");
+        assertThat(result.proposal().request().doseTimes()).containsExactly(LocalTime.of(7, 0), LocalTime.of(11, 0), LocalTime.of(17, 0));
         verifyNoInteractions(schedules);
     }
 
@@ -76,7 +80,7 @@ class MedicationLiveWorkflowTests {
         plan(new Plan("SAVE", null, null, null, null, null, null, null, null, true, "몰라"));
         var result = workflow.prepare(5, selection, DATE, List.of(user("몰라")));
         assertThat(result.request()).isNull();
-        assertThat(result.outcome().message()).contains("기본값", "저장할까요");
+        assertThat(result.outcome().message()).contains("기본", "저장할까요");
     }
 
     @Test
@@ -88,12 +92,12 @@ class MedicationLiveWorkflowTests {
     }
 
     @Test
-    void yesAuthorizesDefaultsOnlyWhenRespondingToTheDefaultSaveQuestion() {
+    void yesCannotAuthorizeDefaultsBasedOnlyOnAssistantTextOrAModelFlag() {
         plan(new Plan("SAVE", null, null, null, null, null, null, null, null, true, "네"));
         assertThat(workflow.prepare(5, selection, DATE,
-                List.of(assistant("기본값으로 저장할까요?"), user("네"))).request()).isNotNull();
+                List.of(assistant("기본값으로 저장할까요?"), user("네"))).request()).isNull();
         assertThat(workflow.prepare(5, selection, DATE,
-                List.of(assistant("기본값으로 저장할까요?"), user("네"), assistant("확인할게요"))).request()).isNotNull();
+                List.of(assistant("기본값으로 저장할까요?"), user("네"), assistant("확인할게요"))).request()).isNull();
         assertThat(workflow.prepare(5, selection, DATE,
                 List.of(assistant("약 이름이 맞나요?"), user("네"))).request()).isNull();
     }
@@ -121,6 +125,73 @@ class MedicationLiveWorkflowTests {
         plan(new Plan("SAVE", null, null, null, 7, List.of("25:00"), 1, 1, null, true, "알아서 저장해"));
         assertThatThrownBy(() -> workflow.prepare(5, selection, DATE, List.of(user("25시에, 나머지는 알아서 저장해"))))
                 .isInstanceOf(BusinessException.class);
+        verifyNoInteractions(schedules);
+    }
+
+    @Test
+    void shortDrugAndDurationRequestProposesTheCompleteScheduleOnce() {
+        plan(new Plan("SAVE", 25L, DATE.toString(), null, 2, null, null, null, null, false, null));
+        var result = workflow.prepare(5, selection, DATE, List.of(user("오늘부터 이틀 테스트약")));
+        assertThat(result.request()).isNull();
+        assertThat(result.outcome().message()).contains("오늘부터 2일 동안 테스트약", "기본 하루 3번", "기존 설정인 2개", "식후", "저장할까요");
+        var approved = workflow.confirm(result.proposal());
+        assertThat(approved.request().endDate()).isEqualTo(DATE.plusDays(1));
+        assertThat(approved.request().dosePerTime()).isEqualTo(2);
+        assertThat(approved.outcome().appliedDefaults()).contains("doseTimes", "dosePerTime", "timing");
+        verifyNoInteractions(schedules);
+    }
+
+    @Test
+    void eveningOnlyProposesTheEveningSlotInsteadOfTheFirstDefaultTime() {
+        plan(new Plan("SAVE", 25L, DATE.toString(), null, 2, null, 1, null, null, false, null, List.of("EVENING")));
+        var result = workflow.prepare(5, selection, DATE, List.of(user("오늘부터 이틀 테스트약 저녁에만")));
+        assertThat(result.request()).isNull();
+        assertThat(result.proposal().request().doseTimes()).containsExactly(LocalTime.of(17, 0));
+        assertThat(result.outcome().message()).contains("하루 1번", "오후 5시").doesNotContain("오전 7시");
+        verifyNoInteractions(schedules);
+    }
+
+    @Test
+    void twoExplicitDailyDosesProposeTwoTimesAndKeepTheExplicitQuantity() {
+        plan(new Plan("SAVE", null, "2026-11-05", null, 2, null, 2, 3, null, false, null));
+        var result = workflow.prepare(5, selection, DATE, List.of(user("5일부터 이틀 하루 두 번 세 개씩")));
+        assertThat(result.proposal().request().doseTimes()).containsExactly(LocalTime.of(7, 0), LocalTime.of(11, 0));
+        assertThat(result.proposal().request().dosePerTime()).isEqualTo(3);
+        assertThat(result.proposal().request().startDate()).isEqualTo(DATE.plusDays(2));
+        assertThat(result.proposal().defaults()).doesNotContain("dosePerTime", "endDate");
+    }
+
+    @Test
+    void duplicatedPeriodsAndContradictoryCountsAreNotProposed() {
+        plan(new Plan("SAVE", null, null, null, 2, null, 2, null, null, false, null, List.of("EVENING", "EVENING")));
+        assertThatThrownBy(() -> workflow.prepare(5, selection, DATE, List.of(user("저녁에만"))))
+                .isInstanceOf(BusinessException.class);
+        doReturn(new Plan("SAVE", null, null, null, 2, null, 3, null, null, false, null, List.of("EVENING")))
+                .when(planner).plan(any(), any(), anyList(), anyList());
+        assertThatThrownBy(() -> workflow.prepare(5, selection, DATE, List.of(user("저녁에만"))))
+                .isInstanceOf(BusinessException.class);
+        verifyNoInteractions(schedules);
+    }
+
+    @Test
+    void refusalDoesNotRepeatTheSameProposalOrSave() {
+        plan(new Plan("ASK", null, null, null, 2, null, null, null, null, false, null));
+        var result = workflow.prepare(5, selection, DATE, List.of(user("오늘부터 이틀"), assistant("기본 설정으로 저장할까요?"), user("아니요")));
+        assertThat(result.request()).isNull();
+        assertThat(result.proposal()).isNull();
+        assertThat(result.outcome().message()).contains("바꿀 항목").doesNotContain("어떻게", "저장할까요");
+        verifyNoInteractions(schedules);
+    }
+
+    @Test
+    void explicitValuesAfterRejectingDefaultsStillProduceTheRequestedSchedule() {
+        plan(new Plan("SAVE", null, null, null, 7, List.of("08:00"), 1, 1, null, false, null));
+        var result = workflow.prepare(5, selection, DATE,
+                List.of(user("기본값 말고 일주일 동안 오전 8시에 한 개씩")));
+        assertThat(result.request().doseTimes()).containsExactly(LocalTime.of(8, 0));
+        assertThat(result.request().endDate()).isEqualTo(DATE.plusDays(6));
+        assertThat(result.outcome().appliedDefaults()).isEmpty();
+        assertThat(result.proposal()).isNull();
         verifyNoInteractions(schedules);
     }
 

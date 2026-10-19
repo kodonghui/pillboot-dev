@@ -23,7 +23,14 @@ public final class MedicationLiveDtos {
     /** 사용자가 말한 항목만 들어간다. 매 호출은 누적 대화를 다시 해석하므로 정정·취소도 반영한다. */
     public record Plan(String intent, Long myDrugId, String startDate, String endDate, Integer durationDays,
                        List<String> doseTimes, Integer dailyCount, Integer dosePerTime, String timing,
-                       boolean useDefaults, String defaultEvidence) {}
+                       boolean useDefaults, String defaultEvidence, List<String> dosePeriods) {
+        public Plan(String intent, Long myDrugId, String startDate, String endDate, Integer durationDays,
+                    List<String> doseTimes, Integer dailyCount, Integer dosePerTime, String timing,
+                    boolean useDefaults, String defaultEvidence) {
+            this(intent, myDrugId, startDate, endDate, durationDays, doseTimes, dailyCount, dosePerTime,
+                    timing, useDefaults, defaultEvidence, null);
+        }
+    }
 
     public record Progress(String sessionId, String status, String message, List<String> missingFields,
                            List<String> appliedDefaults, ScheduleResponse savedSchedule, Instant expiresAt) {}

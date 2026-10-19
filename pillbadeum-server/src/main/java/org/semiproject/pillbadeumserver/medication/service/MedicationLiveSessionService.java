@@ -46,18 +46,22 @@ public class MedicationLiveSessionService {
     private final Map<Long, String> owners = new ConcurrentHashMap<>();
     private final Object registryLock = new Object();
     private static final String INSTRUCTIONS = """
-            한국어로 복약 일정을 등록하는 음성 도우미다. 짧게 한 번에 한 가지씩 질문한다.
+            한국어로 복약 일정을 등록하는 음성 도우미다. 사용자가 말한 항목을 받아 완성된 일정을 제안한다.
+            시작 인사는 "안녕하세요 AI 복약도우미입니다. 어떻게 일정 등록을 도와드릴까요?"로 한 번만 한다.
+            사용자가 약·기간을 말하면 "어떻게 등록할까요?"라고 되묻거나 처음 질문부터 다시 시작하지 않는다.
+            빠진 항목마다 질문하지 않는다. backend가 만든 일정 제안을 짧게 전달하고 한 번만 동의를 구한다.
+            사용자의 "응", "네"는 방금 제안한 일정의 동의다. "저녁에만" 등 정정은 반영해 다시 제안한다.
             시작 인사부터 기본 말하기 속도는 평소의 약 1.5배로 빠르고 자연스럽게 유지한다.
             문장 사이의 불필요한 쉼을 줄이되 날짜·시간·복용 개수는 명확하게 발음한다.
             사용자가 말하기 속도를 바꿔 달라고 하면 그 요청을 따른다.
-            AI가 생성하는 음성이라고 대화 시작 때 짧게 알린다. 진료·복용법을 추천하지 않는다.
+            시작 인사에서 AI 복약도우미임을 밝힌다. 진료·복용법을 추천하지 않는다.
             사용자가 말을 시작한 뒤 약 1초 동안 말을 멈추면 현재 발화가 끝난 것으로 보고 더 기다리지 않는다.
-            문장이 덜 끝난 것 같아도 그때까지 들은 내용으로 처리하고, 부족한 정보는 다음 질문으로 확인한다.
+            문장이 덜 끝난 것 같아도 그때까지 들은 내용으로 처리하고, 부족한 정보는 기본 설정으로 묶어 제안한다.
             아직 사용자가 아무 말도 하지 않았거나 기침·주변 소리만 들렸을 때는 요청을 만들지 않는다.
             사용자가 다시 말하거나 끼어들면 답변을 멈추고 새로 말한 내용을 듣는다.
             사용자에게서 약 일정 등록·정정·기본값 위임·취소 요청 또는 추가 답변을 받으면,
             위 발화 종료 기준에 도달하는 즉시 backend에 위임한다. backend가 항목 수집과 저장을 담당한다.
-            부족한 정보를 임의로 채우지 않는다. backend의 질문이 오면 그 질문을 한다.
+            기본값과 기존 약 설정은 backend가 제안한다. 제안의 약·기간·시간·개수를 바꾸지 않고 전달한다.
             '알아서 저장해'처럼 맡기면 backend에 그 요청을 전달하고, 그 전까지 기본값으로 저장하지 않는다.
             사용자가 계속 말하는 도중에는 문장 조각만으로 작업을 요청하지 않는다. 사용자의 정정을 반영한다.
             backend가 저장 성공을 알려주기 전에는 저장했다고 말하지 않는다. 성공 결과가 와야 완료를 알린다.
@@ -179,6 +183,8 @@ public class MedicationLiveSessionService {
             String delegation;
             long revision;
             List<Map<String, Object>> transcript;
+            MedicationLiveWorkflow.Proposal proposal;
+            String proposalReply;
             synchronized (state) {
                 if (state.closed || state.pending == null) { state.running = false; return; }
                 delegation = state.pending; state.pending = null;
@@ -186,16 +192,28 @@ public class MedicationLiveSessionService {
                 transcript = state.transcript.stream().sorted(Comparator
                         .comparingLong((Map<String, Object> part) -> ((Number) part.get("start_ms")).longValue())
                         .thenComparingLong(part -> ((Number) part.get("end_ms")).longValue())).toList();
+                proposal = state.proposal;
+                proposalReply = state.transcript.stream().filter(part -> "user".equals(part.get("role")))
+                        .skip(state.proposalRevision).map(part -> (String) part.get("content"))
+                        .collect(java.util.stream.Collectors.joining());
                 state.status = "PROCESSING";
             }
             try {
                 Outcome outcome;
                 synchronized (state) {
                     outcome = revision == state.processedRevision ? state.lastOutcome : null;
+                    if (outcome == null && proposal == null && MedicationLiveWorkflow.isConfirmation(proposalReply)) {
+                        outcome = new Outcome(state.saved == null ? "약 이름과 기간을 말씀해주시면 일정을 제안해드릴게요."
+                                : "등록된 일정은 캘린더에서 확인하실 수 있어요.", List.of(), List.of(), state.saved);
+                        state.processedRevision = revision;
+                        state.lastOutcome = outcome;
+                    }
                 }
-                if (revision == 0) outcome = new Outcome("등록할 약 일정을 말씀해주세요.", List.of("request"), List.of(), null);
+                if (revision == 0) outcome = new Outcome("사용자가 약과 기간을 말할 때까지 기다린다. 시작 인사를 반복하지 않는다.", List.of("request"), List.of(), null);
                 if (outcome == null) {
-                    var decision = workflow.prepare(state.memberId, state.selection, LocalDate.now(clock), transcript);
+                    var decision = proposal != null && MedicationLiveWorkflow.isConfirmation(proposalReply)
+                            ? workflow.confirm(proposal)
+                            : workflow.prepare(state.memberId, state.selection, LocalDate.now(clock), transcript);
                     synchronized (state) {
                         if (state.closed) return;
                         if (!Instant.now(clock).isBefore(state.expiresAt)) { terminate(state, true); return; }
@@ -205,6 +223,8 @@ public class MedicationLiveSessionService {
                             send(state, delegation, "session.instructions.append", "사용자의 추가 발화가 도착해 이전 저장은 실행하지 않았다. 사용자가 말을 멈춘 뒤 약 1초가 지나면 추가 발화까지 포함해 다시 backend에 위임하라.");
                             continue;
                         }
+                        state.proposal = decision.proposal();
+                        state.proposalRevision = revision;
                         // 이 세션의 종료·중복 실행과 저장을 직렬화한다. 저장 서비스에서 소유권도 재검사한다.
                         outcome = decision.request() == null ? decision.outcome() : workflow.save(state.memberId, decision);
                         state.processedRevision = revision;
@@ -215,13 +235,15 @@ public class MedicationLiveSessionService {
                     if (state.closed) return;
                     state.message = outcome.message(); state.missing = outcome.missingFields(); state.defaults = outcome.appliedDefaults();
                     if (outcome.savedSchedule() != null) state.saved = outcome.savedSchedule();
-                    state.status = outcome.savedSchedule() == null ? "WAITING_FOR_DETAILS" : "SAVED";
+                    state.status = outcome.savedSchedule() != null ? "SAVED"
+                            : state.proposal != null ? "AWAITING_CONFIRMATION" : "WAITING_FOR_DETAILS";
                 }
                 send(state, delegation, "session.commentary.append", outcome.message());
             } catch (RuntimeException e) {
                 synchronized (state) {
                     if (state.closed) return;
                     state.status = "WAITING_FOR_DETAILS";
+                    state.proposal = null;
                     state.message = e instanceof BusinessException ? e.getMessage() : "일정 처리 결과를 확인하지 못했습니다. 캘린더를 확인하고 다시 말씀해주세요.";
                     state.processedRevision = revision;
                     state.lastOutcome = new Outcome(state.message, List.of(), List.of(), null);
@@ -244,7 +266,7 @@ public class MedicationLiveSessionService {
     private void terminate(State state, boolean hangup) {
         synchronized (state) {
             if (state.closed) return;
-            state.closed = true; state.status = "CLOSED"; state.transcript.clear();
+            state.closed = true; state.status = "CLOSED"; state.transcript.clear(); state.proposal = null;
         }
         sessions.remove(state.id, state); owners.remove(state.memberId, state.id);
         if (hangup && state.remoteId != null) {
@@ -278,6 +300,8 @@ public class MedicationLiveSessionService {
         boolean running;
         List<String> missing = List.of(), defaults = List.of();
         ScheduleResponse saved;
+        MedicationLiveWorkflow.Proposal proposal;
+        long proposalRevision;
         Outcome lastOutcome;
         State(long memberId, StartRequest selection, Instant expiresAt) {
             this.memberId = memberId;

@@ -112,6 +112,81 @@ class MedicationLiveSessionServiceTests {
     }
 
     @Test
+    void yesSavesTheStoredProposalWithoutAnotherModelCallAndDoesNotSaveTwice() {
+        String id = start();
+        var proposal = proposedAt(LocalTime.of(7, 0), LocalTime.of(11, 0), LocalTime.of(17, 0));
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposal);
+        when(workflow.confirm(any())).thenCallRealMethod();
+        when(workflow.save(eq(5L), any())).thenReturn(savedOutcome());
+        input("in1", "오늘부터 이틀 테스트약"); delegate("d1");
+        assertThat(service.get(5, id).status()).isEqualTo("AWAITING_CONFIRMATION");
+        verify(workflow, never()).save(anyLong(), any());
+        events.accept(json.valueToTree(Map.of("type", "session.output_transcript.delta", "event_id", "out1",
+                "delta", "기본 하루 세 번으로 적용할까요?", "start_ms", 1000, "end_ms", 2000)));
+        input("in2", "응"); delegate("d2"); delegate("d3");
+        assertThat(service.get(5, id).status()).isEqualTo("SAVED");
+        verify(workflow, times(1)).prepare(eq(5L), any(), any(), anyList());
+        verify(workflow).confirm(proposal.proposal());
+        verify(workflow, times(1)).save(eq(5L), argThat(decision -> decision.request().equals(proposal.proposal().request())));
+    }
+
+    @Test
+    void correctionReplacesTheProposalAndOnlyTheNewProposalIsConfirmed() {
+        String id = start();
+        var first = proposedAt(LocalTime.of(7, 0), LocalTime.of(11, 0), LocalTime.of(17, 0));
+        var evening = proposedAt(LocalTime.of(17, 0));
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(first, evening);
+        when(workflow.confirm(any())).thenCallRealMethod();
+        when(workflow.save(eq(5L), any())).thenReturn(savedOutcome());
+        input("in1", "오늘부터 이틀 테스트약"); delegate("d1");
+        input("in2", "응 아니 저녁에만"); delegate("d2");
+        verify(workflow, never()).save(anyLong(), any());
+        verify(workflow, never()).confirm(any());
+        input("in3", "네"); delegate("d3");
+        verify(workflow, times(2)).prepare(eq(5L), any(), any(), anyList());
+        verify(workflow).confirm(evening.proposal());
+        verify(workflow).save(eq(5L), argThat(decision -> decision.request().doseTimes().equals(List.of(LocalTime.of(17, 0)))));
+        assertThat(service.get(5, id).status()).isEqualTo("SAVED");
+    }
+
+    @Test
+    void confirmingAfterSessionExpiryCannotSaveTheStoredProposal() {
+        String id = start();
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposedAt(LocalTime.of(17, 0)));
+        when(workflow.confirm(any())).thenCallRealMethod();
+        input("in1", "오늘부터 이틀 테스트약"); delegate("d1");
+        clock.now = clock.now.plusSeconds(60);
+        input("in2", "응"); delegate("d2");
+        verify(workflow, never()).save(anyLong(), any());
+        verify(client).hangup("live_fixture");
+        assertThatThrownBy(() -> service.get(5, id)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void yesWithoutAStoredProposalDoesNotCallTheModelOrSave() {
+        String id = start();
+        input("in1", "응"); delegate("d1");
+        assertThat(service.get(5, id).status()).isEqualTo("WAITING_FOR_DETAILS");
+        verify(workflow, never()).prepare(anyLong(), any(), any(), anyList());
+        verify(workflow, never()).confirm(any());
+        verify(workflow, never()).save(anyLong(), any());
+    }
+
+    @Test
+    void cancellationDiscardsTheProposalSoLaterYesCannotSaveIt() {
+        String id = start();
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposedAt(LocalTime.of(17, 0)),
+                new MedicationLiveWorkflow.Decision(0, 0, null, new Outcome("취소했어요", List.of(), List.of(), null)));
+        input("in1", "오늘부터 이틀 테스트약"); delegate("d1");
+        input("in2", "등록 취소해"); delegate("d2");
+        input("in3", "응"); delegate("d3");
+        verify(workflow, times(2)).prepare(eq(5L), any(), any(), anyList());
+        verify(workflow, never()).confirm(any());
+        verify(workflow, never()).save(anyLong(), any());
+        assertThat(service.get(5, id).status()).isEqualTo("WAITING_FOR_DETAILS");
+    }
+
+    @Test
     void expiredSessionStopsBeforeCommittingAnAlreadyPreparedDecision() {
         start();
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenAnswer(call -> {
@@ -185,6 +260,16 @@ class MedicationLiveSessionServiceTests {
         return new MedicationLiveWorkflow.Decision(13, 25,
                 new ScheduleRequest(DATE, DATE.plusDays(6), List.of(LocalTime.of(8, 0)), 1, null),
                 new Outcome("준비됨", List.of(), List.of(), null));
+    }
+    private MedicationLiveWorkflow.Decision proposedAt(LocalTime... times) {
+        var request = new ScheduleRequest(DATE, DATE.plusDays(1), List.of(times), 2, null);
+        return new MedicationLiveWorkflow.Decision(0, 0, null,
+                new Outcome("기본 설정으로 적용해 저장할까요?", List.of("doseTimes", "dosePerTime"), List.of(), null),
+                new MedicationLiveWorkflow.Proposal(13, 25, request, List.of("doseTimes", "dosePerTime")));
+    }
+    private Outcome savedOutcome() {
+        var saved = new ScheduleResponse(25, 13, "엄마", "테스트약", DATE, DATE.plusDays(1), List.of("17:00"), 2, null, false, true);
+        return new Outcome("등록했어요", List.of(), List.of("doseTimes", "dosePerTime"), saved);
     }
     private String start() {
         setupStart();

@@ -27,18 +27,23 @@ public class MedicationLivePlanner {
             assistant 발화나 질문에 나온 값을 사용자의 답으로 간주하지 않는다. 사용자의 최신 정정이 우선한다.
             intent는 일정 등록·변경 의사가 있으면 SAVE, 아직 요청 전·질문뿐이면 ASK, 저장 취소·중단이면 CANCEL,
             명시한 약·프로필을 찾지 못하거나 모호하면 TARGET_NOT_FOUND이다. 삭제·그만 먹기는 이 기능에서 지원하지 않는다.
+            "오늘부터 이틀 타이레놀"처럼 약·기간만 말해도 일정 등록 요청 SAVE이다. 등록 의사를 다시 묻지 않는다.
+            제안에 대한 수정 답변도 기존 등록 요청의 연속 SAVE로 해석하고, 바꾸지 않은 사용자 항목은 유지한다.
+            제안에 대한 "아니요"만으로는 등록 취소가 아니며 ASK이다. "취소해", "등록하지 마"처럼 명시한 경우 CANCEL이다.
             후보에 있는 myDrugId만 고를 수 있다. 대상을 말하지 않으면 null로 두어 화면 선택 약을 사용한다.
             다른 프로필만 말하면 그 프로필의 같은 이름 약이 유일한 경우만 선택한다. 찾지 못하면 TARGET_NOT_FOUND이다.
             오늘·내일은 today(한국 날짜) 기준 ISO 날짜로 변환한다. 날짜를 말하지 않으면 startDate=null이다.
             일주일은 durationDays=7. 종료일·기간을 말하지 않았으면 둘 다 null이다. 종료일을 추측하지 않는다.
-            횟수만 말하면 dailyCount만 채운다. 아침·저녁만으로 구체 시각을 만들지 않는다.
+            횟수만 말하면 dailyCount만 채운다. 아침·점심·저녁만 말하면 dosePeriods에 MORNING, NOON, EVENING을 넣고
+            doseTimes에는 구체 시각을 만들지 않는다. "저녁에만"으로 정정하면 앞선 시각·횟수는 지우고
+            dosePeriods=[EVENING], dailyCount=1, doseTimes=null이다. 기본 시각 제안은 서버가 만든다.
             시각을 직접 말했으면 HH:mm으로 바꾸고 doseTimes에 넣는다. 시각 개수로 dailyCount를 추론할 수 있다.
             dosePerTime도 말하지 않으면 null이다. 식전·식후 등 timing은 선택이며 없으면 null이다.
-            사용자 발화에 명시적으로 "알아서 저장해", "기본값으로 해줘", "그냥 저장해" 같은 위임이 있을 때만
+            사용자 발화에 명시적으로 "알아서 저장해", "알아서 해", "기본값으로 해줘", "그냥 저장해" 같은 위임이 있을 때만
             useDefaults=true로 하고 defaultEvidence에 그 사용자 원문 일부를 그대로 복사한다.
             단순 "몰라"는 위임이 아니다. assistant의 제안도 위임이 아니다. 위임을 철회한 최신 발화가 있으면 false이다.
-            서버가 "기본값으로 저장할까요?"라고 물은 직후 사용자가 명확히 동의하면 useDefaults=true이고
-            defaultEvidence에 사용자의 동의 원문을 넣는다. 무엇에 동의하는지 불명확하면 false이다.
+            기본값을 명시적으로 맡긴 경우만 useDefaults=true이다. 단순 "네", "응" 같은 제안 동의는 서버가
+            보관한 초안과 비교해 처리하므로 useDefaults=false로 둔다. assistant가 제안한 항목은 사용자 값이 아니다.
             일부만 알고 있어도 값을 출력한다. 빠진 항목은 null로 둔다. 범위 밖 값도 임의로 축소·교정하지 않는다.
             """;
 
@@ -82,6 +87,8 @@ public class MedicationLivePlanner {
         fields.put("timing", nullable("string"));
         fields.put("useDefaults", Map.of("type", "boolean"));
         fields.put("defaultEvidence", nullable("string"));
+        fields.put("dosePeriods", Map.of("type", List.of("array", "null"), "items",
+                Map.of("type", "string", "enum", List.of("MORNING", "NOON", "EVENING"))));
         return Map.of("type", "object", "properties", fields, "required", List.copyOf(fields.keySet()), "additionalProperties", false);
     }
 

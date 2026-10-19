@@ -48,6 +48,9 @@ class MedicationLiveClientTests {
         assertThat(body.path("session").path("model").asString()).isEqualTo("gpt-live-1");
         assertThat(body.path("session").path("delegation").path("type").asString()).isEqualTo("client");
         assertThat(body.path("session").path("store").asBoolean()).isFalse();
+        assertThat(body.path("session").path("input").path(0).path("role").asString()).isEqualTo("developer");
+        assertThat(body.path("session").path("input").path(0).path("content").path(0).path("text").asString())
+                .contains("안녕하세요 AI 복약도우미입니다. 어떻게 일정 등록을 도와드릴까요?", "한 번만");
         assertThat(body.path("session").path("client").path("data_channel").path("allowed_client_events").size()).isEqualTo(1);
         assertThat(body.path("session").path("client").path("data_channel").path("allowed_client_events").path(0).asString()).isEqualTo("session.close");
         assertThat(body.path("transport").path("sdp").asString()).isEqualTo("offer");

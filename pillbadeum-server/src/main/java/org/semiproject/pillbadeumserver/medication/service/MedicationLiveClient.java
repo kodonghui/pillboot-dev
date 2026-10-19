@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 /** GPT-Live의 세션 생성·종료와 서버 sideband 연결을 담당한다. */
 @Component
 public class MedicationLiveClient {
+    static final String GREETING = "안녕하세요 AI 복약도우미입니다. 어떻게 일정 등록을 도와드릴까요?";
     public record RemoteSession(String id, String sdp) {}
     public interface Connection {
         void send(Map<String, Object> event);
@@ -61,6 +62,9 @@ public class MedicationLiveClient {
         var visibleEvents = List.of("session.started", "session.closed", "session.input_transcript.delta",
                 "session.output_transcript.delta", "error").stream().map(type -> Map.of("type", type)).toList();
         var session = Map.of("model", model, "instructions", instructions, "store", false,
+                "input", List.of(Map.of("type", "message", "role", "developer", "content", List.of(Map.of(
+                        "type", "input_text", "text", "지금 한국어로 다음 인사를 한 번만 말한 뒤 사용자의 말을 기다린다: "
+                                + GREETING + " 사용자가 먼저 말하면 그 요청부터 듣고 인사를 반복하지 않는다.")))),
                 "audio", Map.of("output", Map.of("voice", voice)),
                 "delegation", Map.of("type", "client"),
                 "client", Map.of("data_channel", Map.of("allowed_client_events", List.of("session.close"),
