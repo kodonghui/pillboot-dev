@@ -5,6 +5,8 @@
 -- 사용자 결정에 따라 chat_session.snap_pregnant는 BOOLEAN으로 통일하고 기존 NULL 허용은 유지합니다.
 -- 최신 내보내기의 소문자 표명과 photo.kind VARCHAR(30)을 반영했습니다.
 -- 사용자 결정으로 drug.etc_otc UNIQUE를 제거하고 ETC/OTC만 허용하는 CHECK를 적용합니다.
+-- 일정 한 건만 삭제하고 약을 유지하기 위해 my_drug 일정 3개 필드를 NULL 허용으로 변경합니다.
+-- 일정은 세 값이 모두 NULL(없음)이거나 모두 NOT NULL(있음)이어야 합니다. 기본 시각은 앱에서 채웁니다.
 -- 위 교정·결정 외 컬럼명/자료형/NULL/기본값/제약은 내보내기 원문을 유지합니다.
 -- 00번으로 DB를 준비한 뒤 대상 DB를 선택하여 실행하세요.
 -- 기존 테이블을 삭제하거나 변경하지 않습니다. 기존 DB의 변경은 별도 검토가 필요합니다.
@@ -95,15 +97,19 @@ CREATE TABLE IF NOT EXISTS `my_drug` (
 	`item_seq`	VARCHAR(100)	NOT NULL,
 	`dose_per_time`	INT	NOT NULL	COMMENT '한 번에 복용하는 약 개수',
 	`timing`	VARCHAR(50)	NULL	COMMENT '식후 30분, 식전 등',
-	`start_date`	DATE	NOT NULL	COMMENT '복용 시작 날짜',
-	`end_date`	DATE	NOT NULL	COMMENT '복용 종료 날짜, 필수 입력',
-	`dose_times`	VARCHAR(50)	NOT NULL	DEFAULT '07:00,11:00,17:00'	COMMENT '하루 1~3개 복용 시각',
+	`start_date`	DATE	NULL DEFAULT NULL	COMMENT '복용 시작 날짜, 일정 없으면 NULL',
+	`end_date`	DATE	NULL DEFAULT NULL	COMMENT '복용 종료 날짜, 일정 등록 시 필수',
+	`dose_times`	VARCHAR(50)	NULL DEFAULT NULL	COMMENT '하루 1~3개 복용 시각, 일정 없으면 NULL',
 	`source`	VARCHAR(30)	NOT NULL	COMMENT 'PRESCRIPTION_PHOTO / PILL_PHOTO / SEARCH',
 	`registered_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '내약 최초 등록 시각',
 	`updated_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '내약 정보 마지막 수정 시각',
 	PRIMARY KEY (`my_drug_id`),
 	FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`),
-	FOREIGN KEY (`item_seq`) REFERENCES `drug` (`item_seq`)
+	FOREIGN KEY (`item_seq`) REFERENCES `drug` (`item_seq`),
+	CONSTRAINT chk_my_drug_schedule_presence CHECK (
+		(`start_date` IS NULL AND `end_date` IS NULL AND `dose_times` IS NULL)
+		OR (`start_date` IS NOT NULL AND `end_date` IS NOT NULL AND `dose_times` IS NOT NULL)
+	)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `chat_session` (

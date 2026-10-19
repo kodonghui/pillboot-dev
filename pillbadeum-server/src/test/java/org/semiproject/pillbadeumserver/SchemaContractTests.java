@@ -33,7 +33,7 @@ class SchemaContractTests {
             assertConstraintCount(connection, "PRIMARY KEY", 14);
             assertConstraintCount(connection, "FOREIGN KEY", 15);
             assertConstraintCount(connection, "UNIQUE", 1);
-            assertConstraintCount(connection, "CHECK", 1);
+            assertConstraintCount(connection, "CHECK", 2);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.table_constraints "
                     + "WHERE constraint_schema=DATABASE() AND table_name='drug' "
                     + "AND constraint_type='CHECK' AND constraint_name='chk_drug_type' AND enforced='YES'"))
@@ -46,8 +46,9 @@ class SchemaContractTests {
             assertColumn(connection, "chat_message", "trun_no", "int", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_birth_year", "bigint", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_pregnant", "tinyint", null, "YES", null);
-            assertColumn(connection, "my_drug", "end_date", "date", null, "NO", null);
-            assertColumn(connection, "my_drug", "dose_times", "varchar", 50L, "NO", "07:00,11:00,17:00");
+            assertColumn(connection, "my_drug", "start_date", "date", null, "YES", null);
+            assertColumn(connection, "my_drug", "end_date", "date", null, "YES", null);
+            assertColumn(connection, "my_drug", "dose_times", "varchar", 50L, "YES", null);
             assertColumn(connection, "consent", "terms_title", "varchar", 30L, "NO", null);
             assertColumn(connection, "drug", "etc_otc", "varchar", 10L, "NO", null);
             assertColumn(connection, "drug", "matrial", "varchar", 30L, "NO", null);
@@ -80,14 +81,23 @@ class SchemaContractTests {
                 assertSqlError(connection, 1048, drugInsert, itemSeq + "-null", null);
 
                 long myDrug = insert(connection,
-                        "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,source) "
-                                + "VALUES(?,?,1,'2026-10-17','2026-10-18','SEARCH')", profile, itemSeq);
+                        "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,dose_times,source) "
+                                + "VALUES(?,?,1,'2026-10-17','2026-10-18','07:00,11:00,17:00','SEARCH')", profile, itemSeq);
                 assertThat(count(connection, "SELECT COUNT(*) FROM my_drug WHERE my_drug_id=? AND dose_times='07:00,11:00,17:00'", myDrug))
                         .isEqualTo(1);
-                assertSqlError(connection, 1048, "UPDATE my_drug SET end_date=NULL WHERE my_drug_id=?", myDrug);
+                assertSqlError(connection, 3819, "UPDATE my_drug SET end_date=NULL WHERE my_drug_id=?", myDrug);
+                execute(connection, "UPDATE my_drug SET start_date=NULL,end_date=NULL,dose_times=NULL WHERE my_drug_id=?", myDrug);
+                assertThat(count(connection, "SELECT COUNT(*) FROM my_drug WHERE my_drug_id=? "
+                        + "AND profile_id=? AND item_seq=? AND start_date IS NULL AND end_date IS NULL AND dose_times IS NULL",
+                        myDrug, profile, itemSeq)).as("Deleting one schedule must preserve its medication and profile").isEqualTo(1);
+                assertSqlError(connection, 3819, "UPDATE my_drug SET dose_times='07:00' WHERE my_drug_id=?", myDrug);
                 // ERD에는 프로필/약의 복합 UNIQUE가 없으므로 임의로 중복 등록을 금지하지 않습니다.
-                insert(connection, "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,source) "
-                        + "VALUES(?,?,1,'2026-10-17','2026-10-18','SEARCH')", profile, itemSeq);
+                insert(connection, "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,dose_times,source) "
+                        + "VALUES(?,?,1,'2026-10-17','2026-10-18','07:00','SEARCH')", profile, itemSeq);
+                long unscheduled = insert(connection,
+                        "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,source) VALUES(?,?,1,'SEARCH')", profile, itemSeq);
+                assertThat(count(connection, "SELECT COUNT(*) FROM my_drug WHERE my_drug_id=? AND start_date IS NULL "
+                        + "AND end_date IS NULL AND dose_times IS NULL", unscheduled)).isEqualTo(1);
 
                 long room = insert(connection,
                         "INSERT INTO chat_session(member_id,profile_id,created_at,snap_birth_year,snap_gender) "

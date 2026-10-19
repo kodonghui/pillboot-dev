@@ -61,6 +61,9 @@ ERD 밖의 API 기반 추가 표·컬럼은 포함하지 않으며, 표명 대�
 테이블명은 소문자로 통일하고 `photo.kind`는 `VARCHAR(30)`으로 반영했습니다.
 `chat_session.snap_pregnant`의 자료형은 `BOOLEAN`으로 맞췄으며 기존 NULL 허용은 유지합니다.
 `drug.etc_otc`는 UNIQUE를 제거하고 `NOT NULL`과 `chk_drug_type CHECK (etc_otc IN ('ETC', 'OTC'))`를 적용했습니다.
+일정만 삭제하고 약은 유지하도록 `my_drug.start_date/end_date/dose_times`는 NULL을 허용하며 세 값을 함께 채우거나 비우도록 CHECK를 적용했습니다.
+기존 14개 테이블 DB에는 [일정 컬럼 변경 SQL](sql/03_MY_DRUG_OPTIONAL_SCHEDULE.sql)을 별도로 한 번 적용해야 합니다. 새 01로 만든 DB에는 적용하지 않습니다.
+일정 API·삭제 동작은 [복약 일정 안내](docs/MEDICATION_SCHEDULE.md)를 참고하세요.
 Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 
 ### 신규 DB: Docker Compose

@@ -39,14 +39,15 @@ import java.util.stream.Collectors;
  *  - 시각 컬럼 이름이 registered_at / updated_at 이라 BaseTimeEntity 를 상속하지 않고 직접 감사(auditing)한다.
  *  - dose_times 는 '07:00,11:00,17:00' 처럼 쉼표로 이은 문자열로 저장한다. 자바에서는 List<LocalTime> 으로 다룬다.
  *  - 저장 · 수정 규칙(복용량, 기간, 복용 시각)은 이 엔티티 안에서 검사해 어디서 바꾸든 같은 규칙을 지킨다.
- *  - 삭제 플래그 컬럼이 없으므로 삭제는 행을 실제로 지운다. (Repository.delete)
+ *  - 약 삭제는 행을 지우고, 일정 삭제는 clearSchedule()로 일정 필드 세 개만 비운다.
+ *  - 시작일·종료일·복용 시각이 모두 NULL이면 일정 없는 약이다. 일부만 비우는 것은 금지한다.
  * */
 @Entity
 @Table(name = "my_drug")
 @EntityListeners(AuditingEntityListener.class)
 public class MyDrug {
 
-    // DB 기본값과 같은 복용 시각. 등록할 때 시각을 보내지 않으면 이 값을 쓴다.
+    // 기간을 지정해 등록할 때 시각을 보내지 않으면 앱에서 이 기본값을 쓴다.
     public static final List<LocalTime> DEFAULT_DOSE_TIMES =
             List.of(LocalTime.of(7, 0), LocalTime.of(11, 0), LocalTime.of(17, 0));
 
@@ -74,13 +75,13 @@ public class MyDrug {
     @Column(name = "timing", length = 50)
     private String timing;              // 식후 30분, 식전 등 (선택)
 
-    @Column(name = "start_date", nullable = false)
+    @Column(name = "start_date")
     private LocalDate startDate;
 
-    @Column(name = "end_date", nullable = false)
+    @Column(name = "end_date")
     private LocalDate endDate;
 
-    @Column(name = "dose_times", length = 50, nullable = false)
+    @Column(name = "dose_times", length = 50)
     private String doseTimes;           // '07:00,11:00,17:00'
 
     @Enumerated(EnumType.STRING)
@@ -100,7 +101,7 @@ public class MyDrug {
     }
 
     // 확인한 약 저장 (POST /api/profiles/{profileId}/drugs)
-    // doseTimes 가 null 이거나 비어 있으면 기본 시각(07:00, 11:00, 17:00)을 쓴다.
+    // 기간이 있으면 생략한 시각에 기본값을 쓴다. 기간·시각을 모두 생략하면 일정 없이 등록한다.
     public static MyDrug create(Long profileId, Drug drug, DrugSource source,
                                 int dosePerTime, String timing,
                                 LocalDate startDate, LocalDate endDate, List<LocalTime> doseTimes) {
@@ -110,7 +111,9 @@ public class MyDrug {
         myDrug.drug = Objects.requireNonNull(drug, "drug");
         myDrug.source = Objects.requireNonNull(source, "source");
 
-        List<LocalTime> times = (doseTimes == null || doseTimes.isEmpty()) ? DEFAULT_DOSE_TIMES : doseTimes;
+        boolean noSchedule = startDate == null && endDate == null && (doseTimes == null || doseTimes.isEmpty());
+        List<LocalTime> times = noSchedule ? null
+                : (doseTimes == null || doseTimes.isEmpty()) ? DEFAULT_DOSE_TIMES : doseTimes;
         myDrug.apply(dosePerTime, timing, startDate, endDate, times);
         return myDrug;
     }
@@ -125,7 +128,18 @@ public class MyDrug {
                 timing != null ? timing : this.timing,
                 startDate != null ? startDate : this.startDate,
                 endDate != null ? endDate : this.endDate,
-                doseTimes != null ? doseTimes : getDoseTimes());
+                doseTimes != null ? doseTimes : this.doseTimes == null ? null : getDoseTimes());
+    }
+
+    /** 선택한 내 약의 일정만 제거한다. 약·프로필·1회 개수·복용 때·등록 경로는 유지한다. */
+    public void clearSchedule() {
+        this.startDate = null;
+        this.endDate = null;
+        this.doseTimes = null;
+    }
+
+    public boolean hasSchedule() {
+        return startDate != null && endDate != null && doseTimes != null;
     }
 
     // 이 약이 해당 프로필의 것인지 (다른 프로필 약을 경로에 넣은 요청을 막는다)
@@ -140,10 +154,11 @@ public class MyDrug {
         if (dosePerTime < 1) {
             throw invalid("1회 복용량은 1개 이상이어야 합니다.");
         }
-        if (startDate == null || endDate == null) {
+        boolean noSchedule = startDate == null && endDate == null && doseTimes == null;
+        if (!noSchedule && (startDate == null || endDate == null || doseTimes == null)) {
             throw invalid("복용 시작일과 종료일을 입력해주세요.");
         }
-        if (startDate.isAfter(endDate)) {
+        if (!noSchedule && startDate.isAfter(endDate)) {
             throw invalid("복용 시작일은 종료일보다 늦을 수 없습니다.");
         }
 
@@ -152,7 +167,7 @@ public class MyDrug {
             throw invalid("복용 시점은 " + MAX_TIMING_LENGTH + "자 이하로 입력해주세요.");
         }
 
-        String joinedTimes = joinDoseTimes(doseTimes);
+        String joinedTimes = noSchedule ? null : joinDoseTimes(doseTimes);
 
         this.dosePerTime = dosePerTime;
         this.timing = normalizedTiming;
@@ -168,7 +183,7 @@ public class MyDrug {
         if (doseTimes == null || doseTimes.isEmpty() || doseTimes.size() > MAX_DOSE_TIMES) {
             throw invalid("복용 시각은 하루 1~" + MAX_DOSE_TIMES + "개를 입력해주세요.");
         }
-        if (doseTimes.contains(null)) {
+        if (doseTimes.stream().anyMatch(Objects::isNull)) {
             throw invalid("복용 시각을 확인해주세요.");
         }
 
