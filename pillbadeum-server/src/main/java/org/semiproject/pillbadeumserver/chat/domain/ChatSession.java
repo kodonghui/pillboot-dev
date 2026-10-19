@@ -69,4 +69,5 @@ public class ChatSession {
     public Long getSessionId() { return sessionId; }
     public String getTitle() { return title; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import org.semiproject.pillbadeumserver.chat.domain.ChatSession;
 import org.semiproject.pillbadeumserver.chat.domain.ChatSessionRepository;
+import org.semiproject.pillbadeumserver.chat.dto.ChatSessionListResponse;
 import org.semiproject.pillbadeumserver.chat.dto.ChatSessionResponse;
 import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
 import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
@@ -18,6 +19,17 @@ public class ChatSessionService {
 
     public ChatSessionService(ChatSessionRepository sessions) {
         this.sessions = sessions;
+    }
+
+    @Transactional(readOnly = true)
+    public ChatSessionListResponse list(Long profileId) {
+        Long memberId = SecurityUtil.getCurrentMemberId();
+        Long ownerId = sessions.findProfileOwner(profileId)
+                .orElseThrow(() -> new NotFoundException("프로필을 찾을 수 없습니다."));
+        SecurityUtil.checkOwner(ownerId);
+
+        return ChatSessionListResponse.from(
+                sessions.findAllByMemberIdAndProfileIdOrderByUpdatedAtDescSessionIdDesc(memberId, profileId));
     }
 
     @Transactional
