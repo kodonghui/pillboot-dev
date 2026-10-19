@@ -16,6 +16,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -68,7 +69,8 @@ public class PushSubscriptionService {
 
         boolean existed = subscriptions.findByEndpoint(endpoint).isPresent();
         // endpoint UNIQUE에 기대 한 문장으로 넣거나 고친다. 같은 브라우저를 동시에 보내도 1행만 남는다.
-        subscriptions.upsert(memberId, endpoint, p256dh, auth, userAgent, LocalDateTime.now(clock));
+        subscriptions.upsert(memberId, endpoint, p256dh, auth, userAgent,
+                LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS));
         long id = subscriptions.findByEndpoint(endpoint).map(PushSubscription::getSubscriptionId)
                 .orElseThrow(() -> new IllegalStateException("저장한 푸시 구독을 찾지 못했습니다."));
         return new Saved(id, !existed);

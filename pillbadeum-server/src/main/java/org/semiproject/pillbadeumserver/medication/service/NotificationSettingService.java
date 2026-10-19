@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -67,7 +68,8 @@ public class NotificationSettingService {
 
     @Transactional
     public SettingResponse change(long memberId, SettingRequest request) {
-        LocalDateTime now = LocalDateTime.now(clock);
+        // DATETIME은 초 아래를 반올림해 저장하므로 응답과 DB 값이 같도록 초까지만 쓴다.
+        LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
         settings.insertIfAbsent(memberId, now);
         NotificationSetting setting = settings.findForUpdate(memberId)
                 .orElseThrow(() -> new IllegalStateException("알림 설정 행을 만들지 못했습니다. memberId=" + memberId));
