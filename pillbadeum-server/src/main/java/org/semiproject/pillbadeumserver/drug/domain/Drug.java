@@ -16,7 +16,8 @@ import java.util.Objects;
  *  ----------------------------------------------------------------------------------
  *  - 효능 · 용법 · 주의사항 글은 이 테이블에 없다. 근거 출처(guide)는 e약은요를 실시간으로 조회한다.
  *  - 테이블은 sql/01_PILLBADEUM_DB_SCRIPT.sql 로 만든다. (ddl-auto: none) 컬럼을 바꾸려면 팀 검토가 먼저다.
- *  - DB 컬럼명 matrial 은 ERD 원문 표기를 유지한다. 자바 필드는 material 로 쓴다.
+ *  - DB 컬럼명 matrial 은 ERD 원문 표기를 유지하며 '성분명' 을 뜻한다. 자바 필드는 material 로 쓴다.
+ *    (낱알식별에는 성분명이 없어 DrugSyncService 가 허가정보 API 에서 채운다)
  *  - etc_otc 는 CHECK 제약으로 'ETC' 또는 'OTC' 만 저장할 수 있다.
  * */
 @Entity
@@ -67,7 +68,7 @@ public class Drug {
     private String form;                // 제형 (정제, 연질캡슐, 경질캡슐 등)
 
     @Column(name = "matrial", length = 30, nullable = false)
-    private String material;            // 재질
+    private String material;            // 성분명 (예: 암로디핀베실산염)
 
     @Column(name = "synced_at", nullable = false)
     private LocalDateTime syncedAt;     // 공공데이터에서 가져온 시각 (근거 출처의 조회 시각으로도 보여줌)
