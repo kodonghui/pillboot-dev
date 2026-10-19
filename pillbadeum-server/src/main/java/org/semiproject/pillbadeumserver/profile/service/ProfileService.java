@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class ProfileService {
 
@@ -56,4 +58,15 @@ public class ProfileService {
     }
 
 
+    /* 로그인 한 회원의 프로필 목록 조회 */
+    @Transactional(readOnly = true)
+    public List<ProfileResponse> getProfiles() {
+
+        Long memberId = SecurityUtil.getCurrentMemberId();
+
+        return profileRepository.findByMember_MemberIdOrderByProfileIdAsc(memberId)
+                                .stream()
+                                .map(profile -> (ProfileResponse.from(profile)))
+                                .toList();
+    }
 }
