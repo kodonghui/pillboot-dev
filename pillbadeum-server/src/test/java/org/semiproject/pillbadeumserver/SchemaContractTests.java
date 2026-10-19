@@ -42,7 +42,7 @@ class SchemaContractTests {
                     + "WHERE table_schema=DATABASE() AND LOWER(extra) LIKE '%on update%'"))
                     .as("ERD does not declare automatic ON UPDATE timestamps").isZero();
             assertColumn(connection, "profile", "profile_pregnant", "tinyint", null, "NO", "0");
-            assertColumn(connection, "profile", "realationship_type", "varchar", 10L, "NO", null);
+            assertColumn(connection, "profile", "relationship_type", "varchar", 10L, "NO", null);
             assertColumn(connection, "chat_message", "trun_no", "int", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_birth_year", "bigint", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_pregnant", "tinyint", null, "YES", null);
@@ -51,7 +51,7 @@ class SchemaContractTests {
             assertColumn(connection, "my_drug", "dose_times", "varchar", 50L, "YES", null);
             assertColumn(connection, "consent", "terms_title", "varchar", 30L, "NO", null);
             assertColumn(connection, "drug", "etc_otc", "varchar", 10L, "NO", null);
-            assertColumn(connection, "drug", "matrial", "varchar", 30L, "NO", null);
+            assertColumn(connection, "drug", "material", "varchar", 30L, "NO", null);
             assertColumn(connection, "photo", "kind", "varchar", 30L, "NO", null);
             assertColumn(connection, "dur_interaction", "item_seq2", "varchar", 100L, "NO", null);
             assertColumn(connection, "dur_interaction", "mixture_item_seq", "varchar", 50L, "YES", null);
@@ -65,11 +65,11 @@ class SchemaContractTests {
                                 + "VALUES(?, 'test-only', 'fixture', 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
                         "review-" + suffix + "@example.test");
                 long profile = insert(connection,
-                        "INSERT INTO profile(member_id,profile_name,realationship_type,profile_birth_year,profile_gender,created_at,updated_at) "
+                        "INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,created_at,updated_at) "
                                 + "VALUES(?, 'fixture', 'SELF', 2000, 'FEMALE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", member);
                 assertThat(count(connection, "SELECT COUNT(*) FROM profile WHERE profile_id=? AND profile_pregnant=FALSE", profile))
                         .isEqualTo(1);
-                String drugInsert = "INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,matrial,synced_at) "
+                String drugInsert = "INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,material,synced_at) "
                         + "VALUES(?, 'fixture', 'fixture', ?, 'fixture', 'ROUND', 'WHITE', 'TABLET', 'fixture', CURRENT_TIMESTAMP)";
                 execute(connection, drugInsert, itemSeq, "OTC");
                 execute(connection, drugInsert, itemSeq + "-2", "OTC");

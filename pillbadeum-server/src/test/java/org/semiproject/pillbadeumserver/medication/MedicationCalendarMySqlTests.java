@@ -52,7 +52,7 @@ class MedicationCalendarMySqlTests {
             long secondProfile = profile(jdbc, owner, "부모님");
             long foreignProfile = profile(jdbc, foreign, "다른회원");
             String itemSeq = "calendar-" + suffix;
-            jdbc.update("INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,matrial,synced_at) "
+            jdbc.update("INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,material,synced_at) "
                     + "VALUES(?,'fixture','fixture','OTC','fixture','ROUND','WHITE','TABLET','fixture',CURRENT_TIMESTAMP)", itemSeq);
 
             long endsAtFrom = medication(jdbc, firstProfile, itemSeq, FROM.minusDays(5), FROM, "07:00");
@@ -88,7 +88,7 @@ class MedicationCalendarMySqlTests {
     }
 
     private long profile(JdbcTemplate jdbc, long memberId, String name) {
-        return insert(jdbc, "INSERT INTO profile(member_id,profile_name,realationship_type,profile_birth_year,profile_gender,created_at,updated_at) "
+        return insert(jdbc, "INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,created_at,updated_at) "
                 + "VALUES(?,?,'SELF',2000,'FEMALE',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", memberId, name);
     }
 

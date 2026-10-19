@@ -12,6 +12,7 @@ DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 �
 | `02_PILLBADEUM_TEST_DATA.sql` | 선택 실행. 빈 테이블에 DB·화면 확인용 샘플 입력 |
 | `03_MY_DRUG_OPTIONAL_SCHEDULE.sql` | 기존 14개 테이블 DB 전용. 약을 유지하고 일정만 삭제할 수 있도록 세 컬럼과 CHECK 변경 |
 | `04_PUSH_NOTIFICATION.sql` | 기존 DB 전용, 03 다음. 알림 설정 회원당 1행 UNIQUE, 푸시 구독·발송 시각 표 추가 |
+| `05_FIX_COLUMN_TYPOS.sql` | 기존 DB 전용, 04 다음. 컬럼명 오타 realationship_type·matrial을 relationship_type·material로 변경 |
 
 00을 실행한 뒤 대상 DB를 선택하여 01을 실행합니다. 샘플이 필요하면 빈 테이블에서만 02를 한 번 실행합니다.
 앱은 SQL을 자동 실행하지 않으며 JPA ddl-auto는 none입니다. IF NOT EXISTS는 기존 컬럼·제약을 변경하지 않습니다.
@@ -23,7 +24,7 @@ DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 �
 
 ## 원문과 실행 SQL의 관계
 
-- 최신 ERD Cloud에 맞춰 테이블명과 모든 SQL 참조를 소문자로 통일했습니다. trun_no·realationship_type·matrial·item_seq2는 원문 그대로입니다.
+- 최신 ERD Cloud에 맞춰 테이블명과 모든 SQL 참조를 소문자로 통일했습니다. trun_no·item_seq2는 원문 그대로이며, 팀 결정으로 오타 realationship_type·matrial은 relationship_type·material로 바로잡았습니다(기존 DB는 05 적용).
 - consent.terms_title의 VARHCHAR(30)는 유효한 자료형 VARCHAR(30)으로 교정했습니다.
 - 사용자 결정에 따라 chat_session.snap_pregnant는 BOOLEAN으로 통일했습니다. 기존 NULL 허용과 기본값 없음은 유지합니다.
 - 최신 내보내기의 photo.kind VARCHAR(30)을 반영했습니다.

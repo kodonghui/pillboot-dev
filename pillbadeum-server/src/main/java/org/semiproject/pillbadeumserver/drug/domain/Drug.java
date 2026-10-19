@@ -16,7 +16,7 @@ import java.util.Objects;
  *  ----------------------------------------------------------------------------------
  *  - 효능 · 용법 · 주의사항 글은 이 테이블에 없다. 근거 출처(guide)는 e약은요를 실시간으로 조회한다.
  *  - 테이블은 sql/01_PILLBADEUM_DB_SCRIPT.sql 로 만든다. (ddl-auto: none) 컬럼을 바꾸려면 팀 검토가 먼저다.
- *  - DB 컬럼명 matrial 은 ERD 원문 표기를 유지한다. 자바 필드는 material 로 쓴다.
+ *  - 팀 결정으로 DB 컬럼명 오타 matrial 을 material 로 바로잡았다. (기존 DB는 sql/05 적용)
  *  - etc_otc 는 CHECK 제약으로 'ETC' 또는 'OTC' 만 저장할 수 있다.
  * */
 @Entity
@@ -66,7 +66,7 @@ public class Drug {
     @Column(name = "form", length = 10, nullable = false)
     private String form;                // 제형 (정제, 연질캡슐, 경질캡슐 등)
 
-    @Column(name = "matrial", length = 30, nullable = false)
+    @Column(name = "material", length = 30, nullable = false)
     private String material;            // 재질
 
     @Column(name = "synced_at", nullable = false)

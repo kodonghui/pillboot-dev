@@ -9,6 +9,7 @@
 -- 일정은 세 값이 모두 NULL(없음)이거나 모두 NOT NULL(있음)이어야 합니다. 기본 시각은 앱에서 채웁니다.
 -- 사용자 결정으로 복약 알림용 push_subscription·notification_dispatch 2개 표를 추가해 16개 표·124개 컬럼입니다.
 -- notification_setting은 회원당 1행이 되도록 member_id에 UNIQUE를 적용합니다.
+-- 팀 결정으로 컬럼명 오타 profile.realationship_type → relationship_type, drug.matrial → material로 바로잡았습니다.
 -- 위 교정·결정 외 컬럼명/자료형/NULL/기본값/제약은 내보내기 원문을 유지합니다.
 -- 00번으로 DB를 준비한 뒤 대상 DB를 선택하여 실행하세요.
 -- 기존 테이블을 삭제하거나 변경하지 않습니다. 기존 DB의 변경은 별도 검토가 필요합니다.
@@ -51,7 +52,7 @@ CREATE TABLE IF NOT EXISTS `drug` (
 	`line_front`	VARCHAR(10)	NULL	COMMENT '분할선 없는 경우도 있음',
 	`line_back`	VARCHAR(10)	NULL	COMMENT '//',
 	`form`	VARCHAR(10)	NOT NULL	COMMENT '정제, 연질캡슐, 경질캡슐(통상적인 캡슐모양)',
-	`matrial`	VARCHAR(30)	NOT NULL,
+	`material`	VARCHAR(30)	NOT NULL,
 	`synced_at`	DATETIME	NOT NULL,
 	PRIMARY KEY (`item_seq`),
 	CONSTRAINT chk_drug_type CHECK (`etc_otc` IN ('ETC', 'OTC'))
@@ -61,7 +62,7 @@ CREATE TABLE IF NOT EXISTS `profile` (
 	`profile_id`	BIGINT AUTO_INCREMENT	NOT NULL	COMMENT '프로필코드',
 	`member_id`	BIGINT	NOT NULL	COMMENT '회원 코드',
 	`profile_name`	VARCHAR(10)	NOT NULL	COMMENT '프로필명',
-	`realationship_type`	VARCHAR(10)	NOT NULL	COMMENT '회원과의 관계',
+	`relationship_type`	VARCHAR(10)	NOT NULL	COMMENT '회원과의 관계',
 	`profile_birth_year`	INT	NOT NULL	COMMENT '출생년도',
 	`profile_gender`	VARCHAR(10)	NOT NULL	COMMENT '성별',
 	`profile_height`	INT	NULL	COMMENT '키',

@@ -18,7 +18,7 @@ import java.util.Optional;
 public class MedicationRepository {
     private final JdbcClient jdbc;
     private static final String SELECT = """
-            SELECT md.my_drug_id, md.profile_id, p.profile_name, p.realationship_type, d.name AS drug_name,
+            SELECT md.my_drug_id, md.profile_id, p.profile_name, p.relationship_type, d.name AS drug_name,
                    md.dose_per_time, md.timing, md.start_date, md.end_date, md.dose_times, md.updated_at
             FROM my_drug md JOIN profile p ON p.profile_id=md.profile_id JOIN drug d ON d.item_seq=md.item_seq
             WHERE p.member_id=:memberId
@@ -26,7 +26,7 @@ public class MedicationRepository {
     private static final RowMapper<MedicationTarget> MAPPER = (rs, row) -> {
         Date start = rs.getDate("start_date"), end = rs.getDate("end_date");
         return new MedicationTarget(rs.getLong("my_drug_id"), rs.getLong("profile_id"), rs.getString("profile_name"),
-                rs.getString("realationship_type"), rs.getString("drug_name"), rs.getInt("dose_per_time"),
+                rs.getString("relationship_type"), rs.getString("drug_name"), rs.getInt("dose_per_time"),
                 rs.getString("timing"), start == null ? null : start.toLocalDate(), end == null ? null : end.toLocalDate(),
                 rs.getString("dose_times"), rs.getTimestamp("updated_at").toLocalDateTime());
     };
@@ -39,7 +39,7 @@ public class MedicationRepository {
     }
 
     public List<ProfileChoice> profiles(long memberId) {
-        return jdbc.sql("SELECT profile_id,profile_name,realationship_type FROM profile WHERE member_id=:memberId ORDER BY profile_id")
+        return jdbc.sql("SELECT profile_id,profile_name,relationship_type FROM profile WHERE member_id=:memberId ORDER BY profile_id")
                 .param("memberId", memberId).query((rs, row) -> new ProfileChoice(rs.getLong(1), rs.getString(2), rs.getString(3))).list();
     }
 
