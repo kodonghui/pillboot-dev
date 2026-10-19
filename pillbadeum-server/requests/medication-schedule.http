@@ -3,6 +3,10 @@
 @profileId = 1
 @myDrugId = 1
 
+### 계정 전체 캘린더: 토큰 회원의 모든 프로필 일정. 조회 기간 양 끝 포함
+GET {{baseUrl}}/api/calendar?from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{accessToken}}
+
 ### 일정 조회: 이 회원의 이 프로필에 실제 등록된 내 약 ID를 사용합니다.
 GET {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}/schedule
 Authorization: Bearer {{accessToken}}
@@ -30,4 +34,8 @@ Authorization: Bearer {{accessToken}}
 
 ### 삭제 후 일정 조회: 404. 위 PUT으로 같은 약에 일정을 다시 등록할 수 있음
 GET {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}/schedule
+Authorization: Bearer {{accessToken}}
+
+### 삭제 후 캘린더: 삭제한 myDrugId만 빠지고 다른 일정은 유지됨
+GET {{baseUrl}}/api/calendar?from=2026-10-01&to=2026-10-31
 Authorization: Bearer {{accessToken}}

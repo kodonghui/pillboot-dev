@@ -53,6 +53,7 @@ public final class MedicationDtos {
     }
 
     public record DrugChoices(List<ScheduleResponse> drugs) {}
+    /** 조회 범위와 겹치는 약별 일정. 각 일정의 원래 기간을 유지하고 날짜별 행은 만들지 않는다. */
     public record CalendarResponse(LocalDate from, LocalDate to, List<ScheduleResponse> schedules) {}
     public record DoseItem(long myDrugId, long profileId, String profileName, String drugName,
                            String time, int dosePerTime, String timing) {}
