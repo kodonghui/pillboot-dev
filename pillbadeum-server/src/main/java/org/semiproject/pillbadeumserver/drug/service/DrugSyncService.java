@@ -1,0 +1,243 @@
+package org.semiproject.pillbadeumserver.drug.service;
+
+import org.semiproject.pillbadeumserver.common.exception.BusinessException;
+import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
+import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
+import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
+import org.semiproject.pillbadeumserver.drug.domain.Drug;
+import org.semiproject.pillbadeumserver.drug.domain.DrugRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/* 설명. 공공데이터 '의약품 낱알식별 정보' 로 drug 테이블을 채운다. (upsert)
+ *  ----------------------------------------------------------------------------------
+ *  my_drug · dur_warning 이 drug 를 FK 로 참조하므로, 약을 저장하기 전에 drug 행이 반드시 있어야 한다.
+ *  세 가지 등록 방법(이름 검색 · 알약 사진 · 처방전 사진)이 모두 이 서비스를 거친다.
+ *  ----------------------------------------------------------------------------------
+ *  공개 메서드 2개
+ *  1) getOrSync(itemSeq)      : DB 에 있으면 그대로, 없으면 낱알식별 조회 후 저장
+ *     - GET /api/drugs/{itemSeq}, POST /api/profiles/{profileId}/drugs, 이미지 팀 후보 확정에서 사용
+ *  2) syncByItemSeq(itemSeq)  : 있어도 낱알식별을 다시 조회해 최신 값으로 덮어쓴다. (synced_at 갱신)
+ *  ----------------------------------------------------------------------------------
+ *  - 외부 API 를 기다리는 동안 DB 연결을 붙잡지 않도록 @Transactional 을 붙이지 않는다.
+ *    (조회 · 저장은 Repository 자체 트랜잭션으로 짧게 끝난다)
+ *  - 낱알식별에 없는 약(시럽 등 액상약 포함)은 404 로 끝난다. → 계획 문서 '팀 결정' 항목
+ *  - matrial(성분명)은 낱알식별에 없어서 '의약품 제품 허가정보' API 를 한 번 더 조회한다.
+ *  - 응답 필드 이름 · form 분류는 실제 응답으로 확인이 필요하다. → 계획 문서 임시 구현 T3
+ * */
+@Service
+public class DrugSyncService {
+
+    private static final Logger log = LoggerFactory.getLogger(DrugSyncService.class);
+
+    public static final String GRAIN_INFO_PATH = "/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03";
+    public static final String SOURCE_NAME = "식품의약품안전처 의약품 낱알식별 정보";
+
+    // 성분명(matrial)을 얻는 허가정보 목록 API. 팀 활용신청 주소와 다르면 이 상수만 바꾼다. (T3)
+    public static final String PERMIT_INFO_PATH = "/1471000/DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnInq07";
+    public static final String PERMIT_MATERIAL_FIELD = "ITEM_INGR_NAME";
+
+    // drug 테이블 컬럼 길이 (sql/01_PILLBADEUM_DB_SCRIPT.sql). 넘으면 잘라서 저장한다.
+    private static final int LEN_NAME = 50;
+    private static final int LEN_MAKER = 50;
+    private static final int LEN_CLASS_NAME = 50;
+    private static final int LEN_IMAGE_URL = 255;
+    private static final int LEN_PRINT = 50;
+    private static final int LEN_SHAPE = 50;
+    private static final int LEN_COLOR = 50;
+    private static final int LEN_LINE = 10;
+    private static final int LEN_FORM = 10;
+    private static final int LEN_MATERIAL = 30;
+
+    private final PublicDataClient publicDataClient;
+    private final DrugRepository drugRepository;
+
+    public DrugSyncService(PublicDataClient publicDataClient, DrugRepository drugRepository) {
+        this.publicDataClient = publicDataClient;
+        this.drugRepository = drugRepository;
+    }
+
+    /* 목차. 1. DB 에 있으면 그대로 돌려주고, 없으면 낱알식별로 채운 뒤 돌려준다. */
+    public Drug getOrSync(String itemSeq) {
+
+        String key = normalizeItemSeq(itemSeq);
+        Optional<Drug> saved = drugRepository.findById(key);
+        if (saved.isPresent()) {
+            return saved.get();
+        }
+        return syncByItemSeq(key);
+    }
+
+    /* 목차. 2. 낱알식별을 다시 조회해 drug 를 새로 만들거나 최신 값으로 덮어쓴다. */
+    public Drug syncByItemSeq(String itemSeq) {
+
+        String key = normalizeItemSeq(itemSeq);
+        JsonNode item = fetchGrainInfo(key);
+        String material = fetchMaterial(key);
+        LocalDateTime now = LocalDateTime.now();
+
+        Drug drug = drugRepository.findById(key)
+                .map(existing -> {
+                    applyTo(existing, item, material, now);
+                    return existing;
+                })
+                .orElseGet(() -> create(key, item, material, now));
+
+        try {
+            return drugRepository.save(drug);
+        } catch (DataIntegrityViolationException e) {
+            // 같은 약을 동시에 처음 저장한 경우: 먼저 저장된 행을 그대로 쓴다.
+            log.info("[drug sync] 동시 저장 감지, 기존 행 사용 itemSeq={}", key);
+            return drugRepository.findById(key).orElseThrow(() -> e);
+        }
+    }
+
+    /* 설명. 낱알식별 API 에서 품목기준코드로 한 건을 찾는다. 없으면 404 */
+    private JsonNode fetchGrainInfo(String itemSeq) {
+
+        JsonNode body = publicDataClient.get(GRAIN_INFO_PATH, Map.of(
+                "item_seq", itemSeq,
+                "pageNo", 1,
+                "numOfRows", 1));
+
+        List<JsonNode> items = PublicDataClient.items(body);
+        return items.stream()
+                .filter(item -> itemSeq.equals(text(item, "ITEM_SEQ")))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("낱알식별 정보가 없는 약입니다. (itemSeq=" + itemSeq + ")"));
+    }
+
+    /* 설명. 허가정보 API 에서 성분명을 찾는다. 없으면 null (→ Values.from 에서 404) */
+    private String fetchMaterial(String itemSeq) {
+
+        JsonNode body = publicDataClient.get(PERMIT_INFO_PATH, Map.of(
+                "item_seq", itemSeq,
+                "pageNo", 1,
+                "numOfRows", 1));
+
+        return PublicDataClient.items(body).stream()
+                .filter(item -> itemSeq.equals(text(item, "ITEM_SEQ")))
+                .map(item -> text(item, PERMIT_MATERIAL_FIELD))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static Drug create(String itemSeq, JsonNode item, String material, LocalDateTime now) {
+        Values v = Values.from(item, itemSeq, material);
+        return Drug.create(itemSeq, v.name, v.maker, v.etcOtc, v.className, v.imageUrl,
+                v.printFront, v.printBack, v.shape, v.color, v.lineFront, v.lineBack,
+                v.form, v.material, now);
+    }
+
+    private static void applyTo(Drug drug, JsonNode item, String material, LocalDateTime now) {
+        Values v = Values.from(item, drug.getItemSeq(), material);
+        drug.sync(v.name, v.maker, v.etcOtc, v.className, v.imageUrl,
+                v.printFront, v.printBack, v.shape, v.color, v.lineFront, v.lineBack,
+                v.form, v.material, now);
+    }
+
+    /* 설명. 낱알식별 응답 한 건 → drug 컬럼 값
+     *  ----------------------------------------------------------------------------------
+     *  ITEM_NAME → name, ENTP_NAME → maker, ETC_OTC_NAME(전문/일반의약품) → etc_otc(ETC/OTC)
+     *  CLASS_NAME → class_name, ITEM_IMAGE → image_url, PRINT_FRONT/BACK → print_front/back
+     *  DRUG_SHAPE → shape, COLOR_CLASS1 → color (뒷면 색 COLOR_CLASS2 는 저장할 컬럼 없음)
+     *  LINE_FRONT/BACK → line_front/back
+     *  FORM_CODE_NAME(예: 필름코팅정, 경질캡슐제)을 정제 / 연질캡슐 / 경질캡슐 / 기타 로 묶은 값 → form   ※ 가정 (T3)
+     *  허가정보 ITEM_INGR_NAME → matrial (성분명, 30자 초과는 자름)
+     *  ----------------------------------------------------------------------------------
+     *  NOT NULL 컬럼에 넣을 값이 없으면 저장할 수 없으므로 '식별할 수 없는 약' 으로 보고 404
+     * */
+    private record Values(String name, String maker, String etcOtc, String className, String imageUrl,
+                          String printFront, String printBack, String shape, String color,
+                          String lineFront, String lineBack, String form, String material) {
+
+        static Values from(JsonNode item, String itemSeq, String material) {
+
+            String formCodeName = text(item, "FORM_CODE_NAME");
+
+            Values v = new Values(
+                    cut(text(item, "ITEM_NAME"), LEN_NAME),
+                    cut(text(item, "ENTP_NAME"), LEN_MAKER),
+                    toEtcOtc(text(item, "ETC_OTC_NAME")),
+                    cut(text(item, "CLASS_NAME"), LEN_CLASS_NAME),
+                    cut(text(item, "ITEM_IMAGE"), LEN_IMAGE_URL),
+                    cut(text(item, "PRINT_FRONT"), LEN_PRINT),
+                    cut(text(item, "PRINT_BACK"), LEN_PRINT),
+                    cut(text(item, "DRUG_SHAPE"), LEN_SHAPE),
+                    cut(text(item, "COLOR_CLASS1"), LEN_COLOR),
+                    cut(text(item, "LINE_FRONT"), LEN_LINE),
+                    cut(text(item, "LINE_BACK"), LEN_LINE),
+                    cut(toForm(formCodeName), LEN_FORM),
+                    cut(material, LEN_MATERIAL));
+
+            if (v.name == null || v.maker == null || v.etcOtc == null || v.className == null
+                    || v.shape == null || v.color == null || v.form == null || v.material == null) {
+                throw new NotFoundException("낱알식별 정보가 부족해 등록할 수 없는 약입니다. (itemSeq=" + itemSeq + ")");
+            }
+            return v;
+        }
+    }
+
+    /* 설명. '전문의약품' → ETC, '일반의약품' → OTC. 그 외는 null (저장 불가) */
+    private static String toEtcOtc(String etcOtcName) {
+        if (etcOtcName == null) {
+            return null;
+        }
+        if (etcOtcName.contains("전문")) {
+            return Drug.ETC;
+        }
+        if (etcOtcName.contains("일반")) {
+            return Drug.OTC;
+        }
+        return null;
+    }
+
+    /* 설명. 제형 분류 (가정 T3): 캡슐은 연질/경질로, 정(錠)으로 끝나는 제형은 정제로, 나머지는 기타 */
+    private static String toForm(String formCodeName) {
+        if (formCodeName == null) {
+            return null;
+        }
+        if (formCodeName.contains("연질캡슐")) {
+            return "연질캡슐";
+        }
+        if (formCodeName.contains("캡슐")) {
+            return "경질캡슐";
+        }
+        if (formCodeName.contains("정")) {
+            return "정제";
+        }
+        return "기타";
+    }
+
+    private static String normalizeItemSeq(String itemSeq) {
+        String key = (itemSeq == null) ? "" : itemSeq.strip();
+        if (key.isEmpty() || key.length() > 100 || !key.chars().allMatch(Character::isDigit)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "품목기준코드(itemSeq)를 확인해주세요.");
+        }
+        return key;
+    }
+
+    private static String text(JsonNode item, String field) {
+        JsonNode value = item.path(field);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        String text = value.asString().strip();
+        return (text.isEmpty() || "-".equals(text)) ? null : text;
+    }
+
+    private static String cut(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
+    }
+}
