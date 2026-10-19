@@ -7,6 +7,8 @@
 -- 사용자 결정으로 drug.etc_otc UNIQUE를 제거하고 ETC/OTC만 허용하는 CHECK를 적용합니다.
 -- 일정 한 건만 삭제하고 약을 유지하기 위해 my_drug 일정 3개 필드를 NULL 허용으로 변경합니다.
 -- 일정은 세 값이 모두 NULL(없음)이거나 모두 NOT NULL(있음)이어야 합니다. 기본 시각은 앱에서 채웁니다.
+-- 사용자 결정으로 복약 알림용 push_subscription·notification_dispatch 2개 표를 추가해 16개 표·124개 컬럼입니다.
+-- notification_setting은 회원당 1행이 되도록 member_id에 UNIQUE를 적용합니다.
 -- 위 교정·결정 외 컬럼명/자료형/NULL/기본값/제약은 내보내기 원문을 유지합니다.
 -- 00번으로 DB를 준비한 뒤 대상 DB를 선택하여 실행하세요.
 -- 기존 테이블을 삭제하거나 변경하지 않습니다. 기존 DB의 변경은 별도 검토가 필요합니다.
@@ -88,7 +90,28 @@ CREATE TABLE IF NOT EXISTS `notification_setting` (
 	`push_enabled`	BOOLEAN	NOT NULL	DEFAULT FALSE	COMMENT '알림 동의 여부와 연동',
 	`updated_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '알림 설정 마지막 변경 시각',
 	PRIMARY KEY (`setting_id`),
+	CONSTRAINT uk_notification_setting_member UNIQUE (`member_id`),
 	FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `push_subscription` (
+	`subscription_id`	BIGINT AUTO_INCREMENT	NOT NULL	COMMENT '브라우저 푸시 구독 코드',
+	`member_id`	BIGINT	NOT NULL	COMMENT '회원 코드, 이 브라우저로 마지막에 알림을 켠 회원',
+	`endpoint`	VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin	NOT NULL	COMMENT '브라우저 푸시 주소(UK), 대소문자 구분',
+	`p256dh`	VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin	NOT NULL	COMMENT '브라우저 공개 키(base64url)',
+	`auth`	VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin	NOT NULL	COMMENT '브라우저 인증 비밀값(base64url)',
+	`user_agent`	VARCHAR(500)	NULL	COMMENT '브라우저 정보',
+	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '구독 최초 저장 시각',
+	`updated_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '구독 정보 마지막 갱신 시각',
+	PRIMARY KEY (`subscription_id`),
+	CONSTRAINT uk_push_subscription_endpoint UNIQUE (`endpoint`),
+	FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `notification_dispatch` (
+	`dose_at`	DATETIME	NOT NULL	COMMENT '발송을 맡은 복용 시각(한국 시간, 분 단위). 같은 분은 한 번만 보냄',
+	`claimed_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '실행이 이 시각을 가져간 시각',
+	PRIMARY KEY (`dose_at`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `my_drug` (

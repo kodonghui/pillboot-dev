@@ -68,6 +68,7 @@ ERD 밖의 API 기반 추가 표·컬럼은 포함하지 않으며, 표명 대�
 `drug.etc_otc`는 UNIQUE를 제거하고 `NOT NULL`과 `chk_drug_type CHECK (etc_otc IN ('ETC', 'OTC'))`를 적용했습니다.
 일정만 삭제하고 약은 유지하도록 `my_drug.start_date/end_date/dose_times`는 NULL을 허용하며 세 값을 함께 채우거나 비우도록 CHECK를 적용했습니다.
 기존 14개 테이블 DB에는 [일정 컬럼 변경 SQL](sql/03_MY_DRUG_OPTIONAL_SCHEDULE.sql)을 별도로 한 번 적용해야 합니다. 새 01로 만든 DB에는 적용하지 않습니다.
+복약 알림용 표는 [알림 변경 SQL](sql/04_PUSH_NOTIFICATION.sql)을 03 다음에 한 번 적용합니다. 새 01에는 포함되어 있습니다.
 일정 API·삭제 동작은 [복약 일정 안내](docs/MEDICATION_SCHEDULE.md)를 참고하세요.
 Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 

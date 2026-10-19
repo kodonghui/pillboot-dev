@@ -29,10 +29,10 @@ class SchemaContractTests {
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
             ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(114);
-            assertConstraintCount(connection, "PRIMARY KEY", 14);
-            assertConstraintCount(connection, "FOREIGN KEY", 15);
-            assertConstraintCount(connection, "UNIQUE", 1);
+                    .isEqualTo(124);
+            assertConstraintCount(connection, "PRIMARY KEY", 16);
+            assertConstraintCount(connection, "FOREIGN KEY", 16);
+            assertConstraintCount(connection, "UNIQUE", 3);
             assertConstraintCount(connection, "CHECK", 2);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.table_constraints "
                     + "WHERE constraint_schema=DATABASE() AND table_name='drug' "
@@ -98,6 +98,18 @@ class SchemaContractTests {
                         "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,source) VALUES(?,?,1,'SEARCH')", profile, itemSeq);
                 assertThat(count(connection, "SELECT COUNT(*) FROM my_drug WHERE my_drug_id=? AND start_date IS NULL "
                         + "AND end_date IS NULL AND dose_times IS NULL", unscheduled)).isEqualTo(1);
+
+                // 알림 설정은 회원당 1행, 푸시 구독은 브라우저 주소(대소문자 구분)당 1행, 발송은 같은 분에 1번입니다.
+                execute(connection, "INSERT INTO notification_setting(member_id,push_enabled) VALUES(?,TRUE)", member);
+                assertSqlError(connection, 1062, "INSERT INTO notification_setting(member_id) VALUES(?)", member);
+                String endpoint = "https://push.example.test/" + suffix;
+                String subscriptionInsert = "INSERT INTO push_subscription(member_id,endpoint,p256dh,auth) VALUES(?,?,'key','auth')";
+                execute(connection, subscriptionInsert, member, endpoint);
+                assertSqlError(connection, 1062, subscriptionInsert, member, endpoint);
+                execute(connection, subscriptionInsert, member, endpoint.toUpperCase());
+                String dispatchInsert = "INSERT INTO notification_dispatch(dose_at) VALUES('2000-01-01 07:00:00')";
+                execute(connection, dispatchInsert);
+                assertSqlError(connection, 1062, dispatchInsert);
 
                 long room = insert(connection,
                         "INSERT INTO chat_session(member_id,profile_id,created_at,snap_birth_year,snap_gender) "

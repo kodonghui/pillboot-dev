@@ -2,6 +2,7 @@
 
 DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 원문입니다.
 **관계형 14개 테이블·114개 컬럼**이며 `vector_point`는 별도 Qdrant 모델입니다.
+사용자 결정으로 복약 알림용 `push_subscription`·`notification_dispatch`를 더해 현재 01은 16개 테이블·124개 컬럼입니다.
 다른 노션 ERD나 API를 근거로 표·컬럼을 추가하지 않습니다.
 
 | 파일 | 용도 |
@@ -10,6 +11,7 @@ DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 �
 | `01_PILLBADEUM_DB_SCRIPT.sql` | 비어 있는 개발 DB에 ERD Cloud 구조 생성 |
 | `02_PILLBADEUM_TEST_DATA.sql` | 선택 실행. 빈 테이블에 DB·화면 확인용 샘플 입력 |
 | `03_MY_DRUG_OPTIONAL_SCHEDULE.sql` | 기존 14개 테이블 DB 전용. 약을 유지하고 일정만 삭제할 수 있도록 세 컬럼과 CHECK 변경 |
+| `04_PUSH_NOTIFICATION.sql` | 기존 DB 전용, 03 다음. 알림 설정 회원당 1행 UNIQUE, 푸시 구독·발송 시각 표 추가 |
 
 00을 실행한 뒤 대상 DB를 선택하여 01을 실행합니다. 샘플이 필요하면 빈 테이블에서만 02를 한 번 실행합니다.
 앱은 SQL을 자동 실행하지 않으며 JPA ddl-auto는 none입니다. IF NOT EXISTS는 기존 컬럼·제약을 변경하지 않습니다.
@@ -17,6 +19,7 @@ DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 �
 이전 API 확장 구조를 적용하던 자동 업그레이드 파일은 제거했습니다.
 기존 14개 테이블 DB에서 일정 삭제를 쓰려면 대상 DB를 선택하고 03을 한 번 적용합니다.
 새 01에는 같은 변경이 포함되므로 03을 추가 실행하지 않습니다. 앱이 03을 자동 실행하지 않습니다.
+복약 알림을 쓰려면 기존 DB에 04도 한 번 적용합니다. 같은 회원의 알림 설정이 여러 행이면 먼저 정리해야 합니다.
 
 ## 원문과 실행 SQL의 관계
 
@@ -24,7 +27,9 @@ DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 �
 - consent.terms_title의 VARHCHAR(30)는 유효한 자료형 VARCHAR(30)으로 교정했습니다.
 - 사용자 결정에 따라 chat_session.snap_pregnant는 BOOLEAN으로 통일했습니다. 기존 NULL 허용과 기본값 없음은 유지합니다.
 - 최신 내보내기의 photo.kind VARCHAR(30)을 반영했습니다.
-- 최신 내보내기의 PK/FK는 Qdrant를 제외해 PK 14개·FK 15개로 반영했습니다.
+- 최신 내보내기의 PK/FK는 Qdrant를 제외해 PK 14개·FK 15개로 반영했습니다. 알림 표를 더해 현재 PK 16개·FK 16개입니다.
+- push_subscription.endpoint는 브라우저마다 1행이 되도록 UNIQUE이며 대소문자를 구분합니다(ascii_bin).
+  notification_dispatch는 발송한 복용 시각(분)만 기본키로 남겨 같은 분의 중복 발송을 막습니다. 누구에게 무엇을 보냈는지는 저장하지 않습니다.
   AUTO_INCREMENT가 생성 시점부터 유효하도록 PK를 CREATE TABLE 안에 배치합니다.
 - 사용자 결정에 따라 drug.etc_otc의 UNIQUE는 제거하고, NOT NULL과 chk_drug_type CHECK (etc_otc IN ('ETC', 'OTC'))를 적용했습니다.
 - 일정 한 건 삭제 시 약을 유지하도록 my_drug.start_date/end_date/dose_times는 NULL 허용·기본값 NULL로 변경했습니다.
