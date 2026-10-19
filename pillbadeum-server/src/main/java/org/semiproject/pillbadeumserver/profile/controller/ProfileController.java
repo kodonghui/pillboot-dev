@@ -4,6 +4,7 @@ package org.semiproject.pillbadeumserver.profile.controller;
 import jakarta.validation.Valid;
 import org.semiproject.pillbadeumserver.profile.dto.ProfileCreateRequest;
 import org.semiproject.pillbadeumserver.profile.dto.ProfileResponse;
+import org.semiproject.pillbadeumserver.profile.dto.ProfileUpdateRequest;
 import org.semiproject.pillbadeumserver.profile.service.ProfileService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -36,5 +37,15 @@ public class ProfileController {
     @GetMapping
     public ResponseEntity<List<ProfileResponse>> getAllProfiles() {
         return ResponseEntity.ok(profileService.getProfiles());
+    }
+
+    /* 프로필 수정 */
+    @PutMapping("/{profileId}")
+    public ResponseEntity<ProfileResponse> updateProfile(
+                                        @PathVariable("profileId") Long profileId,
+                                        @Valid @RequestBody ProfileUpdateRequest request) {
+
+        return ResponseEntity.ok(profileService.updateProfile(profileId, request));
+
     }
 }
