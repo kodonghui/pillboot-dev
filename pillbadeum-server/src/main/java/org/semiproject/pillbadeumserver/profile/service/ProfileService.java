@@ -81,7 +81,7 @@ public class ProfileService {
 
         // 2. 로그인 한 회원소유의 프로필을 조회한다.
         Profile profile  = profileRepository.findByProfileIdAndMember_MemberId(profileId, memberId)
-            .orElseThrow(() -> new NotFoundException("해당 회원이 존재하지 않습니다."));
+            .orElseThrow(() -> new NotFoundException("해당 프로필이 존재하지 않습니다."));
 
         // 3. 프로필값과 수정일시를 변경한다.
         profile.updateProfile(
