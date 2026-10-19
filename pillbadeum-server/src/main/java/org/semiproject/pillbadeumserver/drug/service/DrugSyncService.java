@@ -13,9 +13,13 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /* 설명. 공공데이터 '의약품 낱알식별 정보' 로 drug 테이블을 채운다. (upsert)
  *  ----------------------------------------------------------------------------------
@@ -30,8 +34,9 @@ import java.util.Optional;
  *  - 외부 API 를 기다리는 동안 DB 연결을 붙잡지 않도록 @Transactional 을 붙이지 않는다.
  *    (조회 · 저장은 Repository 자체 트랜잭션으로 짧게 끝난다)
  *  - 낱알식별에 없는 약(시럽 등 액상약 포함)은 404 로 끝난다. → 계획 문서 '팀 결정' 항목
- *  - matrial(성분명)은 낱알식별에 없어서 '의약품 제품 허가정보' API 를 한 번 더 조회한다.
- *  - 응답 필드 이름 · form 분류는 실제 응답으로 확인이 필요하다. → 계획 문서 임시 구현 T3
+ *  - matrial(성분명)은 낱알식별에 없어서 '의약품 제품 허가정보' API(Service08)를 한 번 더 조회한다.
+ *    목록 API 는 item_seq 조건을 무시하므로 제품명으로 찾고 품목기준코드로 골라낸다. 성분명은 영문으로 온다.
+ *  - form 분류(정제 / 연질캡슐 / 경질캡슐 / 기타)는 팀 결정 전 가정이다. → 계획 문서 임시 구현 T3
  * */
 @Service
 public class DrugSyncService {
@@ -41,9 +46,12 @@ public class DrugSyncService {
     public static final String GRAIN_INFO_PATH = "/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03";
     public static final String SOURCE_NAME = "식품의약품안전처 의약품 낱알식별 정보";
 
-    // 성분명(matrial)을 얻는 허가정보 목록 API. 팀 활용신청 주소와 다르면 이 상수만 바꾼다. (T3)
-    public static final String PERMIT_INFO_PATH = "/1471000/DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnInq07";
-    public static final String PERMIT_MATERIAL_FIELD = "ITEM_INGR_NAME";
+    // 성분명(matrial)을 얻는 허가정보 목록 API. 팀 활용신청 주소와 다르면 이 상수만 바꾼다.
+    public static final String PERMIT_INFO_PATH = "/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08";
+    // 성분명 후보 필드 (앞에서부터 찾는다, 대소문자 무시). 목록 API 는 ITEM_INGR_NAME(영문)을 준다.
+    public static final List<String> PERMIT_MATERIAL_FIELDS = List.of("ITEM_INGR_NAME", "MAIN_ITEM_INGR");
+    // 같은 이름의 약(용량 · 제조사 다름)이 여러 건 나올 수 있어 넉넉히 받는다.
+    private static final int PERMIT_SEARCH_ROWS = 100;
 
     // drug 테이블 컬럼 길이 (sql/01_PILLBADEUM_DB_SCRIPT.sql). 넘으면 잘라서 저장한다.
     private static final int LEN_NAME = 50;
@@ -81,7 +89,7 @@ public class DrugSyncService {
 
         String key = normalizeItemSeq(itemSeq);
         JsonNode item = fetchGrainInfo(key);
-        String material = fetchMaterial(key);
+        String material = fetchMaterial(key, text(item, "ITEM_NAME"));
         LocalDateTime now = LocalDateTime.now();
 
         Drug drug = drugRepository.findById(key)
@@ -116,18 +124,63 @@ public class DrugSyncService {
     }
 
     /* 설명. 허가정보 API 에서 성분명을 찾는다. 없으면 null (→ Values.from 에서 404) */
-    private String fetchMaterial(String itemSeq) {
+    private String fetchMaterial(String itemSeq, String itemName) {
 
-        JsonNode body = publicDataClient.get(PERMIT_INFO_PATH, Map.of(
-                "item_seq", itemSeq,
-                "pageNo", 1,
-                "numOfRows", 1));
+        // 허가정보 Service08 목록 API 는 item_seq 조건을 무시하고 다른 약을 돌려준다. (2026-10-19 확인)
+        // 그래서 낱알식별에서 받은 제품명(item_name)으로 찾고, 결과 중 품목기준코드가 같은 것을 고른다.
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("item_seq", itemSeq);
+        if (itemName != null) {
+            params.put("item_name", itemName);
+        }
+        params.put("pageNo", 1);
+        params.put("numOfRows", PERMIT_SEARCH_ROWS);
+
+        JsonNode body = publicDataClient.get(PERMIT_INFO_PATH, params);
 
         return PublicDataClient.items(body).stream()
-                .filter(item -> itemSeq.equals(text(item, "ITEM_SEQ")))
-                .map(item -> text(item, PERMIT_MATERIAL_FIELD))
+                .filter(item -> itemSeq.equals(textIgnoreCase(item, "ITEM_SEQ")))
+                .map(DrugSyncService::materialOf)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /* 설명. 허가정보 한 건에서 성분명을 꺼낸다.
+     *  MAIN_ITEM_INGR 은 '[M040702]아세트아미노펜|[M223101]카페인무수물' 처럼 성분 코드가 붙어 오므로
+     *  [코드] 를 지우고 '아세트아미노펜, 카페인무수물' 로 바꾼다.
+     * */
+    private static String materialOf(JsonNode item) {
+
+        for (String field : PERMIT_MATERIAL_FIELDS) {
+            String raw = textIgnoreCase(item, field);
+            if (raw == null) {
+                continue;
+            }
+            String cleaned = Arrays.stream(raw.split("\\|"))
+                    .map(part -> part.replaceAll("\\[[^\\]]*]", "").strip())
+                    .filter(part -> !part.isEmpty())
+                    .distinct()
+                    .collect(Collectors.joining(", "));
+            if (!cleaned.isEmpty()) {
+                return cleaned;
+            }
+        }
+        return null;
+    }
+
+    /* 설명. 필드 이름 대소문자가 API 버전마다 달라서 대소문자를 무시하고 찾는다. */
+    private static String textIgnoreCase(JsonNode item, String field) {
+
+        String exact = text(item, field);
+        if (exact != null) {
+            return exact;
+        }
+        for (Map.Entry<String, JsonNode> property : item.properties()) {
+            if (property.getKey().equalsIgnoreCase(field)) {
+                return text(item, property.getKey());
+            }
+        }
+        return null;
     }
 
     private static Drug create(String itemSeq, JsonNode item, String material, LocalDateTime now) {
@@ -151,7 +204,7 @@ public class DrugSyncService {
      *  DRUG_SHAPE → shape, COLOR_CLASS1 → color (뒷면 색 COLOR_CLASS2 는 저장할 컬럼 없음)
      *  LINE_FRONT/BACK → line_front/back
      *  FORM_CODE_NAME(예: 필름코팅정, 경질캡슐제)을 정제 / 연질캡슐 / 경질캡슐 / 기타 로 묶은 값 → form   ※ 가정 (T3)
-     *  허가정보 ITEM_INGR_NAME → matrial (성분명, 30자 초과는 자름)
+     *  허가정보 MAIN_ITEM_INGR(없으면 ITEM_INGR_NAME), 성분 코드 제거 → matrial (성분명, 30자 초과는 자름)
      *  ----------------------------------------------------------------------------------
      *  NOT NULL 컬럼에 넣을 값이 없으면 저장할 수 없으므로 '식별할 수 없는 약' 으로 보고 404
      * */
@@ -178,9 +231,20 @@ public class DrugSyncService {
                     cut(toForm(formCodeName), LEN_FORM),
                     cut(material, LEN_MATERIAL));
 
-            if (v.name == null || v.maker == null || v.etcOtc == null || v.className == null
-                    || v.shape == null || v.color == null || v.form == null || v.material == null) {
-                throw new NotFoundException("낱알식별 정보가 부족해 등록할 수 없는 약입니다. (itemSeq=" + itemSeq + ")");
+            List<String> missing = new ArrayList<>();
+            if (v.name == null) missing.add("name(ITEM_NAME)");
+            if (v.maker == null) missing.add("maker(ENTP_NAME)");
+            if (v.etcOtc == null) missing.add("etc_otc(ETC_OTC_NAME)");
+            if (v.className == null) missing.add("class_name(CLASS_NAME)");
+            if (v.shape == null) missing.add("shape(DRUG_SHAPE)");
+            if (v.color == null) missing.add("color(COLOR_CLASS1)");
+            if (v.form == null) missing.add("form(FORM_CODE_NAME)");
+            if (v.material == null) missing.add("matrial(" + String.join("/", PERMIT_MATERIAL_FIELDS) + ")");
+
+            if (!missing.isEmpty()) {
+                log.info("[drug sync] 필수 값 없음 itemSeq={} missing={}", itemSeq, missing);
+                throw new NotFoundException("낱알식별 정보가 부족해 등록할 수 없는 약입니다. (itemSeq=" + itemSeq
+                        + ", 없는 값: " + String.join(", ", missing) + ")");
             }
             return v;
         }
