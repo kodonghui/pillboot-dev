@@ -48,6 +48,12 @@ public class MedicationRepository {
                 .param("memberId", memberId).param("profileId", profileId).query(MAPPER).list();
     }
 
+    /** 음성 명령은 회원이 가진 약 안에서만 대상을 고른다. 일정 없는 약도 후보에 포함한다. */
+    public List<MedicationTarget> allDrugs(long memberId) {
+        return jdbc.sql(SELECT + " ORDER BY md.profile_id,md.my_drug_id")
+                .param("memberId", memberId).query(MAPPER).list();
+    }
+
     public Optional<MedicationTarget> find(long memberId, long profileId, long myDrugId) {
         return jdbc.sql(SELECT + " AND md.profile_id=:profileId AND md.my_drug_id=:myDrugId")
                 .param("memberId", memberId).param("profileId", profileId).param("myDrugId", myDrugId).query(MAPPER).optional();

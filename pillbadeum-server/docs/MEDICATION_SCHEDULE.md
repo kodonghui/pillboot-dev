@@ -1,7 +1,7 @@
 # 복약 일정 관리 기본 뼈대
 
-구현 범위는 일정 등록용 약 목록, 일정 상세 조회, 저장·수정, 그만 먹기·삭제와 계정 전체 캘린더 조회 API입니다.
-코드 작업 중 DB 설치·데이터 변경·스키마 변경은 실행하지 않았습니다. 캘린더 화면·음성·푸시 발송은 아직 연결하지 않았습니다.
+구현 범위는 일정 등록용 약 목록, 일정 상세 조회, 저장·수정, 그만 먹기·삭제, 계정 캘린더·날짜별 복용 예정 조회와 음성 문장 일정 저장 API입니다.
+코드 작업 중 DB 설치·데이터 변경·스키마 변경은 실행하지 않았습니다. 캘린더·마이크·오디오 재생 화면과 푸시 발송은 아직 연결하지 않았습니다.
 
 ## 요청이 지나가는 순서
 
@@ -120,12 +120,68 @@ DB의 dose_times 기본값은 NULL이고, 약을 기간과 함께 등록할 때 
 
 아직 합의되지 않은 최대 기간, 시작일 수정 제한 등은 임의로 추가하지 않았습니다.
 
+## 음성 문장으로 일정 저장
+
+`POST /api/schedule-voice-commands`
+
+```json
+{
+  "text": "일주일 동안 삼시세끼 약 일정 추가해줘",
+  "selectedProfileId": 13,
+  "selectedMyDrugId": 25,
+  "selectedDate": "2026-11-03"
+}
+```
+
+브라우저 STT의 최종 문장과 현재 선택한 프로필·약·클릭 날짜를 전송합니다.
+사용자 확인 버튼 없이 기존 일정 저장 서비스를 호출하며, 같은 약에 이미 일정이 있으면 PUT과 같이 전체 교체합니다.
+원본 오디오는 서버로 전송하지 않습니다. 브라우저 음성 인식, 화면 자동 갱신, 반환된 MP3 재생은 프론트에서 연결해야 합니다.
+
+| 생략 항목 | 적용 값 |
+| --- | --- |
+| 프로필·약 | 화면에서 선택한 약. 선택한 프로필·약 조합도 토큰 회원 소유인지 검사 |
+| 시작일 | 캘린더에서 클릭해 보낸 selectedDate |
+| 종료일·기간 모두 | 시작일 당일, 하루 일정 |
+| 종료일 대신 기간만 | 시작일 + 기간 - 1일. 일주일은 7일, 양 끝 포함 |
+| 복용 횟수·시각 모두 | 07:00·11:00·17:00 |
+| 횟수만 | 위 기본 시각에서 앞의 N개 사용. 하루 2회면 07:00·11:00 |
+| 1회 개수·복용 때 | 대상 약에 이미 저장된 dosePerTime·timing |
+
+- “오늘부터”, “내일부터”는 한국 시간의 오늘을 기준으로 해석하며 클릭 날짜보다 우선합니다.
+- “아침·저녁”은 미리 정해 둔 화면 시각 07:00·17:00으로 변환할 수 있습니다. 임의 복용법을 추천하는 기능이 아닙니다.
+- AI에게는 로그인 회원의 약 후보만 제공합니다. 명시된 프로필·약을 찾지 못하거나 모호하면 400으로 거절합니다.
+  다른 프로필만 말한 경우 그 프로필에서 현재 선택 약과 같은 이름의 약이 유일할 때만 대상으로 고릅니다.
+- 서버는 AI가 반환한 약 ID도 회원 소유 후보인지 재검사합니다. 임의·다른 회원의 약 ID는 저장할 수 없습니다.
+- 시각 1~3개·중복 없음·1회 개수 1~10·기간 순서 등은 서버와 기존 MyDrug 규칙으로 검사합니다.
+- 삭제·그만 먹기 명령이나 일정과 관련 없는 문장은 저장하지 않습니다. 해석 실패·잘못된 값도 기본값으로 덮어 성공 처리하지 않습니다.
+- 외부 해석 호출 중에는 DB 행을 잠그지 않습니다. 저장 서비스에서 소유권을 다시 확인하고 트랜잭션을 커밋한 뒤 완료 음성을 생성합니다.
+- 응답은 schedule, message, appliedDefaults, audioStatus, audioBase64, audioContentType, aiGeneratedVoice입니다.
+  appliedDefaults는 서버가 채운 항목 이름입니다. 예시 명령은 11월 3~9일의 하루 세 번 일정이 됩니다.
+- TTS가 성공하면 audioStatus=READY와 Base64 MP3를 반환합니다. 생성 음성임을 화면에 표시해야 합니다.
+- 일정 저장은 성공했지만 TTS만 실패·미설정이면 200과 audioStatus=UNAVAILABLE, 텍스트 완료 문구를 반환합니다.
+  이 경우 저장 요청을 다시 보내지 않습니다. 해석·저장이 실패하면 완료 음성도 생성하지 않습니다.
+- 새 테이블·컬럼을 추가하지 않습니다. 알림 담당 코드·보안 설정은 변경하지 않습니다.
+
+설정은 로컬 .env에 OPENAI_API_KEY, OPENAI_CHAT_MODEL, OPENAI_TTS_MODEL을 지정합니다.
+OPENAI_CHAT_MODEL은 Responses API의 Structured Outputs를 지원하는 계정 사용 가능 모델이어야 합니다.
+OPENAI_TTS_MODEL은 Speech API 모델이며 예시는 gpt-4o-mini-tts입니다. 음색은 OPENAI_TTS_VOICE, 기본 coral입니다.
+키·해석 모델이 없으면 저장 전에 503입니다. TTS 모델만 없으면 저장은 가능하고 완료 음성만 생략합니다.
+실제 키나 유료 API를 사용한 검증은 수행하지 않았습니다.
+
+브라우저 연동 순서: STT 최종 문장 1회 수신 → 선택값과 POST → 200이면 캘린더 재조회 → READY이면 MP3 재생.
+중간 인식 결과마다 저장하지 않으며, 요청 실패·시간 초과 시 무조건 자동 재시도하지 않습니다.
+
+공식 API 근거: [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses),
+[Text to speech](https://developers.openai.com/api/docs/guides/text-to-speech),
+[Create speech](https://developers.openai.com/api/reference/resources/audio/subresources/speech/methods/create).
+
 ## 확인
 
 `requests/medication-schedule.http`에 요청 예시가 있습니다. 실제 회원·프로필·내 약과 정상 Bearer 토큰이 필요합니다.
 기본 테스트는 실제 MyDrug와 서비스, JWT 필터와 MVC 입력 검증을 사용하며 DB 접근은 mock으로 분리합니다.
 선택 실행하는 MedicationCalendarMySqlTests는 전용 pill_test에서 실제 조회 SQL의 계정 분리·기간 경계·일정 삭제 제외를 검사합니다.
 fixture는 롤백하며, MYSQL_TEST_URL이 없으면 이 검증을 생략합니다.
+음성 테스트는 로컬 HTTP fixture·mock으로 구조화 출력 요청, 기본값, 소유권, 검증 실패, MP3 응답과 TTS 실패 처리를 확인합니다.
 실제 MySQL에서 쿼리·JPA 잠금·커밋이 동작하는지 확인하는 통합 검증은 별도로 필요합니다.
 MySQL 스키마 테스트를 켤 때는 전용 pill_test DB도 새 01로 준비하거나 기존 구조에 03을 먼저 적용합니다.
 테스트가 실행하는 CREATE TABLE IF NOT EXISTS만으로는 기존 pill_test 스키마가 갱신되지 않습니다.
