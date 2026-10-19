@@ -2,7 +2,7 @@ spring:
   config:
     import: optional:file:.env[.properties]
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/pilldb?connectionTimeZone=Asia/Seoul&forceConnectionTimeZoneToSession=true}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/pilldb?connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true}
 
 springdoc:
   api-docs:
