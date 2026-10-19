@@ -9,6 +9,7 @@ import org.semiproject.pillbadeumserver.profile.domain.Profile;
 import org.semiproject.pillbadeumserver.profile.domain.ProfileRepository;
 import org.semiproject.pillbadeumserver.profile.dto.ProfileCreateRequest;
 import org.semiproject.pillbadeumserver.profile.dto.ProfileResponse;
+import org.semiproject.pillbadeumserver.profile.dto.ProfileUpdateRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class ProfileService {
     */
     @Transactional
     public ProfileResponse createProfile(ProfileCreateRequest request) {
+
         // 1. 토큰에서 로그인 한 회원 ID를 가져온다.
         Long memberId = SecurityUtil.getCurrentMemberId();
 
@@ -68,5 +70,31 @@ public class ProfileService {
                                 .stream()
                                 .map(profile -> (ProfileResponse.from(profile)))
                                 .toList();
+    }
+
+    /* 로그인 한 회원의 프로필 수정 */
+    @Transactional
+    public ProfileResponse updateProfile(Long profileId, ProfileUpdateRequest request) {
+
+        // 1. 토큰에서 로그인 한 회원 ID를 가져온다.
+        Long memberId = SecurityUtil.getCurrentMemberId();
+
+        // 2. 로그인 한 회원소유의 프로필을 조회한다.
+        Profile profile  = profileRepository.findByProfileIdAndMember_MemberId(profileId, memberId)
+            .orElseThrow(() -> new NotFoundException("해당 회원이 존재하지 않습니다."));
+
+        // 3. 프로필값과 수정일시를 변경한다.
+        profile.updateProfile(
+            request.getProfileName(),
+            request.getRelationshipType(),
+            request.getProfileBirthYear(),
+            request.getProfileGender(),
+            request.getProfileHeight(),
+            request.getProfileWeight(),
+            request.getProfilePregnant()
+        );
+
+        // 4. 변경된 객체를 응답 dto로 변환한다.
+        return ProfileResponse.from(profile);
     }
 }
