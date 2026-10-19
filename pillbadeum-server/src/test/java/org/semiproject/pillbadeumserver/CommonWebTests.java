@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** 실제 공통 보안 필터와 MVC 예외 처리기를 함께 검증합니다. 업무 API는 테스트에만 존재합니다. */
-@WebMvcTest
+@WebMvcTest(controllers = CommonWebTests.ProbeController.class)
 @ActiveProfiles("test")
 @Import({CommonWebTests.ProbeController.class, SecurityConfig.class, JwtTokenProvider.class,
         JwtAuthenticationEntryPoint.class, JwtAccessDeniedHandler.class,
