@@ -84,7 +84,9 @@ client data channel은 자막·연결 상태 관찰과 session.close만 허용�
 - 서버가 `session.commentary.append`로 질문·저장 결과를 돌려주며, 브라우저는 서버 상태를 조회해 캘린더를 갱신합니다.
 - 회원당 대화 하나, 서버 전체 기본 10개입니다. `OPENAI_LIVE_MAX_SESSIONS`로 조정합니다.
 - 대화 제한은 세션 시작 요청을 받은 시점부터 최대 60초입니다. `OPENAI_LIVE_MAX_SECONDS`로 더 짧게 설정할 수 있고, 60초를 넘는 값도 서버에서 60초로 제한합니다. 브라우저 타이머, 서버 상태 조회·저장 직전 검사, 1초 주기 정리로 종료합니다. 시간 초과 후 새 저장은 실행하지 않으며 이미 저장된 일정은 유지합니다.
-- 종료 버튼은 서버의 추가 저장을 차단하고 hangup합니다. 최종 usage 이벤트를 기다려 집계하는 기능은 이번 버전에 포함하지 않습니다.
+- 종료 버튼은 서버의 추가 저장을 차단하고 hangup합니다. 최종 사용량 수신용 sideband는 최대 3초 더 유지하고 정리합니다. 대화·저장은 이 시간 동안 재개되지 않습니다.
+- Live 음성 사용량은 토큰 수가 아닌 API의 `usage.seconds`로 기록합니다. `session.usage.updated`는 누적 스냅샷이므로 합산하지 않고 마지막 값을 보관하며, `session.closed`의 최종 사용 초를 한 번 로그에 남깁니다. 예: `[OpenAiLive] 완료 : model=gpt-live-1, session=live_..., 사용 시간=24.0초, 종료 사유=close_requested (음성 토큰 수는 API 미제공)`.
+- 최종 이벤트·사용량 누락, 연결 오류 또는 정리 대기 시간 초과 시 `[OpenAiLive] 최종 사용량 미확정`과 마지막 누적 초를 기록합니다. 수신 값이 없으면 `unknown`이며 0초로 간주하지 않습니다. 로컬 타이머로 잰 대화 시간은 과금 사용량으로 대체하지 않습니다. 일정 해석 모델의 입력·출력 토큰은 기존 `[OpenAiClient]` 로그에 별도로 남습니다.
 - 세션 상태는 단일 서버 메모리입니다. 서버 재시작 시 대화는 복구되지 않습니다. 여러 서버 운영에는 라우팅·공유 상태 설계가 추가로 필요합니다.
 - 자막은 일부 문장일 수 있고 인식 오류가 있을 수 있습니다. 실제 사용자 발화로 질문·위임·정정·저장 결과를 확인하는 실연동 검증이 필요합니다.
 
@@ -98,4 +100,5 @@ Java 테스트는 세션 생성 HTTP, WebSocket 조각 조립, 회원 소유권,
 공식 근거: [Live 연결](https://developers.openai.com/api/docs/guides/voice-webrtc),
 [client delegation](https://developers.openai.com/api/docs/guides/live-delegation),
 [서버 sideband](https://developers.openai.com/api/docs/guides/voice-server-controls),
+[사용량 집계](https://developers.openai.com/api/docs/guides/voice-latency-cost),
 [세션 생성](https://developers.openai.com/api/reference/resources/live/methods/create).
