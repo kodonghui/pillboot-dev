@@ -79,7 +79,7 @@ public class Profile {
         this.profileHeight = profileHeight;
         this.profileWeight = profileWeight;
         this.profilePregnant = profilePregnant;
-        this.updatedAt = LocalDateTime.now();;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public Long getProfileId() {
