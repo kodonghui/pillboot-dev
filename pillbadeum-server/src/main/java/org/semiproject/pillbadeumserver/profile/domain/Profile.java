@@ -14,6 +14,7 @@ public class Profile {
     @Column(name = "profile_id")
     private Long profileId;
 
+    // 하나의 계정이 여러 개의 프로필을 가진다.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", nullable = false)
     private Member member;
