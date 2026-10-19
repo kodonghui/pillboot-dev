@@ -115,7 +115,7 @@ public class MedicationLiveWorkflow {
 
     public Outcome save(long memberId, Decision decision) {
         var saved = schedules.save(memberId, decision.profileId(), decision.myDrugId(), decision.request());
-        String message = saved.profileName() + "님의 " + saved.drugName() + " 일정을 등록했어요.";
+        String message = "등록했어요.";
         return new Outcome(message, List.of(), decision.outcome().appliedDefaults(), saved);
     }
 
@@ -148,18 +148,18 @@ public class MedicationLiveWorkflow {
     private String proposalMessage(MedicationTarget target, ScheduleRequest request, LocalDate today, List<String> defaults) {
         String from = request.startDate().equals(today) ? "오늘" : request.startDate().getMonthValue() + "월 " + request.startDate().getDayOfMonth() + "일";
         long days = ChronoUnit.DAYS.between(request.startDate(), request.endDate()) + 1;
-        String times = request.doseTimes().stream().map(this::spokenTime).collect(java.util.stream.Collectors.joining("·"));
+        boolean wholeHours = request.doseTimes().stream().allMatch(time -> time.getMinute() == 0);
+        String times = request.doseTimes().stream().map(time -> wholeHours ? Integer.toString(time.getHour()) : spokenTime(time))
+                .collect(java.util.stream.Collectors.joining("·")) + (wholeHours ? "시" : "");
         String message = "네, " + from + "부터 " + days + "일 동안 " + target.drugName() + " 등록 도와드릴게요. "
-                + (defaults.contains("doseTimes") ? "복용 시간은 기본 " : "복용 시간은 ")
-                + "하루 " + request.doseTimes().size() + "번, " + times + "로 하고, 1회 개수는 "
-                + (defaults.contains("dosePerTime") ? "기존 설정인 " : "") + request.dosePerTime() + "개"
-                + (request.timing() == null ? "" : ", 복용 때는 " + request.timing());
-        return message + "으로 적용해 저장할까요?";
+                + (defaults.contains("doseTimes") ? "기본 " : "")
+                + "하루 " + request.doseTimes().size() + "번, " + times + ", 1회 " + request.dosePerTime() + "개"
+                + (request.timing() == null ? "" : ", " + request.timing());
+        return message + ". 적용할까요?";
     }
 
     private String spokenTime(LocalTime time) {
-        int hour = time.getHour() % 12;
-        return (time.getHour() < 12 ? "오전 " : "오후 ") + (hour == 0 ? 12 : hour) + "시"
+        return time.getHour() + "시"
                 + (time.getMinute() == 0 ? "" : " " + time.getMinute() + "분");
     }
 

@@ -35,6 +35,7 @@ import java.util.concurrent.Executor;
 public class MedicationLiveSessionService {
     private static final Logger log = LoggerFactory.getLogger(MedicationLiveSessionService.class);
     private static final long MAX_DURATION_SECONDS = 60;
+    private static final long COMPLETION_GRACE_SECONDS = 8;
     private final MedicationLiveClient client;
     private final MedicationRepository reads;
     private final MedicationLiveWorkflow workflow;
@@ -53,6 +54,9 @@ public class MedicationLiveSessionService {
             사용자의 "응", "네"는 방금 제안한 일정의 동의다. "저녁에만" 등 정정은 반영해 다시 제안한다.
             시작 인사부터 기본 말하기 속도는 평소의 약 1.5배로 빠르고 자연스럽게 유지한다.
             문장 사이의 불필요한 쉼을 줄이되 날짜·시간·복용 개수는 명확하게 발음한다.
+            특히 기본 설정을 나열하는 부분은 4초 이내를 목표로 더 빠르게, 쉬지 않고 압축해서 말한다.
+            예: "기본 하루 세 번, 7·11·17시, 1회 한 개, 식후 삼십 분. 적용할까요?"
+            24시간제 시각을 그대로 읽어 오전·오후를 반복하지 않는다. 숫자·분·복용 때는 생략하거나 바꾸지 않는다.
             사용자가 말하기 속도를 바꿔 달라고 하면 그 요청을 따른다.
             시작 인사에서 AI 복약도우미임을 밝힌다. 진료·복용법을 추천하지 않는다.
             사용자가 말을 시작한 뒤 약 1초 동안 말을 멈추면 현재 발화가 끝난 것으로 보고 더 기다리지 않는다.
@@ -65,6 +69,7 @@ public class MedicationLiveSessionService {
             '알아서 저장해'처럼 맡기면 backend에 그 요청을 전달하고, 그 전까지 기본값으로 저장하지 않는다.
             사용자가 계속 말하는 도중에는 문장 조각만으로 작업을 요청하지 않는다. 사용자의 정정을 반영한다.
             backend가 저장 성공을 알려주기 전에는 저장했다고 말하지 않는다. 성공 결과가 와야 완료를 알린다.
+            저장 성공 결과가 오면 "등록했어요."만 짧게 말하고 끝낸다. 추가 설명·질문·인사는 하지 않는다.
             대화가 끊겼다고 이미 저장한 일정이 취소됐다고 말하지 않는다. 수정·삭제는 실제 결과로만 안내한다.
             저장 외의 도구는 지원하지 않는다. 실제 일정 삭제·그만 먹기는 화면의 기존 기능을 안내한다.
             """;
@@ -141,7 +146,8 @@ public class MedicationLiveSessionService {
     private State owned(long memberId, String id) {
         State state = sessions.get(id);
         if (state == null || state.memberId != memberId) throw new NotFoundException("조회할 수 있는 음성 대화가 없습니다.");
-        if (!Instant.now(clock).isBefore(state.expiresAt)) {
+        if (!Instant.now(clock).isBefore(state.expiresAt)
+                || state.closeAfter != null && !Instant.now(clock).isBefore(state.closeAfter)) {
             terminate(state, true);
             throw new NotFoundException("음성 대화 시간이 종료됐습니다.");
         }
@@ -156,6 +162,7 @@ public class MedicationLiveSessionService {
         boolean run = false;
         synchronized (state) {
             if (state.closed) return;
+            if (state.saved != null && !"session.output_transcript.delta".equals(type)) return;
             String eventId = event.path("event_id").asString("");
             if (!eventId.isBlank() && !state.events.add(eventId)) return;
             if (state.events.size() > 2000) { executor.execute(() -> terminate(state, true)); return; }
@@ -186,7 +193,7 @@ public class MedicationLiveSessionService {
             MedicationLiveWorkflow.Proposal proposal;
             String proposalReply;
             synchronized (state) {
-                if (state.closed || state.pending == null) { state.running = false; return; }
+                if (state.closed || state.saved != null || state.pending == null) { state.running = false; state.pending = null; return; }
                 delegation = state.pending; state.pending = null;
                 revision = state.revision;
                 transcript = state.transcript.stream().sorted(Comparator
@@ -234,11 +241,18 @@ public class MedicationLiveSessionService {
                 synchronized (state) {
                     if (state.closed) return;
                     state.message = outcome.message(); state.missing = outcome.missingFields(); state.defaults = outcome.appliedDefaults();
-                    if (outcome.savedSchedule() != null) state.saved = outcome.savedSchedule();
+                    if (outcome.savedSchedule() != null) {
+                        state.saved = outcome.savedSchedule();
+                        state.closeAfter = Instant.now(clock).plusSeconds(COMPLETION_GRACE_SECONDS);
+                        state.pending = null;
+                    }
                     state.status = outcome.savedSchedule() != null ? "SAVED"
                             : state.proposal != null ? "AWAITING_CONFIRMATION" : "WAITING_FOR_DETAILS";
                 }
                 send(state, delegation, "session.commentary.append", outcome.message());
+                if (outcome.savedSchedule() != null && state.connection != null && !state.closed) {
+                    state.connection.send(Map.of("type", "session.input_audio.mute", "event_id", UUID.randomUUID().toString()));
+                }
             } catch (RuntimeException e) {
                 synchronized (state) {
                     if (state.closed) return;
@@ -278,7 +292,12 @@ public class MedicationLiveSessionService {
 
     @Scheduled(fixedDelay = 1000)
     void expireSessions() {
-        for (State state : sessions.values()) if (!Instant.now(clock).isBefore(state.expiresAt)) executor.execute(() -> terminate(state, true));
+        for (State state : sessions.values()) {
+            if (!Instant.now(clock).isBefore(state.expiresAt)
+                    || state.closeAfter != null && !Instant.now(clock).isBefore(state.closeAfter)) {
+                executor.execute(() -> terminate(state, true));
+            }
+        }
     }
 
     @PreDestroy
@@ -294,6 +313,7 @@ public class MedicationLiveSessionService {
         volatile String remoteId;
         volatile MedicationLiveClient.Connection connection;
         volatile boolean closed;
+        volatile Instant closeAfter;
         String status = "CONNECTING", message = "음성 대화를 시작할게요.", pending;
         long revision, processedRevision = -1;
         int characters;

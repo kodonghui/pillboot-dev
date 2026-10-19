@@ -8,20 +8,37 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
 const response = (body, status = 200) => ({ status, ok: status >= 200 && status < 300, json: async () => body });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-function environment({ media, fetcher } = {}) {
+function environment({ media, fetcher, audioSupported = false } = {}) {
   const elements = new Map(), requests = [], peers = [];
-  let stops = 0;
+  const timers = new Map();
+  let stops = 0, now = Date.parse('2026-10-19T00:00:00Z'), timerId = 0, amplitude = 0, audioClosed = 0;
+  class TestDate extends Date {
+    constructor(...args) { if (args.length) super(...args); else super(now); }
+    static now() { return now; }
+  }
+  const schedule = (fn, delay, repeat) => { const id = ++timerId; timers.set(id, { fn, at: now + delay, repeat }); return id; };
+  async function advance(ms) {
+    const target = now + ms;
+    for (let i = 0; i < 1000; i++) {
+      const next = [...timers.entries()].filter(([, value]) => value.at <= target).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!next) { now = target; await tick(); return; }
+      const [id, timer] = next; now = timer.at;
+      if (timer.repeat) timer.at += timer.repeat; else timers.delete(id);
+      timer.fn(); await tick();
+    }
+    throw new Error('Too many fake timer iterations');
+  }
   class Element {
-    constructor() { this.value = ''; this.textContent = ''; this.disabled = false; this.events = {}; this.children = []; }
+    constructor() { this.value = ''; this.textContent = ''; this.disabled = false; this.events = {}; this.children = []; this.paused = true; this.muted = false; this.volume = 1; }
     addEventListener(name, handler) { this.events[name] = handler; }
     async click() { return this.events.click?.(); }
     append(...children) { this.children.push(...children); }
     replaceChildren(...children) { this.children = children; }
-    play() { return Promise.resolve(); }
+    play() { this.paused = false; return Promise.resolve(); }
   }
   for (const id of ['token','profile','drug','date','start','stop','calendar','status','audio','conversation','progress','result']) elements.set(id, new Element());
   elements.get('profile').value = '13'; elements.get('drug').value = '25';
-  const track = { stop() { stops++; } };
+  const track = { enabled: true, stop() { stops++; } };
   const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
   class Peer {
     constructor() { this.iceGatheringState = 'complete'; this.events = {}; peers.push(this); }
@@ -34,11 +51,21 @@ function environment({ media, fetcher } = {}) {
     async setRemoteDescription(answer) { this.answer = answer; }
     close() { this.closed = true; }
   }
+  class FakeAudioContext {
+    constructor() { this.state = 'running'; this.destination = {}; }
+    createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
+    createAnalyser() { return { fftSize: 2048, connect() {}, getFloatTimeDomainData(samples) { samples.fill(amplitude); } }; }
+    createGain() { return { gain: { value: 1 }, connect() {} }; }
+    resume() { return Promise.resolve(); }
+    close() { audioClosed++; this.state = 'closed'; return Promise.resolve(); }
+  }
   const globals = {
     document: { getElementById: id => elements.get(id), createElement: () => new Element(), createTextNode: text => text },
-    isSecureContext: true, RTCPeerConnection: Peer, MediaStream: class {}, Intl, Date, console,
+    isSecureContext: true, RTCPeerConnection: Peer, MediaStream: class {}, Intl, Date: TestDate, console,
+    ...(audioSupported ? { AudioContext: FakeAudioContext } : {}),
     navigator: { mediaDevices: { getUserMedia: () => media ? media.promise : Promise.resolve(stream) } },
-    setInterval: () => 1, clearInterval() {}, setTimeout: () => 1, clearTimeout() {}, addEventListener() {},
+    setInterval: (fn, delay) => schedule(fn, delay, delay), clearInterval: id => timers.delete(id),
+    setTimeout: (fn, delay) => schedule(fn, delay, 0), clearTimeout: id => timers.delete(id), addEventListener() {},
     localStorage: { setItem() { throw new Error('Tokens must not be stored'); } },
     fetch: async (url, options = {}) => {
       requests.push({ url, options });
@@ -50,7 +77,10 @@ function environment({ media, fetcher } = {}) {
   };
   globals.window = globals;
   vm.runInNewContext(source, globals, { filename: 'medication-live/live.js' });
-  return { el: id => elements.get(id), stream, requests, peers, stopped: () => stops };
+  return { el: id => elements.get(id), stream, requests, peers, stopped: () => stops, advance,
+    sound: value => { amplitude = value; }, audioClosed: () => audioClosed,
+    emitTrack: () => peers.at(-1).events.track({ track: {} }),
+    receive: (type, delta) => peers.at(-1).channel.events.message({ data: JSON.stringify({ type, delta }) }) };
 }
 
 test('로그인 토큰이 없으면 마이크·API를 시작하지 않음', async () => {
@@ -107,4 +137,107 @@ test('연결 성공 후 SDP를 적용하고 종료 시 서버·미디어를 정�
   assert.ok(app.requests.some(request => request.options.method === 'DELETE'));
   assert.equal(app.stopped(), 1);
   assert.equal(app.peers[0].closed, true);
+});
+
+function completionEnvironment({ audioSupported = true, calendarFails = false, alreadyClosed = false } = {}) {
+  let saved = false;
+  const app = environment({ audioSupported, fetcher: (url, options) => {
+    if (options.method === 'POST') return response({ sessionId: 'fixture-session', sdp: 'fixture-answer', expiresAt: '2099-01-01T00:00:00Z' }, 201);
+    if (options.method === 'DELETE') return alreadyClosed ? response({ message: '이미 종료된 세션' }, 404) : response(null, 204);
+    if (url.startsWith('/api/calendar')) return calendarFails ? response({ message: '캘린더 오류' }, 503) : response([]);
+    return response(saved ? { status: 'SAVED', savedSchedule: { myDrugId: 25, startDate: '2026-10-19' } } : { status: 'LISTENING' });
+  } });
+  app.markSaved = () => { saved = true; };
+  app.closingRequests = () => app.requests.filter(request => request.options.method === 'DELETE');
+  app.el('token').value = 'fixture-jwt';
+  return app;
+}
+
+test('저장 성공 뒤 완료 음성을 들은 후 무음이면 자동 종료하고 마이크를 해제함', async () => {
+  const app = completionEnvironment();
+  await app.el('start').click(); app.emitTrack();
+  app.markSaved(); await app.advance(1500);
+  assert.equal(app.stream.getAudioTracks()[0].enabled, false);
+  assert.equal(app.closingRequests().length, 0);
+  app.receive('session.output_transcript.delta', '등록');
+  app.receive('session.output_transcript.delta', '했어요.');
+  app.sound(0.1); await app.advance(300);
+  app.sound(0); await app.advance(600);
+  assert.equal(app.closingRequests().length, 0);
+  await app.advance(200);
+  assert.equal(app.closingRequests().length, 1);
+  assert.equal(app.stopped(), 1);
+  assert.equal(app.audioClosed(), 1);
+  assert.equal(app.el('start').disabled, false);
+  assert.match(app.el('status').textContent, /등록.*자동 종료/);
+});
+
+test('완료 자막이 끊겨도 실제 음성이 계속 재생되면 바로 종료하지 않음', async () => {
+  const app = completionEnvironment();
+  await app.el('start').click(); app.emitTrack();
+  app.markSaved(); await app.advance(1500);
+  app.receive('session.output_transcript.delta', '등록했어요.');
+  app.sound(0.1); await app.advance(2000);
+  assert.equal(app.closingRequests().length, 0);
+  app.sound(0); await app.advance(800);
+  assert.equal(app.closingRequests().length, 1);
+});
+
+test('저장 성공이 없으면 완료처럼 들리는 자막과 무음만으로 종료하지 않음', async () => {
+  const app = completionEnvironment();
+  await app.el('start').click(); app.emitTrack();
+  app.receive('session.output_transcript.delta', '등록했어요.');
+  app.sound(0.1); await app.advance(300);
+  app.sound(0); await app.advance(1000);
+  assert.equal(app.closingRequests().length, 0);
+  assert.equal(app.stream.getAudioTracks()[0].enabled, true);
+  await app.el('stop').click(); await tick();
+});
+
+test('오디오 감지를 지원하지 않아도 저장 후 8초 안에 자동 정리함', async () => {
+  const app = completionEnvironment({ audioSupported: false });
+  await app.el('start').click(); app.emitTrack();
+  app.markSaved(); await app.advance(1500);
+  await app.advance(7900);
+  assert.equal(app.closingRequests().length, 0);
+  await app.advance(100);
+  assert.equal(app.closingRequests().length, 1);
+  assert.equal(app.stopped(), 1);
+});
+
+test('재생이 일시 정지됐으면 들었다고 판단하지 않고 유예 시간 뒤 정리함', async () => {
+  const app = completionEnvironment();
+  await app.el('start').click(); app.emitTrack();
+  app.markSaved(); await app.advance(1500);
+  app.el('audio').paused = true;
+  app.receive('session.output_transcript.delta', '등록했어요.');
+  app.sound(0.1); await app.advance(300);
+  app.sound(0); await app.advance(1000);
+  assert.equal(app.closingRequests().length, 0);
+  await app.advance(6700);
+  assert.equal(app.closingRequests().length, 1);
+});
+
+test('캘린더 조회 실패는 저장 성공을 뒤집거나 완료 음성을 즉시 끊지 않음', async () => {
+  const app = completionEnvironment({ audioSupported: false, calendarFails: true, alreadyClosed: true });
+  await app.el('start').click();
+  app.markSaved(); await app.advance(1500);
+  assert.match(app.el('result').textContent, /일정은 등록.*캘린더 조회만 실패/);
+  assert.equal(app.closingRequests().length, 0);
+  await app.advance(8000);
+  assert.equal(app.closingRequests().length, 1);
+  assert.match(app.el('status').textContent, /등록.*자동 종료/);
+  assert.doesNotMatch(app.el('status').textContent, /이미 종료된 세션/);
+});
+
+test('완료 안내 대기 중 수동 종료하면 남은 타이머가 다시 종료 요청을 보내지 않음', async () => {
+  const app = completionEnvironment();
+  await app.el('start').click(); app.emitTrack();
+  app.markSaved(); await app.advance(1500);
+  await app.el('stop').click(); await tick();
+  assert.equal(app.closingRequests().length, 1);
+  await app.advance(10000);
+  assert.equal(app.closingRequests().length, 1);
+  assert.equal(app.stopped(), 1);
+  assert.equal(app.audioClosed(), 1);
 });

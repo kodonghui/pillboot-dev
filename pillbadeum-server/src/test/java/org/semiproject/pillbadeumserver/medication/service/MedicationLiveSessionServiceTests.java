@@ -86,6 +86,24 @@ class MedicationLiveSessionServiceTests {
     }
 
     @Test
+    void savedSessionRejectsFurtherWorkAndClosesAfterTheCompletionGracePeriod() {
+        String id = start(); ready();
+        input("in1", "알아서 저장해"); delegate("d1");
+        verify(connection).send(argThat(event -> event.get("type").equals("session.input_audio.mute")));
+        input("in2", "또 다른 일정을 등록해"); delegate("d2");
+        verify(workflow, times(1)).prepare(eq(5L), any(), any(), anyList());
+        verify(workflow, times(1)).save(eq(5L), any());
+        clock.now = clock.now.plusSeconds(7);
+        service.expireSessions();
+        assertThat(service.get(5, id).savedSchedule()).isNotNull();
+        verify(client, never()).hangup(anyString());
+        clock.now = clock.now.plusSeconds(1);
+        service.expireSessions();
+        verify(client).hangup("live_fixture"); verify(connection).close();
+        assertThatThrownBy(() -> service.get(5, id)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
     void correctionDuringPlanningDiscardsTheOldDecision() {
         String id = start();
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenAnswer(call -> {
