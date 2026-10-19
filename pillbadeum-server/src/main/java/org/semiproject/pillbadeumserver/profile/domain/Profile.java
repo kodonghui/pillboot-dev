@@ -67,6 +67,21 @@ public class Profile {
         this.updatedAt = now;
     }
 
+
+    /* 프로필 정보 수정과 수정일시 갱신 */
+    public void updateProfile(String profileName, String relationshipType, int profileBirthYear,
+                              String profileGender, Integer profileHeight,
+                              Integer profileWeight, boolean profilePregnant) {
+        this.profileName = profileName;
+        this.relationshipType = relationshipType;
+        this.profileBirthYear = profileBirthYear;
+        this.profileGender = profileGender;
+        this.profileHeight = profileHeight;
+        this.profileWeight = profileWeight;
+        this.profilePregnant = profilePregnant;
+        this.updatedAt = LocalDateTime.now();;
+    }
+
     public Long getProfileId() {
         return profileId;
     }
