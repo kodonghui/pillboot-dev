@@ -46,6 +46,9 @@ public class MedicationLiveSessionService {
     private final Object registryLock = new Object();
     private static final String INSTRUCTIONS = """
             한국어로 복약 일정을 등록하는 음성 도우미다. 짧게 한 번에 한 가지씩 질문한다.
+            시작 인사부터 기본 말하기 속도는 평소의 약 1.5배로 빠르고 자연스럽게 유지한다.
+            문장 사이의 불필요한 쉼을 줄이되 날짜·시간·복용 개수는 명확하게 발음한다.
+            사용자가 말하기 속도를 바꿔 달라고 하면 그 요청을 따른다.
             AI가 생성하는 음성이라고 대화 시작 때 짧게 알린다. 진료·복용법을 추천하지 않는다.
             사용자에게서 약 일정 등록·정정·기본값 위임·취소 요청 또는 추가 답변을 받으면,
             발화를 충분히 들은 뒤 반드시 backend에 위임한다. backend가 항목 수집과 저장을 담당한다.
