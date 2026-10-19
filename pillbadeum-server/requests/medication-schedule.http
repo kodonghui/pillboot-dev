@@ -15,6 +15,14 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}/schedule
 Authorization: Bearer {{accessToken}}
 
+### 선택한 날짜 하루 전체 복용 예정 목록
+GET {{baseUrl}}/api/calendar/doses?date=2026-10-19
+Authorization: Bearer {{accessToken}}
+
+### 선택한 날짜 07:00 복용 예정 목록: 모든 내 프로필 포함
+GET {{baseUrl}}/api/calendar/doses?date=2026-10-19&time=07:00
+Authorization: Bearer {{accessToken}}
+
 ### 일정 저장·수정 (전체 교체, timing을 생략하면 기존 복용 때도 지움)
 PUT {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}/schedule
 Authorization: Bearer {{accessToken}}
