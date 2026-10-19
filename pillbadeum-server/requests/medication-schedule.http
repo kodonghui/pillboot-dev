@@ -3,6 +3,10 @@
 @profileId = 1
 @myDrugId = 1
 
+### 일정 등록용 약 목록: 일정 없는 약도 포함. 내 프로필에 약이 없으면 drugs=[]
+GET {{baseUrl}}/api/profiles/{{profileId}}/drugs
+Authorization: Bearer {{accessToken}}
+
 ### 계정 전체 캘린더: 토큰 회원의 모든 프로필 일정. 조회 기간 양 끝 포함
 GET {{baseUrl}}/api/calendar?from=2026-10-01&to=2026-10-31
 Authorization: Bearer {{accessToken}}
