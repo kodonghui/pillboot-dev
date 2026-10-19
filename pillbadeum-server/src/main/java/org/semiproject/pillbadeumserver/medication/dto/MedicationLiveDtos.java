@@ -12,6 +12,8 @@ import java.util.List;
 
 public final class MedicationLiveDtos {
     private MedicationLiveDtos() {}
+    public enum Operation { SAVE, DELETE, STOP }
+    public record CompletedOperation(Operation action, long profileId, long myDrugId) {}
 
     public record StartRequest(@NotBlank @Size(max = 100000) String sdp,
                                @NotNull @Positive Long selectedProfileId,
@@ -23,18 +25,37 @@ public final class MedicationLiveDtos {
     /** 사용자가 말한 항목만 들어간다. 매 호출은 누적 대화를 다시 해석하므로 정정·취소도 반영한다. */
     public record Plan(String intent, Long myDrugId, String startDate, String endDate, Integer durationDays,
                        List<String> doseTimes, Integer dailyCount, Integer dosePerTime, String timing,
-                       boolean useDefaults, String defaultEvidence, List<String> dosePeriods) {
+                       boolean useDefaults, String defaultEvidence, List<String> dosePeriods,
+                       String profileHint, List<String> drugHints, String actionEvidence) {
         public Plan(String intent, Long myDrugId, String startDate, String endDate, Integer durationDays,
                     List<String> doseTimes, Integer dailyCount, Integer dosePerTime, String timing,
                     boolean useDefaults, String defaultEvidence) {
             this(intent, myDrugId, startDate, endDate, durationDays, doseTimes, dailyCount, dosePerTime,
-                    timing, useDefaults, defaultEvidence, null);
+                    timing, useDefaults, defaultEvidence, null, null, null, null);
+        }
+        public Plan(String intent, Long myDrugId, String startDate, String endDate, Integer durationDays,
+                    List<String> doseTimes, Integer dailyCount, Integer dosePerTime, String timing,
+                    boolean useDefaults, String defaultEvidence, List<String> dosePeriods) {
+            this(intent, myDrugId, startDate, endDate, durationDays, doseTimes, dailyCount, dosePerTime,
+                    timing, useDefaults, defaultEvidence, dosePeriods, null, null, null);
         }
     }
 
     public record Progress(String sessionId, String status, String message, List<String> missingFields,
-                           List<String> appliedDefaults, ScheduleResponse savedSchedule, Instant expiresAt) {}
+                           List<String> appliedDefaults, ScheduleResponse savedSchedule, Instant expiresAt,
+                           CompletedOperation completedOperation) {
+        public Progress(String sessionId, String status, String message, List<String> missingFields,
+                        List<String> appliedDefaults, ScheduleResponse savedSchedule, Instant expiresAt) {
+            this(sessionId, status, message, missingFields, appliedDefaults, savedSchedule, expiresAt,
+                    savedSchedule == null ? null : new CompletedOperation(Operation.SAVE, savedSchedule.profileId(), savedSchedule.myDrugId()));
+        }
+    }
 
     public record Outcome(String message, List<String> missingFields, List<String> appliedDefaults,
-                          ScheduleResponse savedSchedule) {}
+                          ScheduleResponse savedSchedule, CompletedOperation completedOperation) {
+        public Outcome(String message, List<String> missingFields, List<String> appliedDefaults, ScheduleResponse savedSchedule) {
+            this(message, missingFields, appliedDefaults, savedSchedule,
+                    savedSchedule == null ? null : new CompletedOperation(Operation.SAVE, savedSchedule.profileId(), savedSchedule.myDrugId()));
+        }
+    }
 }

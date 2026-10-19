@@ -21,11 +21,16 @@ import java.util.Map;
 @Service
 public class MedicationLiveWorkflow {
     public record Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults) {}
-    public record Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal) {
+    public record Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal, Operation operation) {
         public Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome) {
-            this(profileId, myDrugId, request, outcome, null);
+            this(profileId, myDrugId, request, outcome, null, Operation.SAVE);
         }
+        public Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal) {
+            this(profileId, myDrugId, request, outcome, proposal, Operation.SAVE);
+        }
+        public boolean executable() { return request != null || operation == Operation.DELETE || operation == Operation.STOP; }
     }
+    private final MedicationLiveTargetResolver targets = new MedicationLiveTargetResolver();
     private final MedicationRepository reads;
     private final MedicationLivePlanner planner;
     private final MedicationScheduleService schedules;
@@ -41,10 +46,17 @@ public class MedicationLiveWorkflow {
     public Decision prepare(long memberId, StartRequest selection, LocalDate today, List<Map<String, Object>> transcript) {
         var candidates = reads.allDrugs(memberId);
         var plan = planner.plan(selection, today, candidates, transcript);
-        if ("CANCEL".equals(plan.intent())) return question("이번 요청으로는 추가 저장하지 않을게요. 이미 저장된 일정은 그대로예요.", List.of());
+        if ("CANCEL".equals(plan.intent())) return question("이번 요청은 취소할게요. 기존 일정은 그대로예요.", List.of());
         String lastUser = normalize(lastTurn(transcript, "user"));
         if (lastUser.matches("(아니|아니요|싫어|싫어요|안돼|안돼요)")) {
             return question("그럼 바꿀 항목과 값만 말씀해주세요.", List.of("correction"));
+        }
+        if ("DELETE".equals(plan.intent()) || "STOP".equals(plan.intent())) {
+            var resolution = targets.resolve(plan, selection, candidates, transcript);
+            if (resolution.target() == null) return question(resolution.question(), List.of("target"));
+            var target = resolution.target();
+            return new Decision(target.profileId(), target.myDrugId(), null,
+                    new Outcome("요청한 일정을 처리할게요.", List.of(), List.of(), null), null, Operation.valueOf(plan.intent()));
         }
         if ("TARGET_NOT_FOUND".equals(plan.intent())) return question("어느 프로필의 어떤 약을 등록할까요? 등록된 약 중에서 알려주세요.", List.of("target"));
         if (!"SAVE".equals(plan.intent())) return question("약 이름과 기간을 말씀해주시면 나머지는 기본 설정으로 제안해드릴게요.", List.of("request"));
@@ -113,10 +125,22 @@ public class MedicationLiveWorkflow {
         }
     }
 
-    public Outcome save(long memberId, Decision decision) {
-        var saved = schedules.save(memberId, decision.profileId(), decision.myDrugId(), decision.request());
-        String message = "등록했어요.";
-        return new Outcome(message, List.of(), decision.outcome().appliedDefaults(), saved);
+    public Outcome execute(long memberId, Decision decision) {
+        var completed = new CompletedOperation(decision.operation(), decision.profileId(), decision.myDrugId());
+        return switch (decision.operation()) {
+            case DELETE -> {
+                schedules.delete(memberId, decision.profileId(), decision.myDrugId());
+                yield new Outcome("일정을 삭제했어요.", List.of(), List.of(), null, completed);
+            }
+            case STOP -> {
+                var stopped = schedules.stop(memberId, decision.profileId(), decision.myDrugId());
+                yield new Outcome("오늘까지만 복용하도록 변경했어요.", List.of(), List.of(), stopped, completed);
+            }
+            case SAVE -> {
+                var saved = schedules.save(memberId, decision.profileId(), decision.myDrugId(), decision.request());
+                yield new Outcome("등록했어요.", List.of(), decision.outcome().appliedDefaults(), saved, completed);
+            }
+        };
     }
 
     public Decision confirm(Proposal proposal) {

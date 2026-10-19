@@ -24,7 +24,8 @@
   <span class="badge">필바듬 / 로컬 연동 테스트</span>
   <h1>말로 복약 일정 등록하기</h1>
   <p class="intro">“오늘부터 이틀 타이레놀”처럼 말하면 빠진 항목을 기본 설정으로 채운 일정을 제안해요.
-    “응”이면 저장하고, “저녁에만”처럼 바꿀 수도 있어요. “알아서 저장해”라고 맡기면 바로 저장해요.</p>
+    “응”이면 저장하고, “저녁에만”처럼 바꿀 수도 있어요. “알아서 저장해”라고 맡기면 바로 저장해요.
+    “엄마 타이레놀 일정 삭제해줘”로 일정을 지우거나 “그만 먹을래”로 오늘까지만 남길 수도 있어요.</p>
   <section class="card">
     <label for="token">로그인 토큰</label>
     <textarea id="token" rows="2" placeholder="로그인 응답의 accessToken 또는 테스트 JWT" autocomplete="off" spellcheck="false"></textarea>
@@ -37,7 +38,7 @@
     <div class="actions"><button id="start">음성 대화 시작</button><button id="stop" class="secondary" disabled>대화 종료</button>
       <button id="calendar" class="secondary">저장된 캘린더 확인</button></div>
     <p class="hint">실제 OpenAI 세션을 시작하면 사용 요금이 발생해요. 이 화면은 AI가 생성하는 음성을 재생해요.
-      대화는 최대 1분이며 등록 완료 안내 후 자동 종료돼요. 입력한 프로필·약은 로그인 회원 소유여야 해요.</p>
+      대화는 최대 1분이며 등록·삭제·그만 먹기 완료 안내 후 자동 종료돼요. 입력한 프로필·약은 로그인 회원 소유여야 해요.</p>
     <div id="status" role="status" aria-live="polite">대기 중</div>
     <audio id="audio" autoplay controls aria-label="Live 음성 답변"></audio>
   </section>

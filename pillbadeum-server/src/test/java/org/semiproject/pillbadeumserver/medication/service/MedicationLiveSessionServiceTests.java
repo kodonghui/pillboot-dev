@@ -68,7 +68,7 @@ class MedicationLiveSessionServiceTests {
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(new MedicationLiveWorkflow.Decision(0, 0, null, question));
         input("in1", "일주일 약 일정 추가해줘"); delegate("d1");
         assertThat(service.get(5, id).missingFields()).containsExactly("doseTimes");
-        verify(workflow, never()).save(anyLong(), any());
+        verify(workflow, never()).execute(anyLong(), any());
         verify(connection).send(argThat(event -> event.get("type").equals("session.commentary.append")
                 && event.get("delegation_id").equals("d1") && event.get("content").equals("몇 시에 등록할까요?")));
     }
@@ -81,7 +81,7 @@ class MedicationLiveSessionServiceTests {
         input("in1", "일주일 동안 8시에 한 개씩 등록해");
         delegate("d1"); delegate("d1"); delegate("d2");
         assertThat(service.get(5, id).status()).isEqualTo("SAVED");
-        verify(workflow, times(1)).save(eq(5L), any());
+        verify(workflow, times(1)).execute(eq(5L), any());
         verify(workflow, times(1)).prepare(eq(5L), any(), any(), anyList());
     }
 
@@ -92,7 +92,7 @@ class MedicationLiveSessionServiceTests {
         verify(connection).send(argThat(event -> event.get("type").equals("session.input_audio.mute")));
         input("in2", "또 다른 일정을 등록해"); delegate("d2");
         verify(workflow, times(1)).prepare(eq(5L), any(), any(), anyList());
-        verify(workflow, times(1)).save(eq(5L), any());
+        verify(workflow, times(1)).execute(eq(5L), any());
         clock.now = clock.now.plusSeconds(7);
         service.expireSessions();
         assertThat(service.get(5, id).savedSchedule()).isNotNull();
@@ -104,6 +104,37 @@ class MedicationLiveSessionServiceTests {
     }
 
     @Test
+    void deletionCompletesAndAutoClosesEvenWithoutASavedScheduleResponse() {
+        String id = start();
+        var decision = new MedicationLiveWorkflow.Decision(14, 27, null,
+                new Outcome("처리 중", List.of(), List.of(), null), null, Operation.DELETE);
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(decision);
+        when(workflow.execute(5, decision)).thenReturn(new Outcome("일정을 삭제했어요.", List.of(), List.of(), null,
+                new CompletedOperation(Operation.DELETE, 14, 27)));
+        input("in1", "엄마 타일레놀 일정 삭제해줘"); delegate("d1"); delegate("d2");
+        var progress = service.get(5, id);
+        assertThat(progress.status()).isEqualTo("DELETED");
+        assertThat(progress.savedSchedule()).isNull();
+        assertThat(progress.completedOperation().myDrugId()).isEqualTo(27);
+        verify(workflow, times(1)).execute(5, decision);
+        clock.now = clock.now.plusSeconds(8); service.expireSessions();
+        verify(client).hangup("live_fixture");
+    }
+
+    @Test
+    void correctionArrivingDuringDeletionPlanningPreventsTheOldDeletion() {
+        String id = start();
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenAnswer(call -> {
+            input("in2", "삭제하지 말고 오늘까지만 먹는 걸로 해줘");
+            return new MedicationLiveWorkflow.Decision(14, 27, null,
+                    new Outcome("처리 중", List.of(), List.of(), null), null, Operation.DELETE);
+        });
+        input("in1", "엄마 타이레놀 삭제해줘"); delegate("d1");
+        verify(workflow, never()).execute(anyLong(), any());
+        assertThat(service.get(5, id).completedOperation()).isNull();
+    }
+
+    @Test
     void correctionDuringPlanningDiscardsTheOldDecision() {
         String id = start();
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenAnswer(call -> {
@@ -111,7 +142,7 @@ class MedicationLiveSessionServiceTests {
             return decision();
         });
         input("in1", "일주일 동안 8시에 한 개씩 등록해"); delegate("d1");
-        verify(workflow, never()).save(anyLong(), any());
+        verify(workflow, never()).execute(anyLong(), any());
         assertThat(service.get(5, id).status()).isEqualTo("LISTENING");
         verify(connection).send(argThat(event -> event.get("type").equals("session.instructions.append")));
     }
@@ -124,7 +155,7 @@ class MedicationLiveSessionServiceTests {
             return decision();
         });
         input("in1", "알아서 저장해"); delegate("d1");
-        verify(workflow, never()).save(anyLong(), any());
+        verify(workflow, never()).execute(anyLong(), any());
         verify(client).hangup("live_fixture");
         assertThatThrownBy(() -> service.get(5, id)).isInstanceOf(NotFoundException.class);
     }
@@ -135,17 +166,17 @@ class MedicationLiveSessionServiceTests {
         var proposal = proposedAt(LocalTime.of(7, 0), LocalTime.of(11, 0), LocalTime.of(17, 0));
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposal);
         when(workflow.confirm(any())).thenCallRealMethod();
-        when(workflow.save(eq(5L), any())).thenReturn(savedOutcome());
+        when(workflow.execute(eq(5L), any())).thenReturn(savedOutcome());
         input("in1", "오늘부터 이틀 테스트약"); delegate("d1");
         assertThat(service.get(5, id).status()).isEqualTo("AWAITING_CONFIRMATION");
-        verify(workflow, never()).save(anyLong(), any());
+        verify(workflow, never()).execute(anyLong(), any());
         events.accept(json.valueToTree(Map.of("type", "session.output_transcript.delta", "event_id", "out1",
                 "delta", "기본 하루 세 번으로 적용할까요?", "start_ms", 1000, "end_ms", 2000)));
         input("in2", "응"); delegate("d2"); delegate("d3");
         assertThat(service.get(5, id).status()).isEqualTo("SAVED");
         verify(workflow, times(1)).prepare(eq(5L), any(), any(), anyList());
         verify(workflow).confirm(proposal.proposal());
-        verify(workflow, times(1)).save(eq(5L), argThat(decision -> decision.request().equals(proposal.proposal().request())));
+        verify(workflow, times(1)).execute(eq(5L), argThat(decision -> decision.request().equals(proposal.proposal().request())));
     }
 
     @Test
@@ -155,15 +186,15 @@ class MedicationLiveSessionServiceTests {
         var evening = proposedAt(LocalTime.of(17, 0));
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(first, evening);
         when(workflow.confirm(any())).thenCallRealMethod();
-        when(workflow.save(eq(5L), any())).thenReturn(savedOutcome());
+        when(workflow.execute(eq(5L), any())).thenReturn(savedOutcome());
         input("in1", "오늘부터 이틀 테스트약"); delegate("d1");
         input("in2", "응 아니 저녁에만"); delegate("d2");
-        verify(workflow, never()).save(anyLong(), any());
+        verify(workflow, never()).execute(anyLong(), any());
         verify(workflow, never()).confirm(any());
         input("in3", "네"); delegate("d3");
         verify(workflow, times(2)).prepare(eq(5L), any(), any(), anyList());
         verify(workflow).confirm(evening.proposal());
-        verify(workflow).save(eq(5L), argThat(decision -> decision.request().doseTimes().equals(List.of(LocalTime.of(17, 0)))));
+        verify(workflow).execute(eq(5L), argThat(decision -> decision.request().doseTimes().equals(List.of(LocalTime.of(17, 0)))));
         assertThat(service.get(5, id).status()).isEqualTo("SAVED");
     }
 
@@ -175,7 +206,7 @@ class MedicationLiveSessionServiceTests {
         input("in1", "오늘부터 이틀 테스트약"); delegate("d1");
         clock.now = clock.now.plusSeconds(60);
         input("in2", "응"); delegate("d2");
-        verify(workflow, never()).save(anyLong(), any());
+        verify(workflow, never()).execute(anyLong(), any());
         verify(client).hangup("live_fixture");
         assertThatThrownBy(() -> service.get(5, id)).isInstanceOf(NotFoundException.class);
     }
@@ -187,7 +218,7 @@ class MedicationLiveSessionServiceTests {
         assertThat(service.get(5, id).status()).isEqualTo("WAITING_FOR_DETAILS");
         verify(workflow, never()).prepare(anyLong(), any(), any(), anyList());
         verify(workflow, never()).confirm(any());
-        verify(workflow, never()).save(anyLong(), any());
+        verify(workflow, never()).execute(anyLong(), any());
     }
 
     @Test
@@ -200,7 +231,7 @@ class MedicationLiveSessionServiceTests {
         input("in3", "응"); delegate("d3");
         verify(workflow, times(2)).prepare(eq(5L), any(), any(), anyList());
         verify(workflow, never()).confirm(any());
-        verify(workflow, never()).save(anyLong(), any());
+        verify(workflow, never()).execute(anyLong(), any());
         assertThat(service.get(5, id).status()).isEqualTo("WAITING_FOR_DETAILS");
     }
 
@@ -212,7 +243,7 @@ class MedicationLiveSessionServiceTests {
             return decision();
         });
         input("in1", "알아서 저장해"); delegate("d1");
-        verify(workflow, never()).save(anyLong(), any());
+        verify(workflow, never()).execute(anyLong(), any());
         verify(client).hangup("live_fixture");
     }
 
@@ -220,9 +251,9 @@ class MedicationLiveSessionServiceTests {
     void saveFailureIsNotAutomaticallyRetriedByAnotherDelegation() {
         start();
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(decision());
-        when(workflow.save(eq(5L), any())).thenThrow(new NotFoundException("약이 삭제됐습니다."));
+        when(workflow.execute(eq(5L), any())).thenThrow(new NotFoundException("약이 삭제됐습니다."));
         input("in1", "알아서 저장해"); delegate("d1"); delegate("d2");
-        verify(workflow, times(1)).save(eq(5L), any());
+        verify(workflow, times(1)).execute(eq(5L), any());
     }
 
     @Test
@@ -272,7 +303,7 @@ class MedicationLiveSessionServiceTests {
     private void ready() {
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(decision());
         var saved = new ScheduleResponse(25, 13, "엄마", "테스트약", DATE, DATE.plusDays(6), List.of("08:00"), 1, null, false, true);
-        when(workflow.save(eq(5L), any())).thenReturn(new Outcome("저장했어요", List.of(), List.of(), saved));
+        when(workflow.execute(eq(5L), any())).thenReturn(new Outcome("저장했어요", List.of(), List.of(), saved));
     }
     private MedicationLiveWorkflow.Decision decision() {
         return new MedicationLiveWorkflow.Decision(13, 25,

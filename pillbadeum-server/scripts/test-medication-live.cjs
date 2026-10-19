@@ -139,13 +139,15 @@ test('연결 성공 후 SDP를 적용하고 종료 시 서버·미디어를 정�
   assert.equal(app.peers[0].closed, true);
 });
 
-function completionEnvironment({ audioSupported = true, calendarFails = false, alreadyClosed = false } = {}) {
+function completionEnvironment({ audioSupported = true, calendarFails = false, alreadyClosed = false, operation = 'SAVE' } = {}) {
   let saved = false;
   const app = environment({ audioSupported, fetcher: (url, options) => {
     if (options.method === 'POST') return response({ sessionId: 'fixture-session', sdp: 'fixture-answer', expiresAt: '2099-01-01T00:00:00Z' }, 201);
     if (options.method === 'DELETE') return alreadyClosed ? response({ message: '이미 종료된 세션' }, 404) : response(null, 204);
     if (url.startsWith('/api/calendar')) return calendarFails ? response({ message: '캘린더 오류' }, 503) : response([]);
-    return response(saved ? { status: 'SAVED', savedSchedule: { myDrugId: 25, startDate: '2026-10-19' } } : { status: 'LISTENING' });
+    return response(saved ? { status: operation === 'DELETE' ? 'DELETED' : operation === 'STOP' ? 'STOPPED' : 'SAVED',
+      savedSchedule: operation === 'DELETE' ? null : { myDrugId: 25, startDate: '2026-10-19' },
+      ...(operation === 'SAVE' ? {} : { completedOperation: { action: operation, profileId: 14, myDrugId: 27 } }) } : { status: 'LISTENING' });
   } });
   app.markSaved = () => { saved = true; };
   app.closingRequests = () => app.requests.filter(request => request.options.method === 'DELETE');
@@ -222,7 +224,7 @@ test('캘린더 조회 실패는 저장 성공을 뒤집거나 완료 음성을 
   const app = completionEnvironment({ audioSupported: false, calendarFails: true, alreadyClosed: true });
   await app.el('start').click();
   app.markSaved(); await app.advance(1500);
-  assert.match(app.el('result').textContent, /일정은 등록.*캘린더 조회만 실패/);
+  assert.match(app.el('result').textContent, /일정 등록은 완료.*캘린더 조회만 실패/);
   assert.equal(app.closingRequests().length, 0);
   await app.advance(8000);
   assert.equal(app.closingRequests().length, 1);
@@ -240,4 +242,28 @@ test('완료 안내 대기 중 수동 종료하면 남은 타이머가 다시 �
   assert.equal(app.closingRequests().length, 1);
   assert.equal(app.stopped(), 1);
   assert.equal(app.audioClosed(), 1);
+});
+
+test('일정 삭제는 savedSchedule이 없어도 캘린더를 갱신하고 완료 음성 뒤 종료함', async () => {
+  const app = completionEnvironment({ operation: 'DELETE' });
+  await app.el('start').click(); app.emitTrack();
+  app.markSaved(); await app.advance(1500);
+  assert.ok(app.requests.some(request => request.url.startsWith('/api/calendar')));
+  app.receive('session.output_transcript.delta', '일정을 삭제했어요.');
+  app.sound(0.1); await app.advance(300);
+  app.sound(0); await app.advance(800);
+  assert.equal(app.closingRequests().length, 1);
+  assert.match(app.el('status').textContent, /삭제.*자동 종료/);
+  assert.doesNotMatch(app.el('status').textContent, /등록/);
+});
+
+test('그만 먹기는 등록 완료가 아닌 오늘까지 변경 완료로 안내하고 종료함', async () => {
+  const app = completionEnvironment({ operation: 'STOP' });
+  await app.el('start').click(); app.emitTrack();
+  app.markSaved(); await app.advance(1500);
+  app.receive('session.output_transcript.delta', '오늘까지만 복용하도록 변경했어요.');
+  app.sound(0.1); await app.advance(300);
+  app.sound(0); await app.advance(800);
+  assert.equal(app.closingRequests().length, 1);
+  assert.match(app.el('status').textContent, /오늘까지로 변경.*자동 종료/);
 });

@@ -6,7 +6,7 @@
   let activeToken = "", activeDate = "", lastSaved = "", currentSpeaker = "", transcriptText, generation = 0, checking = null;
   let completing = false, completionTimer, playbackTimer, playbackContext, playbackSource, playbackAnalyser, playbackSamples;
   let completionText = "", completionCaptionAt = 0, completionAudioHeard = false, lastAudibleAt = 0, lastOutputCaptionAt = 0;
-  const completedMessage = "일정을 등록하고 대화를 자동 종료했어요.";
+  let completedMessage = "일정을 등록하고 대화를 자동 종료했어요.";
   el("date").value = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
   function token() { return el("token").value.trim().replace(/^Bearer\s+/i, ""); }
@@ -84,11 +84,13 @@
       playbackContext = playbackSource = playbackAnalyser = playbackSamples = null;
     }
   }
-  function completeAfterSpeech() {
+  function completeAfterSpeech(action = "SAVE") {
     if (completing) return;
     completing = true;
+    const verb = action === "DELETE" ? "삭제" : action === "STOP" ? "오늘까지로 변경" : "등록";
+    completedMessage = "일정을 " + verb + "하고 대화를 자동 종료했어요.";
     microphone?.getAudioTracks().forEach((track) => { track.enabled = false; });
-    status("등록됐어요. 완료 안내 후 대화를 자동 종료해요.");
+    status("일정 " + verb + "이 완료됐어요. 완료 안내 후 대화를 자동 종료해요.");
     // 오디오 감지를 지원하지 않거나 재생이 막힌 경우에도 세션을 계속 남기지 않는다.
     completionTimer = setTimeout(() => { void finish(completedMessage); }, 8000);
   }
@@ -116,13 +118,15 @@
       const result = await api("/api/medication/live/sessions/" + encodeURIComponent(id));
       if (sessionId !== id) return;
       el("progress").textContent = JSON.stringify(result, null, 2);
-      if (result.savedSchedule) {
-        completeAfterSpeech();
-        const key = JSON.stringify(result.savedSchedule);
+      const completed = result.completedOperation || (result.savedSchedule ? { action: "SAVE" } : null);
+      if (completed) {
+        completeAfterSpeech(completed.action);
+        const key = JSON.stringify([completed, result.savedSchedule]);
         if (key !== lastSaved) {
           lastSaved = key;
           await calendar().catch((error) => {
-            if (sessionId === id) el("result").textContent = "일정은 등록됐어요. 캘린더 조회만 실패했어요: " + error.message;
+            if (sessionId === id) el("result").textContent = "일정 " + (completed.action === "DELETE" ? "삭제" : completed.action === "STOP" ? "변경" : "등록")
+                    + "은 완료됐어요. 캘린더 조회만 실패했어요: " + error.message;
           });
         }
       }
@@ -151,6 +155,7 @@
     const alive = () => generation === attempt && busy && !stopping;
     setBusy(true); activeToken = connectionToken; activeDate = el("date").value; lastSaved = "";
     completing = false; completionText = ""; completionCaptionAt = lastAudibleAt = lastOutputCaptionAt = 0; completionAudioHeard = false;
+    completedMessage = "일정을 등록하고 대화를 자동 종료했어요.";
     el("conversation").replaceChildren(); transcriptText = null; currentSpeaker = "";
     status("마이크와 Live 연결을 준비하고 있어요.");
     try {
@@ -178,7 +183,7 @@
         } else if (event.type === "session.output_transcript.delta") {
           caption("assistant", event.delta || ""); lastOutputCaptionAt = Date.now();
           completionText = (completionText + (event.delta || "")).slice(-160);
-          if (!completionCaptionAt && /(등록|저장).{0,24}(했|됐|되었|완료)|완료(됐|했|되었|예요|입니다)/.test(completionText)) {
+          if (!completionCaptionAt && /(등록|저장|삭제|변경).{0,24}(했|됐|되었|완료)|완료(됐|했|되었|예요|입니다)/.test(completionText)) {
             completionCaptionAt = Date.now();
           }
         } else if (event.type === "session.closed") void finish(completing ? completedMessage : "Live 대화가 끝났어요.");

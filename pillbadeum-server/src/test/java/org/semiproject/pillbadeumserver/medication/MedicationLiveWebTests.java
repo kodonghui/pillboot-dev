@@ -88,5 +88,17 @@ class MedicationLiveWebTests {
                 .andExpect(status().isServiceUnavailable());
     }
 
+    @Test
+    void deletionProgressReportsTheAffectedScheduleWithoutPretendingToSaveIt() throws Exception {
+        when(service.get(5, "local-id")).thenReturn(new Progress("local-id", "DELETED", "일정을 삭제했어요.",
+                List.of(), List.of(), null, EXPIRES, new CompletedOperation(Operation.DELETE, 14, 27)));
+        mvc.perform(get(PATH + "/local-id").header("Authorization", bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DELETED"))
+                .andExpect(jsonPath("$.completedOperation.action").value("DELETE"))
+                .andExpect(jsonPath("$.completedOperation.profileId").value(14))
+                .andExpect(jsonPath("$.completedOperation.myDrugId").value(27))
+                .andExpect(jsonPath("$.savedSchedule").isEmpty());
+    }
+
     private String bearer() { return "Bearer " + tokens.createAccessToken(5L, "fixture@example.test", "ROLE_USER"); }
 }

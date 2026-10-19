@@ -63,15 +63,19 @@ public class MedicationLiveSessionService {
             문장이 덜 끝난 것 같아도 그때까지 들은 내용으로 처리하고, 부족한 정보는 기본 설정으로 묶어 제안한다.
             아직 사용자가 아무 말도 하지 않았거나 기침·주변 소리만 들렸을 때는 요청을 만들지 않는다.
             사용자가 다시 말하거나 끼어들면 답변을 멈추고 새로 말한 내용을 듣는다.
-            사용자에게서 약 일정 등록·정정·기본값 위임·취소 요청 또는 추가 답변을 받으면,
+            사용자에게서 약 일정 등록·정정·기본값 위임·삭제·그만 먹기·취소 요청 또는 추가 답변을 받으면,
             위 발화 종료 기준에 도달하는 즉시 backend에 위임한다. backend가 항목 수집과 저장을 담당한다.
             기본값과 기존 약 설정은 backend가 제안한다. 제안의 약·기간·시간·개수를 바꾸지 않고 전달한다.
             '알아서 저장해'처럼 맡기면 backend에 그 요청을 전달하고, 그 전까지 기본값으로 저장하지 않는다.
             사용자가 계속 말하는 도중에는 문장 조각만으로 작업을 요청하지 않는다. 사용자의 정정을 반영한다.
             backend가 저장 성공을 알려주기 전에는 저장했다고 말하지 않는다. 성공 결과가 와야 완료를 알린다.
             저장 성공 결과가 오면 "등록했어요."만 짧게 말하고 끝낸다. 추가 설명·질문·인사는 하지 않는다.
+            일정 삭제는 "일정을 삭제했어요.", 그만 먹기는 "오늘까지만 복용하도록 변경했어요."로만 완료를 알린다.
+            삭제는 과거 포함 일정 전체 제거, 그만 먹기는 오늘까지 남겨 내일부터 제외하는 기능이다.
+            "엄마 타일레놀 먹던 거 일정 삭제해줘"처럼 대상 정보가 있으면 backend가 소유한 일정에서 찾는다.
+            대상이 하나면 다시 확인하지 않고 실행하며 여러 후보일 때만 backend의 짧은 질문으로 좁힌다.
             대화가 끊겼다고 이미 저장한 일정이 취소됐다고 말하지 않는다. 수정·삭제는 실제 결과로만 안내한다.
-            저장 외의 도구는 지원하지 않는다. 실제 일정 삭제·그만 먹기는 화면의 기존 기능을 안내한다.
+            약 자체나 프로필 삭제는 지원하지 않는다. backend 성공 결과 전에 삭제·중단 완료를 말하지 않는다.
             """;
 
     @Autowired
@@ -137,7 +141,7 @@ public class MedicationLiveSessionService {
     public Progress get(long memberId, String sessionId) {
         State state = owned(memberId, sessionId);
         synchronized (state) {
-            return new Progress(state.id, state.status, state.message, state.missing, state.defaults, state.saved, state.expiresAt);
+            return new Progress(state.id, state.status, state.message, state.missing, state.defaults, state.saved, state.expiresAt, state.completed);
         }
     }
 
@@ -162,7 +166,7 @@ public class MedicationLiveSessionService {
         boolean run = false;
         synchronized (state) {
             if (state.closed) return;
-            if (state.saved != null && !"session.output_transcript.delta".equals(type)) return;
+            if (state.completed != null && !"session.output_transcript.delta".equals(type)) return;
             String eventId = event.path("event_id").asString("");
             if (!eventId.isBlank() && !state.events.add(eventId)) return;
             if (state.events.size() > 2000) { executor.execute(() -> terminate(state, true)); return; }
@@ -193,7 +197,7 @@ public class MedicationLiveSessionService {
             MedicationLiveWorkflow.Proposal proposal;
             String proposalReply;
             synchronized (state) {
-                if (state.closed || state.saved != null || state.pending == null) { state.running = false; state.pending = null; return; }
+                if (state.closed || state.completed != null || state.pending == null) { state.running = false; state.pending = null; return; }
                 delegation = state.pending; state.pending = null;
                 revision = state.revision;
                 transcript = state.transcript.stream().sorted(Comparator
@@ -210,8 +214,9 @@ public class MedicationLiveSessionService {
                 synchronized (state) {
                     outcome = revision == state.processedRevision ? state.lastOutcome : null;
                     if (outcome == null && proposal == null && MedicationLiveWorkflow.isConfirmation(proposalReply)) {
-                        outcome = new Outcome(state.saved == null ? "약 이름과 기간을 말씀해주시면 일정을 제안해드릴게요."
-                                : "등록된 일정은 캘린더에서 확인하실 수 있어요.", List.of(), List.of(), state.saved);
+                        outcome = state.lastOutcome != null && state.lastOutcome.missingFields().contains("target")
+                                ? state.lastOutcome
+                                : new Outcome("약 이름과 요청을 말씀해주시면 도와드릴게요.", List.of(), List.of(), null);
                         state.processedRevision = revision;
                         state.lastOutcome = outcome;
                     }
@@ -233,7 +238,7 @@ public class MedicationLiveSessionService {
                         state.proposal = decision.proposal();
                         state.proposalRevision = revision;
                         // 이 세션의 종료·중복 실행과 저장을 직렬화한다. 저장 서비스에서 소유권도 재검사한다.
-                        outcome = decision.request() == null ? decision.outcome() : workflow.save(state.memberId, decision);
+                        outcome = decision.executable() ? workflow.execute(state.memberId, decision) : decision.outcome();
                         state.processedRevision = revision;
                         state.lastOutcome = outcome;
                     }
@@ -241,16 +246,19 @@ public class MedicationLiveSessionService {
                 synchronized (state) {
                     if (state.closed) return;
                     state.message = outcome.message(); state.missing = outcome.missingFields(); state.defaults = outcome.appliedDefaults();
-                    if (outcome.savedSchedule() != null) {
+                    if (outcome.completedOperation() != null) {
                         state.saved = outcome.savedSchedule();
+                        state.completed = outcome.completedOperation();
                         state.closeAfter = Instant.now(clock).plusSeconds(COMPLETION_GRACE_SECONDS);
                         state.pending = null;
                     }
-                    state.status = outcome.savedSchedule() != null ? "SAVED"
+                    state.status = outcome.completedOperation() != null ? switch (outcome.completedOperation().action()) {
+                        case SAVE -> "SAVED"; case DELETE -> "DELETED"; case STOP -> "STOPPED";
+                    }
                             : state.proposal != null ? "AWAITING_CONFIRMATION" : "WAITING_FOR_DETAILS";
                 }
                 send(state, delegation, "session.commentary.append", outcome.message());
-                if (outcome.savedSchedule() != null && state.connection != null && !state.closed) {
+                if (outcome.completedOperation() != null && state.connection != null && !state.closed) {
                     state.connection.send(Map.of("type", "session.input_audio.mute", "event_id", UUID.randomUUID().toString()));
                 }
             } catch (RuntimeException e) {
@@ -320,6 +328,7 @@ public class MedicationLiveSessionService {
         boolean running;
         List<String> missing = List.of(), defaults = List.of();
         ScheduleResponse saved;
+        CompletedOperation completed;
         MedicationLiveWorkflow.Proposal proposal;
         long proposalRevision;
         Outcome lastOutcome;
