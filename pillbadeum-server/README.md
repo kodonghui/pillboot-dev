@@ -30,6 +30,7 @@ Java·Jackson·로그의 `Asia/Seoul` 설정은 유지합니다.
 | `OPENAI_CHAT_MODEL`, `OPENAI_VISION_MODEL` | AI 사용 시 계정에서 사용할 수 있는 Responses API 모델 ID 명시. 공란인 기능은 호출 전 503 |
 | `PUBLIC_DATA_SERVICE_KEY` | 선택. 공공데이터포털 일반 인증키(Decoding) |
 | `QDRANT_ENABLED` | 선택. Qdrant를 따로 띄운 사람만 true |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | 선택. 복약 알림 웹 푸시 키와 연락처(mailto:/https://). 셋을 함께 넣거나 모두 비움. 비우면 푸시 API만 503 |
 
 개인 JWT 키 생성(PowerShell):
 
@@ -43,6 +44,10 @@ $rng.Dispose()
 
 Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 서명키가 없거나 짧으면 서버를 시작하지 않습니다. 실제 키는 공유하지 않습니다.
+
+복약 알림 키(VAPID)는 P-256 키 한 쌍을 base64url로 넣습니다. 공개 키는 65바이트, 개인 키는 32바이트입니다.
+`npx web-push generate-vapid-keys`로 만든 값을 그대로 넣어도 됩니다. 배포 서버 키는 한 번 정하면 바꾸지 않습니다.
+키를 바꾸면 모든 브라우저가 알림을 다시 켜야 합니다. 공개 키와 개인 키가 짝이 아니면 서버를 시작하지 않습니다.
 추론 옵션은 선택한 모델이 지원할 때만 `OPENAI_REASONING_EFFORT`로 지정합니다.
 임베딩 기본 모델은 `text-embedding-3-small`입니다. 모델/차원을 바꾸면 Qdrant 컬렉션도 함께 맞춥니다.
 
