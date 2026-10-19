@@ -115,7 +115,7 @@ class MedicationLiveSessionServiceTests {
     void expiredSessionStopsBeforeCommittingAnAlreadyPreparedDecision() {
         start();
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenAnswer(call -> {
-            clock.now = clock.now.plusSeconds(301);
+            clock.now = clock.now.plusSeconds(60);
             return decision();
         });
         input("in1", "알아서 저장해"); delegate("d1");
@@ -133,9 +133,13 @@ class MedicationLiveSessionServiceTests {
     }
 
     @Test
-    void idleSessionsExpireAndReleaseTheRemoteConnection() {
+    void sessionsAreCappedAtOneMinuteAndReleaseTheRemoteConnectionAtTheDeadline() {
         String id = start();
-        clock.now = clock.now.plusSeconds(301);
+        clock.now = clock.now.plusSeconds(59);
+        service.expireSessions();
+        assertThat(service.get(5, id).status()).isEqualTo("LISTENING");
+        verify(client, never()).hangup(anyString());
+        clock.now = clock.now.plusSeconds(1);
         service.expireSessions();
         verify(client).hangup("live_fixture"); verify(connection).close();
         assertThatThrownBy(() -> service.get(5, id)).isInstanceOf(NotFoundException.class);
@@ -155,7 +159,7 @@ class MedicationLiveSessionServiceTests {
     void sessionCreatedAfterExpiryIsHungUpWithoutAttaching() {
         setupSelection();
         doAnswer(call -> {
-            clock.now = clock.now.plusSeconds(301);
+            clock.now = clock.now.plusSeconds(60);
             service.expireSessions();
             return new MedicationLiveClient.RemoteSession("live_late", "answer");
         }).when(client).create(anyString(), anyString());
