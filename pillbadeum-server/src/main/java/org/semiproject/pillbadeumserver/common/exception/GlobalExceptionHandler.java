@@ -11,6 +11,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -57,13 +58,22 @@ public class GlobalExceptionHandler {
      *  - @RequestBody(JSON) 검증 실패 : MethodArgumentNotValidException
      *  - @ModelAttribute(form-data) 검증 실패 : BindException
      *  MethodArgumentNotValidException 이 BindException 을 상속하므로 BindException 하나로 둘 다 잡힌다.
-     *  검증 메시지에 거절된 입력값이 포함될 수 있으므로 공통 문구를 보낸다.
+     *  DTO에 작성한 검증 메시지 하나를 보내고, 메시지가 없으면 공통 문구를 보낸다.
+     *  DTO 검증 메시지에는 실제 입력값이나 민감정보를 넣지 않는다.
      * */
+
     @ExceptionHandler(BindException.class)
     public ResponseEntity<ErrorResponse> handleBindException(BindException e) {
+        String message = "입력값을 확인해주세요.";
 
-        return toResponse(ErrorCode.INVALID_INPUT, "입력값을 확인해주세요.");
+        FieldError fieldError = e.getBindingResult().getFieldError();
+        if (fieldError != null && fieldError.getDefaultMessage() != null) {
+            message = fieldError.getDefaultMessage();
+        }
+
+        return toResponse(ErrorCode.INVALID_INPUT, message);
     }
+
 
     @ExceptionHandler({HandlerMethodValidationException.class, ConstraintViolationException.class})
     public ResponseEntity<ErrorResponse> handleMethodValidation(Exception e) {
