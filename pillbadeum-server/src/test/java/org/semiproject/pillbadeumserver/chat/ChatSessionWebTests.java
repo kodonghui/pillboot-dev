@@ -1,8 +1,10 @@
 package org.semiproject.pillbadeumserver.chat;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.semiproject.pillbadeumserver.chat.service.ChatSessionService;
+import org.semiproject.pillbadeumserver.chat.dto.ChatSessionListResponse;
 import org.semiproject.pillbadeumserver.chat.dto.ChatSessionResponse;
 import org.semiproject.pillbadeumserver.chat.controller.ChatSessionController;
 import org.semiproject.pillbadeumserver.common.config.CorsConfig;
@@ -24,6 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -36,6 +39,52 @@ class ChatSessionWebTests {
     @Autowired MockMvc mvc;
     @Autowired JwtTokenProvider tokens;
     @MockitoBean ChatSessionService sessions;
+
+    @Test
+    void listUses200AndOnlyTheSpecifiedFieldsWithKoreanTimeOffset() throws Exception {
+        when(sessions.list(10L)).thenReturn(new ChatSessionListResponse(List.of(
+                new ChatSessionListResponse.Session(42L, null, OffsetDateTime.parse("2026-10-19T08:00:00+09:00")))));
+
+        mvc.perform(get("/api/profiles/10/chat-sessions").header("Authorization", authorization()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", aMapWithSize(1)))
+                .andExpect(jsonPath("$.sessions.length()").value(1))
+                .andExpect(jsonPath("$.sessions[0]", aMapWithSize(3)))
+                .andExpect(jsonPath("$.sessions[0].sessionId").value(42))
+                .andExpect(jsonPath("$.sessions[0].title").value(nullValue()))
+                .andExpect(jsonPath("$.sessions[0].updatedAt").value("2026-10-19T08:00:00+09:00"))
+                .andExpect(header().string("Cache-Control", containsString("no-store")));
+    }
+
+    @Test
+    void listReturnsAnEmptyArray() throws Exception {
+        when(sessions.list(10L)).thenReturn(new ChatSessionListResponse(List.of()));
+        mvc.perform(get("/api/profiles/10/chat-sessions").header("Authorization", authorization()))
+                .andExpect(status().isOk())
+                .andExpect(content().json("{\"sessions\":[]}"));
+    }
+
+    @Test
+    void unauthenticatedListStopsBeforeTheService() throws Exception {
+        mvc.perform(get("/api/profiles/10/chat-sessions"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        verifyNoInteractions(sessions);
+    }
+
+    @Test
+    void invalidListProfileIdIsRejectedBeforeTheService() throws Exception {
+        for (String profileId : new String[]{"0", "-1"}) {
+            mvc.perform(get("/api/profiles/{id}/chat-sessions", profileId)
+                            .header("Authorization", authorization()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        }
+        mvc.perform(get("/api/profiles/abc/chat-sessions").header("Authorization", authorization()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(sessions);
+    }
 
     @Test
     void newRoomUses201AndOnlyTheThreeResponseFields() throws Exception {

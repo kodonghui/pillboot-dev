@@ -2,9 +2,11 @@ package org.semiproject.pillbadeumserver.chat.controller;
 
 import jakarta.validation.constraints.Positive;
 import org.semiproject.pillbadeumserver.chat.service.ChatSessionService;
+import org.semiproject.pillbadeumserver.chat.dto.ChatSessionListResponse;
 import org.semiproject.pillbadeumserver.chat.dto.ChatSessionResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +20,11 @@ public class ChatSessionController {
 
     public ChatSessionController(ChatSessionService sessions) {
         this.sessions = sessions;
+    }
+
+    @GetMapping
+    public ChatSessionListResponse list(@PathVariable @Positive Long profileId) {
+        return sessions.list(profileId);
     }
 
     @PostMapping

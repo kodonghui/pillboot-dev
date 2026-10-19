@@ -1,11 +1,17 @@
 package org.semiproject.pillbadeumserver.chat.domain;
 
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ChatSessionRepository extends JpaRepository<ChatSession, Long> {
+
+    @Query(value = "SELECT member_id FROM profile WHERE profile_id = :profileId", nativeQuery = true)
+    Optional<Long> findProfileOwner(@Param("profileId") Long profileId);
+
+    List<ChatSession> findAllByMemberIdAndProfileIdOrderByUpdatedAtDescSessionIdDesc(Long memberId, Long profileId);
 
     // 방이 아직 없어도 항상 존재하는 프로필 행을 잠가 생성/재사용 요청의 순서를 정한다.
     // 타 담당의 Profile 엔티티/CRUD를 새로 만들지 않고 필요한 열만 읽는다.

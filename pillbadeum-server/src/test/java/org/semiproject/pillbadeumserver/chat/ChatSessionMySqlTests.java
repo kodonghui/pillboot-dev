@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -61,10 +62,87 @@ class ChatSessionMySqlTests {
         for (Long member : members) {
             jdbc.update("DELETE m FROM chat_message m JOIN chat_session s ON s.session_id=m.session_id WHERE s.member_id=?", member);
             jdbc.update("DELETE FROM chat_session WHERE member_id=?", member);
+        }
+        for (Long member : members) {
             jdbc.update("DELETE FROM profile WHERE member_id=?", member);
             jdbc.update("DELETE FROM member WHERE member_id=?", member);
         }
         members.clear();
+    }
+
+    @Test
+    void listScopesBothMemberAndProfileAndKeepsStableRecentOrderWithoutWrites() throws Exception {
+        long older = session(memberId, profileId, "earlier", "2026-10-18 09:00:00");
+        long recent = session(memberId, profileId, "recent", "2026-10-19 09:00:00");
+        long tied = session(memberId, profileId, null, "2026-10-19 09:00:00");
+        jdbc.update("UPDATE chat_session SET snap_pregnant=NULL WHERE session_id=?", tied);
+        long anotherProfile = profile(memberId, true);
+        long anotherRoom = session(memberId, anotherProfile, "another-profile", "2026-10-20 09:00:00");
+        long otherMember = member();
+        session(otherMember, profile(otherMember, false), "another-member", "2026-10-21 09:00:00");
+        // 기존 스키마는 두 FK만 확인하므로 잘못 조합된 행도 목록의 member_id 조건으로 제외해야 한다.
+        session(otherMember, profileId, "mismatched-owner", "2026-10-22 09:00:00");
+        var before = jdbc.queryForList("SELECT * FROM chat_session WHERE profile_id=? ORDER BY session_id", profileId);
+        var profileBefore = jdbc.queryForMap("SELECT * FROM profile WHERE profile_id=?", profileId);
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mvc.perform(get("/api/profiles/{id}/chat-sessions", profileId)
+                            .param("memberId", Long.toString(otherMember))
+                            .header("Authorization", authorization(memberId)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$", aMapWithSize(1)))
+                    .andExpect(jsonPath("$.sessions.length()").value(3))
+                    .andExpect(jsonPath("$.sessions[0]", aMapWithSize(3)))
+                    .andExpect(jsonPath("$.sessions[0].sessionId").value(tied))
+                    .andExpect(jsonPath("$.sessions[0].title").value(nullValue()))
+                    .andExpect(jsonPath("$.sessions[0].updatedAt").value("2026-10-19T09:00:00+09:00"))
+                    .andExpect(jsonPath("$.sessions[1].sessionId").value(recent))
+                    .andExpect(jsonPath("$.sessions[2].sessionId").value(older));
+        }
+        mvc.perform(get("/api/profiles/{id}/chat-sessions", anotherProfile)
+                        .header("Authorization", authorization(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessions.length()").value(1))
+                .andExpect(jsonPath("$.sessions[0].sessionId").value(anotherRoom));
+
+        assertThat(jdbc.queryForList("SELECT * FROM chat_session WHERE profile_id=? ORDER BY session_id", profileId))
+                .isEqualTo(before);
+        assertThat(jdbc.queryForMap("SELECT * FROM profile WHERE profile_id=?", profileId)).isEqualTo(profileBefore);
+    }
+
+    @Test
+    void emptyListDoesNotCreateARoomOrChangeTheProfile() throws Exception {
+        var before = jdbc.queryForMap("SELECT * FROM profile WHERE profile_id=?", profileId);
+        mvc.perform(get("/api/profiles/{id}/chat-sessions", profileId)
+                        .header("Authorization", authorization(memberId)))
+                .andExpect(status().isOk()).andExpect(content().json("{\"sessions\":[]}"));
+        assertThat(roomCount(memberId, profileId)).isZero();
+        assertThat(jdbc.queryForMap("SELECT * FROM profile WHERE profile_id=?", profileId)).isEqualTo(before);
+    }
+
+    @Test
+    void listRejectsMissingLoginForeignOwnerAndMissingProfile() throws Exception {
+        session(memberId, profileId, "owned-room", "2026-10-19 09:00:00");
+        mvc.perform(get("/api/profiles/{id}/chat-sessions", profileId))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        mvc.perform(get("/api/profiles/{id}/chat-sessions", profileId)
+                        .header("Authorization", authorization(member())))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$", aMapWithSize(2)));
+        mvc.perform(get("/api/profiles/{id}/chat-sessions", Long.MAX_VALUE)
+                        .header("Authorization", authorization(memberId)))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        assertThat(roomCount(memberId, profileId)).isEqualTo(1);
+    }
+
+    @Test
+    void listReturnsAllRoomsWithoutPagination() throws Exception {
+        for (int i = 0; i < 35; i++) {
+            session(memberId, profileId, "fixture-" + i, "2026-10-19 09:00:00");
+        }
+        mvc.perform(get("/api/profiles/{id}/chat-sessions", profileId)
+                        .header("Authorization", authorization(memberId)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.sessions.length()").value(35));
     }
 
     @Test
@@ -213,6 +291,11 @@ class ChatSessionMySqlTests {
     private long profile(long member, boolean pregnant) {
         return insert("INSERT INTO profile(member_id,profile_name,realationship_type,profile_birth_year,profile_gender,profile_pregnant,created_at,updated_at) "
                 + "VALUES(?, 'fixture', 'SELF', 2000, 'FEMALE', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", member, pregnant);
+    }
+
+    private long session(long member, long profile, String title, String updatedAt) {
+        return insert("INSERT INTO chat_session(member_id,profile_id,title,created_at,updated_at,snap_birth_year,snap_gender,snap_pregnant) "
+                + "VALUES(?, ?, ?, '2026-10-17 09:00:00', ?, 2000, 'FEMALE', FALSE)", member, profile, title, updatedAt);
     }
 
     private long insert(String sql, Object... arguments) {
