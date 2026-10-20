@@ -29,4 +29,11 @@ public class QuestionController {
         var response = questions.submit(sessionId, request.content());
         return ResponseEntity.ok(response);
     }
+
+    /** CHAT-004: 본문 없이 기존 질문 ID를 받는다. 질문을 재저장하지 않고 같은 턴의 답변만 복구한다. */
+    @PostMapping("/{messageId}/retry")
+    public ResponseEntity<QuestionResponse> retry(@PathVariable @Positive Long sessionId,
+                                                 @PathVariable @Positive Long messageId) {
+        return ResponseEntity.ok(questions.retry(sessionId, messageId));
+    }
 }

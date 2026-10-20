@@ -32,7 +32,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/** 실제 DB 커밋·행 잠금을 검증하기 위해 테스트 전체를 @Transactional로 감싸지 않는다. */
+/**
+ * CHAT-001·002의 저장·정렬·소유권·동시 생성을 실제 pill_test DB에서 확인한다.
+ * 실제 커밋·행 잠금을 검증하기 위해 테스트 전체를 @Transactional로 감싸지 않는다.
+ * 각 실행이 만든 데이터는 AfterEach에서 정리하며 MYSQL_TEST_URL이 없으면 이 클래스는 생략된다.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -59,6 +63,7 @@ class ChatSessionMySqlTests {
 
     @AfterEach
     void removeOnlyThisTestsFixtures() {
+        // 회원·프로필이 잘못 조합된 행도 검사하므로 모든 방부터 지워 프로필 FK 참조를 먼저 해제한다.
         for (Long member : members) {
             jdbc.update("DELETE m FROM chat_message m JOIN chat_session s ON s.session_id=m.session_id WHERE s.member_id=?", member);
             jdbc.update("DELETE FROM chat_session WHERE member_id=?", member);
