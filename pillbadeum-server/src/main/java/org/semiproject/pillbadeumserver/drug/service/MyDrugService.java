@@ -3,10 +3,12 @@ package org.semiproject.pillbadeumserver.drug.service;
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
+import org.semiproject.pillbadeumserver.drug.domain.MyDrug;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,8 +26,8 @@ import java.util.Set;
  *  - getMyDrugs     : 내 약 목록 (GET /api/profiles/{profileId}/drugs)
  *  - registerAll    : 확인한 약 저장 (POST /api/profiles/{profileId}/drugs)
  *  - getMyDrug      : 내 약 상세 (GET /api/profiles/{profileId}/drugs/{myDrugId})
- *  이후 추가할 기능 (계획 문서 5장 순서)
- *  - 수정(PATCH) · 삭제(DELETE)
+ *  - deleteMyDrug   : 내 약 삭제 (DELETE /api/profiles/{profileId}/drugs/{myDrugId})
+ *  복용정보 수정은 범위에서 빠졌다. 기간 · 시각 · 1회 개수 수정은 복약 일정 PUT .../schedule 이 맡는다.
  *  ----------------------------------------------------------------------------------
  *  - 엔티티는 트랜잭션 안에서 DTO 로 바꿔서 돌려준다. (open-in-view: false)
  * */
@@ -70,6 +72,8 @@ public class MyDrugService {
      *  ----------------------------------------------------------------------------------
      *  - 3) 은 외부 API 를 기다리므로 트랜잭션 밖에서 한다. (NOT_SUPPORTED: 클래스의 readOnly 트랜잭션을 쓰지 않음)
      *  - 3) 에서 앞쪽 약의 drug 행이 저장된 뒤 뒤쪽 약이 실패해도, drug 는 공용 캐시라 남겨 둔다.
+     *  - 같은 약을 거의 동시에 저장하면 2) 를 둘 다 통과할 수 있다. 이때는 DB 의 (profile_id, item_seq)
+     *    UNIQUE(sql/04)가 뒤 요청을 막는다. 그 오류를 다시 확인해 409 로 바꾼다. (그대로 두면 500)
      * */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public List<MyDrugDetailResponse> registerAll(Long profileId, MyDrugCreateRequest request) {
@@ -83,7 +87,13 @@ public class MyDrugService {
             drugSyncService.getOrSync(item.itemSeq());
         }
 
-        return myDrugRegisterService.saveAll(profileId, request.source(), items);
+        try {
+            return myDrugRegisterService.saveAll(profileId, request.source(), items);
+        } catch (DataIntegrityViolationException e) {
+            // 같은 약이 먼저 저장됐으면 409. 다른 제약 오류면 그대로 던진다. (공통 처리 500)
+            checkNoDuplicates(profileId, items);
+            throw e;
+        }
     }
 
     /* 설명. 요청 안의 중복(400)과 이미 등록된 약(409)을 확인한다. */
@@ -122,5 +132,28 @@ public class MyDrugService {
                 .filter(myDrug -> myDrug.belongsTo(profileId))
                 .map(MyDrugDetailResponse::from)
                 .orElseThrow(() -> new NotFoundException("등록된 약을 찾을 수 없습니다."));
+    }
+
+    /* 목차. 4. 내 약 삭제
+     *  ----------------------------------------------------------------------------------
+     *  1) 프로필 소유권 확인 (없는 프로필 404, 남의 프로필 403)
+     *  2) 그 약이 경로의 프로필 것이 아니거나 이미 없으면 404 (다른 탭에서 먼저 지운 경우 포함)
+     *  3) my_drug 행을 실제로 지운다. (삭제 플래그 컬럼 없음)
+     *  ----------------------------------------------------------------------------------
+     *  - my_drug 를 FK 로 참조하는 테이블이 없어 함께 지울 것이 없다. drug(공용 약 정보)는 남긴다.
+     *  - 일정과 알림은 복약 일정 쪽이 my_drug 를 직접 읽으므로, 행이 없어지면 다음 조회부터 빠진다.
+     *  - 약은 두고 일정만 지우는 것은 복약 일정 DELETE .../schedule 이 맡는다.
+     *  - 직접 입력한 약(source = MANUAL)도 같은 방법으로 지운다.
+     * */
+    @Transactional
+    public void deleteMyDrug(Long profileId, Long myDrugId) {
+
+        profileAccessChecker.checkOwner(profileId);
+
+        MyDrug myDrug = myDrugRepository.findById(myDrugId)
+                .filter(found -> found.belongsTo(profileId))
+                .orElseThrow(() -> new NotFoundException("등록된 약을 찾을 수 없습니다."));
+
+        myDrugRepository.delete(myDrug);
     }
 }

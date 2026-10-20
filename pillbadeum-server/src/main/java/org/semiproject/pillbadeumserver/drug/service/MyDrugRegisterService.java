@@ -25,7 +25,8 @@ import java.util.Set;
  *  - 소유권 확인 · drug 보장은 호출하는 쪽(MyDrugService)이 먼저 끝낸 상태여야 한다.
  *  - 하나라도 실패하면(중복 409, 검증 400) 전부 롤백된다.
  *  - 중복 확인은 저장 직전에 한 번 더 한다. (외부 API 를 기다리는 사이 같은 약이 저장된 경우)
- *    my_drug 에 (profile_id, item_seq) UNIQUE 제약이 없어서 동시에 들어온 두 요청은 막지 못한다.
+ *    동시에 들어온 두 요청은 DB 의 (profile_id, item_seq) UNIQUE(sql/04)가 막고,
+ *    MyDrugService.registerAll 이 그 오류를 409 로 바꾼다.
  * */
 @Service
 public class MyDrugRegisterService {

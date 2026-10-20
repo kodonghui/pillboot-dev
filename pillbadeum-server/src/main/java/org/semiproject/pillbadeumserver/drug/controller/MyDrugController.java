@@ -8,6 +8,7 @@ import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
 import org.semiproject.pillbadeumserver.drug.service.MyDrugService;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,11 +28,10 @@ import java.util.List;
  *  - GET    /api/profiles/{profileId}/drugs              내 약 목록
  *  - POST   /api/profiles/{profileId}/drugs              확인한 약 저장 (201, 저장된 상세 배열)
  *  - GET    /api/profiles/{profileId}/drugs/{myDrugId}   약 상세 (다른 프로필의 약이면 404)
- *  이후 추가할 API
- *  - PATCH  /api/profiles/{profileId}/drugs/{myDrugId}   복용정보 수정
- *  - DELETE /api/profiles/{profileId}/drugs/{myDrugId}   약 삭제 (204)
+ *  - DELETE /api/profiles/{profileId}/drugs/{myDrugId}   약 삭제 (204, 본문 없음)
+ *  복용정보 수정은 범위에서 빠졌다. → 복약 일정 PUT /api/profiles/{profileId}/drugs/{myDrugId}/schedule
  * */
-@Tag(name = "내 약", description = "프로필별 내 약 목록 · 상세 · 등록 · 수정 · 삭제")
+@Tag(name = "내 약", description = "프로필별 내 약 목록 · 상세 · 등록 · 삭제")
 @RestController
 @RequestMapping("/api/profiles/{profileId}/drugs")
 public class MyDrugController {
@@ -66,5 +66,15 @@ public class MyDrugController {
     public MyDrugDetailResponse getMyDrug(@PathVariable Long profileId,
                                           @PathVariable Long myDrugId) {
         return myDrugService.getMyDrug(profileId, myDrugId);
+    }
+
+    /* 목차. 4. 내 약 삭제 (약과 그 복용정보 · 일정이 함께 없어진다. 일정만 지울 때는 DELETE .../schedule) */
+    @Operation(summary = "내 약 삭제",
+            description = "내 약 한 건을 삭제하고 204 를 돌려줍니다. 이 프로필의 약이 아니거나 이미 없으면 404 입니다.")
+    @DeleteMapping("/{myDrugId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMyDrug(@PathVariable Long profileId,
+                             @PathVariable Long myDrugId) {
+        myDrugService.deleteMyDrug(profileId, myDrugId);
     }
 }
