@@ -98,6 +98,17 @@ class MessageHistoryMySqlTests {
     }
 
     @Test
+    void answerSnapshotKeepsUnidentifiedRegisteredNamesOutsideProviderLookups() {
+        jdbc.update("INSERT INTO my_drug(profile_id,item_seq,custom_name,dose_per_time,source) VALUES(?,NULL,?,1,'MANUAL')",
+                profileId, "합성 직접입력약");
+        var question = store.save(roomId, memberId, profileId, "합성 질문");
+        var input = store.loadAnswerInput(roomId, memberId, profileId, question);
+        assertThat(input.medications()).isEmpty();
+        assertThat(input.unidentifiedDrugNames()).containsExactly("합성 직접입력약");
+        assertThat(input.withSimilarSummaries(List.of()).unidentifiedDrugNames()).containsExactly("합성 직접입력약");
+    }
+
+    @Test
     void emptyRoomReturnsItsHeaderAndDoesNotChangeAnyStoredState(CapturedOutput output) throws Exception {
         var before = roomState();var profile = jdbc.queryForMap("SELECT * FROM profile WHERE profile_id=?", profileId);
         for (int i = 0; i < 2; i++) {

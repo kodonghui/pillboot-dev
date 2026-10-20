@@ -200,6 +200,17 @@ class SummaryMySqlTests {
     }
 
     @Test
+    void legacyRangeSharingAWindowStartDoesNotBlockTheFixedWindows() throws Exception {
+        // 02 샘플처럼 10턴 구간이 아닌 1~2 요약이 남아 있는 방이다.
+        jdbc.update("INSERT INTO chat_summary(session_id,from_turn,to_turn,content,created_at) VALUES(?,1,2,'legacy-1-2',CURRENT_TIMESTAMP)",sessionId);
+        seedPairs(1,19);send(200);await(() -> active.get()==0);
+        assertThat(jdbc.queryForList("SELECT CONCAT(from_turn,'-',to_turn) FROM chat_summary WHERE session_id=? ORDER BY from_turn,to_turn",String.class,sessionId))
+                .containsExactly("1-2","1-10","11-20");
+        assertThat(calls.get()).isEqualTo(2);
+        assertThat(inputs.get(1).path("previousSummary").asString()).isEqualTo(generated);
+    }
+
+    @Test
     void deletedSessionDuringGenerationCannotLeaveAnOrphanSummary() throws Exception {
         seedPairs(1,10);gate=new CountDownLatch(1);summaries.answerCommitted(sessionId);
         assertThat(entered.await(3,TimeUnit.SECONDS)).isTrue();

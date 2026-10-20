@@ -100,8 +100,8 @@ public final class ChatProviderCli {
         }
         return "";
     }
-    private static String setting(Properties local,String name,String fallback){String v=System.getenv(name);return v!=null?v:local.getProperty(name,fallback);}
-    private static void configureProxy(){
+    static String setting(Properties local,String name,String fallback){String v=System.getenv(name);return v!=null?v:local.getProperty(name,fallback);}
+    static void configureProxy(){
         String proxy=System.getenv("HTTPS_PROXY");if(proxy==null||proxy.isBlank())proxy=System.getenv("https_proxy");
         if(proxy!=null&&!proxy.isBlank()&&System.getProperty("https.proxyHost")==null){var uri=URI.create(proxy);System.setProperty("https.proxyHost",uri.getHost());System.setProperty("https.proxyPort",Integer.toString(uri.getPort()<0?80:uri.getPort()));}
         if(Files.isRegularFile(Path.of("/etc/ssl/certs/java/cacerts"))&&System.getProperty("javax.net.ssl.trustStore")==null)System.setProperty("javax.net.ssl.trustStore","/etc/ssl/certs/java/cacerts");

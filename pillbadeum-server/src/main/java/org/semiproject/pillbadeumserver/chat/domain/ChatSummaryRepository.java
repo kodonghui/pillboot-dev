@@ -8,7 +8,8 @@ import org.springframework.data.repository.query.Param;
 
 /** CHAT-009: 실제 SQL에 없는 복합 UNIQUE를 가정하지 않고 방 잠금 뒤 구간 존재를 재확인한다. */
 public interface ChatSummaryRepository extends JpaRepository<ChatSummary, Long> {
-    boolean existsBySessionIdAndFromTurn(Long sessionId, int fromTurn);
+    // 시작 턴만 보면 샘플의 1~2 같은 예전 범위가 1~10 구간을 영구히 막으므로 끝 턴까지 같은 행만 완료로 본다.
+    boolean existsBySessionIdAndFromTurnAndToTurn(Long sessionId, int fromTurn, int toTurn);
 
     @Query("select s.fromTurn from ChatSummary s where s.sessionId=:sessionId and s.toTurn=s.fromTurn+9")
     List<Integer> findCompletedStarts(@Param("sessionId") Long sessionId);

@@ -7,6 +7,7 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Future;
 import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
@@ -44,11 +45,19 @@ public class DurLookupService {
         var unique = new LinkedHashMap<String, AnswerInput.Medication>();
         input.medications().forEach(m -> unique.putIfAbsent(m.itemSeq(), m));
         var types = requiredTypes(input, unique.size(), today);
+        return collectItems(List.copyOf(unique.keySet()), types, requestDeadline);
+    }
+
+    /** COMMON-005·점검 도구: 환자 사본 없이 명시한 품목·유형을 조회한다. 등록 뒤 전 유형 선조회에도 재사용한다. */
+    public List<DurLookup> collectItems(List<String> itemSeqs, Set<DurLookup.Type> types, ChatDeadline requestDeadline) {
+        LocalDate today = LocalDate.now(TimeZoneConfig.ZONE);
+        var unique = itemSeqs.stream().distinct().toList();
+        var orderedTypes = types.isEmpty() ? EnumSet.noneOf(DurLookup.Type.class) : EnumSet.copyOf(types);
         var requests = new ArrayList<Request>();
         int index = 0;
         var results = new ArrayList<DurLookup>();
-        for (String code : unique.keySet()) {
-            for (var type : types) {
+        for (String code : unique) {
+            for (var type : orderedTypes) {
                 if (index < 10) requests.add(new Request(code, type));
                 else results.add(DurLookup.failed(code, type, today));
             }

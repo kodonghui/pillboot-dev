@@ -51,15 +51,69 @@ class AnswerContextTests {
     }
 
     @Test
-    void unknownTokenCountsUseAConservativeBudgetAndNeverSplitATurn() {
+    void unknownTokenCountsKeepModerateKoreanTurnsAsWholePairs() {
         var messages = generator.recentMessages(List.of(
                 new AnswerInput.Turn(1, "가".repeat(500), "나".repeat(500), null, null),
                 new AnswerInput.Turn(2, "다".repeat(500), "라".repeat(500), null, null)));
-        assertThat(messages).hasSize(2);
-        assertThat(messages.getFirst().content()).startsWith("다");
+        assertThat(messages).hasSize(4);
+        assertThat(messages.getFirst().content()).startsWith("가");
         assertThat(messages.getLast().content()).startsWith("라");
         assertThat(generator.recentMessages(List.of(new AnswerInput.Turn(3,
-                "가".repeat(2000), "answer", null, null)))).isEmpty();
+                "가".repeat(4000), "answer", null, null)))).isEmpty();
+    }
+
+    @Test
+    void sixKoreanTurnsReachTheModelWithoutSourceMetadataConsumingTheBudget() {
+        var turns = java.util.stream.IntStream.rangeClosed(1, 6).mapToObj(i ->
+                new AnswerInput.Turn(i, "질문".repeat(50),
+                        "답변".repeat(200) + "\n@@SOURCES@@\n" + "출처".repeat(2000), null, null)).toList();
+        var input = input("현재 질문", List.of(), turns);
+        var messages = generator.messages(input, List.of(), new OfficialDrugEvidence.Evidence(List.of()),
+                new DurEvaluator().evaluate(input, List.of()).notice());
+        assertThat(messages).hasSize(14); // 배경 + 완성 6턴(12개) + 현재 질문이다.
+        for (int i = 0; i < 6; i++) {
+            assertThat(messages.get(1 + i * 2).role()).isEqualTo("user");
+            assertThat(messages.get(1 + i * 2).content()).isEqualTo(turns.get(i).question());
+            assertThat(messages.get(2 + i * 2).role()).isEqualTo("assistant");
+            assertThat(messages.get(2 + i * 2).content()).isEqualTo("답변".repeat(200));
+        }
+        assertThat(messages.getLast().content()).isEqualTo("현재 질문");
+    }
+
+    @Test
+    void characterBudgetIncludesTheExactBoundaryAndDropsOnlyOlderWholeTurns() {
+        var latest = new AnswerInput.Turn(2, "가".repeat(1000), "나".repeat(936), null, null);
+        var exactlyFits = new AnswerInput.Turn(1, "다".repeat(1000), "라".repeat(936), null, null);
+        assertThat(generator.recentMessages(List.of(exactlyFits, latest))).hasSize(4);
+        var oneTooLong = new AnswerInput.Turn(1, "다".repeat(1000), "라".repeat(937), null, null);
+        assertThat(generator.recentMessages(List.of(oneTooLong, latest)))
+                .extracting(message -> message.content()).containsExactly(latest.question(), latest.answer());
+    }
+
+    @Test
+    void positiveStoredTokenCountsOverrideTheCharacterFallback() {
+        var older = new AnswerInput.Turn(1, "짧은 질문", "짧은 답변", 2000, 2000);
+        var latest = new AnswerInput.Turn(2, "다음 질문", "다음 답변", 1, 1);
+        assertThat(generator.recentMessages(List.of(older, latest)))
+                .extracting(message -> message.content()).containsExactly(latest.question(), latest.answer());
+        assertThat(generator.recentMessages(List.of(
+                new AnswerInput.Turn(1, "가".repeat(5000), "answer", 1, 1)))).hasSize(2);
+    }
+
+    @Test
+    void zeroAndNegativeTokenCountsFallBackToCodePointsIncludingEmoji() {
+        var older = new AnswerInput.Turn(1, "😀".repeat(1000), "가".repeat(936), 0, -1);
+        var latest = new AnswerInput.Turn(2, "💊".repeat(1000), "나".repeat(936), null, 0);
+        assertThat(generator.recentMessages(List.of(older, latest)))
+                .extracting(message -> message.content())
+                .containsExactly(older.question(), older.answer(), latest.question(), latest.answer());
+    }
+
+    @Test
+    void anOversizedLatestTurnCannotBeReplacedWithStaleOlderContext() {
+        var older = new AnswerInput.Turn(1, "지난 질문", "지난 답변", null, null);
+        var latest = new AnswerInput.Turn(2, "현재 직전 질문", "가".repeat(4000), null, null);
+        assertThat(generator.recentMessages(List.of(older, latest))).isEmpty();
     }
 
     @Test
@@ -154,6 +208,23 @@ class AnswerContextTests {
                 new DurEvaluator().evaluate(input, List.of()).notice())
                 .getFirst().content().split("\n", 2)[1]);
         assertThat(data.path("userSchedules").size()).isEqualTo(1);
+    }
+
+    @Test
+    void unscheduledMedicationKeepsItsIdentityWithoutInventingDoseTimes() {
+        var day = LocalDate.now(TimeZoneConfig.ZONE);
+        var unscheduled = new AnswerInput.Medication("unscheduled", "일정 없는 등록약", "maker", "OTC",
+                1, null, null, null, null, day);
+        var scheduled = medication("scheduled", "일정 있는 등록약");
+        var all = List.of(unscheduled, scheduled);
+        var input = input("질문", all, List.of());
+        var data = json.readTree(generator.messages(input, all, new OfficialDrugEvidence.Evidence(List.of()),
+                new DurEvaluator().evaluate(input, List.of()).notice()).getFirst().content().split("\n", 2)[1]);
+        assertThat(data.path("medications").size()).isEqualTo(2);
+        assertThat(data.path("userSchedules").size()).isEqualTo(4);
+        for (var schedule : data.path("userSchedules")) {
+            assertThat(schedule.path("itemSeq").asString()).isEqualTo("scheduled");
+        }
     }
 
     @Test

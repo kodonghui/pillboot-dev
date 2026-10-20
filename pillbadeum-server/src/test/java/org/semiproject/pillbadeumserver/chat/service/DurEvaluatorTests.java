@@ -147,6 +147,28 @@ class DurEvaluatorTests {
         return new DurLookup(code, type, true, List.of(rows), today);
     }
     private DurLookup.Row row(String partner, String text) { return new DurLookup.Row(partner, "fixture", "fixture", text, today); }
+    @Test
+    void unidentifiedRegisteredDrugIsNotTreatedAsAnEmptyMedicationList() {
+        var input = input(26, "MALE", false, List.of()).withUnidentifiedDrugNames(List.of("직접 입력 약"));
+        var result = evaluator.evaluate(input, List.of()).notice();
+        assertThat(result.lookup()).isEqualTo("FAILED");
+        assertThat(result.result()).isNull();
+        assertThat(result.checkedCount()).isZero();
+        assertThat(result.uncheckedDrugNames()).containsExactly("직접 입력 약");
+        assertThat(input.withSimilarSummaries(List.of()).unidentifiedDrugNames()).containsExactly("직접 입력 약");
+    }
+
+    @Test
+    void successfulKnownDrugDoesNotHideAnUnidentifiedRegisteredDrug() {
+        var input = input(26, "MALE", false, List.of(drug("A"))).withUnidentifiedDrugNames(List.of("직접 입력 약"));
+        var rows = List.of(new DurLookup("A", DurLookup.Type.AGE, true, List.of(), today));
+        var result = evaluator.evaluate(input, rows).notice();
+        assertThat(result.lookup()).isEqualTo("PARTIAL");
+        assertThat(result.result()).isNull();
+        assertThat(result.checkedCount()).isEqualTo(1);
+        assertThat(result.uncheckedDrugNames()).containsExactly("직접 입력 약");
+    }
+
     private AnswerInput input(int years, String gender, Boolean pregnant, List<AnswerInput.Medication> drugs) {
         return new AnswerInput(today.getYear() - years, gender, pregnant, "복약 질문", drugs, List.of(), true);
     }

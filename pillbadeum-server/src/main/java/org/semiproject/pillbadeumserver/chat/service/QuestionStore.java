@@ -105,8 +105,11 @@ public class QuestionStore {
                 .orElseThrow(() -> new NotFoundException("대화방을 찾을 수 없습니다."));
         var savedQuestion = messages.findByMessageIdAndSessionIdAndRole(question.messageId(), sessionId, "user")
                 .orElseThrow(() -> new NotFoundException("질문을 찾을 수 없습니다."));
-        // 직접 입력한 일정 이름에는 품목 코드가 없으므로 공식 약품·DUR 조회 대상으로 보내지 않는다.
-        var drugs = medications.findAllWithDrugByProfileId(profileId).stream().filter(m -> m.getDrug() != null).map(m ->
+        // 품목코드 없는 직접 입력 약은 조회하지 않되, 확인 못 한 등록 약으로 끝까지 보존한다.
+        var registered = medications.findAllWithDrugByProfileId(profileId);
+        var unidentified = registered.stream().filter(m -> m.getDrug() == null)
+                .map(m -> m.getCustomName()).toList();
+        var drugs = registered.stream().filter(m -> m.getDrug() != null).map(m ->
                 new AnswerInput.Medication(m.getDrug().getItemSeq(), m.getDrug().getName(), m.getDrug().getMaker(),
                         m.getDrug().getEtcOtc(), m.getDosePerTime(), m.getTiming(), m.getStartDate(), m.getEndDate(),
                         m.getDoseTimes(), m.getUpdatedAt().toLocalDate())).toList();
@@ -117,7 +120,7 @@ public class QuestionStore {
                 .stream().map(s -> new AnswerInput.Summary(s.getSummaryId(), s.getFromTurn(), s.getToTurn(), s.getContent())).toList();
         return new AnswerInput(session.getSnapBirthYear(), session.getSnapGender(), session.getSnapPregnant(),
                 savedQuestion.getContent(), drugs, turns, !messages.existsBySessionIdAndRole(sessionId, "assistant"),
-                recentSummaries, java.util.List.of(), summaries.countBySessionIdAndToTurnLessThan(sessionId, savedQuestion.getTurnNo()));
+                recentSummaries, java.util.List.of(), summaries.countBySessionIdAndToTurnLessThan(sessionId, savedQuestion.getTurnNo()), unidentified);
     }
 
     /** 같은 질문의 턴에 답변·활동 시각·보조 ID를 함께 저장한다. 외부 대기는 이 트랜잭션 전에 끝낸다. */

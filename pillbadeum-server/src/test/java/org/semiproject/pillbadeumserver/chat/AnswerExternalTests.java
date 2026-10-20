@@ -123,6 +123,33 @@ class AnswerExternalTests {
     }
 
     @Test
+    void unscheduledRegisteredDrugStillReceivesAnEvidenceBasedAnswer() {
+        var drug = new AnswerInput.Medication(CODE, "합성등록약정", "maker", "OTC", 1, null,
+                null, null, List.of(), LocalDate.now(TimeZoneConfig.ZONE));
+        var input = new AnswerInput(2000, "FEMALE", false, "등록약 정보가 궁금해요", List.of(drug), List.of(), false);
+        var result = generator.generate(input, ChatDeadline.after(Duration.ofSeconds(10)));
+        assertThat(chatCalls.get()).isEqualTo(1);
+        assertThat(publicCalls.get()).isEqualTo(2);
+        var background = json.readTree(sent.get().path("input").get(0).path("content").asString().split("\n", 2)[1]);
+        assertThat(background.path("userSchedules").isArray()).isTrue();
+        assertThat(background.path("userSchedules").size()).isZero();
+        assertThat(sources.sources(result.content())).filteredOn(s -> s.source() == AnswerSource.Type.EASY_DRUG)
+                .allMatch(AnswerSource::ok).hasSize(1);
+    }
+
+    @Test
+    void onlyUnidentifiedDrugsNeverTriggerNameBasedLookupOrModelGuessing() {
+        var input = new AnswerInput(2000, "MALE", false, "이 약 먹어도 돼요?", List.of(), List.of(), false)
+                .withUnidentifiedDrugNames(List.of("직접 입력 이름"));
+        var result = generator.generate(input, ChatDeadline.after(Duration.ofSeconds(10)));
+        assertThat(publicCalls.get()).isZero();
+        assertThat(chatCalls.get()).isZero();
+        assertThat(result.content()).contains("품목코드", "확인하지 못했어요");
+        assertThat(result.durNotice().lookup()).isEqualTo("FAILED");
+        assertThat(result.durNotice().uncheckedDrugNames()).containsExactly("직접 입력 이름");
+    }
+
+    @Test
     void permitSupplementsAnAbsentEasyDrugRecord() {
         easyBody.set(success(List.of()));
         var result = generate();
@@ -138,6 +165,16 @@ class AnswerExternalTests {
         var result = generate();
         assertThat(chatCalls.get()).isZero();
         assertThat(sources.body(result.content())).contains("공식 자료에서 확인할 수 없어요");
+        assertThat(sources.sources(result.content())).extracting(AnswerSource::ok).containsExactly(false, false, true, false);
+    }
+
+    @Test
+    void contradictoryCountsNeverReachTheModelAsOfficialFacts() {
+        easyBody.set(easyBody.get().replace("\"totalCount\":1", "\"totalCount\":0"));
+        permitBody.set(permitBody.get().replace("\"totalCount\":1", "\"totalCount\":0"));
+        var result = generate();
+        assertThat(chatCalls.get()).isZero();
+        assertThat(result.content()).doesNotContain(PRIVATE, "synthetic permit facts");
         assertThat(sources.sources(result.content())).extracting(AnswerSource::ok).containsExactly(false, false, true, false);
     }
 
