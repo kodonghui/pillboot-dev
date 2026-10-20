@@ -15,7 +15,7 @@ import java.util.List;
 @Service
 public class TemporaryPhotoUploadService {
 
-    private static final String TEMP_DIRECTORY = "temp";
+    private static final String TEMP_DIRECTORY = "img_temp";
     private static final int MAX_PHOTOS = 3;
 
     private final FileStorage fileStorage;
