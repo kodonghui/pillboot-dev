@@ -5,6 +5,7 @@ import org.semiproject.pillbadeumserver.common.external.ExternalApiCaller;
 import org.semiproject.pillbadeumserver.common.external.RestClientFactory;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentificationCandidate;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import tools.jackson.core.JacksonException;
@@ -41,12 +42,13 @@ public class PillDrugIdentificationService {
     private final RestClient restClient;
     private final String serviceKey;
 
-    public PillDrugIdentificationService(ObjectMapper objectMapper) {
+    public PillDrugIdentificationService(ObjectMapper objectMapper, Environment environment) {
         this.objectMapper = objectMapper;
         this.serviceKey = firstNonBlank(
-                System.getenv("PUBLIC_DATA_API"),
-                System.getenv("PUBLIC_DATA_SERVICE_KEY"),
-                System.getenv("PUBLIC_API_KEY"));
+                environment.getProperty("public-data.service-key"),
+                environment.getProperty("PUBLIC_DATA_SERVICE_KEY"),
+                environment.getProperty("PUBLIC_DATA_API"),
+                environment.getProperty("PUBLIC_API_KEY"));
         this.restClient = RestClientFactory.builder(
                 API_BASE_URL, Duration.ofSeconds(3), Duration.ofSeconds(10)).build();
     }
@@ -62,7 +64,7 @@ public class PillDrugIdentificationService {
         }
         if (serviceKey == null) {
             throw ExternalApiException.failed(API_NAME,
-                    "환경변수 PUBLIC_DATA_API에 서비스 키를 설정해주세요.", null);
+                    "PUBLIC_DATA_SERVICE_KEY에 서비스 키를 설정해주세요.", null);
         }
 
         List<JsonNode> pillItems = new ArrayList<>();
