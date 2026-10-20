@@ -25,10 +25,12 @@ public class ProfileService {
     private final ProfileRepository profileRepository;
     private final MemberRepository memberRepository;
     private final PhotoLifecycleService photos;
+    private final org.semiproject.pillbadeumserver.chat.service.VectorCleanupService vectors;
 
     @Autowired
     public ProfileService(ProfileRepository profileRepository, MemberRepository memberRepository,
-                          PhotoLifecycleService photos) {
+                          PhotoLifecycleService photos, org.semiproject.pillbadeumserver.chat.service.VectorCleanupService vectors) {
+        this.vectors = vectors;
         this.profileRepository = profileRepository;
         this.photos = photos;
         this.memberRepository = memberRepository;
@@ -127,6 +129,8 @@ public class ProfileService {
                 ErrorCode.LAST_PROFILE, "마지막 프로필은 삭제할 수 없습니다."
             );
         }
+
+        vectors.profileDeleting(profileId);
 
         // 4. 채팅방을 참조하는 메세지/요약을 먼저 삭제한다.
         profileRepository.deleteChatMessagesByProfileId(profileId);

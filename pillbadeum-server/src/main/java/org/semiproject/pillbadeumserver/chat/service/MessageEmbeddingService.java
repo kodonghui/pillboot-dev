@@ -19,9 +19,11 @@ public class MessageEmbeddingService {
     private final MessageVectorStore vectors;
     private final AnswerSources sources;
     private final AsyncTaskExecutor executor;
+    private final VectorCleanupService lifecycle;
 
     public MessageEmbeddingService(OpenAiClient openAi, MessageVectorStore vectors, AnswerSources sources,
-                                   @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor) {
+                                   @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor, VectorCleanupService lifecycle) {
+        this.lifecycle = lifecycle;
         this.openAi = openAi;
         this.vectors = vectors;
         this.sources = sources;
@@ -54,6 +56,7 @@ public class MessageEmbeddingService {
         long start = System.nanoTime();
         try {
             if (!vectors.isEnabled()) return null;
+            if (!lifecycle.sourceExists(sourceType, sessionId, messageId)) return null;
             if (content == null || content.isBlank() || content.getBytes(StandardCharsets.UTF_8).length > MAX_INPUT_BYTES) {
                 log.info("[임베딩 저장] stage={} result=skipped_input sessionId={} sourceId={}", stage, sessionId, messageId);
                 return null;
@@ -62,7 +65,12 @@ public class MessageEmbeddingService {
             // 외부 worker는 벡터만 반환한다. 시간 초과 후 늦게 완료해도 Qdrant 저장을 시작하지 못한다.
             float[] vector = deadline.within(Duration.ofSeconds(10)).await(executor.submit(() -> openAi.embed(content)));
             deadline.check();
-            vectors.upsert(sourceType, sessionId, messageId, openAi.embeddingModel(), vector, deadline);
+            if (!lifecycle.sourceExists(sourceType, sessionId, messageId)) return null;
+            try {
+                vectors.upsert(sourceType, sessionId, messageId, openAi.embeddingModel(), vector, deadline);
+            } finally {
+                if (!lifecycle.sourceExists(sourceType, sessionId, messageId)) lifecycle.sourceDeleted(sessionId);
+            }
             log.info("[임베딩 저장] stage={} result=stored sessionId={} sourceId={} elapsedMs={}",
                     stage, sessionId, messageId, (System.nanoTime() - start) / 1_000_000);
             return vector;

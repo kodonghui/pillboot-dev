@@ -90,6 +90,8 @@ class MessageEmbeddingMySqlTests {
     @Autowired ChatAnswerService answers;
     @Autowired MessageEmbeddingService embeddings;
     @Autowired SummaryService summaries;
+    @Autowired VectorCleanupService cleanupVectors;
+    @Autowired org.springframework.transaction.PlatformTransactionManager txManager;
     @MockitoBean QuestionClassifier classifier;
     @MockitoBean AnswerGenerator generator;
     @MockitoBean DurCacheStore cache;
@@ -370,6 +372,80 @@ class MessageEmbeddingMySqlTests {
         seedSearchMemory(3);var captured=captureContext();send(200);await(()->activeTasks.get()==0&&httpActive.get()==0);
         assertThat(captured.get().recentSummaries()).hasSize(3);assertThat(captured.get().similarSummaries()).isEmpty();
         verify(vectors,never()).similarSummaryIds(anyLong(),anyString(),any(),anyList(),any());
+    }
+
+    @Test
+    void profileDeletionRemovesMessagesAndSummariesAcrossModelsButPreservesOtherProfile() throws Exception {
+        long otherProfile=spareProfile();
+        long otherSession=insert("INSERT INTO chat_session(member_id,profile_id,snap_birth_year,snap_gender,snap_pregnant,created_at,updated_at) VALUES(?,?,1990,'FEMALE',NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",memberId,otherProfile);
+        vectors.upsert(sessionId,1,MODEL,searchVector(),ChatDeadline.after(Duration.ofSeconds(3)));
+        vectors.upsert(MessageVectorStore.SourceType.SUMMARY,sessionId,1,MODEL,searchVector(),ChatDeadline.after(Duration.ofSeconds(3)));
+        vectors.upsert(otherSession,2,MODEL,searchVector(),ChatDeadline.after(Duration.ofSeconds(3)));
+        String oldModel="old-fixture-model";
+        try {
+            vectors.upsert(sessionId,1,oldModel,searchVector(),ChatDeadline.after(Duration.ofSeconds(3)));
+            deleteProfile();
+            assertThat(countPoints()).isEqualTo(1);
+            assertThat(qdrant.countAsync(vectors.collectionName(oldModel)).get(3,TimeUnit.SECONDS)).isZero();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM vector_cleanup WHERE session_id=?",Integer.class,sessionId)).isZero();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM profile WHERE profile_id=?",Integer.class,otherProfile)).isEqualTo(1);
+        } finally { qdrant.deleteCollectionAsync(vectors.collectionName(oldModel)).get(3,TimeUnit.SECONDS); }
+    }
+
+    @Test
+    void lateAnswerEmbeddingCannotRecreateDeletedProfileVectors() throws Exception {
+        spareProfile(); answerGate=new CountDownLatch(1);
+        send(200);await(()->requests.size()==2);
+        deleteProfile();answerGate.countDown();
+        await(()->activeTasks.get()==0&&httpActive.get()==0);
+        assertThat(countPoints()).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM chat_message WHERE session_id=?",Integer.class,sessionId)).isZero();
+    }
+
+    @Test
+    void qdrantFailureKeepsDurableCleanupUntilRetryWithoutUndoingDeletion() throws Exception {
+        spareProfile();vectors.upsert(sessionId,1,MODEL,searchVector(),ChatDeadline.after(Duration.ofSeconds(3)));
+        doThrow(new IllegalStateException("synthetic cleanup failure")).when(vectors).deleteSessions(anyList());
+        deleteProfile();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM vector_cleanup WHERE session_id=?",Integer.class,sessionId)).isEqualTo(1);
+        assertThat(countPoints()).isEqualTo(1);
+        doCallRealMethod().when(vectors).deleteSessions(anyList());
+        cleanupVectors.retryPending();
+        assertThat(countPoints()).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM vector_cleanup WHERE session_id=?",Integer.class,sessionId)).isZero();
+    }
+
+    @Test
+    void rolledBackProfileTransactionDoesNotDeleteVectorsOrKeepCleanupRequest() throws Exception {
+        vectors.upsert(sessionId,1,MODEL,searchVector(),ChatDeadline.after(Duration.ofSeconds(3)));
+        var tx=new org.springframework.transaction.support.TransactionTemplate(txManager);
+        assertThatThrownBy(()->tx.executeWithoutResult(status->{cleanupVectors.profileDeleting(profileId);throw new IllegalStateException("synthetic rollback");})).isInstanceOf(IllegalStateException.class);
+        assertThat(countPoints()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM vector_cleanup WHERE session_id=?",Integer.class,sessionId)).isZero();
+    }
+
+    @Test
+    void deletionBetweenLivenessCheckAndUpsertIsCleanedAfterTheLateWrite() throws Exception {
+        spareProfile();var saved=store.save(sessionId,memberId,profileId,QUESTION);
+        var entered=new CountDownLatch(1);var releaseWrite=new CountDownLatch(1);
+        doAnswer(inv->{entered.countDown();releaseWrite.await(4,TimeUnit.SECONDS);return inv.callRealMethod();})
+            .when(vectors).upsert(any(MessageVectorStore.SourceType.class),eq(sessionId),eq(saved.messageId()),anyString(),any(),any());
+        try(var tasks=Executors.newVirtualThreadPerTaskExecutor()) {
+            var pending=tasks.submit(()->embeddings.questionCommitted(sessionId,saved.messageId(),QUESTION,ChatDeadline.after(Duration.ofSeconds(10))));
+            try { assertThat(entered.await(4,TimeUnit.SECONDS)).isTrue();deleteProfile(); }
+            finally { releaseWrite.countDown(); }
+            pending.get(5,TimeUnit.SECONDS);
+        }
+        assertThat(countPoints()).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM vector_cleanup WHERE session_id=?",Integer.class,sessionId)).isZero();
+    }
+
+    private long spareProfile() {
+        return insert("INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,profile_pregnant,created_at,updated_at) VALUES(?,'spare','SELF',1990,'FEMALE',FALSE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",memberId);
+    }
+    private void deleteProfile() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/profiles/{id}",profileId)
+            .header("Authorization","Bearer "+tokens.createAccessToken(memberId,"fixture@example.test","ROLE_USER"))).andExpect(status().isNoContent());
     }
 
     private List<Long> seedSearchMemory(int windows) {

@@ -26,14 +26,16 @@ class MessageEmbeddingServiceTests {
     MessageVectorStore vectors;
     SimpleAsyncTaskExecutor executor;
     MessageEmbeddingService service;
+    VectorCleanupService lifecycle;
     final CountDownLatch release=new CountDownLatch(1);
 
     @BeforeEach
     void setup(){
         openAi=mock(OpenAiClient.class);vectors=mock(MessageVectorStore.class);
+        lifecycle=mock(VectorCleanupService.class);when(lifecycle.sourceExists(any(),anyLong(),anyLong())).thenReturn(true);
         when(vectors.isEnabled()).thenReturn(true);when(openAi.embeddingModel()).thenReturn("fixture-model");
         executor=new SimpleAsyncTaskExecutor();executor.setVirtualThreads(true);
-        service=new MessageEmbeddingService(openAi,vectors,new AnswerSources(new JsonMapper()),executor);
+        service=new MessageEmbeddingService(openAi,vectors,new AnswerSources(new JsonMapper()),executor,lifecycle);
     }
     @AfterEach void cleanup(){release.countDown();executor.close();}
 
@@ -98,7 +100,7 @@ class MessageEmbeddingServiceTests {
     void rejectedSubmissionAndUnavailableProviderDoNotTurnCommittedAnswerIntoFailure(){
         AsyncTaskExecutor rejected=mock(AsyncTaskExecutor.class);
         doThrow(new IllegalStateException("synthetic rejection")).when(rejected).execute(any(Runnable.class));
-        var service=new MessageEmbeddingService(openAi,vectors,new AnswerSources(new JsonMapper()),rejected);
+        var service=new MessageEmbeddingService(openAi,vectors,new AnswerSources(new JsonMapper()),rejected,lifecycle);
         assertThatCode(()->service.answerCommitted(42,2,"answer")).doesNotThrowAnyException();
         when(vectors.isEnabled()).thenThrow(new IllegalStateException("provider closed"));
         assertThatCode(()->service.answerCommitted(42,2,"answer")).doesNotThrowAnyException();
