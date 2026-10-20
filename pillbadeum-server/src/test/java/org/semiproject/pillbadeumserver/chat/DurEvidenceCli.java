@@ -96,10 +96,16 @@ public final class DurEvidenceCli {
         final AtomicInteger clientCalls = new AtomicInteger();
         MeasuredClient(JsonMapper json, String base, String key) { super(json, base, key, 2000, 5000, 4, 1000); }
         @Override public JsonNode get(String path, Map<String, ?> params) {
+            return measured(path, () -> super.get(path, params));
+        }
+        @Override public JsonNode get(String path, Map<String, ?> params, java.time.Duration budget) {
+            return measured(path, () -> super.get(path, params, budget));
+        }
+        private JsonNode measured(String path, java.util.function.Supplier<JsonNode> call) {
             long start = System.nanoTime();
             clientCalls.incrementAndGet();
             Integer status = null; String code = null;
-            try { return super.get(path, params); }
+            try { return call.get(); }
             catch (RuntimeException exception) {
                 for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
                     if (cause instanceof RestClientResponseException http) {

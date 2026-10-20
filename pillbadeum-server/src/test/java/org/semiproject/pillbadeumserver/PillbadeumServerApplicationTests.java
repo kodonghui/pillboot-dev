@@ -46,7 +46,7 @@ class PillbadeumServerApplicationTests {
             }
             Set<String> expectedTables = Set.of("member", "consent", "profile", "consent_history",
                     "notification_setting", "drug", "my_drug", "chat_session", "chat_message", "chat_summary",
-                    "photo", "ocr_candidate", "dur_warning", "dur_interaction", "push_subscription", "notification_dispatch");
+                    "photo", "ocr_candidate", "dur_warning", "dur_interaction", "push_subscription", "notification_dispatch", "vector_cleanup");
             // 최신 ERD와 생성 SQL은 운영체제와 관계없이 테이블 이름을 소문자로 통일합니다.
             assertThat(tables).containsExactlyInAnyOrderElementsOf(expectedTables);
             try (var rows = statement.executeQuery("SELECT COUNT(*) FROM member")) {
