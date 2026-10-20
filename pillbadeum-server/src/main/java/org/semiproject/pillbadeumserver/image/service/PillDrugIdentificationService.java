@@ -34,7 +34,7 @@ public class PillDrugIdentificationService {
             "/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList";
     private static final int SEARCH_PAGE_SIZE = 100;
     private static final int MAX_ENRICHED_CANDIDATES = 5;
-    private static final String API_NAME = "공공데이터포털";
+    private static final String API_NAME = "MFDS Public Data";
     private static final Semaphore API_PERMITS = new Semaphore(4);
 
     private final ObjectMapper objectMapper;
