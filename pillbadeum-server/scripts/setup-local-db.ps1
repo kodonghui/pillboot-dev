@@ -12,6 +12,7 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $sqlFiles = @('00_PILLBADEUM_DB_CREAT.sql', '01_PILLBADEUM_DB_SCRIPT.sql')
 if ($IncludeTestData) { $sqlFiles += '02_PILLBADEUM_TEST_DATA.sql' }
+$sqlFiles += '03_MEDICATION_UPDATE.sql'
 $sqlPaths = $sqlFiles | ForEach-Object { Join-Path $projectRoot "sql/$_" }
 foreach ($sqlPath in $sqlPaths) {
     if (-not (Test-Path -LiteralPath $sqlPath -PathType Leaf)) {
@@ -58,15 +59,19 @@ Write-Host "Preparing pilldb on ${MysqlHost}:${MysqlPort}."
 Write-Host "Enter the MySQL password for '$AdminUser' at the prompt. The script does not store it."
 
 # Native password prompt: do not put the administrator password in arguments or files.
-& $mysqlExecutable "--host=$MysqlHost" "--port=$MysqlPort" "--user=$AdminUser" `
-    '--password' '--default-character-set=utf8mb4' "--execute=$sqlText"
+$setupOutput = & $mysqlExecutable "--host=$MysqlHost" "--port=$MysqlPort" "--user=$AdminUser" `
+    '--password' '--default-character-set=utf8mb4' '--batch' "--execute=$sqlText"
+$setupOutput | ForEach-Object { Write-Output $_ }
 if ($LASTEXITCODE -ne 0) {
     throw "Database setup failed (mysql exit code $LASTEXITCODE). Check the error above."
+}
+if ($setupOutput -contains 'BLOCKED') {
+    throw 'Medication SQL was BLOCKED. Check the precheck output and sql/README.md before retrying.'
 }
 
 Write-Host ''
 Write-Host 'Database/account/schema setup completed. Existing data and passwords were preserved.'
-Write-Host 'This script creates missing objects only; it does not upgrade existing columns or constraints.'
+Write-Host '03_MEDICATION_UPDATE.sql applies medication changes and skips changes already applied. Check that its final status is READY.'
 Write-Host 'Use an empty development database for the ERD Cloud schema. For existing databases, read sql/README.md first.'
 Write-Host 'Copy .env.example to .env if needed, then fill DB_USERNAME, DB_PASSWORD and JWT_SECRET.'
 Write-Host 'Run .\gradlew.bat bootRun from the project directory.'

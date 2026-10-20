@@ -49,6 +49,8 @@ public enum ErrorCode {
     // 복약 일정 (SCHED)
 
     // 복약 알림 (NOTI)
+    CONSENT_REQUIRED(HttpStatus.CONFLICT, "CONSENT_REQUIRED", "알림 수신 동의가 필요합니다."),
+    PUSH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "EXTERNAL_API_FAILED", "알림 기능을 지금 사용할 수 없습니다."),
 
     // 복약 기록 (DOSE)
 

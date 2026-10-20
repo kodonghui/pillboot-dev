@@ -1,0 +1,23 @@
+@baseUrl = http://localhost:8080
+@accessToken = REPLACE_WITH_YOUR_BEARER_TOKEN
+@sessionId = REPLACE_WITH_SESSION_ID_FROM_BROWSER
+
+### 실제 시작은 /dev/medication-live 또는 프론트 WebRTC에서 수행
+# POST /api/medication/live/sessions
+# 본문: {sdp:실제 offer, selectedProfileId, selectedMyDrugId, selectedDate}
+# 임의 SDP로 생성 요청을 보내지 마세요. 실제 세션 생성은 과금될 수 있습니다.
+
+### 내 세션 상태: completedOperation으로 SAVE/DELETE/STOP 성공 판정
+GET {{baseUrl}}/api/medication/live/sessions/{{sessionId}}
+Authorization: Bearer {{accessToken}}
+
+### 내 세션 종료: 204. 이미 종료됐다면 404, 완료한 DB 변경은 유지
+DELETE {{baseUrl}}/api/medication/live/sessions/{{sessionId}}
+Authorization: Bearer {{accessToken}}
+
+### 빈 시작 입력은 400: DTO 검증으로 실제 OpenAI 세션 생성 없이 거절
+POST {{baseUrl}}/api/medication/live/sessions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{}

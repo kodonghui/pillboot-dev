@@ -1,0 +1,26 @@
+@baseUrl = http://localhost:8080
+@accessToken = REPLACE_WITH_YOUR_BEARER_TOKEN
+
+### 현재 선택한 약·클릭 날짜 기준 일주일 일정 저장: 실제 소유 프로필·약 ID로 변경
+POST {{baseUrl}}/api/schedule-voice-commands
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "text": "일주일 동안 삼시세끼 약 일정 추가해줘",
+  "selectedProfileId": 13,
+  "selectedMyDrugId": 25,
+  "selectedDate": "2026-11-03"
+}
+
+### 날짜·기간 생략: 클릭한 11월 3일 하루 일정으로 저장. 같은 약의 기존 일정은 교체됨
+POST {{baseUrl}}/api/schedule-voice-commands
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "text": "약 일정 추가해줘",
+  "selectedProfileId": 13,
+  "selectedMyDrugId": 25,
+  "selectedDate": "2026-11-03"
+}

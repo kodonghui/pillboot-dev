@@ -15,7 +15,8 @@ public enum DrugSource {
 
     SEARCH("이름 검색"),
     PILL_PHOTO("알약 사진"),
-    PRESCRIPTION_PHOTO("처방전 사진");
+    PRESCRIPTION_PHOTO("처방전 사진"),
+    MANUAL("직접 입력");
 
     private final String description;   // 화면 · 응답에 보여줄 한글 이름
 

@@ -22,7 +22,7 @@ public class Profile {
     @Column(name = "profile_name")
     private String profileName;
 
-    @Column(name = "realationship_type")
+    @Column(name = "relationship_type")
     private String relationshipType;
 
     @Column(name = "profile_birth_year")

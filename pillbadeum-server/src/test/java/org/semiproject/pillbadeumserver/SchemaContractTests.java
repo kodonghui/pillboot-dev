@@ -27,13 +27,13 @@ class SchemaContractTests {
         try (var connection = dataSource.getConnection()) {
             assertThat(count(connection, "SELECT DATABASE() = 'pill_test'"))
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
+            org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(114);
-            assertConstraintCount(connection, "PRIMARY KEY", 14);
-            assertConstraintCount(connection, "FOREIGN KEY", 15);
-            assertConstraintCount(connection, "UNIQUE", 1);
-            assertConstraintCount(connection, "CHECK", 1);
+                    .isEqualTo(125);
+            assertConstraintCount(connection, "PRIMARY KEY", 16);
+            assertConstraintCount(connection, "FOREIGN KEY", 16);
+            assertConstraintCount(connection, "UNIQUE", 3);
+            assertConstraintCount(connection, "CHECK", 3);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.table_constraints "
                     + "WHERE constraint_schema=DATABASE() AND table_name='drug' "
                     + "AND constraint_type='CHECK' AND constraint_name='chk_drug_type' AND enforced='YES'"))
@@ -42,15 +42,18 @@ class SchemaContractTests {
                     + "WHERE table_schema=DATABASE() AND LOWER(extra) LIKE '%on update%'"))
                     .as("ERD does not declare automatic ON UPDATE timestamps").isZero();
             assertColumn(connection, "profile", "profile_pregnant", "tinyint", null, "NO", "0");
-            assertColumn(connection, "profile", "realationship_type", "varchar", 10L, "NO", null);
+            assertColumn(connection, "profile", "relationship_type", "varchar", 10L, "NO", null);
             assertColumn(connection, "chat_message", "trun_no", "int", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_birth_year", "bigint", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_pregnant", "tinyint", null, "YES", null);
-            assertColumn(connection, "my_drug", "end_date", "date", null, "NO", null);
-            assertColumn(connection, "my_drug", "dose_times", "varchar", 50L, "NO", "07:00,11:00,17:00");
+            assertColumn(connection, "my_drug", "start_date", "date", null, "YES", null);
+            assertColumn(connection, "my_drug", "end_date", "date", null, "YES", null);
+            assertColumn(connection, "my_drug", "dose_times", "varchar", 50L, "YES", null);
+            assertColumn(connection, "my_drug", "item_seq", "varchar", 100L, "YES", null);
+            assertColumn(connection, "my_drug", "custom_name", "varchar", 100L, "YES", null);
             assertColumn(connection, "consent", "terms_title", "varchar", 30L, "NO", null);
             assertColumn(connection, "drug", "etc_otc", "varchar", 10L, "NO", null);
-            assertColumn(connection, "drug", "matrial", "varchar", 30L, "NO", null);
+            assertColumn(connection, "drug", "material", "varchar", 30L, "NO", null);
             assertColumn(connection, "photo", "kind", "varchar", 30L, "NO", null);
             assertColumn(connection, "dur_interaction", "item_seq2", "varchar", 100L, "NO", null);
             assertColumn(connection, "dur_interaction", "mixture_item_seq", "varchar", 50L, "YES", null);
@@ -64,11 +67,11 @@ class SchemaContractTests {
                                 + "VALUES(?, 'test-only', 'fixture', 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
                         "review-" + suffix + "@example.test");
                 long profile = insert(connection,
-                        "INSERT INTO profile(member_id,profile_name,realationship_type,profile_birth_year,profile_gender,created_at,updated_at) "
+                        "INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,created_at,updated_at) "
                                 + "VALUES(?, 'fixture', 'SELF', 2000, 'FEMALE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", member);
                 assertThat(count(connection, "SELECT COUNT(*) FROM profile WHERE profile_id=? AND profile_pregnant=FALSE", profile))
                         .isEqualTo(1);
-                String drugInsert = "INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,matrial,synced_at) "
+                String drugInsert = "INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,material,synced_at) "
                         + "VALUES(?, 'fixture', 'fixture', ?, 'fixture', 'ROUND', 'WHITE', 'TABLET', 'fixture', CURRENT_TIMESTAMP)";
                 execute(connection, drugInsert, itemSeq, "OTC");
                 execute(connection, drugInsert, itemSeq + "-2", "OTC");
@@ -80,14 +83,35 @@ class SchemaContractTests {
                 assertSqlError(connection, 1048, drugInsert, itemSeq + "-null", null);
 
                 long myDrug = insert(connection,
-                        "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,source) "
-                                + "VALUES(?,?,1,'2026-10-17','2026-10-18','SEARCH')", profile, itemSeq);
+                        "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,dose_times,source) "
+                                + "VALUES(?,?,1,'2026-10-17','2026-10-18','07:00,11:00,17:00','SEARCH')", profile, itemSeq);
                 assertThat(count(connection, "SELECT COUNT(*) FROM my_drug WHERE my_drug_id=? AND dose_times='07:00,11:00,17:00'", myDrug))
                         .isEqualTo(1);
-                assertSqlError(connection, 1048, "UPDATE my_drug SET end_date=NULL WHERE my_drug_id=?", myDrug);
+                assertSqlError(connection, 3819, "UPDATE my_drug SET end_date=NULL WHERE my_drug_id=?", myDrug);
+                execute(connection, "UPDATE my_drug SET start_date=NULL,end_date=NULL,dose_times=NULL WHERE my_drug_id=?", myDrug);
+                assertThat(count(connection, "SELECT COUNT(*) FROM my_drug WHERE my_drug_id=? "
+                        + "AND profile_id=? AND item_seq=? AND start_date IS NULL AND end_date IS NULL AND dose_times IS NULL",
+                        myDrug, profile, itemSeq)).as("Deleting one schedule must preserve its medication and profile").isEqualTo(1);
+                assertSqlError(connection, 3819, "UPDATE my_drug SET dose_times='07:00' WHERE my_drug_id=?", myDrug);
                 // ERD에는 프로필/약의 복합 UNIQUE가 없으므로 임의로 중복 등록을 금지하지 않습니다.
-                insert(connection, "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,source) "
-                        + "VALUES(?,?,1,'2026-10-17','2026-10-18','SEARCH')", profile, itemSeq);
+                insert(connection, "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,dose_times,source) "
+                        + "VALUES(?,?,1,'2026-10-17','2026-10-18','07:00','SEARCH')", profile, itemSeq);
+                long unscheduled = insert(connection,
+                        "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,source) VALUES(?,?,1,'SEARCH')", profile, itemSeq);
+                assertThat(count(connection, "SELECT COUNT(*) FROM my_drug WHERE my_drug_id=? AND start_date IS NULL "
+                        + "AND end_date IS NULL AND dose_times IS NULL", unscheduled)).isEqualTo(1);
+
+                // 알림 설정은 회원당 1행, 푸시 구독은 브라우저 주소(대소문자 구분)당 1행, 발송은 같은 분에 1번입니다.
+                execute(connection, "INSERT INTO notification_setting(member_id,push_enabled) VALUES(?,TRUE)", member);
+                assertSqlError(connection, 1062, "INSERT INTO notification_setting(member_id) VALUES(?)", member);
+                String endpoint = "https://push.example.test/" + suffix;
+                String subscriptionInsert = "INSERT INTO push_subscription(member_id,endpoint,p256dh,auth) VALUES(?,?,'key','auth')";
+                execute(connection, subscriptionInsert, member, endpoint);
+                assertSqlError(connection, 1062, subscriptionInsert, member, endpoint);
+                execute(connection, subscriptionInsert, member, endpoint.toUpperCase());
+                String dispatchInsert = "INSERT INTO notification_dispatch(dose_at) VALUES('2000-01-01 07:00:00')";
+                execute(connection, dispatchInsert);
+                assertSqlError(connection, 1062, dispatchInsert);
 
                 long room = insert(connection,
                         "INSERT INTO chat_session(member_id,profile_id,created_at,snap_birth_year,snap_gender) "
