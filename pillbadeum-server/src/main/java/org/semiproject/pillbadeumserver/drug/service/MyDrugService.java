@@ -2,6 +2,7 @@ package org.semiproject.pillbadeumserver.drug.service;
 
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
+import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
@@ -22,8 +23,9 @@ import java.util.Set;
  *  지금 구현된 기능
  *  - getMyDrugs     : 내 약 목록 (GET /api/profiles/{profileId}/drugs)
  *  - registerAll    : 확인한 약 저장 (POST /api/profiles/{profileId}/drugs)
+ *  - getMyDrug      : 내 약 상세 (GET /api/profiles/{profileId}/drugs/{myDrugId})
  *  이후 추가할 기능 (계획 문서 5장 순서)
- *  - 상세(GET) · 수정(PATCH) · 삭제(DELETE)
+ *  - 수정(PATCH) · 삭제(DELETE)
  *  ----------------------------------------------------------------------------------
  *  - 엔티티는 트랜잭션 안에서 DTO 로 바꿔서 돌려준다. (open-in-view: false)
  * */
@@ -102,5 +104,23 @@ public class MyDrugService {
                         "이미 등록된 약입니다. (itemSeq=" + itemSeq + ")");
             }
         }
+    }
+
+    /* 목차. 3. 내 약 상세 (복용정보 + 약 정보)
+     *  ----------------------------------------------------------------------------------
+     *  1) 프로필 소유권 확인 (없는 프로필 404, 남의 프로필 403)
+     *  2) myDrugId 로 내 약 + drug 를 한 번에 조회 (fetch join)
+     *  3) 그 약이 경로의 프로필 것이 아니면 404 (남의 약 번호를 넣어도 존재 여부를 알려주지 않는다)
+     *  ----------------------------------------------------------------------------------
+     *  - 외부 API 는 부르지 않는다. 효능 · 주의사항 같은 근거 출처는 guide API 에서 따로 내려준다.
+     * */
+    public MyDrugDetailResponse getMyDrug(Long profileId, Long myDrugId) {
+
+        profileAccessChecker.checkOwner(profileId);
+
+        return myDrugRepository.findWithDrugById(myDrugId)
+                .filter(myDrug -> myDrug.belongsTo(profileId))
+                .map(MyDrugDetailResponse::from)
+                .orElseThrow(() -> new NotFoundException("등록된 약을 찾을 수 없습니다."));
     }
 }
