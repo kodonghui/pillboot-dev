@@ -10,6 +10,8 @@ import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import org.semiproject.pillbadeumserver.drug.domain.DrugRegistered;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
@@ -27,16 +29,19 @@ import java.util.Set;
  *  - 중복 확인은 저장 직전에 한 번 더 한다. (외부 API 를 기다리는 사이 같은 약이 저장된 경우)
  *    동시에 들어온 두 요청은 DB 의 (profile_id, item_seq) UNIQUE(sql/04)가 막고,
  *    MyDrugService.registerAll 이 그 오류를 409 로 바꾼다.
+ *  - COMMON-005 이벤트는 커밋 성공 뒤에만 처리되며 DUR 장애가 등록을 롤백하지 않는다.
  * */
 @Service
 public class MyDrugRegisterService {
 
     private final MyDrugRepository myDrugRepository;
     private final DrugRepository drugRepository;
+    private final ApplicationEventPublisher events;
 
-    public MyDrugRegisterService(MyDrugRepository myDrugRepository, DrugRepository drugRepository) {
+    public MyDrugRegisterService(MyDrugRepository myDrugRepository, DrugRepository drugRepository, ApplicationEventPublisher events) {
         this.myDrugRepository = myDrugRepository;
         this.drugRepository = drugRepository;
+        this.events = events;
     }
 
     /* 목차. 1. 요청 순서대로 저장하고, 저장된 상세를 같은 순서로 돌려준다. */
@@ -61,8 +66,8 @@ public class MyDrugRegisterService {
                 })
                 .toList();
 
-        return myDrugRepository.saveAll(myDrugs).stream()
-                .map(MyDrugDetailResponse::from)
-                .toList();
+        var saved = myDrugRepository.saveAll(myDrugs);
+        events.publishEvent(new DrugRegistered(saved.stream().map(m -> m.getDrug().getItemSeq()).distinct().toList()));
+        return saved.stream().map(MyDrugDetailResponse::from).toList();
     }
 }

@@ -82,10 +82,27 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataConflict(DataIntegrityViolationException e) {
-        // 이 예외만으로는 UNIQUE·NOT NULL·FK 중 어떤 제약인지 안전하게 알 수 없다.
-        // 예상한 이메일 중복 등은 서비스에서 해당 API의 BusinessException으로 처리한다.
+        if (isConcurrentDrugDuplicate(e)) {
+            // 사전 중복 조회를 동시에 통과해도 DB의 복합 UNIQUE 충돌은 기존 등록 409 계약으로 맞춘다.
+            log.info("[업무 요청 실패] code={}", ErrorCode.DUPLICATE.getCode());
+            return toResponse(ErrorCode.DUPLICATE, "이미 이 프로필에 등록된 약입니다.");
+        }
+        // 그 밖의 UNIQUE·NOT NULL·FK는 같은 사용자 오류라고 단정하지 않는다.
         log.error("[DB 제약 오류] type={} location={}", e.getClass().getSimpleName(), safeLocation(e));
         return toResponse(ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.getDescription());
+    }
+
+    private boolean isConcurrentDrugDuplicate(Throwable error) {
+        for (int depth = 0; error != null && depth < 10; depth++, error = error.getCause()) {
+            if (error instanceof org.hibernate.exception.ConstraintViolationException constraint) {
+                String name = constraint.getConstraintName();
+                if (name == null) return false;
+                name = name.replace("`", "");
+                return (name.equals("uk_my_drug_profile_item") || name.equals("my_drug.uk_my_drug_profile_item"))
+                        && constraint.getSQLException().getErrorCode() == 1062;
+            }
+        }
+        return false;
     }
 
     @ExceptionHandler(AuthenticationException.class)

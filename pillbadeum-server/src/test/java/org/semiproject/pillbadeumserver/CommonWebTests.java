@@ -190,6 +190,25 @@ class CommonWebTests {
     }
 
     @Test
+    void knownConcurrentDrugDuplicateUsesConflictWithoutDatabaseDetails() throws Exception {
+        mvc.perform(get("/api/probe/drug-duplicate").header("Authorization", "Bearer " + token("ROLE_USER")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andExpect(jsonPath("$.message").value("이미 이 프로필에 등록된 약입니다."))
+                .andExpect(content().string(not(containsString("uk_my_drug_profile_item"))))
+                .andExpect(content().string(not(containsString("private_value"))));
+    }
+
+    @Test
+    void otherUniqueAndForeignKeyFailuresRemainInternalErrors() throws Exception {
+        for (String path : new String[]{"/api/probe/other-duplicate", "/api/probe/drug-foreign-key"}) {
+            mvc.perform(get(path).header("Authorization", "Bearer " + token("ROLE_USER")))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                    .andExpect(content().string(not(containsString("private_value"))));
+        }
+    }
+
+    @Test
     void mvcErrorsPreserveStatusAndAllowHeader() throws Exception {
         String value = token("ROLE_USER");
         mvc.perform(get("/api/probe/missing-route").header("Authorization", "Bearer " + value))
@@ -221,6 +240,19 @@ class CommonWebTests {
         @GetMapping("/api/probe/not-found") void notFound() { throw new NotFoundException(); }
         @GetMapping("/api/probe/conflict") void conflict() {
             throw new DataIntegrityViolationException("private_table constraint");
+        }
+        @GetMapping("/api/probe/drug-duplicate") void drugDuplicate() {
+            throw databaseFailure("`my_drug`.`uk_my_drug_profile_item`", 1062);
+        }
+        @GetMapping("/api/probe/other-duplicate") void otherDuplicate() {
+            throw databaseFailure("other_unique", 1062);
+        }
+        @GetMapping("/api/probe/drug-foreign-key") void drugForeignKey() {
+            throw databaseFailure("uk_my_drug_profile_item", 1452);
+        }
+        private DataIntegrityViolationException databaseFailure(String constraint, int mysqlCode) {
+            return new DataIntegrityViolationException("private_value", new org.hibernate.exception.ConstraintViolationException(
+                    "private_value", new java.sql.SQLIntegrityConstraintViolationException("private_value", "23000", mysqlCode), constraint));
         }
         @GetMapping("/api/probe/timeout") void timeout() { throw ExternalApiException.timeout("test API", null); }
         @GetMapping("/api/probe/failure") void failure() { throw new IllegalStateException("private_table SQL"); }

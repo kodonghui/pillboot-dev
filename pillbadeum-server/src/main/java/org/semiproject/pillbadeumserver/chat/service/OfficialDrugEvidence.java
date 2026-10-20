@@ -92,7 +92,10 @@ public class OfficialDrugEvidence {
             String total = body.path("totalCount").asString("");
             if (!total.matches("\\d+")) throw invalid();
             var items = PublicDataClient.items(body);
-            if (items.isEmpty() && Long.parseLong(total) == 0) {
+            // 전체 건수와 반환 행 수가 모순되면 공식 근거로 사용하지 않는다.
+            long totalCount = Long.parseLong(total);
+            if (totalCount < items.size()) throw invalid();
+            if (items.isEmpty() && totalCount == 0) {
                 return new Lookup(source(medication, type, LocalDate.now(TimeZoneConfig.ZONE), false, false), Map.of(), false);
             }
             // 이름이 비슷한 다른 약을 근거로 쓰지 않고 품목코드가 완전히 일치한 결과만 사용한다.

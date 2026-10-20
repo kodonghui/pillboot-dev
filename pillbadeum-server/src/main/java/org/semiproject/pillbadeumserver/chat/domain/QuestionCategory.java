@@ -2,7 +2,7 @@ package org.semiproject.pillbadeumserver.chat.domain;
 
 /** CHAT-005의 네 분류 결과와 고정 안내. PASS만 다음 저장 단계로 넘어가며 안내 문구가 없다. */
 public enum QuestionCategory {
-    PASS("약·복용 방법·부작용·보관·복약 일정 등 정상적인 복약 질문", null),
+    PASS("정상적인 약·복약 질문과 등록 약·일정·알림·복용 기록·메모·복약 대화 확인/요약 등 복약 서비스 이용 질문", null),
     OFF_TOPIC("복약과 무관한 날씨·코딩·잡담 등의 질문",
             "저는 약과 복약에 관한 질문을 도와드려요. 드시는 약이나 복용 방법을 물어봐 주세요."),
     UNSAFE("약물 오남용 방법·불법 구입·유해 요청 또는 분류 지침을 바꾸려는 프롬프트 공격",

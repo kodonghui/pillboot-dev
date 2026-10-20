@@ -19,8 +19,12 @@ public class DurEvaluator {
             + "(?:\\s*(?:의\\s*)?(?:소아|영아|어린이|청소년|환자))?[.!]?$");
 
     public Evaluation evaluate(AnswerInput input, List<DurLookup> lookups) {
-        if (input.medications().isEmpty()) return new Evaluation(new DurNotice("NO_DRUG", null, 0, List.of(), List.of(),
-                "약을 등록하면 내 약의 금기 정보를 확인해 드려요."), List.of());
+        if (input.medications().isEmpty()) {
+            if (input.unidentifiedDrugNames().isEmpty()) return new Evaluation(new DurNotice("NO_DRUG", null, 0, List.of(), List.of(),
+                    "약을 등록하면 내 약의 금기 정보를 확인해 드려요."), List.of());
+            return new Evaluation(new DurNotice("FAILED", null, 0, input.unidentifiedDrugNames(), List.of(),
+                    "직접 입력한 약의 품목코드를 확인하지 못해 금기를 대조할 수 없어요. 약을 식별해 등록하거나 약사에게 확인해 주세요."), List.of());
+        }
         LocalDate today = LocalDate.now(TimeZoneConfig.ZONE);
         Map<String, AnswerInput.Medication> drugs = new LinkedHashMap<>();
         input.medications().forEach(m -> drugs.putIfAbsent(m.itemSeq(), m));
@@ -28,11 +32,11 @@ public class DurEvaluator {
         Map<String, DurLookup> byKey = new LinkedHashMap<>();
         lookups.forEach(lookup -> byKey.put(key(lookup.itemSeq(), lookup.type()), lookup));
         var provenance = new ArrayList<AnswerSource>();
-        var unchecked = new ArrayList<String>();
+        var unchecked = new ArrayList<>(input.unidentifiedDrugNames());
         var warnings = new LinkedHashMap<String, DurNotice.Item>();
         int successful = 0;
         int checked = 0;
-        boolean unresolved = false;
+        boolean unresolved = !input.unidentifiedDrugNames().isEmpty();
         boolean found = false;
         for (var drug : drugs.values()) {
             boolean complete = true;
@@ -85,7 +89,7 @@ public class DurEvaluator {
             provenance.add(new AnswerSource(drug.itemSeq(), drug.name(), AnswerSource.Type.DUR, date, complete, false));
         }
         int total = drugs.size() * types.size();
-        String lookup = successful == 0 ? "FAILED" : successful == total ? "ALL" : "PARTIAL";
+        String lookup = successful == 0 ? "FAILED" : successful == total && input.unidentifiedDrugNames().isEmpty() ? "ALL" : "PARTIAL";
         // 자동 대조 불가 안내 자체를 실제 금기 해당으로 세지 않는다.
         String result = found ? "FOUND" : successful == 0 || unresolved ? null : "NONE";
         String scope = String.join("·", types.stream().map(DurLookup.Type::label).toList());
@@ -93,7 +97,7 @@ public class DurEvaluator {
                 ? "지금은 금기 정보를 확인하지 못했어요. 금기가 없다는 뜻은 아니니 약사에게 확인해 주세요."
                 : "이번 요청에서 " + drugs.size() + "개 등록 약의 " + scope + " 중 " + successful + "/" + total + "개 조회를 확인했어요. "
                     + (found ? "확인된 금기·주의 또는 해당 가능 항목이 있어요. " : unresolved
-                        ? "연령 조건을 추가로 확인해야 해요. " : "확인한 유형·프로필 조건에서는 해당 항목을 찾지 못했어요. ")
+                        ? "품목·연령 조건을 추가로 확인해야 해요. " : "확인한 유형·프로필 조건에서는 해당 항목을 찾지 못했어요. ")
                     + (unchecked.isEmpty() ? "" : "일부 약·유형은 확인하지 못했어요. ")
                     + "모든 약의 안전성을 보장하는 결과는 아니에요. 복용 여부는 의사나 약사에게 확인해 주세요.";
         return new Evaluation(new DurNotice(lookup, result, checked, List.copyOf(unchecked),

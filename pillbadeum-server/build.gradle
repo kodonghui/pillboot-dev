@@ -65,6 +65,16 @@ tasks.named('test') {
     jvmArgs += "-javaagent:${configurations.mockitoAgent.asPath}"
 }
 
+// 명시적으로 실행할 때만 실제 API를 1회 호출한다. 일반 test/CI에서는 이 작업을 실행하지 않는다.
+tasks.register('tryQuestionClassifier', JavaExec) {
+    group = 'verification'
+    description = '질문을 직접 입력하고 실제 분류 결과와 시간·사용량·예상 비용 확인'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.semiproject.pillbadeumserver.chat.QuestionClassifierCli'
+    standardInput = System.in
+}
+
 // 키 값 출력·유료 호출·DB 변경 없이 현재 챗봇 설정의 누락 항목만 확인한다.
 tasks.register('checkChatConfiguration', JavaExec) {
     group = 'verification'
@@ -81,4 +91,22 @@ tasks.register('tryChatProviders', JavaExec) {
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'org.semiproject.pillbadeumserver.chat.ChatProviderCli'
+}
+
+// CHAT-007: 공개 품목 하나를 앱의 실제 근거 수집기로 점검한다. DB·OpenAI 호출은 없다.
+tasks.register('tryOfficialEvidence', JavaExec) {
+    group = 'verification'
+    description = '공개 품목코드의 e약은요·허가정보 상태와 소요 시간 점검'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.semiproject.pillbadeumserver.chat.OfficialEvidenceCli'
+}
+
+// CHAT-008: 환자 정보 없이 공개 품목의 전 DUR 유형을 점검한다. DB·OpenAI는 호출하지 않는다.
+tasks.register('tryDurEvidence', JavaExec) {
+    group = 'verification'
+    description = '공개 품목의 DUR 유형별 결과·행 수·시간 점검'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.semiproject.pillbadeumserver.chat.DurEvidenceCli'
 }

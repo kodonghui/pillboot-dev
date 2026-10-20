@@ -46,6 +46,7 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -82,6 +83,7 @@ class ChatFlowHttpTests {
     @Autowired DataSource dataSource;
     @Autowired QdrantClient qdrant;
     @Autowired MessageVectorStore vectors;
+    @Autowired PasswordEncoder passwords;
     private HttpClient browser;
     private final List<Long> members = new ArrayList<>();
     private final List<JsonNode> answerRequests = new CopyOnWriteArrayList<>();
@@ -89,6 +91,8 @@ class ChatFlowHttpTests {
     private final List<String> embeddingInputs = new CopyOnWriteArrayList<>();
     private final AtomicInteger decisions = new AtomicInteger();
     private volatile int answerStatus = 200;
+    private volatile int publicStatus = 200;
+    private volatile String answerText;
     private volatile String blockedQuestion;
     private CountDownLatch answerEntered = new CountDownLatch(0);
     private CountDownLatch answerRelease = new CountDownLatch(0);
@@ -236,6 +240,62 @@ class ChatFlowHttpTests {
         assertPrivateValuesNotLogged(output);
     }
 
+    /** 실제 로그인/BCrypt/발급 토큰에서 시작해 DB의 중간 길이 한글6턴이 모델 입력까지 전달되는지 확인한다. */
+    @Test
+    void issuedLoginTokenConnectsToOwnedChatAndSixKoreanTurns(CapturedOutput output) throws Exception {
+        String email = jdbc.queryForObject("SELECT email FROM member WHERE member_id=?", String.class, memberId);
+        String password = "synthetic-login-only-2026!";
+        jdbc.update("UPDATE member SET password_hash=?,user_role='ROLE_USER' WHERE member_id=?", passwords.encode(password), memberId);
+        assertThat(call("POST", "/api/auth/login", Map.of("email", email, "password", "incorrect"), null, 401)
+                .path("code").asString()).isEqualTo("LOGIN_FAILED");
+        var loggedIn = call("POST", "/api/auth/login", Map.of("email", email, "password", password), null, 200);
+        token = loggedIn.path("accessToken").asString();
+        assertThat(token).isNotBlank();
+        assertThat(loggedIn.path("member").path("memberId").asLong()).isEqualTo(memberId);
+        assertThat(call("GET", "/api/auth/me", null, token, 200).path("memberId").asLong()).isEqualTo(memberId);
+        assertThat(call("GET", rooms(profileId), null, "invalid-token", 401).path("code").asString())
+                .isEqualTo("UNAUTHENTICATED");
+        call("GET", rooms(foreignProfileId), null, token, 403);
+        call("GET", rooms(Long.MAX_VALUE), null, token, 404);
+        long session = create(profileId, 201);
+        answerText = "합성 답변".repeat(60); // 서버가 붙이는 DUR 안내까지 합쳐6턴이 예산에 드는 합성 응답이다.
+        for (int turn = 1; turn <= 7; turn++) question(session, "합성 질문".repeat(20) + turn, 200);
+        await(() -> pointCount() == 14);
+        var input = answerRequests.getLast().path("input");
+        assertThat(input.size()).isEqualTo(14); // 배경 + DB에서 읽은 완성6턴 + 현재 질문이다.
+        for (int i = 0; i < 6; i++) {
+            assertThat(input.path(1 + i * 2).path("content").asString()).isEqualTo("합성 질문".repeat(20) + (i + 1));
+            assertThat(input.path(2 + i * 2).path("content").asString()).startsWith(answerText).doesNotContain("@@SOURCES@@");
+        }
+        assertThat(history(session, "", 200).path("messages").size()).isEqualTo(14);
+        assertThat(jdbc.queryForObject("SELECT COUNT(token_count) FROM chat_message WHERE session_id=?", Long.class, session)).isZero();
+        assertPrivateValuesNotLogged(output);
+        assertThat(output.getAll()).doesNotContain(password, email);
+    }
+
+    /** 공식/DUR 모두400이어도 모델 추측을 저장하지 않고 조회 실패 안내와 서버 근거를 보존한다. */
+    @Test
+    void publicProviderFailuresKeepStoredAnswersExplicitAndNeverCallTheModel(CapturedOutput output) throws Exception {
+        long session = create(profileId, 201);
+        publicStatus = 400;
+        var first = question(session, "등록 약의 공식 정보는?", 200);
+        assertThat(first.path("answer").path("durNotice").isNull()).isTrue();
+        var second = question(session, "이 약의 금기는?", 200);
+        var answer = second.path("answer");
+        assertThat(answer.path("content").asString()).contains("지금은 공식 정보를 확인하지 못해", "금기가 없다는 뜻은 아니니");
+        assertThat(answer.path("durNotice").path("lookup").asString()).isEqualTo("FAILED");
+        assertThat(answer.path("durNotice").path("result").isNull()).isTrue();
+        var sources = JSON.readTree(answer.path("content").asString().split("@@SOURCES@@", 2)[1].strip());
+        assertThat(sources.size()).isEqualTo(4);
+        for (var source : sources) if (!source.path("source").asString().equals("USER_INPUT"))
+            assertThat(source.path("ok").asBoolean()).isFalse();
+        assertThat(answerRequests).isEmpty();
+        await(() -> pointCount() == 4);
+        assertThat(history(session, "", 200).path("messages").size()).isEqualTo(4);
+        assertThat(history(session, "", 200).path("retryMessageId").isNull()).isTrue();
+        assertPrivateValuesNotLogged(output);
+    }
+
     /** 응답을 래치로 잠근 동안 같은 방의 요청/표시와 다른 프로필의 진행을 함께 확인한다. */
     @Test
     void realConcurrentRequestsShareOneRoomGuardWhileAnotherProfileKeepsWorking() throws Exception {
@@ -355,6 +415,10 @@ class ChatFlowHttpTests {
         try {
             var test = current;
             String path = exchange.getRequestURI().getPath();
+            if (path.startsWith("/1471000/") && test.publicStatus != 200) {
+                respond(exchange, test.publicStatus, Map.of("error", "INVALID_REQUEST_PARAMETER_ERROR"));
+                return;
+            }
             if (path.equals("/decisions")) {
                 test.decisions.incrementAndGet();
                 respond(exchange, 200, Map.of("answers", List.of(Map.of("type", "choice", "name", "medication_category", "choice", "PASS"))));
@@ -380,7 +444,7 @@ class ChatFlowHttpTests {
                         test.answerEntered.countDown();
                         if (!test.answerRelease.await(15, TimeUnit.SECONDS)) throw new IllegalStateException("fixture gate timeout");
                     }
-                    text = "합성 응답: " + question;
+                    text = test.answerText == null ? "합성 응답: " + question : test.answerText;
                     status = test.answerStatus;
                 }
                 respond(exchange, status, status == 200 ? Map.of("id", "resp-flow", "status", "completed", "usage", Map.of("input_tokens", 30, "output_tokens", 10),

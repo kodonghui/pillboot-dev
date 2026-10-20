@@ -10,6 +10,9 @@ import org.semiproject.pillbadeumserver.drug.service.DrugSyncService;
 import org.semiproject.pillbadeumserver.drug.service.ProfileAccessChecker;
 import org.semiproject.pillbadeumserver.image.domain.PillDrugRegistrationRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import org.semiproject.pillbadeumserver.drug.domain.DrugRegistered;
+import java.util.List;
 
 /** 선택된 약품을 기존 내 약 목록 모델을 이용해 등록 */
 @Service
@@ -18,13 +21,15 @@ public class PillDrugRegistrationService {
     private final MyDrugRepository myDrugRepository;
     private final ProfileAccessChecker profileAccessChecker;
     private final DrugSyncService drugSyncService;
+    private final ApplicationEventPublisher events;
 
     public PillDrugRegistrationService(MyDrugRepository myDrugRepository,
                                        ProfileAccessChecker profileAccessChecker,
-                                       DrugSyncService drugSyncService) {
+                                       DrugSyncService drugSyncService, ApplicationEventPublisher events) {
         this.myDrugRepository = myDrugRepository;
         this.profileAccessChecker = profileAccessChecker;
         this.drugSyncService = drugSyncService;
+        this.events = events;
     }
 
     public MyDrugListResponse register(Long profileId, PillDrugRegistrationRequest request) {
@@ -45,6 +50,9 @@ public class PillDrugRegistrationService {
         MyDrug myDrug = MyDrug.create(profileId, drug, source,
                 request.dosePerTime(), request.timing(), request.startDate(), request.endDate(),
                 request.doseTimes());
-        return MyDrugListResponse.from(myDrugRepository.save(myDrug));
+        var saved = myDrugRepository.save(myDrug);
+        // 이 메서드는 TX 밖이므로 repository의 저장 커밋이 반환된 뒤에만 발행한다.
+        events.publishEvent(new DrugRegistered(List.of(itemSeq)));
+        return MyDrugListResponse.from(saved);
     }
 }

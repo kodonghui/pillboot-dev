@@ -23,6 +23,9 @@ spring:
       hibernate:
         format_sql: true
         highlight_sql: true
+        # COMMON-004: LocalDate/Time을 JDBC 4.2로 직접 전달해 JVM 시간대 변경에 따른 java.sql.Date 변환을 피한다.
+        type:
+          java_time_use_direct_jdbc: true
 
   sql:
     init:

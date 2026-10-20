@@ -1,0 +1,35 @@
+@baseUrl = http://localhost:8080
+@accessToken = REPLACE_WITH_YOUR_BEARER_TOKEN
+@profileId = 1
+@sessionId = 1
+@retryMessageId = 1
+@beforeTurn = 1
+
+### CHAT-001: 로그인 회원이 소유한 프로필의 방 목록
+GET {{baseUrl}}/api/profiles/{{profileId}}/chat-sessions
+Authorization: Bearer {{accessToken}}
+
+### CHAT-002: 본문 없음. 새 방 201 / 기존 빈 방 재사용 200. 반환 sessionId로 위 변수를 수정합니다.
+POST {{baseUrl}}/api/profiles/{{profileId}}/chat-sessions
+Authorization: Bearer {{accessToken}}
+
+### CHAT-003: 최신 30턴. 생성 중 retryMessageId=null이며 서버가 준 ID만 다시 보내기에 사용합니다.
+GET {{baseUrl}}/api/chat-sessions/{{sessionId}}/messages?limit=30
+Authorization: Bearer {{accessToken}}
+
+### CHAT-003: 더 보기. 현재 표시한 가장 작은 turnNo를 beforeTurn에 입력합니다.
+GET {{baseUrl}}/api/chat-sessions/{{sessionId}}/messages?beforeTurn={{beforeTurn}}&limit=30
+Authorization: Bearer {{accessToken}}
+
+### CHAT-004: 이 요청은 실제 대화 저장 및 설정한 제공자/모델 호출을 수행합니다. 전체 파일 자동 실행을 피합니다.
+POST {{baseUrl}}/api/chat-sessions/{{sessionId}}/messages
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "content": "등록된 약의 복용 시 주의사항을 알려 주세요."
+}
+
+### 재전송: GET 이력의 retryMessageId를 위 변수에 넣습니다. 본문 없이 기존 질문/턴만 복구합니다.
+POST {{baseUrl}}/api/chat-sessions/{{sessionId}}/messages/{{retryMessageId}}/retry
+Authorization: Bearer {{accessToken}}

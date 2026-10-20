@@ -48,7 +48,7 @@ public class SummaryStore {
     /** 입력 선택 뒤 대기한 작업이 이미 끝난 구간을 다시 유료 생성하지 않도록 새 읽기 시점에서 확인한다. */
     @Transactional(readOnly = true)
     public boolean isStored(long sessionId, int fromTurn) {
-        return summaries.existsBySessionIdAndFromTurn(sessionId, fromTurn);
+        return summaries.existsBySessionIdAndFromTurnAndToTurn(sessionId, fromTurn, fromTurn + 9);
     }
 
     /** CHAT-006: 검색 payload가 아닌 같은 방의 MySQL 본문을 읽는다. 없는 ID·다른 방·미래·최근 중복은 제외한다. */
@@ -64,7 +64,7 @@ public class SummaryStore {
     @Transactional(timeout = 5)
     public ChatSummary save(Window window, String content, ChatDeadline deadline) {
         sessions.lockSession(window.sessionId()).orElseThrow(() -> new NotFoundException("대화방을 찾을 수 없습니다."));
-        if (summaries.existsBySessionIdAndFromTurn(window.sessionId(), window.fromTurn())) return null;
+        if (summaries.existsBySessionIdAndFromTurnAndToTurn(window.sessionId(), window.fromTurn(), window.toTurn())) return null;
         deadline.check();
         if (content == null || content.isBlank() || content.codePointCount(0, content.length()) > 500
                 || window.fromTurn() < 1 || window.fromTurn() % 10 != 1 || window.toTurn() != window.fromTurn() + 9
