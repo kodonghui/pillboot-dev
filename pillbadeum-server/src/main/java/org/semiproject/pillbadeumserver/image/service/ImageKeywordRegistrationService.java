@@ -95,9 +95,9 @@ public class ImageKeywordRegistrationService {
         .collect(java.util.stream.Collectors.joining(","));
     jdbc.update(
         """
-        INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,image_url,print_front,print_back,shape,color,line_front,line_back,form,material,synced_at,metadata_source)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
-        """ + enrich + ",metadata_source=CASE WHEN metadata_source='UNKNOWN' THEN VALUES(metadata_source) WHEN metadata_source=VALUES(metadata_source) THEN metadata_source ELSE 'MIXED' END,synced_at=VALUES(synced_at)",
+        INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,image_url,print_front,print_back,shape,color,line_front,line_back,form,material,synced_at,metadata_source,cancelled)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
+        """ + enrich + ",metadata_source=CASE WHEN metadata_source='UNKNOWN' THEN VALUES(metadata_source) WHEN metadata_source=VALUES(metadata_source) THEN metadata_source ELSE 'MIXED' END,synced_at=VALUES(synced_at),cancelled=COALESCE(VALUES(cancelled),cancelled)",
         c.itemSeq(),
         c.name(),
         c.maker(),
@@ -112,7 +112,7 @@ public class ImageKeywordRegistrationService {
         c.lineBack(),
         c.form(),
         c.material(),
-        LocalDateTime.now(TimeZoneConfig.ZONE), source);
+        LocalDateTime.now(TimeZoneConfig.ZONE), source, c.cancelled());
   }
 
   private void insertCandidate(
@@ -176,7 +176,7 @@ public class ImageKeywordRegistrationService {
     var values =
         jdbc.queryForList(
             "SELECT"
-                + " c.*,d.name,d.maker,d.etc_otc,d.image_url,d.print_front,d.print_back,d.shape,d.color"
+                + " c.*,d.name,d.maker,d.etc_otc,d.image_url,d.print_front,d.print_back,d.shape,d.color,d.cancelled"
                 + " FROM ocr_candidate c LEFT JOIN drug d ON d.item_seq=c.item_seq WHERE"
                 + " c.photo_id=? ORDER BY read_no,candidate_rank",
             p.id());
@@ -199,7 +199,7 @@ public class ImageKeywordRegistrationService {
                   (String) value.get("maker"),
                   (String) value.get("etc_otc"),
                   (String) value.get("image_url"),
-                  null,
+                  bool(value.get("cancelled")),
                   registered.contains(code),
                   bool(value.get("print_matched")),
                   (String) value.get("print_front"),

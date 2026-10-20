@@ -28,7 +28,8 @@ public class PhotoCandidateLookup {
 
   public Result prescriptionResult(String name, String maker) {
     var rows = PublicDataClient.items(client.get(DrugSyncService.PERMIT_INFO_PATH, query(name, maker)));
-    var ordered = rows.stream().sorted(Comparator.<JsonNode>comparingInt(row -> exact(name, text(row, "ITEM_NAME")) ? 0 : 1)
+    var ordered = rows.stream().sorted(Comparator.<JsonNode>comparingInt(row -> Boolean.TRUE.equals(org.semiproject.pillbadeumserver.drug.domain.DrugCancellation.parse(row)) ? 1 : 0)
+        .thenComparingInt(row -> exact(name, text(row, "ITEM_NAME")) ? 0 : 1)
         .thenComparingInt(row -> exact(maker, text(row, "ENTP_NAME")) ? 0 : 1)).toList();
     return validated(ordered, null);
   }
@@ -39,7 +40,8 @@ public class PhotoCandidateLookup {
 
   public Result pillResult(PillIdentification clues) {
     var rows = PublicDataClient.items(client.get(DrugSyncService.GRAIN_INFO_PATH, query(clues.itemName(), clues.entpName())));
-    var ordered = rows.stream().sorted(Comparator.<JsonNode>comparingDouble(row -> score(clues, row)).reversed()
+    var ordered = rows.stream().sorted(Comparator.<JsonNode>comparingInt(row -> Boolean.TRUE.equals(org.semiproject.pillbadeumserver.drug.domain.DrugCancellation.parse(row)) ? 1 : 0)
+        .thenComparing(Comparator.<JsonNode>comparingDouble(row -> score(clues, row)).reversed())
         .thenComparingInt(row -> exact(clues.itemName(), text(row, "ITEM_NAME")) ? 0 : 1)
         .thenComparing(row -> java.util.Objects.toString(text(row, "ITEM_SEQ"), ""))).toList();
     return validated(ordered, clues);
@@ -87,8 +89,7 @@ public class PhotoCandidateLookup {
         || maker == null
         || type == null)
       throw ExternalApiException.failed("공공데이터", "후보의 품목코드·이름·제약사·전문/일반 구분을 확인하지 못했습니다.", null);
-    String cancel = text(row, "CANCEL_NAME");
-    Boolean cancelled = cancel == null ? null : !cancel.contains("정상");
+    Boolean cancelled = org.semiproject.pillbadeumserver.drug.domain.DrugCancellation.parse(row);
     String material = first(row, "ITEM_INGR_NAME", "MAIN_ITEM_INGR");
     if (material != null) material = material.replaceAll("\\[[^\\]]*]", "").replace('|', ',');
     return new PhotoCandidateData(

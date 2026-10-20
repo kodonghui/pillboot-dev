@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
+import org.semiproject.pillbadeumserver.drug.domain.DrugCancellation;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -103,14 +104,14 @@ public class DrugSyncService {
                             prefer(values.shape, existing.getShape()), prefer(values.color, existing.getColor()),
                             prefer(values.lineFront, existing.getLineFront()), prefer(values.lineBack, existing.getLineBack()),
                             prefer(values.form, existing.getForm()), prefer(values.material, existing.getMaterial()), now);
-                    existing.recordMetadataSource(existing.getMetadataSource().equals(source) ? source : "MIXED", null);
+                    existing.recordMetadataSource(existing.getMetadataSource().equals(source) ? source : "MIXED", DrugCancellation.parse(item));
                     return existing;
                 })
                 .orElseGet(() -> {
                     var created = Drug.create(key, values.name, values.maker, values.etcOtc, values.className, values.imageUrl,
                             values.printFront, values.printBack, values.shape, values.color, values.lineFront,
                             values.lineBack, values.form, values.material, now);
-                    created.recordMetadataSource(source, null);
+                    created.recordMetadataSource(source, DrugCancellation.parse(item));
                     return created;
                 });
 

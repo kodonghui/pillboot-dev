@@ -465,6 +465,20 @@ class PhotoFlowHttpMySqlTests {
   }
 
   @Test
+  void cancellationIsRankedLastAndPreservedAcrossPhotoReload() throws Exception {
+    var cancelled = new java.util.LinkedHashMap<>(officialRows.getFirst()); cancelled.put("CANCEL_NAME", "취하");
+    var normal = new java.util.LinkedHashMap<>(officialRows.get(1)); normal.put("CANCEL_NAME", "정상");
+    officialRows = List.of(cancelled, normal);
+    var identified = identify("PRESCRIPTION", token, 200, "image");
+    var candidates = identified.path("drugs").path(0).path("candidates");
+    assertThat(candidates.path(0).path("itemSeq").asString()).isEqualTo(code2);
+    assertThat(candidates.path(0).path("cancelled").asBoolean()).isFalse();
+    assertThat(candidates.path(1).path("cancelled").asBoolean()).isTrue();
+    var reloaded = json("GET", "/api/photos/" + identified.path("photoId").asLong() + "/candidates", null, token, 200);
+    assertThat(reloaded.path("drugs").path(0).path("candidates")).isEqualTo(candidates);
+  }
+
+  @Test
   void wrongPhotoCountCorruptFileAndUnauthorizedUploadDoNotCallProviders() throws Exception {
     identify("PILL", token, 400, "front");
     identify("PRESCRIPTION", token, 400, "image", "image");
