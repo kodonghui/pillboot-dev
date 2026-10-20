@@ -13,12 +13,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestComponent;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
@@ -43,12 +41,12 @@ class AuthContractTests {
     @Autowired JwtTokenProvider tokens;
 
     @Test
-    void onlyTheFiveDocumentedAuthMethodsArePublic() throws Exception {
+    void onlyTheFourDocumentedAuthMethodsArePublic() throws Exception {
         mvc.perform(get("/api/auth/consent-policies")).andExpect(status().isOk());
         mvc.perform(get("/api/auth/email-availability")).andExpect(status().isOk());
         mvc.perform(post("/api/auth/signup")).andExpect(status().isOk());
         mvc.perform(post("/api/auth/login")).andExpect(status().isOk());
-        mvc.perform(post("/api/auth/logout")).andExpect(status().isNoContent());
+        mvc.perform(post("/api/auth/logout")).andExpect(status().isUnauthorized());
 
         mvc.perform(post("/api/auth/consent-policies")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/auth/login")).andExpect(status().isUnauthorized());
@@ -57,12 +55,6 @@ class AuthContractTests {
         mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
     }
 
-    @Test
-    void invalidTokenDoesNotPreventClientLogout() throws Exception {
-        mvc.perform(post("/api/auth/logout").header("Authorization", "Bearer invalid-token"))
-                .andExpect(status().isNoContent())
-                .andExpect(content().string(""));
-    }
 
     @Test
     void upstreamDetailsAreHiddenAndBothExternalFailuresUse503() throws Exception {
@@ -97,9 +89,6 @@ class AuthContractTests {
         @PostMapping({"/api/auth/signup", "/api/auth/login"})
         Map<String, Boolean> publicPost() { return Map.of("allowed", true); }
 
-        @PostMapping("/api/auth/logout")
-        @ResponseStatus(HttpStatus.NO_CONTENT)
-        void logout() {}
 
         @GetMapping("/api/contract/failed")
         void failed() {

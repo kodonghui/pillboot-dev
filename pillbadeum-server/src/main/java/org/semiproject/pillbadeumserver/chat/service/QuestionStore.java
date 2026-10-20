@@ -7,6 +7,7 @@ import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.chat.domain.ChatMessage;
 import org.semiproject.pillbadeumserver.chat.domain.ChatMessageRepository;
 import org.semiproject.pillbadeumserver.chat.domain.ChatSessionRepository;
+import org.semiproject.pillbadeumserver.chat.domain.ChatSummaryRepository;
 import org.semiproject.pillbadeumserver.chat.dto.QuestionResponse;
 import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
 import org.semiproject.pillbadeumserver.common.exception.ForbiddenException;
@@ -22,11 +23,13 @@ public class QuestionStore {
     private final ChatSessionRepository sessions;
     private final ChatMessageRepository messages;
     private final MyDrugRepository medications;
+    private final ChatSummaryRepository summaries;
 
-    public QuestionStore(ChatSessionRepository sessions, ChatMessageRepository messages, MyDrugRepository medications) {
+    public QuestionStore(ChatSessionRepository sessions, ChatMessageRepository messages, MyDrugRepository medications, ChatSummaryRepository summaries) {
         this.sessions = sessions;
         this.messages = messages;
         this.medications = medications;
+        this.summaries = summaries;
     }
 
     /** 대화방·프로필의 소유 회원을 모두 확인한다. 반환한 프로필 번호는 저장 직전에 재확인한다. */
@@ -74,6 +77,24 @@ public class QuestionStore {
         return new QuestionResponse.Question(message.getMessageId(), message.getTurnNo());
     }
 
+    /** CHAT-004 retry: 현재 방의 마지막 미응답 USER만 선택한다. 질문·턴·사본·활동 시각은 변경하지 않는다. */
+    @Transactional(readOnly = true)
+    public QuestionResponse.Question retryQuestion(Long sessionId, Long memberId, Long profileId, Long messageId) {
+        if (!Objects.equals(checkAccess(sessionId, memberId), profileId)) throw new NotFoundException("대화방의 프로필을 찾을 수 없습니다.");
+        var message = messages.findByMessageIdAndSessionId(messageId, sessionId)
+                .orElseThrow(() -> new NotFoundException("메시지를 찾을 수 없습니다."));
+        if (!"user".equals(message.getRole())) throw new BusinessException(ErrorCode.RETRY_NOT_ALLOWED, ErrorCode.RETRY_NOT_ALLOWED.getDescription());
+        checkRetryAllowed(sessionId, messageId);
+        return new QuestionResponse.Question(messageId, message.getTurnNo());
+    }
+
+    private void checkRetryAllowed(Long sessionId, Long messageId) {
+        var latest = messages.findLatestQuestionState(sessionId);
+        if (latest.isEmpty() || !Objects.equals(latest.get().getMessageId(), messageId) || latest.get().getAnswered() != 0) {
+            throw new BusinessException(ErrorCode.RETRY_NOT_ALLOWED, ErrorCode.RETRY_NOT_ALLOWED.getDescription());
+        }
+    }
+
     /** 소유권 확인 후 확정 사본·현재 내 약·완성된 이전 턴을 값 객체로 복사하고 DB 연결을 반납한다. */
     @Transactional(readOnly = true)
     public AnswerInput loadAnswerInput(Long sessionId, Long memberId, Long profileId, QuestionResponse.Question question) {
@@ -92,8 +113,11 @@ public class QuestionStore {
         var turns = messages.findRecentCompleteTurns(sessionId, savedQuestion.getTurnNo()).stream().map(turn ->
                 new AnswerInput.Turn(turn.getTurnNo(), turn.getQuestion(), turn.getAnswer(),
                         turn.getQuestionTokens(), turn.getAnswerTokens())).toList();
+        var recentSummaries = summaries.findTop3BySessionIdAndToTurnLessThanOrderByToTurnDesc(sessionId, savedQuestion.getTurnNo())
+                .stream().map(s -> new AnswerInput.Summary(s.getSummaryId(), s.getFromTurn(), s.getToTurn(), s.getContent())).toList();
         return new AnswerInput(session.getSnapBirthYear(), session.getSnapGender(), session.getSnapPregnant(),
-                savedQuestion.getContent(), drugs, turns, !messages.existsBySessionIdAndRole(sessionId, "assistant"));
+                savedQuestion.getContent(), drugs, turns, !messages.existsBySessionIdAndRole(sessionId, "assistant"),
+                recentSummaries, java.util.List.of(), summaries.countBySessionIdAndToTurnLessThan(sessionId, savedQuestion.getTurnNo()));
     }
 
     /** 같은 질문의 턴에 답변·활동 시각·보조 ID를 함께 저장한다. 외부 대기는 이 트랜잭션 전에 끝낸다. */
@@ -101,6 +125,20 @@ public class QuestionStore {
     public QuestionResponse.Answer saveAnswer(Long sessionId, Long memberId, Long profileId,
                                                QuestionResponse.Question question, GeneratedAnswer generated,
                                                ChatDeadline deadline) {
+        return persistAnswer(sessionId, memberId, profileId, question, generated, deadline, false);
+    }
+
+    /** 새 질문과 같은 잠금 순서로 저장 직전 retry 자격을 재확인한다. 앞 턴에 답변을 끼워 넣지 않는다. */
+    @Transactional(timeout = 5)
+    public QuestionResponse.Answer saveRetryAnswer(Long sessionId, Long memberId, Long profileId,
+                                                  QuestionResponse.Question question, GeneratedAnswer generated,
+                                                  ChatDeadline deadline) {
+        return persistAnswer(sessionId, memberId, profileId, question, generated, deadline, true);
+    }
+
+    private QuestionResponse.Answer persistAnswer(Long sessionId, Long memberId, Long profileId,
+                                                   QuestionResponse.Question question, GeneratedAnswer generated,
+                                                   ChatDeadline deadline, boolean retry) {
         Long owner = sessions.lockProfileOwner(profileId)
                 .orElseThrow(() -> new NotFoundException("프로필을 찾을 수 없습니다."));
         checkOwner(owner, memberId);
@@ -110,6 +148,7 @@ public class QuestionStore {
         if (!Objects.equals(session.getProfileId(), profileId)) throw new NotFoundException("대화방의 프로필을 찾을 수 없습니다.");
         var savedQuestion = messages.findByMessageIdAndSessionIdAndRole(question.messageId(), sessionId, "user")
                 .orElseThrow(() -> new NotFoundException("질문을 찾을 수 없습니다."));
+        if (retry) checkRetryAllowed(sessionId, question.messageId());
         if (savedQuestion.getTurnNo() != question.turnNo()
                 || messages.existsBySessionIdAndTurnNoAndRole(sessionId, question.turnNo(), "assistant")) {
             throw new BusinessException(ErrorCode.DUPLICATE_REQUEST, "이미 답변한 질문입니다.");

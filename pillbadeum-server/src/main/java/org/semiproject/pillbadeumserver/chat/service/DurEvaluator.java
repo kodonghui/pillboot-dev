@@ -78,7 +78,7 @@ public class DurEvaluator {
                     }
                     found |= matched;
                     warnings.putIfAbsent(type + ":" + pair + ":" + content,
-                            new DurNotice.Item(type.label(), names, content, row.updatedAt()));
+                            new DurNotice.Item(type.name(), names, content, row.updatedAt()));
                 }
             }
             if (complete) checked++; else unchecked.add(drug.name());
@@ -98,6 +98,18 @@ public class DurEvaluator {
                     + "모든 약의 안전성을 보장하는 결과는 아니에요. 복용 여부는 의사나 약사에게 확인해 주세요.";
         return new Evaluation(new DurNotice(lookup, result, checked, List.copyOf(unchecked),
                 List.copyOf(warnings.values()), message), List.copyOf(provenance));
+    }
+
+    /** CHAT-008: 판정·본문 경고와 카드 표시를 분리한다. 발견 경고는 숨기지 않고 일반 안내의 반복 카드만 줄인다. */
+    public DurNotice cardNotice(AnswerInput input, DurNotice notice) {
+        if ("FOUND".equals(notice.result())) return notice;
+        if (input.firstAnswer()) return null;
+        String question = input.question().replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
+        boolean medicationQuestion = List.of("약", "복용", "복약", "먹", "병용", "금기", "부작용", "성분", "용량", "임신", "임부")
+                .stream().anyMatch(question::contains)
+                || input.medications().stream().map(m -> m.name().replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT))
+                .filter(name -> !name.isBlank()).anyMatch(question::contains);
+        return medicationQuestion ? notice : null;
     }
 
     /** 출생연도의 가능한 만 나이 범위 전체가 조건 밖일 때만 NO를 반환한다. 복합 문구를 추측하지 않는다. */

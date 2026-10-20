@@ -52,15 +52,14 @@ class MedicationCalendarMySqlTests {
             long secondProfile = profile(jdbc, owner, "부모님");
             long foreignProfile = profile(jdbc, foreign, "다른회원");
             String itemSeq = "calendar-" + suffix;
-            jdbc.update("INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,material,synced_at) "
-                    + "VALUES(?,'fixture','fixture','OTC','fixture','ROUND','WHITE','TABLET','fixture',CURRENT_TIMESTAMP)", itemSeq);
+            drug(jdbc, itemSeq);
 
             long endsAtFrom = medication(jdbc, firstProfile, itemSeq, FROM.minusDays(5), FROM, "07:00");
-            long covering = medication(jdbc, firstProfile, itemSeq, FROM.minusDays(5), TO.plusDays(5), "11:00,17:00");
+            long covering = medication(jdbc, firstProfile, drug(jdbc,itemSeq+"-cover"), FROM.minusDays(5), TO.plusDays(5), "11:00,17:00");
             long startsAtTo = medication(jdbc, secondProfile, itemSeq, TO, TO.plusDays(5), "17:00");
-            long deleted = medication(jdbc, firstProfile, itemSeq, null, null, null);
-            medication(jdbc, firstProfile, itemSeq, FROM.minusDays(5), FROM.minusDays(1), "07:00");
-            medication(jdbc, secondProfile, itemSeq, TO.plusDays(1), TO.plusDays(5), "07:00");
+            long deleted = medication(jdbc, firstProfile, drug(jdbc,itemSeq+"-empty"), null, null, null);
+            medication(jdbc, firstProfile, drug(jdbc,itemSeq+"-before"), FROM.minusDays(5), FROM.minusDays(1), "07:00");
+            medication(jdbc, secondProfile, drug(jdbc,itemSeq+"-after"), TO.plusDays(1), TO.plusDays(5), "07:00");
             medication(jdbc, foreignProfile, itemSeq, FROM, TO, "07:00");
 
             assertThat(reads.calendar(owner, FROM, TO)).extracting(MedicationTarget::myDrugId)
@@ -90,6 +89,12 @@ class MedicationCalendarMySqlTests {
     private long profile(JdbcTemplate jdbc, long memberId, String name) {
         return insert(jdbc, "INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,created_at,updated_at) "
                 + "VALUES(?,?,'SELF',2000,'FEMALE',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", memberId, name);
+    }
+
+    private String drug(JdbcTemplate jdbc, String itemSeq) {
+        jdbc.update("INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,material,synced_at) "
+                + "VALUES(?,'fixture','fixture','OTC','fixture','ROUND','WHITE','TABLET','fixture',CURRENT_TIMESTAMP)",itemSeq);
+        return itemSeq;
     }
 
     private long medication(JdbcTemplate jdbc, long profileId, String itemSeq, LocalDate start, LocalDate end, String times) {

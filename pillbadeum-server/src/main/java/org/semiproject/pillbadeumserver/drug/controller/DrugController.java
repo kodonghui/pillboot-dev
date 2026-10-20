@@ -3,8 +3,10 @@ package org.semiproject.pillbadeumserver.drug.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.semiproject.pillbadeumserver.common.PageResponse;
+import org.semiproject.pillbadeumserver.drug.dto.DrugGuideResponse;
 import org.semiproject.pillbadeumserver.drug.dto.DrugInfoResponse;
 import org.semiproject.pillbadeumserver.drug.dto.DrugSearchResponse;
+import org.semiproject.pillbadeumserver.drug.service.DrugGuideService;
 import org.semiproject.pillbadeumserver.drug.service.DrugSearchService;
 import org.semiproject.pillbadeumserver.drug.service.DrugSyncService;
 import org.springframework.data.domain.Pageable;
@@ -22,8 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  *  지금 구현된 API
  *  - GET /api/drugs/search?name=&profileId=&page=&size=   약 이름 검색 (e약은요, DB 저장 안 함)
  *  - GET /api/drugs/{itemSeq}                              약 정보 (없으면 낱알식별 · 허가정보로 채워 저장)
- *  이후 추가할 API
- *  - GET /api/drugs/{itemSeq}/guide                        근거 출처
+ *  - GET /api/drugs/{itemSeq}/guide                        근거 출처 (e약은요 → 없으면 허가정보, DUR, DB 저장 안 함)
  *  ----------------------------------------------------------------------------------
  *  - page 는 1부터 시작한다. (application.yaml one-indexed-parameters: true) 기본 1페이지 10개, 최대 50개
  *  - name · profileId 를 빠뜨리면 공통 예외 처리기가 400 으로 응답한다.
@@ -36,10 +37,13 @@ public class DrugController {
 
     private final DrugSearchService drugSearchService;
     private final DrugSyncService drugSyncService;
+    private final DrugGuideService drugGuideService;
 
-    public DrugController(DrugSearchService drugSearchService, DrugSyncService drugSyncService) {
+    public DrugController(DrugSearchService drugSearchService, DrugSyncService drugSyncService,
+                          DrugGuideService drugGuideService) {
         this.drugSearchService = drugSearchService;
         this.drugSyncService = drugSyncService;
+        this.drugGuideService = drugGuideService;
     }
 
     /* 목차. 1. 약 이름 검색 (이 프로필에 이미 등록된 약은 registered = true) */
@@ -58,5 +62,14 @@ public class DrugController {
     @GetMapping("/{itemSeq}")
     public DrugInfoResponse getDrug(@PathVariable String itemSeq) {
         return DrugInfoResponse.from(drugSyncService.getOrSync(itemSeq));
+    }
+
+    /* 목차. 3. 근거 출처 (효능 · 용법 · 주의사항 · 상호작용 · 부작용 + DUR, 출처 · 조회 시각 · 상담 안내 포함) */
+    @Operation(summary = "약 근거 출처",
+            description = "공공데이터(e약은요, 없으면 허가정보)에서 약 설명을 가져와 출처 · 조회 시각 · 상담 안내와 함께 돌려줍니다. "
+                    + "drug 테이블에 없는 약은 404 입니다.")
+    @GetMapping("/{itemSeq}/guide")
+    public DrugGuideResponse getGuide(@PathVariable String itemSeq) {
+        return drugGuideService.getGuide(itemSeq);
     }
 }

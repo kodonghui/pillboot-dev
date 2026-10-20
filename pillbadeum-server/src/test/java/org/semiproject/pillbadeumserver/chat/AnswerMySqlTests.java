@@ -71,6 +71,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mockingDetails;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -112,6 +113,7 @@ class AnswerMySqlTests {
     @MockitoSpyBean ChatMessageRepository messages;
     @MockitoSpyBean DurWarningRepository warnings;
     @MockitoSpyBean PublicDataClient publicData;
+    @MockitoSpyBean org.semiproject.pillbadeumserver.chat.service.MessageEmbeddingService embeddings;
     private final List<Long> members = new ArrayList<>();
     private final List<String> drugs = new ArrayList<>();
     private long memberId;
@@ -250,12 +252,21 @@ class AnswerMySqlTests {
         pair(sessionId, 1, "legacy-user", "legacy-answer");
         jdbc.update("UPDATE chat_session SET snap_pregnant=NULL WHERE session_id=?", sessionId);
         var before = jdbc.queryForList("SELECT * FROM my_drug WHERE profile_id=?", profileId);
-        var body = body(send(sessionId, "다음 질문", 200));
+        var body = body(send(sessionId, "다음 복약 질문", 200));
         assertThat(background(requests.getFirst()).path("patient").path("pregnant").asString()).isEqualTo("UNKNOWN");
         assertThat(room().get("snap_pregnant")).isNull();
         assertThat(jdbc.queryForList("SELECT * FROM my_drug WHERE profile_id=?", profileId)).isEqualTo(before);
         assertThat(body.path("answer").path("durNotice").path("lookup").asString()).isEqualTo("FAILED");
         assertThat(body.path("answer").path("durNotice").path("result").isNull()).isTrue();
+    }
+
+    @Test
+    void repeatedGeneralGuidanceOmitsTheCardButRetainsDurContextAndBodyWarning() throws Exception {
+        pair(sessionId, 1, "legacy-user", "legacy-answer");
+        var result = body(send(sessionId, "알림 설정은 어디에 있어?", 200));
+        assertThat(result.path("answer").path("durNotice").isNull()).isTrue();
+        assertThat(background(requests.getFirst()).path("dur").path("lookup").asString()).isEqualTo("FAILED");
+        assertThat(result.path("answer").path("content").asString()).contains("DUR 확인:", "금기가 없다는 뜻은 아니니");
     }
 
     @Test
@@ -409,6 +420,8 @@ class AnswerMySqlTests {
         assertThat(notice.path("result").asString()).isEqualTo("FOUND");
         assertThat(notice.path("checkedCount").asInt()).isEqualTo(2);
         assertThat(notice.path("items").toString()).contains("합성등록약정", "다른합성약정", "synthetic pair warning");
+        assertThat(notice.path("items").path(0).path("type").asString()).isEqualTo("INTERACTION");
+        assertThat(result.path("answer").path("content").asString()).contains("병용금기 ·");
         assertThat(publicCodes).containsOnly(drugCode);
         assertThat(durCodes).contains(drugCode, partner);
         assertThat(background(requests.getFirst()).path("dur").path("result").asString()).isEqualTo("FOUND");
@@ -512,6 +525,101 @@ class AnswerMySqlTests {
                 "body", Map.of("totalCount", rows.size(), "pageNo", 1, "items", rows))));
     }
     private static String durKey(String code, DurLookup.Type type) { return code + ":" + type; }
+
+    @Test
+    void retryRecoversTheSameQuestionAndDoesNotClassifyInsertOrReembedIt() throws Exception {
+        generationStatus.set(503);
+        long question = body(send(sessionId, "복약 질문", 503)).path("questionMessageId").asLong();
+        var state = room();
+        var failure = body(retry(question, 503));
+        assertThat(failure.path("questionMessageId").asLong()).isEqualTo(question);
+        assertThat(count()).isEqualTo(1);
+        assertThat(room()).isEqualTo(state);
+        generationStatus.set(200);
+        var result = body(retry(question, 200));
+        assertThat(result.path("question").path("messageId").asLong()).isEqualTo(question);
+        assertThat(result.path("answer").path("turnNo").asInt()).isEqualTo(1);
+        assertThat(count()).isEqualTo(2);
+        assertThat(decisions.get()).isEqualTo(1);
+        assertThat(generations.get()).isEqualTo(3);
+        org.mockito.Mockito.verify(embeddings, org.mockito.Mockito.times(1)).questionCommitted(eq(sessionId), eq(question), anyString(), any());
+        retry(question, 400).getResponse();
+        assertThat(count()).isEqualTo(2);
+        assertThat(generations.get()).isEqualTo(3);
+    }
+
+    @Test
+    void retryRejectsOldQuestionAssistantMissingAndForeignRoomBeforeGeneration() throws Exception {
+        generationStatus.set(503);
+        long old = body(send(sessionId, "첫 복약 질문", 503)).path("questionMessageId").asLong();
+        generationStatus.set(200);
+        var latest = body(send(sessionId, "새 복약 질문", 200));
+        long question = latest.path("question").path("messageId").asLong();
+        long answer = latest.path("answer").path("messageId").asLong();
+        for (long id : new long[]{old, question, answer}) {
+            assertThat(body(retry(id, 400)).path("code").asString()).isEqualTo("RETRY_NOT_ALLOWED");
+        }
+        retry(Long.MAX_VALUE, 404);
+        long foreign = session(profile(member(), false));
+        mvc.perform(post("/api/chat-sessions/{s}/messages/{q}/retry", foreign, old)
+                .header("Authorization", auth())).andExpect(status().isForbidden());
+        assertThat(generations.get()).isEqualTo(2);
+    }
+
+    @Test
+    void generatingNewQuestionHidesRetryAndRejectsBothCompetingEndpoints() throws Exception {
+        var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
+        duringGeneration.set(() -> {entered.countDown(); try {release.await(5, TimeUnit.SECONDS);} catch (InterruptedException e) {Thread.currentThread().interrupt();}});
+        try (var tasks = Executors.newVirtualThreadPerTaskExecutor()) {
+            var request = tasks.submit(() -> send(sessionId, "복약 질문", 200));
+            try {
+                assertThat(entered.await(3, TimeUnit.SECONDS)).isTrue();
+                long question = jdbc.queryForObject("SELECT MAX(message_id) FROM chat_message WHERE session_id=?", Long.class, sessionId);
+                mvc.perform(get("/api/chat-sessions/{s}/messages", sessionId).header("Authorization", auth()))
+                        .andExpect(status().isOk()).andExpect(jsonPath("$.retryMessageId").isEmpty());
+                retry(question, 409);
+                send(sessionId, "다른 복약 질문", 409);
+            } finally {release.countDown();}
+            request.get(3, TimeUnit.SECONDS);
+        }
+        assertThat(count()).isEqualTo(2);
+    }
+
+    @Test
+    void retrySharesTheGuardWithNewQuestionsAndHidesItsOwnRetryMarker() throws Exception {
+        generationStatus.set(503);
+        long question = body(send(sessionId, "복약 질문", 503)).path("questionMessageId").asLong();
+        generationStatus.set(200);
+        var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
+        duringGeneration.set(() -> {entered.countDown(); try {release.await(5, TimeUnit.SECONDS);} catch (InterruptedException e) {Thread.currentThread().interrupt();}});
+        try (var tasks = Executors.newVirtualThreadPerTaskExecutor()) {
+            var request = tasks.submit(() -> retry(question, 200));
+            try {
+                assertThat(entered.await(3, TimeUnit.SECONDS)).isTrue();
+                retry(question, 409); send(sessionId, "새 복약 질문", 409);
+                mvc.perform(get("/api/chat-sessions/{s}/messages", sessionId).header("Authorization", auth()))
+                        .andExpect(status().isOk()).andExpect(jsonPath("$.retryMessageId").isEmpty());
+            } finally {release.countDown();}
+            request.get(3, TimeUnit.SECONDS);
+        }
+        assertThat(count()).isEqualTo(2);
+    }
+
+    @Test
+    void retryRechecksTheLatestQuestionBeforeSavingAnAnswer() throws Exception {
+        generationStatus.set(503);
+        long question = body(send(sessionId, "복약 질문", 503)).path("questionMessageId").asLong();
+        generationStatus.set(200);
+        duringGeneration.set(() -> jdbc.update("INSERT INTO chat_message(session_id,trun_no,role,content) VALUES(?,2,'user','external-writer')", sessionId));
+        assertThat(body(retry(question, 400)).path("code").asString()).isEqualTo("RETRY_NOT_ALLOWED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM chat_message WHERE session_id=? AND role='assistant'", Integer.class, sessionId)).isZero();
+    }
+
+    private String auth() { return "Bearer " + tokens.createAccessToken(memberId, "fixture@example.test", "ROLE_USER"); }
+    private MvcResult retry(long question, int expected) throws Exception {
+        return mvc.perform(post("/api/chat-sessions/{s}/messages/{q}/retry", sessionId, question)
+                .header("Authorization", auth())).andExpect(status().is(expected)).andReturn();
+    }
 
     private MvcResult send(long session, String content, int status) throws Exception {
         return mvc.perform(post("/api/chat-sessions/{id}/messages", session)

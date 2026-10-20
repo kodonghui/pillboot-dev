@@ -6,6 +6,7 @@ import io.jsonwebtoken.security.Keys;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
@@ -23,8 +24,12 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.BindException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -123,7 +128,46 @@ class CommonWebTests {
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         mvc.perform(post("/api/probe/echo").header("Authorization", "Bearer " + value)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.message").value("이름을 입력해 주세요."))
+                .andExpect(jsonPath("$", aMapWithSize(2)));
+    }
+
+    @Test
+    void dtoValidationReturnsConfiguredMessageWithoutRejectedInput() throws Exception {
+        String rejected = "not-for-response";
+        mvc.perform(post("/api/probe/echo").header("Authorization", "Bearer " + token("ROLE_USER"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + rejected + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.message").value("이름은 10자까지 입력할 수 있어요."))
+                .andExpect(jsonPath("$", aMapWithSize(2)))
+                .andExpect(content().string(not(containsString(rejected))));
+    }
+
+    @Test
+    void formValidationReturnsConfiguredDtoMessage() throws Exception {
+        mvc.perform(post("/api/probe/form").header("Authorization", "Bearer " + token("ROLE_USER"))
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED).param("name", ""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.message").value("이름을 입력해 주세요."))
+                .andExpect(jsonPath("$", aMapWithSize(2)));
+    }
+
+    @Test
+    void bindErrorsWithoutAFieldMessageUseCommonFallback() {
+        for (boolean missingFieldError : new boolean[]{true, false}) {
+            var binding = new BeanPropertyBindingResult(new Object(), "request");
+            if (!missingFieldError) {
+                binding.addError(new FieldError("request", "name", "not-for-response",
+                        false, null, null, null));
+            }
+            var response = new GlobalExceptionHandler().handleBindException(new BindException(binding));
+            assertThat(response.getStatusCode().value()).isEqualTo(400);
+            assertThat(response.getBody().getCode()).isEqualTo("VALIDATION_FAILED");
+            assertThat(response.getBody().getMessage()).isEqualTo("입력값을 확인해주세요.");
+        }
     }
 
     @Test
@@ -165,12 +209,14 @@ class CommonWebTests {
     @RestController
     @TestComponent
     static class ProbeController {
-        record Body(@NotBlank String name) {}
+        record Body(@NotBlank(message = "이름을 입력해 주세요.")
+                    @Size(max = 10, message = "이름은 10자까지 입력할 수 있어요.") String name) {}
         @GetMapping("/api/probe/me") Map<String, Long> me() {
             return Map.of("memberId", SecurityUtil.getCurrentMemberId());
         }
         @GetMapping("/api/admin/probe") Map<String, Boolean> admin() { return Map.of("allowed", true); }
         @PostMapping("/api/probe/echo") Body echo(@Valid @RequestBody Body body) { return body; }
+        @PostMapping("/api/probe/form") Body form(@Valid @ModelAttribute Body body) { return body; }
         @GetMapping("/api/probe/positive") int positive(@RequestParam @Min(1) int count) { return count; }
         @GetMapping("/api/probe/not-found") void notFound() { throw new NotFoundException(); }
         @GetMapping("/api/probe/conflict") void conflict() {
