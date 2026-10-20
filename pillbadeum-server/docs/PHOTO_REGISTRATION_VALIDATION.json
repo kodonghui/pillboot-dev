@@ -1,0 +1,69 @@
+{
+  "suites": 73,
+  "tests": 606,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "base_commit": "2b319d2a595e942e9a174be80d77df9d8020b1d6",
+  "merged_ocr_parent": "d5fb42e325916dd6ece55dc57f7529929b19d6bf",
+  "verified_at_kst": "2026-10-21T00:17:48+09:00",
+  "baseline": {
+    "summary": {
+      "suites": 70,
+      "tests": 582,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "packages": {
+      "medication": {
+        "tests": 195,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "chat": {
+        "tests": 283,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "image": {
+        "tests": 20,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "root/common": {
+        "tests": 39,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "drug": {
+        "tests": 45,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    }
+  },
+  "added_tests": 24,
+  "mysql": "8.4",
+  "qdrant": "1.19.2",
+  "java": "21",
+  "paid_or_real_provider_calls": 0,
+  "schema": {
+    "tables": 16,
+    "columns": 127,
+    "foreign_keys": 18
+  },
+  "schema_patch_sha256": "2531836edaad94d59bd2634eb7cdc363f0769ffd234468347a137cc018db3b04",
+  "bootJar": "success",
+  "command": "MYSQL_TEST_URL=<dedicated pill_test> MYSQL_TEST_USER=pill MYSQL_TEST_PASSWORD=<test-only> QDRANT_TEST_PORT=17334 JAVA_HOME=<JDK21> ./gradlew test bootJar --no-daemon --console=plain",
+  "limits": [
+    "External providers use local synthetic HTTP; real OCR accuracy and public API acceptance not verified in this run.",
+    "User database and existing shared MySQL/Qdrant containers left unchanged."
+  ],
+  "source_commit": "d1dbf197e2831900be9988f97d578ec48ebed67a"
+}

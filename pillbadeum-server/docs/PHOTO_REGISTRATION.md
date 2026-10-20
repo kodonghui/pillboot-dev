@@ -69,3 +69,5 @@ flowchart LR
 `PhotoFlowHttpMySqlTests`는 실제 로그인 발급 토큰·HTTP 포트·MySQL·파일을 사용함. 공급자만 로컬 합성 HTTP로 대체함. 후보 재조회·원본 조회·앞뒤 교환·다른 회원 차단·후보 밖 등록 차단·멱등/동시 등록·만료·처리 중 삭제·부분 실패·물리 삭제 실패·롤백·프로필 삭제를 검증함. 로그인→사진→등록→일정→캘린더→채팅→프로필 삭제도 같은 흐름으로 검증함. `PhotoImagePreparationTests`는 실제 PNG·WEBP 디코딩·축소·형식 불일치·손상·용량을 확인함. 스키마 테스트는05 재실행·기존 NULL/코드 보존·잘못된 FK 거절을 확인함.
 
 실제 비전 OCR 정확도·실제 식약처 품목·휴대폰 화면은 이 합성 검증으로 확인했다고 주장하지 않음. 실제 환경에는 OPENAI_API_KEY, 사용 가능한 OPENAI_VISION_MODEL 및 낱알식별03·제품허가08 활용승인이 있는 PUBLIC_DATA_SERVICE_KEY가 필요함. 비밀값은 채팅/Git에 남기지 않고 각 서버 .env에 둠.
+
+최종 전체 회귀는 **606개·73스위트·실패/오류/생략0·bootJar 성공**임. 원본 develop582개에 사진/공식 후보 검증24개를 추가한 결과이며 [검증 집계](PHOTO_REGISTRATION_VALIDATION.json)에 실행 조건을 기록함.

@@ -120,7 +120,7 @@ public class PhotoIdentificationWorkflow {
         }
         if (distinct.isEmpty()) return empty(kind, "UNREADABLE");
         var entries = new ArrayList<>(distinct.entrySet());
-        // 공공데이터 동시 호출4개에 맞춰 묶는다. 10개를 한꺼번에 제출해 permit 대기 실패를 만들지 않는다.
+        // 공공데이터 동시 호출 설정에 맞춰 묶는다. 한꺼번에 제출해 permit 대기 실패를 만들지 않는다.
         for (int offset = 0; offset < entries.size(); offset += batchSize) {
           if (System.nanoTime() >= deadline) throw ExternalApiException.timeout("사진 식별", null);
           List<Future<List<PhotoCandidateData>>> tasks = new ArrayList<>();
