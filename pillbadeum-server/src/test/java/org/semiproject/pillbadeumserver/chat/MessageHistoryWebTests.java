@@ -44,7 +44,8 @@ class MessageHistoryWebTests {
                 .andExpect(jsonPath("$.profileId").value(10)).andExpect(jsonPath("$.profileName").value("fixture profile"))
                 .andExpect(jsonPath("$.title").value(nullValue())).andExpect(jsonPath("$.drugCount").value(0))
                 .andExpect(jsonPath("$.retryMessageId").value(100)).andExpect(jsonPath("$.hasMore").value(false))
-                .andExpect(jsonPath("$.messages[0]", aMapWithSize(5))).andExpect(jsonPath("$.messages[0].role").value("USER"))
+                .andExpect(jsonPath("$.messages[0]", aMapWithSize(6)))
+                .andExpect(jsonPath("$.messages[0].durNotice").value(nullValue())).andExpect(jsonPath("$.messages[0].role").value("USER"))
                 .andExpect(jsonPath("$.messages[0].createdAt").value("2026-10-19T09:00:00+09:00"))
                 .andExpect(header().string("Cache-Control", containsString("no-store")));
     }

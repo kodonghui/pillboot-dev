@@ -69,7 +69,7 @@ class PhotoFlowHttpMySqlTests {
   volatile int visionStatus = 200;
   volatile List<Map<String, Object>> officialRows;
   volatile boolean sawUploaded;
-  volatile boolean grainEmpty, permitMetadata;
+  volatile boolean grainEmpty, permitMetadata, durWarning;
   volatile CountDownLatch entered = new CountDownLatch(0), release = new CountDownLatch(0);
 
   @DynamicPropertySource
@@ -445,6 +445,23 @@ class PhotoFlowHttpMySqlTests {
       assertThat(responses.stream().filter(r -> r.statusCode() == 409).findFirst().orElseThrow().body()).contains("LAST_PROFILE");
       assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM profile WHERE member_id=?", Integer.class, memberId)).isEqualTo(1);
     }
+  }
+
+  @Test
+  void answeredDurSnapshotReloadsFromMysqlWithoutProviderRequery() throws Exception {
+    durWarning = true;
+    long photo = identify("PRESCRIPTION", token, 200, "image").path("photoId").asLong();
+    json("POST", drugs(profileId), selection(photo, "PRESCRIPTION_PHOTO", code1), token, 201);
+    long session = json("POST", "/api/profiles/" + profileId + "/chat-sessions", null, token, 201).path("sessionId").asLong();
+    var answered = json("POST", "/api/chat-sessions/" + session + "/messages", Map.of("content", "등록 약 주의사항"), token, 200);
+    var notice = answered.path("answer").path("durNotice");
+    assertThat(notice.path("result").asString()).isEqualTo("FOUND");
+    assertThat(notice.path("items").path(0).path("updatedAt").asString()).isEqualTo("2026-10-20");
+    assertThat(jdbc.queryForObject("SELECT JSON_EXTRACT(dur_notice,'$.result') FROM chat_message WHERE session_id=? AND role='assistant'", String.class, session)).contains("FOUND");
+    int calls = lookups.size();
+    var history = json("GET", "/api/chat-sessions/" + session + "/messages", null, token, 200);
+    assertThat(history.path("messages").path(1).path("durNotice")).isEqualTo(notice);
+    assertThat(lookups).hasSize(calls);
   }
 
   @Test
@@ -917,7 +934,9 @@ class PhotoFlowHttpMySqlTests {
                   "header",
                   Map.of("resultCode", "00"),
                   "body",
-                  Map.of("totalCount", 0, "items", List.of())));
+                  t.durWarning && path.contains("getSpcifyAgrdeTaboo")
+                      ? Map.of("totalCount", 1, "items", List.of(Map.of("ITEM_SEQ", t.code1, "TYPE_NAME", "연령금기", "PROHBT_CONTENT", "120세 미만", "CHANGE_DATE", "20261020")))
+                      : Map.of("totalCount", 0, "items", List.of())));
         else if (query.contains("item_name=실패"))
           respond(exchange, 400, Map.of("error", "synthetic_public_failure"));
         else {

@@ -159,7 +159,7 @@ public class QuestionStore {
         // 취소·시간 초과된 외부 작업의 결과를 뒤늦게 저장하지 않는다.
         deadline.check();
         LocalDateTime now = LocalDateTime.now(TimeZoneConfig.ZONE).truncatedTo(ChronoUnit.SECONDS);
-        var answer = messages.save(ChatMessage.answer(sessionId, question.turnNo(), generated.content(), now));
+        var answer = messages.save(ChatMessage.answer(sessionId, question.turnNo(), generated.content(), now, generated.durNotice()));
         session.recordAnswer(now, generated.responseId());
         return new QuestionResponse.Answer(answer.getMessageId(), answer.getTurnNo(), answer.getContent(),
                 generated.durNotice(), answer.getCreatedAt().atZone(TimeZoneConfig.ZONE).toOffsetDateTime());
