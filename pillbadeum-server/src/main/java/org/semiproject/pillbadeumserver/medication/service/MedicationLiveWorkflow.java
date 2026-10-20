@@ -20,8 +20,16 @@ import java.util.Map;
 /** 필수 정보와 기본값 위임 의사를 서버에서 검사한다. prepare 단계에서는 저장하지 않는다. */
 @Service
 public class MedicationLiveWorkflow {
-    public record Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults) {}
-    public record Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal, Operation operation) {
+    public record Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults, String customName) {
+        public Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults) {
+            this(profileId, myDrugId, request, defaults, null);
+        }
+    }
+    // myDrugId=0은 저장 전 초안 내부에서만 사용한다. 완료 응답에는 DB가 발급한 ID만 반환한다.
+    public record Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal, Operation operation, String customName) {
+        public Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal, Operation operation) {
+            this(profileId, myDrugId, request, outcome, proposal, operation, null);
+        }
         public Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome) {
             this(profileId, myDrugId, request, outcome, null, Operation.SAVE);
         }
@@ -45,7 +53,8 @@ public class MedicationLiveWorkflow {
 
     public Decision prepare(long memberId, StartRequest selection, LocalDate today, List<Map<String, Object>> transcript) {
         var candidates = reads.allDrugs(memberId);
-        var plan = planner.plan(selection, today, candidates, transcript);
+        var profiles = reads.profiles(memberId);
+        var plan = planner.plan(selection, today, candidates, profiles, transcript);
         if ("CANCEL".equals(plan.intent())) return question("이번 요청은 취소할게요. 기존 일정은 그대로예요.", List.of());
         String lastUser = normalize(lastTurn(transcript, "user"));
         if (lastUser.matches("(아니|아니요|싫어|싫어요|안돼|안돼요)")) {
@@ -58,11 +67,30 @@ public class MedicationLiveWorkflow {
             return new Decision(target.profileId(), target.myDrugId(), null,
                     new Outcome("요청한 일정을 처리할게요.", List.of(), List.of(), null), null, Operation.valueOf(plan.intent()));
         }
-        if ("TARGET_NOT_FOUND".equals(plan.intent())) return question("어느 프로필의 어떤 약을 등록할까요? 등록된 약 중에서 알려주세요.", List.of("target"));
+        if ("TARGET_NOT_FOUND".equals(plan.intent())) return question("어느 프로필의 어떤 약을 등록할까요?", List.of("target"));
         if (!"SAVE".equals(plan.intent())) return question("약 이름과 기간을 말씀해주시면 나머지는 기본 설정으로 제안해드릴게요.", List.of("request"));
-        long drugId = plan.myDrugId() == null ? selection.selectedMyDrugId() : plan.myDrugId();
-        var target = candidates.stream().filter(choice -> choice.myDrugId() == drugId).findFirst();
-        if (target.isEmpty()) return question("어느 프로필의 어떤 약을 등록할까요? 등록된 약 중에서 알려주세요.", List.of("target"));
+        String customName = plan.customName() == null ? null : plan.customName().strip();
+        long profileId = plan.profileId() == null ? selection.selectedProfileId() : plan.profileId();
+        Long selectedDrugId = plan.myDrugId() != null ? plan.myDrugId()
+                : customName == null && profileId == selection.selectedProfileId() ? selection.selectedMyDrugId() : null;
+        MedicationTarget target;
+        if (selectedDrugId != null) {
+            if (customName != null) throw invalid();
+            target = candidates.stream().filter(choice -> choice.myDrugId() == selectedDrugId).findFirst().orElse(null);
+            if (target == null || plan.profileId() != null && target.profileId() != profileId) {
+                return question("어느 프로필의 어떤 약을 등록할까요?", List.of("target"));
+            }
+        } else {
+            var profile = profiles.stream().filter(p -> p.profileId() == profileId).findFirst();
+            if (profile.isEmpty()) return question("등록할 프로필을 다시 알려주세요.", List.of("target"));
+            if (customName == null || customName.isBlank()) return question("어떤 약 일정인가요? 혈압약처럼 말씀해주셔도 돼요.", List.of("target"));
+            if (customName.length() > 100 || !userText(transcript).contains(normalize(customName))) {
+                return question("등록할 약 이름을 다시 알려주세요.", List.of("target"));
+            }
+            target = new MedicationTarget(0, profileId, profile.get().profileName(), profile.get().relationship(),
+                    customName, 1, "식후 30분", null, null, null, null);
+        }
+        long drugId = target.myDrugId();
 
         boolean allowDefaults = defaultsAllowed(plan, transcript);
         var missing = new ArrayList<String>();
@@ -96,30 +124,30 @@ public class MedicationLiveWorkflow {
             }
             Integer dose = plan.dosePerTime();
             if (dose == null) {
-                dose = target.get().dosePerTime(); defaults.add("dosePerTime"); missing.add("dosePerTime");
+                dose = target.dosePerTime(); defaults.add("dosePerTime"); missing.add("dosePerTime");
             }
             if (dose != null && (dose < 1 || dose > 10)) throw invalid();
             String timing = plan.timing();
-            if (timing == null && allowDefaults) { timing = target.get().timing(); defaults.add("timing"); }
+            if (timing == null && allowDefaults) { timing = target.timing(); defaults.add("timing"); }
             if (timing != null && timing.length() > 20) throw invalid();
             var request = new ScheduleRequest(start, end, times, dose, timing);
             if (!missing.isEmpty() && rejectsDefaults(lastUser)) {
                 return question("그럼 바꿀 항목과 값만 말씀해주세요.", List.of("correction"));
             }
             if (!missing.isEmpty() && !allowDefaults) {
-                if (timing == null && target.get().timing() != null) {
-                    timing = target.get().timing();
+                if (timing == null && target.timing() != null) {
+                    timing = target.timing();
                     if (timing.length() > 20) throw invalid();
                     defaults.add("timing");
                     request = new ScheduleRequest(start, end, times, dose, timing);
                 }
                 // 동의 전에는 저장 가능한 request를 반환하지 않고 제안 초안만 보관한다.
-                var proposal = new Proposal(target.get().profileId(), drugId, request, List.copyOf(defaults));
-                return new Decision(0, 0, null, new Outcome(proposalMessage(target.get(), request, today, defaults),
+                var proposal = new Proposal(target.profileId(), drugId, request, List.copyOf(defaults), customName);
+                return new Decision(0, 0, null, new Outcome(proposalMessage(target, request, today, defaults),
                         List.copyOf(missing), List.of(), null), proposal);
             }
-            return new Decision(target.get().profileId(), drugId, request,
-                    new Outcome("저장 항목을 확인했습니다.", List.of(), List.copyOf(defaults), null));
+            return new Decision(target.profileId(), drugId, request,
+                    new Outcome("저장 항목을 확인했습니다.", List.of(), List.copyOf(defaults), null), null, Operation.SAVE, customName);
         } catch (DateTimeException e) {
             throw invalid();
         }
@@ -137,15 +165,23 @@ public class MedicationLiveWorkflow {
                 yield new Outcome("오늘까지만 복용하도록 변경했어요.", List.of(), List.of(), stopped, completed);
             }
             case SAVE -> {
-                var saved = schedules.save(memberId, decision.profileId(), decision.myDrugId(), decision.request());
-                yield new Outcome("등록했어요.", List.of(), decision.outcome().appliedDefaults(), saved, completed);
+                var saved = decision.myDrugId() == 0
+                        ? schedules.createCustom(memberId, decision.profileId(), decision.customName(), decision.request())
+                        : schedules.save(memberId, decision.profileId(), decision.myDrugId(), decision.request());
+                yield new Outcome("등록했어요.", List.of(), decision.outcome().appliedDefaults(), saved,
+                        new CompletedOperation(Operation.SAVE, saved.profileId(), saved.myDrugId()));
             }
         };
     }
 
     public Decision confirm(Proposal proposal) {
         return new Decision(proposal.profileId(), proposal.myDrugId(), proposal.request(),
-                new Outcome("제안한 일정으로 저장할게요.", List.of(), proposal.defaults(), null));
+                new Outcome("제안한 일정으로 저장할게요.", List.of(), proposal.defaults(), null), null, Operation.SAVE, proposal.customName());
+    }
+
+    private String userText(List<Map<String, Object>> transcript) {
+        return normalize(transcript.stream().filter(part -> "user".equals(part.get("role")))
+                .map(part -> (String) part.get("content")).collect(java.util.stream.Collectors.joining()));
     }
 
     static boolean isConfirmation(String text) {

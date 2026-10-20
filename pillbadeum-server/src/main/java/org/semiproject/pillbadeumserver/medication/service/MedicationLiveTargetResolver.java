@@ -34,7 +34,7 @@ final class MedicationLiveTargetResolver {
             matches = best == 0 ? List.of() : matches.stream().filter(target -> drugScore(hints, target.drugName()) == best).toList();
         } else if (profile.isEmpty() && users.matches(".*(선택한|이약|이일정|현재선택|지금보고있는).*")) {
             matches = matches.stream().filter(target -> target.profileId() == selection.selectedProfileId()
-                    && target.myDrugId() == selection.selectedMyDrugId()).toList();
+                    && selection.selectedMyDrugId() != null && target.myDrugId() == selection.selectedMyDrugId()).toList();
         }
         if (matches.size() == 1) return new Resolution(matches.getFirst(), null);
         if (matches.isEmpty()) return new Resolution(null, "말씀하신 조건에 맞는 복약 일정이 없어요. 프로필이나 약 이름을 다시 알려주세요.");

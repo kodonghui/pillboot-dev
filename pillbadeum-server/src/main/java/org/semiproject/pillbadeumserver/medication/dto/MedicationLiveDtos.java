@@ -17,7 +17,7 @@ public final class MedicationLiveDtos {
 
     public record StartRequest(@NotBlank @Size(max = 100000) String sdp,
                                @NotNull @Positive Long selectedProfileId,
-                               @NotNull @Positive Long selectedMyDrugId,
+                               @Positive Long selectedMyDrugId,
                                @NotNull LocalDate selectedDate) {}
 
     public record StartResponse(String sessionId, String sdp, Instant expiresAt) {}
@@ -26,18 +26,26 @@ public final class MedicationLiveDtos {
     public record Plan(String intent, Long myDrugId, String startDate, String endDate, Integer durationDays,
                        List<String> doseTimes, Integer dailyCount, Integer dosePerTime, String timing,
                        boolean useDefaults, String defaultEvidence, List<String> dosePeriods,
-                       String profileHint, List<String> drugHints, String actionEvidence) {
+                       String profileHint, List<String> drugHints, String actionEvidence,
+                       Long profileId, String customName) {
+        public Plan(String intent, Long myDrugId, String startDate, String endDate, Integer durationDays,
+                    List<String> doseTimes, Integer dailyCount, Integer dosePerTime, String timing,
+                    boolean useDefaults, String defaultEvidence, List<String> dosePeriods,
+                    String profileHint, List<String> drugHints, String actionEvidence) {
+            this(intent, myDrugId, startDate, endDate, durationDays, doseTimes, dailyCount, dosePerTime,
+                    timing, useDefaults, defaultEvidence, dosePeriods, profileHint, drugHints, actionEvidence, null, null);
+        }
         public Plan(String intent, Long myDrugId, String startDate, String endDate, Integer durationDays,
                     List<String> doseTimes, Integer dailyCount, Integer dosePerTime, String timing,
                     boolean useDefaults, String defaultEvidence) {
             this(intent, myDrugId, startDate, endDate, durationDays, doseTimes, dailyCount, dosePerTime,
-                    timing, useDefaults, defaultEvidence, null, null, null, null);
+                    timing, useDefaults, defaultEvidence, null, null, null, null, null, null);
         }
         public Plan(String intent, Long myDrugId, String startDate, String endDate, Integer durationDays,
                     List<String> doseTimes, Integer dailyCount, Integer dosePerTime, String timing,
                     boolean useDefaults, String defaultEvidence, List<String> dosePeriods) {
             this(intent, myDrugId, startDate, endDate, durationDays, doseTimes, dailyCount, dosePerTime,
-                    timing, useDefaults, defaultEvidence, dosePeriods, null, null, null);
+                    timing, useDefaults, defaultEvidence, dosePeriods, null, null, null, null, null);
         }
     }
 

@@ -118,18 +118,22 @@ CREATE TABLE IF NOT EXISTS `notification_dispatch` (
 CREATE TABLE IF NOT EXISTS `my_drug` (
 	`my_drug_id`	BIGINT AUTO_INCREMENT	NOT NULL	COMMENT '등록한 내약 고유 식별자',
 	`profile_id`	BIGINT	NOT NULL	COMMENT '프로필코드',
-	`item_seq`	VARCHAR(100)	NOT NULL,
+	`item_seq`	VARCHAR(100)	NULL DEFAULT NULL,
+	`custom_name`	VARCHAR(100)	NULL DEFAULT NULL	COMMENT '약품을 특정하지 않은 직접 입력 이름',
 	`dose_per_time`	INT	NOT NULL	COMMENT '한 번에 복용하는 약 개수',
 	`timing`	VARCHAR(50)	NULL	COMMENT '식후 30분, 식전 등',
 	`start_date`	DATE	NULL DEFAULT NULL	COMMENT '복용 시작 날짜, 일정 없으면 NULL',
 	`end_date`	DATE	NULL DEFAULT NULL	COMMENT '복용 종료 날짜, 일정 등록 시 필수',
 	`dose_times`	VARCHAR(50)	NULL DEFAULT NULL	COMMENT '하루 1~3개 복용 시각, 일정 없으면 NULL',
-	`source`	VARCHAR(30)	NOT NULL	COMMENT 'PRESCRIPTION_PHOTO / PILL_PHOTO / SEARCH',
+	`source`	VARCHAR(30)	NOT NULL	COMMENT 'PRESCRIPTION_PHOTO / PILL_PHOTO / SEARCH / MANUAL',
 	`registered_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '내약 최초 등록 시각',
 	`updated_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '내약 정보 마지막 수정 시각',
 	PRIMARY KEY (`my_drug_id`),
 	FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`),
 	FOREIGN KEY (`item_seq`) REFERENCES `drug` (`item_seq`),
+	CONSTRAINT chk_my_drug_identity CHECK (
+		`item_seq` IS NOT NULL OR (`custom_name` IS NOT NULL AND CHAR_LENGTH(TRIM(`custom_name`)) > 0)
+	),
 	CONSTRAINT chk_my_drug_schedule_presence CHECK (
 		(`start_date` IS NULL AND `end_date` IS NULL AND `dose_times` IS NULL)
 		OR (`start_date` IS NOT NULL AND `end_date` IS NOT NULL AND `dose_times` IS NOT NULL)

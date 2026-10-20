@@ -69,6 +69,20 @@ class MedicationLiveWebTests {
     }
 
     @Test
+    void medicationSelectionIsOptionalButProfileAndPositiveIdsAreStillRequired() throws Exception {
+        when(service.start(eq(5L), any())).thenReturn(new StartResponse("local-id", "answer", EXPIRES));
+        for (String body : List.of(BODY.replace("\"selectedMyDrugId\":25,", ""),
+                BODY.replace("\"selectedMyDrugId\":25", "\"selectedMyDrugId\":null"))) {
+            mvc.perform(post(PATH).header("Authorization", bearer()).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isCreated());
+        }
+        verify(service, times(2)).start(eq(5L), argThat(request -> request.selectedMyDrugId() == null));
+        mvc.perform(post(PATH).header("Authorization", bearer()).contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY.replace("\"selectedMyDrugId\":25", "\"selectedMyDrugId\":0")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void progressAndStopUseTheSameAuthenticatedOwner() throws Exception {
         when(service.get(5, "local-id")).thenReturn(new Progress("local-id", "WAITING_FOR_DETAILS", "몇 시에 등록할까요?",
                 List.of("doseTimes"), List.of(), null, EXPIRES));

@@ -58,6 +58,37 @@ class MedicationScheduleServiceTests {
     }
 
     @Test
+    void customScheduleRequiresOwnershipAndReturnsTheGeneratedMedicationId() {
+        when(reads.profiles(7)).thenReturn(List.of(new org.semiproject.pillbadeumserver.medication.dto.MedicationDtos.ProfileChoice(2, "엄마", "MOTHER")));
+        when(writes.save(any())).thenAnswer(call -> {
+            MyDrug row = call.getArgument(0);
+            assertThat(row.getDrug()).isNull();
+            assertThat(row.getCustomName()).isEqualTo("혈압약");
+            assertThat(row.getSource()).isEqualTo(DrugSource.MANUAL);
+            ReflectionTestUtils.setField(row, "myDrugId", 38L);
+            return row;
+        });
+        var saved = service.createCustom(7, 2, " 혈압약 ", request(1));
+        assertThat(saved.myDrugId()).isEqualTo(38);
+        assertThat(saved.drugName()).isEqualTo("혈압약");
+        assertThat(saved.profileName()).isEqualTo("엄마");
+        assertThat(saved.hasSchedule()).isTrue();
+        assertThatThrownBy(() -> service.createCustom(99, 2, "혈압약", request(1)))
+                .isInstanceOf(NotFoundException.class);
+        verify(writes, times(1)).save(any());
+    }
+
+    @Test
+    void invalidCustomNameOrScheduleDoesNotCreateAnUnscheduledRow() {
+        when(reads.profiles(7)).thenReturn(List.of(new org.semiproject.pillbadeumserver.medication.dto.MedicationDtos.ProfileChoice(2, "엄마", "MOTHER")));
+        for (String name : new String[]{null, " ", "약".repeat(101)}) {
+            assertThatThrownBy(() -> service.createCustom(7, 2, name, request(1))).isInstanceOf(BusinessException.class);
+        }
+        assertThatThrownBy(() -> service.createCustom(7, 2, "혈압약", request(11))).isInstanceOf(BusinessException.class);
+        verifyNoInteractions(writes);
+    }
+
+    @Test
     void missingOrForeignTargetCannotReachWriteRepository() {
         when(reads.find(99, 2, 3)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.save(99, 2, 3, request(1))).isInstanceOf(NotFoundException.class);

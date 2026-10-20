@@ -17,4 +17,6 @@ public interface MedicationScheduleWriteRepository extends Repository<MyDrug, Lo
             where m.myDrugId = :myDrugId and m.profileId = :profileId
             """)
     Optional<MyDrug> findForUpdate(@Param("profileId") long profileId, @Param("myDrugId") long myDrugId);
+
+    MyDrug save(MyDrug myDrug);
 }

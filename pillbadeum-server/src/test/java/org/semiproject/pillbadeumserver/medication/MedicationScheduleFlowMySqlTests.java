@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.semiproject.pillbadeumserver.common.security.JwtTokenProvider;
 import org.semiproject.pillbadeumserver.medication.domain.MedicationReminderRepository;
+import org.semiproject.pillbadeumserver.medication.service.MedicationScheduleService;
+import org.semiproject.pillbadeumserver.medication.dto.MedicationDtos.ScheduleRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -22,8 +24,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import javax.sql.DataSource;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.UUID;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -41,6 +45,7 @@ class MedicationScheduleFlowMySqlTests {
     @Autowired MockMvc mvc;
     @Autowired JwtTokenProvider tokens;
     @Autowired MedicationReminderRepository reminders;
+    @Autowired MedicationScheduleService schedules;
     private Fixture fixture;
     private LocalDate today;
     private record Fixture(long owner, long foreign, long profile, long foreignProfile, long drug, long foreignDrug, String item) {}
@@ -70,12 +75,38 @@ class MedicationScheduleFlowMySqlTests {
     void removeOnlyThisTestsCommittedFixtures() {
         if (fixture == null) return;
         new TransactionTemplate(transactions).executeWithoutResult(status -> {
-            jdbc.update("DELETE FROM my_drug WHERE my_drug_id IN (?,?)", fixture.drug, fixture.foreignDrug);
+            jdbc.update("DELETE FROM my_drug WHERE profile_id IN (?,?)", fixture.profile, fixture.foreignProfile);
             jdbc.update("DELETE FROM notification_setting WHERE member_id IN (?,?)", fixture.owner, fixture.foreign);
             jdbc.update("DELETE FROM profile WHERE profile_id IN (?,?)", fixture.profile, fixture.foreignProfile);
             jdbc.update("DELETE FROM drug WHERE item_seq=?", fixture.item);
             jdbc.update("DELETE FROM member WHERE member_id IN (?,?)", fixture.owner, fixture.foreign);
         });
+    }
+
+    @Test
+    void customScheduleCommitsWithoutACatalogDrugAndSupportsTheExistingQueriesAndMutations() throws Exception {
+        var saved = schedules.createCustom(fixture.owner, fixture.profile, "혈압약",
+                new ScheduleRequest(today.minusDays(1), today.plusDays(2), List.of(LocalTime.of(11, 0)), 1, "식후 30분"));
+        long id = saved.myDrugId();
+        var row = jdbc.queryForMap("SELECT item_seq,custom_name,source FROM my_drug WHERE my_drug_id=?", id);
+        assertThat(row.get("item_seq")).isNull();
+        assertThat(row.get("custom_name")).isEqualTo("혈압약");
+        assertThat(row.get("source")).isEqualTo("MANUAL");
+        String customPath = "/api/profiles/" + fixture.profile + "/drugs/" + id + "/schedule";
+        mvc.perform(get(customPath).header("Authorization", bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.drugName").value("혈압약"));
+        mvc.perform(get("/api/calendar").header("Authorization", bearer()).param("from", today.toString()).param("to", today.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.schedules[?(@.myDrugId == " + id + ")].drugName").value(org.hamcrest.Matchers.contains("혈압약")));
+        mvc.perform(get("/api/calendar/doses").header("Authorization", bearer()).param("date", today.toString()).param("time", "11:00"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.doses[0].drugName").value("혈압약"));
+        jdbc.update("INSERT INTO notification_setting(member_id,push_enabled,updated_at) VALUES(?,TRUE,CURRENT_TIMESTAMP)", fixture.owner);
+        assertThat(reminders.targets(today, "11:00")).anyMatch(target -> target.memberId() == fixture.owner);
+        mvc.perform(put(customPath).header("Authorization", bearer()).contentType(MediaType.APPLICATION_JSON).content(body(today.minusDays(1), today.plusDays(3))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.drugName").value("혈압약"));
+        mvc.perform(post(customPath + "/stop").header("Authorization", bearer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.endDate").value(today.toString()));
+        mvc.perform(delete(customPath).header("Authorization", bearer())).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE my_drug_id=? AND custom_name='혈압약' AND start_date IS NULL", Long.class, id)).isEqualTo(1L);
     }
 
     @Test

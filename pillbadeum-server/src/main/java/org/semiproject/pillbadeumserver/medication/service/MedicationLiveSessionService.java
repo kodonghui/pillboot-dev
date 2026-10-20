@@ -94,8 +94,14 @@ public class MedicationLiveSessionService {
     }
 
     public StartResponse start(long memberId, StartRequest request) {
-        reads.find(memberId, request.selectedProfileId(), request.selectedMyDrugId())
-                .orElseThrow(() -> new NotFoundException("조회할 수 있는 내 약이 없습니다."));
+        if (request.selectedMyDrugId() == null) {
+            if (!reads.ownsProfile(memberId, request.selectedProfileId())) {
+                throw new NotFoundException("조회할 수 있는 프로필이 없습니다.");
+            }
+        } else {
+            reads.find(memberId, request.selectedProfileId(), request.selectedMyDrugId())
+                    .orElseThrow(() -> new NotFoundException("조회할 수 있는 내 약이 없습니다."));
+        }
         workflow.requireReady();
         State state = new State(memberId, request, Instant.now(clock).plusSeconds(durationSeconds));
         synchronized (registryLock) {

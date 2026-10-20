@@ -30,7 +30,7 @@ class CheckMedicationDb {
             for (String[] field : List.of(
                     new String[]{"profile", "relationship_type"}, new String[]{"drug", "name"},
                     new String[]{"drug", "material"}, new String[]{"my_drug", "start_date"},
-                    new String[]{"my_drug", "end_date"}, new String[]{"my_drug", "dose_times"},
+                    new String[]{"my_drug", "end_date"}, new String[]{"my_drug", "dose_times"}, new String[]{"my_drug", "custom_name"},
                     new String[]{"notification_setting", "push_enabled"},
                     new String[]{"push_subscription", "endpoint"}, new String[]{"notification_dispatch", "dose_at"})) {
                 try (var statement = connection.prepareStatement("SELECT COUNT(*) FROM information_schema.columns "
@@ -45,10 +45,10 @@ class CheckMedicationDb {
             }
             try (var statement = connection.prepareStatement("SELECT COUNT(*) FROM information_schema.columns "
                     + "WHERE table_schema=DATABASE() AND table_name='my_drug' "
-                    + "AND column_name IN ('start_date','end_date','dose_times') AND is_nullable='YES'")) {
+                    + "AND column_name IN ('start_date','end_date','dose_times','item_seq','custom_name') AND is_nullable='YES'")) {
                 try (var rows = statement.executeQuery()) {
-                    rows.next(); boolean nullable = rows.getInt(1) == 3;
-                    System.out.println((nullable ? "PASS " : "FAIL ") + "optional-schedule-columns");
+                    rows.next(); boolean nullable = rows.getInt(1) == 5;
+                    System.out.println((nullable ? "PASS " : "FAIL ") + "optional-schedule-and-drug-columns");
                     if (!nullable) failures++;
                 }
             }

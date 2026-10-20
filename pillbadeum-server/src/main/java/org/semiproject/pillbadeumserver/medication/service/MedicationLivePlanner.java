@@ -7,6 +7,7 @@ import org.semiproject.pillbadeumserver.common.exception.AiUnavailableException;
 import org.semiproject.pillbadeumserver.medication.domain.MedicationTarget;
 import org.semiproject.pillbadeumserver.medication.dto.MedicationLiveDtos.Plan;
 import org.semiproject.pillbadeumserver.medication.dto.MedicationLiveDtos.StartRequest;
+import org.semiproject.pillbadeumserver.medication.dto.MedicationDtos.ProfileChoice;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
 import tools.jackson.databind.ObjectMapper;
@@ -31,7 +32,8 @@ public class MedicationLivePlanner {
             DELETE는 과거를 포함한 일정 필드 전체를 지우며 약 자체는 남긴다. STOP은 종료일만 한국 시간 오늘로 줄인다.
             "삭제하지 말고 오늘까지만"은 STOP이다. "삭제하지 마", "중단하지 마", "취소해"는 CANCEL이다.
             삭제·중단 대상이 모호하거나 없어도 DELETE/STOP intent를 유지해 서버가 후보를 좁혀 질문하게 한다.
-            SAVE 대상만 찾지 못했으면 TARGET_NOT_FOUND이다. 불확실한 대상을 화면 선택값으로 바꾸지 않는다.
+            SAVE에서 등록된 약을 특정하지 않아도 사용자가 말한 이름으로 새 일정을 만들 수 있다.
+            등록된 약을 못 찾았다는 이유만으로 TARGET_NOT_FOUND로 처리하지 않는다. 모호한 기존 약 선택은 질문한다.
             DELETE/STOP의 profileHint와 drugHints에는 사용자가 말한 원문 일부만 그대로 복사한다.
             엄마·어머니 같은 표현은 profileHint에 그대로 넣는다. "타일레놀"을 "타이레놀"로 고쳐 쓰지 않는다.
             뒤에 "500짜리"라고 답하면 기존 drugHints의 "타일레놀"에 원문 "500"을 추가한다.
@@ -41,8 +43,14 @@ public class MedicationLivePlanner {
             "오늘부터 이틀 타이레놀"처럼 약·기간만 말해도 일정 등록 요청 SAVE이다. 등록 의사를 다시 묻지 않는다.
             제안에 대한 수정 답변도 기존 등록 요청의 연속 SAVE로 해석하고, 바꾸지 않은 사용자 항목은 유지한다.
             제안에 대한 "아니요"만으로는 등록 취소가 아니며 ASK이다. "취소해", "등록하지 마"처럼 명시한 경우 CANCEL이다.
-            후보에 있는 myDrugId만 고를 수 있다. 대상을 말하지 않으면 null로 두어 화면 선택 약을 사용한다.
-            다른 프로필만 말하면 그 프로필의 같은 이름 약이 유일한 경우만 선택한다. 찾지 못하면 TARGET_NOT_FOUND이다.
+            후보에 있는 myDrugId만 고를 수 있다. 이름을 말했고 기존 약이 유일하게 일치하면 그 ID를 선택한다.
+            "혈압약", "엄마 약"처럼 품목을 특정하지 않은 이름도 허용한다. 기존 약에 일치하지 않으면
+            myDrugId=null, customName=사용자가 실제 말한 약 이름 원문이다. 등록되지 않은 특정 약 이름도 동일하다.
+            customName에는 사용자 원문의 연속된 부분만 복사한다. 이름을 추측하거나 새로 만들지 않는다.
+            myDrugId와 customName을 동시에 채우지 않는다. 약을 말하지 않았으면 둘 다 null로 두어 화면 선택 약을 사용한다.
+            profileId는 profiles 안에서 사용자 요청에 맞는 프로필 ID이며 생략 시 화면 selectedProfileId를 사용한다.
+            다른 프로필을 명시했는데 프로필 후보를 확정할 수 없으면 TARGET_NOT_FOUND이다.
+            다른 프로필에 없는 약을 화면 선택 약으로 대체하지 않는다. 새 약 이름이 있으면 그 프로필의 customName으로 등록한다.
             오늘·내일은 today(한국 날짜) 기준 ISO 날짜로 변환한다. 날짜를 말하지 않으면 startDate=null이다.
             일주일은 durationDays=7. 종료일·기간을 말하지 않았으면 둘 다 null이다. 종료일을 추측하지 않는다.
             횟수만 말하면 dailyCount만 채운다. 아침·점심·저녁만 말하면 dosePeriods에 MORNING, NOON, EVENING을 넣고
@@ -68,7 +76,8 @@ public class MedicationLivePlanner {
         }
     }
 
-    public Plan plan(StartRequest selection, LocalDate today, List<MedicationTarget> candidates, List<Map<String, Object>> transcript) {
+    public Plan plan(StartRequest selection, LocalDate today, List<MedicationTarget> candidates,
+                     List<ProfileChoice> profiles, List<Map<String, Object>> transcript) {
         var choices = candidates.stream().map(target -> {
             var choice = new LinkedHashMap<String, Object>();
             choice.put("myDrugId", target.myDrugId()); choice.put("profileId", target.profileId());
@@ -77,9 +86,13 @@ public class MedicationLivePlanner {
             choice.put("startDate", target.startDate()); choice.put("endDate", target.endDate());
             return choice;
         }).toList();
-        String input = json.writeValueAsString(Map.of("selectedProfileId", selection.selectedProfileId(),
-                "selectedMyDrugId", selection.selectedMyDrugId(), "selectedDate", selection.selectedDate().toString(),
-                "today", today.toString(), "candidates", choices, "transcript", transcript));
+        var inputFields = new LinkedHashMap<String, Object>();
+        inputFields.put("selectedProfileId", selection.selectedProfileId());
+        inputFields.put("selectedMyDrugId", selection.selectedMyDrugId());
+        inputFields.put("selectedDate", selection.selectedDate().toString());
+        inputFields.put("today", today.toString()); inputFields.put("candidates", choices);
+        inputFields.put("profiles", profiles); inputFields.put("transcript", transcript);
+        String input = json.writeValueAsString(inputFields);
         var result = ai.createJson(RULES, List.of(AiMessage.user(input)), 2000, "medication_live_plan", schema());
         try {
             if (result == null || !result.isObject()) throw new IllegalArgumentException();
@@ -95,6 +108,8 @@ public class MedicationLivePlanner {
         var fields = new LinkedHashMap<String, Object>();
         fields.put("intent", Map.of("type", "string", "enum", List.of("SAVE", "DELETE", "STOP", "ASK", "CANCEL", "TARGET_NOT_FOUND")));
         fields.put("myDrugId", nullable("integer"));
+        fields.put("profileId", nullable("integer"));
+        fields.put("customName", nullable("string"));
         fields.put("startDate", nullable("string"));
         fields.put("endDate", nullable("string"));
         fields.put("durationDays", nullable("integer"));

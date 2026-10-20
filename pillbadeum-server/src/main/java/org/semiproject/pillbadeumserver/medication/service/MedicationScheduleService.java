@@ -53,6 +53,19 @@ public class MedicationScheduleService {
         return ScheduleResponse.from(myDrug, target, reads.pushEnabled(memberId));
     }
 
+    /** Live 저장 확정 시에만 직접 입력한 내 약과 일정을 하나의 트랜잭션으로 만든다. */
+    @Transactional
+    public ScheduleResponse createCustom(long memberId, long profileId, String name, ScheduleRequest request) {
+        var profile = reads.profiles(memberId).stream().filter(p -> p.profileId() == profileId).findFirst()
+                .orElseThrow(() -> new NotFoundException("조회할 수 있는 프로필이 없습니다."));
+        MyDrug myDrug = MyDrug.createCustom(profileId, name);
+        request.applyTo(myDrug);
+        myDrug = writes.save(myDrug);
+        var target = new MedicationTarget(myDrug.getMyDrugId(), profileId, profile.profileName(), profile.relationship(),
+                myDrug.getCustomName(), myDrug.getDosePerTime(), myDrug.getTiming(), null, null, null, null);
+        return ScheduleResponse.from(myDrug, target, reads.pushEnabled(memberId));
+    }
+
     @Transactional
     public ScheduleResponse stop(long memberId, long profileId, long myDrugId) {
         MedicationTarget target = ownedTarget(memberId, profileId, myDrugId);

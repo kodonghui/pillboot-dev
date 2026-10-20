@@ -18,9 +18,9 @@ import java.util.Optional;
 public class MedicationRepository {
     private final JdbcClient jdbc;
     private static final String SELECT = """
-            SELECT md.my_drug_id, md.profile_id, p.profile_name, p.relationship_type, d.name AS drug_name,
+            SELECT md.my_drug_id, md.profile_id, p.profile_name, p.relationship_type, COALESCE(d.name,md.custom_name) AS drug_name,
                    md.dose_per_time, md.timing, md.start_date, md.end_date, md.dose_times, md.updated_at
-            FROM my_drug md JOIN profile p ON p.profile_id=md.profile_id JOIN drug d ON d.item_seq=md.item_seq
+            FROM my_drug md JOIN profile p ON p.profile_id=md.profile_id LEFT JOIN drug d ON d.item_seq=md.item_seq
             WHERE p.member_id=:memberId
             """;
     private static final RowMapper<MedicationTarget> MAPPER = (rs, row) -> {

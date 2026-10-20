@@ -17,6 +17,28 @@ import static org.mockito.Mockito.*;
 
 class MedicationLivePlannerTests {
     @Test
+    void optionalMedicationIdIsSerializedAsNullAndCustomNameIsPartOfTheSchema() {
+        var json = new ObjectMapper();
+        var ai = mock(OpenAiClient.class);
+        var planner = new MedicationLivePlanner(ai, json, "fixture-model");
+        when(ai.createJson(anyString(), anyList(), anyInt(), anyString(), anyMap())).thenAnswer(call -> {
+            var messages = call.<List<org.semiproject.pillbadeumserver.common.ai.AiMessage>>getArgument(1);
+            var input = json.readTree(messages.getFirst().content());
+            assertThat(input.path("selectedMyDrugId").isNull()).isTrue();
+            assertThat(input.path("profiles").size()).isEqualTo(1);
+            var schema = json.valueToTree(call.<Map<String, Object>>getArgument(4));
+            assertThat(schema.path("required").toString()).contains("customName", "profileId");
+            return json.valueToTree(Map.of("intent", "SAVE", "customName", "혈압약", "useDefaults", false));
+        });
+        var plan = planner.plan(new StartRequest("offer", 17L, null, LocalDate.of(2026, 10, 20)),
+                LocalDate.of(2026, 10, 20), List.of(),
+                List.of(new org.semiproject.pillbadeumserver.medication.dto.MedicationDtos.ProfileChoice(17, "엄마", "MOTHER")),
+                List.of(Map.of("role", "user", "content", "혈압약 등록해줘")));
+        assertThat(plan.customName()).isEqualTo("혈압약");
+        assertThat(plan.myDrugId()).isNull();
+    }
+
+    @Test
     void removalOutputParsesTheSpokenHintsAndReceivesScheduleMetadata() {
         var json = new ObjectMapper();
         var ai = mock(OpenAiClient.class);
@@ -36,7 +58,7 @@ class MedicationLivePlannerTests {
         var target = new MedicationTarget(27, 14, "엄마", "PARENT", "타이레놀정500밀리그램", 1, null,
                 LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 7), "07:00", LocalDateTime.of(2026, 11, 1, 0, 0));
         var plan = planner.plan(new StartRequest("offer", 14L, 27L, LocalDate.of(2026, 11, 3)),
-                LocalDate.of(2026, 11, 3), List.of(target), List.of(Map.of("role", "user", "content", "엄마 타일레놀 삭제해줘")));
+                LocalDate.of(2026, 11, 3), List.of(target), List.of(), List.of(Map.of("role", "user", "content", "엄마 타일레놀 삭제해줘")));
         assertThat(plan.profileHint()).isEqualTo("엄마");
         assertThat(plan.drugHints()).containsExactly("타일레놀");
         assertThat(plan.actionEvidence()).isEqualTo("삭제해줘");

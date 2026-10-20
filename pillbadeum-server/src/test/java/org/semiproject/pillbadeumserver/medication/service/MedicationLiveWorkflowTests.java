@@ -115,7 +115,7 @@ class MedicationLiveWorkflowTests {
         plan(new Plan("SAVE", null, null, null, 7, List.of("08:00"), 1, 1, null, false, null));
         assertThat(workflow.prepare(5, selection, DATE, List.of(user("일주일 동안 8시에 한 개씩 등록"))).request()).isNotNull();
         doReturn(new Plan("CANCEL", null, null, null, null, null, null, null, null, false, null))
-                .when(planner).plan(any(), any(), anyList(), anyList());
+                .when(planner).plan(any(), any(), anyList(), anyList(), anyList());
         assertThat(workflow.prepare(5, selection, DATE, List.of(user("취소해"))).request()).isNull();
         verifyNoInteractions(schedules);
     }
@@ -167,7 +167,7 @@ class MedicationLiveWorkflowTests {
         assertThatThrownBy(() -> workflow.prepare(5, selection, DATE, List.of(user("저녁에만"))))
                 .isInstanceOf(BusinessException.class);
         doReturn(new Plan("SAVE", null, null, null, 2, null, 3, null, null, false, null, List.of("EVENING")))
-                .when(planner).plan(any(), any(), anyList(), anyList());
+                .when(planner).plan(any(), any(), anyList(), anyList(), anyList());
         assertThatThrownBy(() -> workflow.prepare(5, selection, DATE, List.of(user("저녁에만"))))
                 .isInstanceOf(BusinessException.class);
         verifyNoInteractions(schedules);
@@ -207,7 +207,7 @@ class MedicationLiveWorkflowTests {
     private void plan(Plan plan) {
         when(reads.allDrugs(5)).thenReturn(List.of(new MedicationTarget(25, 13, "엄마", "MOTHER", "테스트약", 2, "식후",
                 null, null, null, LocalDateTime.of(2026, 10, 19, 9, 0))));
-        when(planner.plan(any(), any(), anyList(), anyList())).thenReturn(plan);
+        when(planner.plan(any(), any(), anyList(), anyList(), anyList())).thenReturn(plan);
     }
     private Map<String, Object> user(String text) { return Map.of("role", "user", "content", text); }
     private Map<String, Object> assistant(String text) { return Map.of("role", "assistant", "content", text); }

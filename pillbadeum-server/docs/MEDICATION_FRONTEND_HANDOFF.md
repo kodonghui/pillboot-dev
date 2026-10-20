@@ -102,7 +102,7 @@
 
 `L` = `/api/medication/live/sessions`
 
-1. 사용자가 선택한 프로필·등록된 약·달력 날짜를 확보한다. 선택 가능한 약이 없으면 약 등록 안내를 한다.
+1. 사용자가 선택한 프로필·달력 날짜를 확보한다. 내 약 선택은 선택 사항이며, 등록된 약이 없는 프로필도 Live를 시작할 수 있다.
 2. 사용자 버튼 동작에서 마이크 권한을 받고 `RTCPeerConnection`에 오디오 트랙을 추가한다.
 3. offer 생성 전에 `oai-events` data channel을 만든다. 로컬 SDP를 설정하고 ICE 수집을 완료한다.
 4. `POST L`에 아래 본문과 Bearer JWT를 보낸다.
@@ -120,6 +120,7 @@
 ```
 
 생성 응답: `{ "sessionId": "앱 세션 ID", "sdp": "answer SDP", "expiresAt": "2026-10-19T03:01:00Z" }`.
+`selectedMyDrugId`는 생략 또는 `null`을 허용한다. 약 이름도 선택한 약도 없으면 이름을 물으며, “혈압약”처럼 말한 이름으로 등록할 수 있다. 새 약은 저장 확정 시 `my_drug.item_seq=NULL`, `custom_name=발화 이름`, `source=MANUAL`로 생성되고 실제 발급 ID가 완료 응답에 담긴다. 기존 DB는 `sql/06_MY_DRUG_CUSTOM_NAME.sql` 적용이 필요하다.
 OpenAI 원격 ID나 API 키를 프론트에서 관리하지 않는다. 브라우저는 우리 서버만으로 세션 생성·조회·종료를 요청한다.
 SDP에 임의 문자열을 넣는 HTTP 요청으로는 실제 음성 연결을 테스트할 수 없다.
 

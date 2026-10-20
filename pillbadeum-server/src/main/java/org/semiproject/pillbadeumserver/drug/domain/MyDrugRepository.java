@@ -22,7 +22,7 @@ public interface MyDrugRepository extends JpaRepository<MyDrug, Long> {
     @Query("""
             select m
             from MyDrug m
-            join fetch m.drug
+            left join fetch m.drug
             where m.profileId = :profileId
             order by m.registeredAt desc, m.myDrugId desc
             """)
@@ -33,7 +33,7 @@ public interface MyDrugRepository extends JpaRepository<MyDrug, Long> {
     @Query("""
             select m
             from MyDrug m
-            join fetch m.drug
+            left join fetch m.drug
             where m.myDrugId = :myDrugId
             """)
     Optional<MyDrug> findWithDrugById(@Param("myDrugId") Long myDrugId);
@@ -47,7 +47,7 @@ public interface MyDrugRepository extends JpaRepository<MyDrug, Long> {
     @Query("""
             select m.drug.itemSeq
             from MyDrug m
-            where m.profileId = :profileId
+            where m.profileId = :profileId and m.drug is not null
             """)
     List<String> findItemSeqsByProfileId(@Param("profileId") Long profileId);
 }

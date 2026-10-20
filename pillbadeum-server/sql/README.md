@@ -2,7 +2,7 @@
 
 DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 원문입니다.
 **관계형 14개 테이블·114개 컬럼**이며 `vector_point`는 별도 Qdrant 모델입니다.
-사용자 결정으로 복약 알림용 `push_subscription`·`notification_dispatch`를 더해 현재 01은 16개 테이블·124개 컬럼입니다.
+사용자 결정으로 복약 알림용 `push_subscription`·`notification_dispatch`와 직접 입력 약 이름 `my_drug.custom_name`을 더해 현재 01은 16개 테이블·125개 컬럼입니다.
 다른 노션 ERD나 API를 근거로 표·컬럼을 추가하지 않습니다.
 
 | 파일 | 용도 |
@@ -13,6 +13,7 @@ DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 �
 | `03_MY_DRUG_OPTIONAL_SCHEDULE.sql` | 기존 14개 테이블 DB 전용. 약을 유지하고 일정만 삭제할 수 있도록 세 컬럼과 CHECK 변경 |
 | `04_PUSH_NOTIFICATION.sql` | 기존 DB 전용, 03 다음. 알림 설정 회원당 1행 UNIQUE, 푸시 구독·발송 시각 표 추가 |
 | `05_FIX_COLUMN_TYPOS.sql` | 기존 DB 전용, 04 다음. 컬럼명 오타 realationship_type·matrial을 relationship_type·material로 변경 |
+| `06_MY_DRUG_CUSTOM_NAME.sql` | 기존 DB 전용. my_drug.item_seq NULL 허용, custom_name 추가, 약품 코드나 직접 입력 이름 중 하나 필수 CHECK |
 
 00을 실행한 뒤 대상 DB를 선택하여 01을 실행합니다. 샘플이 필요하면 빈 테이블에서만 02를 한 번 실행합니다.
 앱은 SQL을 자동 실행하지 않으며 JPA ddl-auto는 none입니다. IF NOT EXISTS는 기존 컬럼·제약을 변경하지 않습니다.
@@ -21,6 +22,7 @@ DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 �
 기존 14개 테이블 DB에서 일정 삭제를 쓰려면 대상 DB를 선택하고 03을 한 번 적용합니다.
 새 01에는 같은 변경이 포함되므로 03을 추가 실행하지 않습니다. 앱이 03을 자동 실행하지 않습니다.
 복약 알림을 쓰려면 기존 DB에 04도 한 번 적용합니다. 같은 회원의 알림 설정이 여러 행이면 먼저 정리해야 합니다.
+Live에서 내 약 선택 없이 직접 입력한 약을 등록하려면 기존 DB에 06을 한 번 적용합니다. 최신 01을 적용한 신규 DB에는 06을 실행하지 않습니다. 기존 FK·약품 코드·일정 값은 유지합니다.
 
 ## 원문과 실행 SQL의 관계
 
@@ -37,6 +39,7 @@ DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 �
   세 값이 모두 NULL이거나 모두 값이 있도록 chk_my_drug_schedule_presence CHECK를 적용했습니다.
   기본 복용 시각 07:00·11:00·17:00은 기간을 지정한 약 등록 시 앱에서 채웁니다. 표·컬럼 수는 바뀌지 않습니다.
 - 위 교정·결정 외 자료형·길이·NULL·기본값·제약은 유지하며 추가 CHECK·복합 UNIQUE·CASCADE·ON UPDATE는 넣지 않습니다.
+- 직접 입력 약 지원 결정으로 my_drug.item_seq는 NULL을 허용하고 custom_name VARCHAR(100) NULL을 추가했습니다. 두 값이 모두 비어 있는 행은 chk_my_drug_identity로 금지합니다. source에 MANUAL을 사용하며 기존 문자열 컬럼 타입은 유지합니다.
 - ERD 밖 push_subscription, 프로필 색상, 약 상세 확장, 사진 앞뒤 연결, 후보 약 참조 컬럼은 제거했습니다.
 - 기본값이 없는 필수 생성·수정 시각 등은 저장 코드에서 직접 채워야 합니다.
 - Linux MySQL에서는 표명 대소문자를 구분하므로 실제 이름으로 조회합니다.

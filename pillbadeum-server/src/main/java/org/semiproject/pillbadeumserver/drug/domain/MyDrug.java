@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 /*  프로필이 등록한 내 약 (my_drug 테이블)
  *  ----------------------------------------------------------------------------------
  *  한 행 = 한 프로필이 복용하는 약 하나와 그 복용정보(1회 복용량, 복용 시각, 기간).
- *  - 약 정보는 drug 테이블을 FK(item_seq)로 참조한다. 저장 전에 drug 행이 있어야 한다.
+ *  - 식별한 약은 drug를 참조하고, 직접 입력한 약은 item_seq=NULL과 custom_name을 사용한다.
  *  - profile 엔티티가 아직 없으므로 profile_id 는 숫자 그대로 들고 있는다.
  *    (Profile 엔티티가 생기면 @ManyToOne 으로 바꿀지 프로필 담당과 정한다)
  *  ----------------------------------------------------------------------------------
@@ -65,9 +65,12 @@ public class MyDrug {
     @Column(name = "profile_id", nullable = false, updatable = false)
     private Long profileId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "item_seq", nullable = false, updatable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "item_seq", updatable = false)
     private Drug drug;
+
+    @Column(name = "custom_name", length = 100, updatable = false)
+    private String customName;
 
     @Column(name = "dose_per_time", nullable = false)
     private int dosePerTime;            // 한 번에 복용하는 개수
@@ -115,6 +118,19 @@ public class MyDrug {
         List<LocalTime> times = noSchedule ? null
                 : (doseTimes == null || doseTimes.isEmpty()) ? DEFAULT_DOSE_TIMES : doseTimes;
         myDrug.apply(dosePerTime, timing, startDate, endDate, times);
+        return myDrug;
+    }
+
+    /** 약품을 특정하지 않은 일정도 기존 내 약 행에 저장한다. */
+    public static MyDrug createCustom(Long profileId, String customName) {
+        if (customName == null || customName.isBlank() || customName.strip().length() > 100) {
+            throw invalid("직접 입력한 약 이름은 1~100자로 입력해주세요.");
+        }
+        MyDrug myDrug = new MyDrug();
+        myDrug.profileId = Objects.requireNonNull(profileId, "profileId");
+        myDrug.customName = customName.strip();
+        myDrug.source = DrugSource.MANUAL;
+        myDrug.apply(1, "식후 30분", null, null, null);
         return myDrug;
     }
 
@@ -215,6 +231,10 @@ public class MyDrug {
 
     public Drug getDrug() {
         return drug;
+    }
+
+    public String getCustomName() {
+        return customName;
     }
 
     public int getDosePerTime() {

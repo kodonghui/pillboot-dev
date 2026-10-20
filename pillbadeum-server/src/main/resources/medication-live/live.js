@@ -154,9 +154,11 @@
   el("start").addEventListener("click", async () => {
     if (busy) return;
     if (!token()) { status("로그인 토큰을 먼저 넣어주세요."); return; }
-    const selectedProfileId = Number(el("profile").value), selectedMyDrugId = Number(el("drug").value);
-    if (!Number.isSafeInteger(selectedProfileId) || selectedProfileId <= 0 || !Number.isSafeInteger(selectedMyDrugId) || selectedMyDrugId <= 0 || !el("date").value) {
-      status("실제 프로필·약 ID와 선택 날짜를 넣어주세요."); return;
+    const selectedProfileId = Number(el("profile").value);
+    const selectedMyDrugId = el("drug").value.trim() === "" ? null : Number(el("drug").value);
+    if (!Number.isSafeInteger(selectedProfileId) || selectedProfileId <= 0
+        || selectedMyDrugId !== null && (!Number.isSafeInteger(selectedMyDrugId) || selectedMyDrugId <= 0) || !el("date").value) {
+      status("프로필 ID와 선택 날짜를 넣어주세요. 내 약 ID는 비워두거나 실제 ID를 넣어주세요."); return;
     }
     const attempt = ++generation, connectionToken = token();
     const alive = () => generation === attempt && busy && !stopping;

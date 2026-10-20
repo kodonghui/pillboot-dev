@@ -56,6 +56,19 @@ class MedicationLiveSessionServiceTests {
     }
 
     @Test
+    void optionalMedicationStillRequiresAnOwnedProfileBeforePaidSessionCreation() {
+        var noDrug = new StartRequest("offer", 17L, null, DATE);
+        assertThatThrownBy(() -> service.start(99, noDrug)).isInstanceOf(NotFoundException.class);
+        verifyNoInteractions(client, workflow);
+        when(reads.ownsProfile(5, 17)).thenReturn(true);
+        when(client.create(eq("offer"), anyString())).thenReturn(new MedicationLiveClient.RemoteSession("remote", "answer"));
+        when(client.attach(anyString(), any(), any())).thenReturn(connection);
+        var started = service.start(5, noDrug);
+        assertThat(service.get(5, started.sessionId()).status()).isEqualTo("LISTENING");
+        verify(reads, never()).find(anyLong(), anyLong(), anyLong());
+    }
+
+    @Test
     void foreignMedicationIsRejectedBeforeCreatingAPaidSession() {
         assertThatThrownBy(() -> service.start(99, request)).isInstanceOf(NotFoundException.class);
         verifyNoInteractions(client, workflow);

@@ -99,7 +99,7 @@ class MedicationLiveRemovalTests {
         given(plan("DELETE", "엄마", List.of("타이레놀"), "삭제해줘"), unscheduled, dad);
         assertThat(prepare(user("엄마 타이레놀 삭제해줘")).executable()).isFalse();
         doReturn(plan("DELETE", "할머니", List.of("타이레놀"), "삭제해줘"))
-                .when(planner).plan(any(), any(), anyList(), anyList());
+                .when(planner).plan(any(), any(), anyList(), anyList(), anyList());
         assertThat(prepare(user("할머니 타이레놀 삭제해줘")).executable()).isFalse();
         verifyNoInteractions(schedules);
     }
@@ -117,7 +117,7 @@ class MedicationLiveRemovalTests {
         given(plan("DELETE", "엄마", List.of("타이레놀"), "삭제하지마"), mom);
         assertThat(prepare(user("엄마 타이레놀 삭제하지마")).executable()).isFalse();
         doReturn(plan("DELETE", "엄마", List.of("타이레놀"), "삭제해줘"))
-                .when(planner).plan(any(), any(), anyList(), anyList());
+                .when(planner).plan(any(), any(), anyList(), anyList(), anyList());
         assertThat(prepare(user("엄마 타이레놀 삭제해줘"), assistant("확인 중이에요"), user("취소해")).executable()).isFalse();
         assertThat(prepare(user("엄마 타이레놀 삭제해줘"), assistant("확인 중이에요"), user("아니요")).executable()).isFalse();
         assertThat(prepare(user("엄마 타이레놀 삭제해줘"), user("삭제 말고 오늘까지만")).executable()).isFalse();
@@ -162,7 +162,7 @@ class MedicationLiveRemovalTests {
     }
     private void given(Plan plan, MedicationTarget... targets) {
         when(reads.allDrugs(5)).thenReturn(List.of(targets));
-        when(planner.plan(any(), any(), anyList(), anyList())).thenReturn(plan);
+        when(planner.plan(any(), any(), anyList(), anyList(), anyList())).thenReturn(plan);
     }
     private Plan plan(String operation, String profile, List<String> drugs, String evidence) {
         return new Plan(operation, 999L, null, null, null, null, null, null, null,

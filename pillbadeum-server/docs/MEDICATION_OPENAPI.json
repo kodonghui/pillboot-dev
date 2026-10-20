@@ -724,7 +724,6 @@
         "required": [
           "sdp",
           "selectedDate",
-          "selectedMyDrugId",
           "selectedProfileId"
         ]
       },

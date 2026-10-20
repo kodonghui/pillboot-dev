@@ -90,6 +90,28 @@ test('로그인 토큰이 없으면 마이크·API를 시작하지 않음', asyn
   assert.equal(app.requests.length, 0);
 });
 
+test('내 약 ID를 비워두면 null로 Live를 시작할 수 있음', async () => {
+  const app = environment();
+  app.el('token').value = 'fixture-token';
+  app.el('drug').value = '';
+  await app.el('start').click();
+  const start = app.requests.find(request => request.options.method === 'POST');
+  assert.ok(start);
+  assert.equal(JSON.parse(start.options.body).selectedMyDrugId, null);
+  await app.el('stop').click();
+});
+
+test('내 약 ID는 생략 가능해도 0이나 음수는 허용하지 않음', async () => {
+  for (const id of ['0', '-1', 'NaN']) {
+    const app = environment();
+    app.el('token').value = 'fixture-token';
+    app.el('drug').value = id;
+    await app.el('start').click();
+    assert.equal(app.requests.length, 0);
+    assert.equal(app.peers.length, 0);
+  }
+});
+
 test('1분 만료 즉시 시간 초과 안내와 미디어 정리를 하고 종료 응답을 기다림', async () => {
   const closing = deferred();
   const app = environment({ fetcher: (url, options) => {
