@@ -35,6 +35,8 @@ public class ChatSessionService {
     @Transactional
     public Creation createOrReuse(Long profileId) {
         Long memberId = SecurityUtil.getCurrentMemberId();
+        // 프로필 삭제와 동일하게 회원 → 프로필 순서로 잠가 FK 삽입과 삭제가 교착하지 않게 함.
+        sessions.lockMember(memberId).orElseThrow(() -> new NotFoundException("회원을 찾을 수 없습니다."));
         Long ownerId = sessions.lockProfileOwner(profileId)
                 .orElseThrow(() -> new NotFoundException("프로필을 찾을 수 없습니다."));
         SecurityUtil.checkOwner(ownerId);

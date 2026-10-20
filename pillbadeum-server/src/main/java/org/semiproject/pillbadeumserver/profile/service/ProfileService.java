@@ -112,6 +112,9 @@ public class ProfileService {
 
         // 1. 토큰에서 로그인 한 회원 ID를 가져온다.
         Long memberId = SecurityUtil.getCurrentMemberId();
+        // PROF-004: 두 프로필을 동시에 지워도 개수 검사는 같은 회원 잠금 뒤의 최신 값으로 수행함.
+        memberRepository.lockMemberId(memberId)
+            .orElseThrow(() -> new NotFoundException("해당 회원이 존재하지 않습니다."));
 
         // 2. 다른 회원의 프로필이거나, 프로필이 존재하지 않으면 삭제하지 않는다.
         Profile profile = profileRepository

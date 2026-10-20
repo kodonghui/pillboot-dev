@@ -9,6 +9,9 @@ import org.springframework.data.repository.query.Param;
 /** 대화방 저장·조회와 소유권 확인에 필요한 프로필 열 조회를 담당한다. */
 public interface ChatSessionRepository extends JpaRepository<ChatSession, Long> {
 
+    @Query(value = "SELECT member_id FROM member WHERE member_id=:memberId FOR UPDATE", nativeQuery = true)
+    java.util.Optional<Long> lockMember(@Param("memberId") Long memberId);
+
     /** CHAT-001의 소유권 확인용 조회이다. 프로필이 없으면 빈 Optional이며 행을 잠그지 않는다. */
     @Query(value = "SELECT member_id FROM profile WHERE profile_id = :profileId", nativeQuery = true)
     Optional<Long> findProfileOwner(@Param("profileId") Long profileId);

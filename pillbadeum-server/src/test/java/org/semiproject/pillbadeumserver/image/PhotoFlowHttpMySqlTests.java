@@ -434,6 +434,20 @@ class PhotoFlowHttpMySqlTests {
   }
 
   @Test
+  void concurrentDifferentProfileDeletesPreserveLastProfileInMysql() throws Exception {
+    var start = new CountDownLatch(1);
+    try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
+      var left = pool.submit(() -> { start.await(); return raw("DELETE", "/api/profiles/" + profileId, null, token); });
+      var right = pool.submit(() -> { start.await(); return raw("DELETE", "/api/profiles/" + otherProfileId, null, token); });
+      start.countDown();
+      var responses = List.of(left.get(10, TimeUnit.SECONDS), right.get(10, TimeUnit.SECONDS));
+      assertThat(responses.stream().map(HttpResponse::statusCode)).containsExactlyInAnyOrder(204, 409);
+      assertThat(responses.stream().filter(r -> r.statusCode() == 409).findFirst().orElseThrow().body()).contains("LAST_PROFILE");
+      assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM profile WHERE member_id=?", Integer.class, memberId)).isEqualTo(1);
+    }
+  }
+
+  @Test
   void wrongPhotoCountCorruptFileAndUnauthorizedUploadDoNotCallProviders() throws Exception {
     identify("PILL", token, 400, "front");
     identify("PRESCRIPTION", token, 400, "image", "image");

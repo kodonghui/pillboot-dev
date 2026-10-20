@@ -235,6 +235,8 @@ public class ImageKeywordRegistrationService {
 
   /** 같은 프로필 선택 저장을 직렬화한다. 다른 회원의 ID로 잠금을 얻거나 행을 만들지 않는다. */
   public void lockProfile(long profileId) {
+    // 사진의 member FK와 프로필 삭제가 같은 회원 → 프로필 잠금 순서를 사용함.
+    jdbc.queryForList("SELECT member_id FROM member WHERE member_id=? FOR UPDATE", Long.class, SecurityUtil.getCurrentMemberId());
     if (jdbc.queryForList(
             "SELECT profile_id FROM profile WHERE profile_id=? AND member_id=? FOR UPDATE",
             Long.class,
