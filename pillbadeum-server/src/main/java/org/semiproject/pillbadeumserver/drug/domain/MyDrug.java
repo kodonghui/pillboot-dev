@@ -168,7 +168,8 @@ public class MyDrug {
         if (doseTimes == null || doseTimes.isEmpty() || doseTimes.size() > MAX_DOSE_TIMES) {
             throw invalid("복용 시각은 하루 1~" + MAX_DOSE_TIMES + "개를 입력해주세요.");
         }
-        if (doseTimes.contains(null)) {
+        // List.of(...) 는 contains(null) 에서 NullPointerException 을 던지므로 stream 으로 검사한다.
+        if (doseTimes.stream().anyMatch(Objects::isNull)) {
             throw invalid("복용 시각을 확인해주세요.");
         }
 

@@ -2,11 +2,18 @@ package org.semiproject.pillbadeumserver.drug.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
+import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
 import org.semiproject.pillbadeumserver.drug.service.MyDrugService;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -18,8 +25,8 @@ import java.util.List;
  *  ----------------------------------------------------------------------------------
  *  지금 구현된 API
  *  - GET    /api/profiles/{profileId}/drugs              내 약 목록
+ *  - POST   /api/profiles/{profileId}/drugs              확인한 약 저장 (201, 저장된 상세 배열)
  *  이후 추가할 API
- *  - POST   /api/profiles/{profileId}/drugs              확인한 약 저장 (201)
  *  - GET    /api/profiles/{profileId}/drugs/{myDrugId}   약 상세
  *  - PATCH  /api/profiles/{profileId}/drugs/{myDrugId}   복용정보 수정
  *  - DELETE /api/profiles/{profileId}/drugs/{myDrugId}   약 삭제 (204)
@@ -40,5 +47,15 @@ public class MyDrugController {
     @GetMapping
     public List<MyDrugListResponse> getMyDrugs(@PathVariable Long profileId) {
         return myDrugService.getMyDrugs(profileId);
+    }
+
+    /* 목차. 2. 확인한 약 저장 (이름 검색 · 알약 사진 · 처방전 사진 공통, 1~10개 한 번에) */
+    @Operation(summary = "확인한 약 저장",
+            description = "사용자가 확인한 약을 복용정보와 함께 저장합니다. 하나라도 실패하면 전부 저장되지 않습니다.")
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<MyDrugDetailResponse> register(@PathVariable Long profileId,
+                                               @Valid @RequestBody MyDrugCreateRequest request) {
+        return myDrugService.registerAll(profileId, request);
     }
 }
