@@ -73,6 +73,31 @@ public class Drug {
     @Column(name = "synced_at", nullable = false)
     private LocalDateTime syncedAt;     // 공공데이터에서 가져온 시각 (근거 출처의 조회 시각으로도 보여줌)
 
+    @Column(name = "metadata_source", nullable = false, length = 20)
+    private String metadataSource = "GRAIN";
+
+    @Column(name = "cancelled")
+    private Boolean cancelled;
+
+    /** 신규 허가/낱알 자료의 출처만 기록하며 과거 출처를 추측하지 않음. */
+    public void recordMetadataSource(String source, Boolean cancellation) {
+        if (!java.util.Set.of("UNKNOWN", "GRAIN", "PERMIT", "MIXED").contains(source))
+            throw new IllegalArgumentException("의약품 자료 출처를 확인해주세요.");
+        metadataSource = source;
+        if (cancellation != null) cancelled = cancellation;
+    }
+
+    public String getMetadataSource() { return metadataSource; }
+    public Boolean getCancelled() { return cancelled; }
+    public String metadataSourceName() {
+        return switch (metadataSource) {
+            case "GRAIN" -> "식품의약품안전처 의약품 낱알식별 정보";
+            case "PERMIT" -> "식품의약품안전처 의약품 제품 허가정보";
+            case "MIXED" -> "식품의약품안전처 의약품 낱알식별·제품 허가정보";
+            default -> "식품의약품안전처 의약품 정보(기존 캐시·출처 미확인)";
+        };
+    }
+
     // JPA 전용 기본 생성자
     protected Drug() {
     }

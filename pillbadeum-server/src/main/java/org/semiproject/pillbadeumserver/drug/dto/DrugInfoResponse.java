@@ -72,7 +72,7 @@ public record DrugInfoResponse(
                 drug.getLineFront(),
                 drug.getLineBack(),
                 drug.getForm(),
-                DrugSyncService.SOURCE_NAME,
+                drug.metadataSourceName(),
                 drug.getSyncedAt());
     }
 

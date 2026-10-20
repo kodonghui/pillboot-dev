@@ -29,7 +29,7 @@ class SchemaContractTests {
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
             org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(127);
+                    .isEqualTo(129);
             assertConstraintCount(connection, "PRIMARY KEY", 16);
             assertConstraintCount(connection, "FOREIGN KEY", 18);
             assertConstraintCount(connection, "UNIQUE", 4);

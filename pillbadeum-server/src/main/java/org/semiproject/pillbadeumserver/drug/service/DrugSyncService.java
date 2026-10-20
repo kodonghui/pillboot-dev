@@ -63,7 +63,14 @@ public class DrugSyncService {
         String key = normalizeItemSeq(itemSeq);
         Optional<Drug> saved = drugRepository.findById(key);
         if (saved.isPresent()) {
-            return saved.get();
+            var cached = saved.get();
+            if (!needsRefresh(cached)) return cached;
+            try { return syncByItemSeq(key); }
+            catch (BusinessException unavailable) {
+                // 상세 보강 실패가 이미 등록한 약과 풍부한 기존 캐시를 없애지 않음.
+                log.warn("[drug sync] result=cache_retained");
+                return cached;
+            }
         }
         return syncByItemSeq(key);
     }
@@ -85,18 +92,27 @@ public class DrugSyncService {
         final JsonNode item = found;
         String material = permitOnly ? materialOf(item) : fetchMaterial(key, text(item, "ITEM_NAME"));
         Values values = Values.from(item, key, material, permitOnly);
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(org.semiproject.pillbadeumserver.common.config.TimeZoneConfig.ZONE);
+        String source = permitOnly ? "PERMIT" : "MIXED";
 
         Drug drug = drugRepository.findById(key)
                 .map(existing -> {
-                    existing.sync(values.name, values.maker, values.etcOtc, values.className, values.imageUrl,
-                            values.printFront, values.printBack, values.shape, values.color, values.lineFront,
-                            values.lineBack, values.form, values.material, now);
+                    existing.sync(prefer(values.name, existing.getName()), prefer(values.maker, existing.getMaker()),
+                            values.etcOtc, prefer(values.className, existing.getClassName()), prefer(values.imageUrl, existing.getImageUrl()),
+                            prefer(values.printFront, existing.getPrintFront()), prefer(values.printBack, existing.getPrintBack()),
+                            prefer(values.shape, existing.getShape()), prefer(values.color, existing.getColor()),
+                            prefer(values.lineFront, existing.getLineFront()), prefer(values.lineBack, existing.getLineBack()),
+                            prefer(values.form, existing.getForm()), prefer(values.material, existing.getMaterial()), now);
+                    existing.recordMetadataSource(existing.getMetadataSource().equals(source) ? source : "MIXED", null);
                     return existing;
                 })
-                .orElseGet(() -> Drug.create(key, values.name, values.maker, values.etcOtc, values.className, values.imageUrl,
-                        values.printFront, values.printBack, values.shape, values.color, values.lineFront,
-                        values.lineBack, values.form, values.material, now));
+                .orElseGet(() -> {
+                    var created = Drug.create(key, values.name, values.maker, values.etcOtc, values.className, values.imageUrl,
+                            values.printFront, values.printBack, values.shape, values.color, values.lineFront,
+                            values.lineBack, values.form, values.material, now);
+                    created.recordMetadataSource(source, null);
+                    return created;
+                });
 
         try {
             return drugRepository.save(drug);
@@ -148,6 +164,7 @@ public class DrugSyncService {
         return PublicDataClient.items(body).stream()
                 .filter(item -> itemSeq.equals(textIgnoreCase(item, "ITEM_SEQ")))
                 .map(DrugSyncService::materialOf)
+                .filter(java.util.Objects::nonNull)
                 .findFirst()
                 .orElse(null);
     }
@@ -306,4 +323,15 @@ public class DrugSyncService {
     }
 
     private static String known(String value) { return value == null ? "미확인" : value; }
+
+    private static boolean unknown(String value) { return value == null || value.isBlank() || value.equals("미확인"); }
+    private static String prefer(String incoming, String existing) { return !unknown(incoming) ? incoming : !unknown(existing) ? existing : incoming; }
+
+    private static boolean needsRefresh(Drug cached) {
+        var now = LocalDateTime.now(org.semiproject.pillbadeumserver.common.config.TimeZoneConfig.ZONE);
+        if (cached.getSyncedAt().isBefore(now.minusDays(7)) || "UNKNOWN".equals(cached.getMetadataSource())) return true;
+        boolean missing = unknown(cached.getMaterial()) || unknown(cached.getClassName()) || unknown(cached.getShape()) || unknown(cached.getColor()) || unknown(cached.getForm());
+        // 허가자료만 있는 제형의 외형 미확인은 정상임. 클릭마다 낱알0건을 반복하지 않음.
+        return missing && (!"PERMIT".equals(cached.getMetadataSource()) || cached.getSyncedAt().isBefore(now.minusMinutes(10)));
+    }
 }

@@ -60,6 +60,21 @@ class DrugSyncFallbackTests {
     verifyNoInteractions(drugs);
   }
 
+  @Test
+  void oldIncompleteCacheIsEnrichedAndFailedRefreshKeepsOriginal() {
+    var cached = Drug.create("900001", "합성시럽", "합성제약", "OTC", "미확인", null, null, null, "미확인", "미확인", null, null, "미확인", "미확인", java.time.LocalDateTime.now().minusYears(1));
+    cached.recordMetadataSource("PERMIT", null);
+    when(drugs.findById("900001")).thenReturn(Optional.of(cached));
+    when(client.get(eq(DrugSyncService.GRAIN_INFO_PATH), anyMap())).thenReturn(json.valueToTree(Map.of("items", List.of())));
+    when(client.get(eq(DrugGuideService.PERMIT_DETAIL_PATH), anyMap())).thenReturn(json.valueToTree(Map.of("items", List.of(row()))));
+    when(drugs.save(any())).thenAnswer(c -> c.getArgument(0));
+    assertThat(service.getOrSync("900001").getMaterial()).isEqualTo("합성성분");
+    cached.sync(cached.getName(), cached.getMaker(), "OTC", cached.getClassName(), null, null, null, cached.getShape(), cached.getColor(), null, null, cached.getForm(), cached.getMaterial(), java.time.LocalDateTime.now().minusYears(1));
+    when(client.get(eq(DrugSyncService.GRAIN_INFO_PATH), anyMap())).thenThrow(ExternalApiException.failed("synthetic", "unavailable", null));
+    assertThat(service.getOrSync("900001")).isSameAs(cached);
+    assertThat(cached.getMaterial()).isEqualTo("합성성분");
+  }
+
   static Map<String, Object> row() {
     return Map.of("ITEM_SEQ", "900001", "ITEM_NAME", "합성시럽", "ENTP_NAME", "합성제약", "ETC_OTC_NAME", "일반의약품", "MAIN_ITEM_INGR", "[SYN]합성성분");
   }

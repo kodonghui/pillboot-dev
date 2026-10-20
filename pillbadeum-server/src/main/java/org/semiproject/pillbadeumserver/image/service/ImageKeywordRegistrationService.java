@@ -79,7 +79,7 @@ public class ImageKeywordRegistrationService {
       else
         for (int i = 0; i < group.candidates().size(); i++) {
           var candidate = group.candidates().get(i);
-          cache(candidate);
+          cache(candidate, root.kind() == ImagePhotoKind.PILL ? "GRAIN" : "PERMIT");
           insertCandidate(root.id(), group, candidate, i + 1);
         }
     }
@@ -89,12 +89,15 @@ public class ImageKeywordRegistrationService {
         root.id());
   }
 
-  private void cache(PhotoCandidateData c) {
+  private void cache(PhotoCandidateData c, String source) {
+    var enrich = List.of("class_name", "image_url", "print_front", "print_back", "shape", "color", "line_front", "line_back", "form", "material")
+        .stream().map(column -> column + "=IF(" + column + " IS NULL OR " + column + "='미확인',COALESCE(VALUES(" + column + ")," + column + ")," + column + ")")
+        .collect(java.util.stream.Collectors.joining(","));
     jdbc.update(
         """
-        INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,image_url,print_front,print_back,shape,color,line_front,line_back,form,material,synced_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE item_seq=item_seq
-        """,
+        INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,image_url,print_front,print_back,shape,color,line_front,line_back,form,material,synced_at,metadata_source)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
+        """ + enrich + ",metadata_source=CASE WHEN metadata_source='UNKNOWN' THEN VALUES(metadata_source) WHEN metadata_source=VALUES(metadata_source) THEN metadata_source ELSE 'MIXED' END,synced_at=VALUES(synced_at)",
         c.itemSeq(),
         c.name(),
         c.maker(),
@@ -109,7 +112,7 @@ public class ImageKeywordRegistrationService {
         c.lineBack(),
         c.form(),
         c.material(),
-        LocalDateTime.now(TimeZoneConfig.ZONE));
+        LocalDateTime.now(TimeZoneConfig.ZONE), source);
   }
 
   private void insertCandidate(

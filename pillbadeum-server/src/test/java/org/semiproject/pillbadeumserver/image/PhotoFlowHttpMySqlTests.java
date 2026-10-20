@@ -227,6 +227,21 @@ class PhotoFlowHttpMySqlTests {
   }
 
   @Test
+  void sparsePermitCacheIsEnrichedByLaterPillMetadataAndKeepsRicherValues() throws Exception {
+    long first = identify("PRESCRIPTION", token, 200, "image").path("photoId").asLong();
+    jdbc.update("UPDATE drug SET shape='미확인',image_url=NULL,material='기존상세성분' WHERE item_seq=?", code1);
+    json("DELETE", "/api/photos/" + first, null, token, 204);
+    var richer = new LinkedHashMap<String, Object>(officialRows.getFirst()); richer.put("ITEM_IMAGE", "https://example.test/synthetic.png");
+    officialRows = List.of(richer); vision = pill("합성약정", "A", "B");
+    identify("PILL", token, 200, "front", "back");
+    assertThat(jdbc.queryForObject("SELECT shape FROM drug WHERE item_seq=?", String.class, code1)).isEqualTo("원형");
+    assertThat(jdbc.queryForObject("SELECT material FROM drug WHERE item_seq=?", String.class, code1)).isEqualTo("기존상세성분");
+    assertThat(jdbc.queryForObject("SELECT image_url FROM drug WHERE item_seq=?", String.class, code1)).endsWith("synthetic.png");
+    var detail = json("GET", "/api/drugs/" + code1, null, token, 200);
+    assertThat(detail.path("sourceName").asString()).contains("낱알식별·제품 허가정보");
+  }
+
+  @Test
   void imprintOnlyIsUnreadableAndDoesNotSearchWholeCatalog() throws Exception {
     vision = pill("", "A", "B");
     var result = identify("PILL", token, 200, "front", "back");
