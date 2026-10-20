@@ -3,6 +3,7 @@ package org.semiproject.pillbadeumserver.drug.service;
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
+import org.semiproject.pillbadeumserver.drug.domain.MyDrug;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
@@ -24,8 +25,8 @@ import java.util.Set;
  *  - getMyDrugs     : 내 약 목록 (GET /api/profiles/{profileId}/drugs)
  *  - registerAll    : 확인한 약 저장 (POST /api/profiles/{profileId}/drugs)
  *  - getMyDrug      : 내 약 상세 (GET /api/profiles/{profileId}/drugs/{myDrugId})
- *  이후 추가할 기능 (계획 문서 5장 순서)
- *  - 수정(PATCH) · 삭제(DELETE)
+ *  - deleteMyDrug   : 내 약 삭제 (DELETE /api/profiles/{profileId}/drugs/{myDrugId})
+ *  복용정보 수정은 범위에서 빠졌다. 기간 · 시각 · 1회 개수 수정은 복약 일정 PUT .../schedule 이 맡는다.
  *  ----------------------------------------------------------------------------------
  *  - 엔티티는 트랜잭션 안에서 DTO 로 바꿔서 돌려준다. (open-in-view: false)
  * */
@@ -122,5 +123,28 @@ public class MyDrugService {
                 .filter(myDrug -> myDrug.belongsTo(profileId))
                 .map(MyDrugDetailResponse::from)
                 .orElseThrow(() -> new NotFoundException("등록된 약을 찾을 수 없습니다."));
+    }
+
+    /* 목차. 4. 내 약 삭제
+     *  ----------------------------------------------------------------------------------
+     *  1) 프로필 소유권 확인 (없는 프로필 404, 남의 프로필 403)
+     *  2) 그 약이 경로의 프로필 것이 아니거나 이미 없으면 404 (다른 탭에서 먼저 지운 경우 포함)
+     *  3) my_drug 행을 실제로 지운다. (삭제 플래그 컬럼 없음)
+     *  ----------------------------------------------------------------------------------
+     *  - my_drug 를 FK 로 참조하는 테이블이 없어 함께 지울 것이 없다. drug(공용 약 정보)는 남긴다.
+     *  - 일정과 알림은 복약 일정 쪽이 my_drug 를 직접 읽으므로, 행이 없어지면 다음 조회부터 빠진다.
+     *  - 약은 두고 일정만 지우는 것은 복약 일정 DELETE .../schedule 이 맡는다.
+     *  - 직접 입력한 약(source = MANUAL)도 같은 방법으로 지운다.
+     * */
+    @Transactional
+    public void deleteMyDrug(Long profileId, Long myDrugId) {
+
+        profileAccessChecker.checkOwner(profileId);
+
+        MyDrug myDrug = myDrugRepository.findById(myDrugId)
+                .filter(found -> found.belongsTo(profileId))
+                .orElseThrow(() -> new NotFoundException("등록된 약을 찾을 수 없습니다."));
+
+        myDrugRepository.delete(myDrug);
     }
 }
