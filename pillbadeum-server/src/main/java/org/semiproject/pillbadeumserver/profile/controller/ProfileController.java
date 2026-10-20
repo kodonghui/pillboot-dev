@@ -1,6 +1,8 @@
 package org.semiproject.pillbadeumserver.profile.controller;
 
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.semiproject.pillbadeumserver.profile.dto.ProfileCreateRequest;
 import org.semiproject.pillbadeumserver.profile.dto.ProfileResponse;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Tag(name = "프로필", description = "회원별 프로필 생성·목록 조회·수정·삭제")
 @RestController
 @RequestMapping("/api/profiles")
 public class ProfileController {
@@ -25,6 +28,7 @@ public class ProfileController {
     }
 
     /* 프로필 생성 */
+    @Operation(summary = "프로필 생성")
     @PostMapping
     public ResponseEntity<ProfileResponse> createProfiles(
                                             @Valid @RequestBody ProfileCreateRequest request) {
@@ -33,13 +37,15 @@ public class ProfileController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    /* 프로필 조회 */
+    /* 프로필 목록 조회 */
+    @Operation(summary = "프로필 목록 조회")
     @GetMapping
     public ResponseEntity<List<ProfileResponse>> getAllProfiles() {
         return ResponseEntity.ok(profileService.getProfiles());
     }
 
     /* 프로필 수정 */
+    @Operation(summary = "프로필 수정")
     @PutMapping("/{profileId}")
     public ResponseEntity<ProfileResponse> updateProfile(
                                         @PathVariable("profileId") Long profileId,
@@ -50,6 +56,7 @@ public class ProfileController {
     }
 
     /* 프로필 삭제 */
+    @Operation(summary = "프로필 삭제")
     @DeleteMapping("/{profileId}")
     public ResponseEntity<Void> deleteProfile (@PathVariable("profileId") Long profileId) {
 
