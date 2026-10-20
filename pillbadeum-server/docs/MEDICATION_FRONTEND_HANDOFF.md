@@ -41,9 +41,11 @@
 
 `S` = `/api/profiles/{profileId}/drugs/{myDrugId}/schedule`
 
+2026-10-20 develop 병합 후 내 약 목록 `GET /api/profiles/{profileId}/drugs`는 약 담당의 배열 응답을 유지한다. 일정 등록용 `{drugs: Schedule[]}` 응답은 아래 `schedule-choices` 주소를 사용한다. 일정 CRUD와 Live 주소는 그대로다.
+
 | 메서드·경로 | 응답 | 연결 위치 |
 | --- | --- | --- |
-| `GET /api/profiles/{profileId}/drugs` | 200 `{drugs: Schedule[]}` | 현재 프로필의 등록된 약 고르기. 일정 없는 약도 포함 |
+| `GET /api/profiles/{profileId}/drugs/schedule-choices` | 200 `{drugs: Schedule[]}` | 현재 프로필의 등록된 약 고르기. 일정 없는 약도 포함 |
 | `GET S` | 200 `Schedule`, 일정 없으면 404 | 일정 상세 |
 | `PUT S` | 200 `Schedule` | 일정 등록 또는 전체 교체 |
 | `POST S/stop` | 200 `Schedule` | 오늘까지만 먹기 |

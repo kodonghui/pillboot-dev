@@ -29,11 +29,11 @@ class SchemaContractTests {
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
             ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(124);
+                    .isEqualTo(125);
             assertConstraintCount(connection, "PRIMARY KEY", 16);
             assertConstraintCount(connection, "FOREIGN KEY", 16);
             assertConstraintCount(connection, "UNIQUE", 3);
-            assertConstraintCount(connection, "CHECK", 2);
+            assertConstraintCount(connection, "CHECK", 3);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.table_constraints "
                     + "WHERE constraint_schema=DATABASE() AND table_name='drug' "
                     + "AND constraint_type='CHECK' AND constraint_name='chk_drug_type' AND enforced='YES'"))
@@ -49,6 +49,8 @@ class SchemaContractTests {
             assertColumn(connection, "my_drug", "start_date", "date", null, "YES", null);
             assertColumn(connection, "my_drug", "end_date", "date", null, "YES", null);
             assertColumn(connection, "my_drug", "dose_times", "varchar", 50L, "YES", null);
+            assertColumn(connection, "my_drug", "item_seq", "varchar", 100L, "YES", null);
+            assertColumn(connection, "my_drug", "custom_name", "varchar", 100L, "YES", null);
             assertColumn(connection, "consent", "terms_title", "varchar", 30L, "NO", null);
             assertColumn(connection, "drug", "etc_otc", "varchar", 10L, "NO", null);
             assertColumn(connection, "drug", "material", "varchar", 30L, "NO", null);

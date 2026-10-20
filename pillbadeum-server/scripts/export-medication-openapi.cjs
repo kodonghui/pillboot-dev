@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const base = new URL(process.env.MEDICATION_BASE_URL || "http://localhost:8080");
-const belongs = pathname => /^\/api\/(calendar(?:\/doses)?|profiles\/\{profileId\}\/drugs(?:\/\{myDrugId\}\/schedule(?:\/stop)?)?|medication\/live\/sessions(?:\/\{sessionId\})?|notification-settings|push\/(?:vapid-public-key|subscriptions))$/.test(pathname);
+const belongs = pathname => /^\/api\/(calendar(?:\/doses)?|profiles\/\{profileId\}\/drugs(?:\/schedule-choices|\/\{myDrugId\}\/schedule(?:\/stop)?)|medication\/live\/sessions(?:\/\{sessionId\})?|notification-settings|push\/(?:vapid-public-key|subscriptions))$/.test(pathname);
 
 (async () => {
   const response = await fetch(new URL("/v3/api-docs", base), { signal: AbortSignal.timeout(15000) });

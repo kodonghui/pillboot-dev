@@ -3,6 +3,16 @@
 검증일: 2026-10-19. 대상은 일정·캘린더·복용 예정 조회·Live·알림이다.
 복약 완료 체크와 실제 복용 기록은 제외한다.
 
+## 2026-10-20 develop 병합 검증
+
+- 원격 develop `e7c533857a1c04db2f9b91f4868d9ad28ab7b35f`를 로컬 feat/MG에 병합했다. 원격 push나 PR 생성은 하지 않는다.
+- 약 목록 중복 매핑을 제거했다. 팀원의 `/api/profiles/{profileId}/drugs`는 유지하고 일정용 약 선택은 `/api/profiles/{profileId}/drugs/schedule-choices`로 분리했다. 문서·HTTP 예시·검사 스크립트도 맞췄다.
+- 프로필 엔티티와 팀원 테스트의 컬럼명을 현재 로컬 SQL의 relationship_type/material에 맞췄다. Drug의 약품 동기화 변경과 성분명 설명은 유지했다.
+- 직접 입력 약은 팀원의 내 약 목록에서도 이름으로 표시한다. 품목 코드가 없는 행은 대화 컨텍스트의 공식 약품·DUR 조회 목록에서 제외해 NULL 접근과 잘못된 품목 조회를 막는다. 직접 입력 이름만으로 약품 정보를 추정하지 않는다.
+- 공통 OpenAiClient의 확장된 생성자에 맞춰 복약지도 테스트를 수정했다. SchemaContract의 기대값은 125개 컬럼·CHECK 3개로 맞췄다.
+- Gradle `--offline test bootJar` 통과: 전체 397개, 통과 340개, 실제 MySQL/Qdrant 전용 57개 제외, 실패 0. 전체 애플리케이션 빈 구성·JPA 저장소 구성·API 매핑과 Swagger HTTP 응답은 DB 대역으로 확인했다.
+- Node 브라우저 모의 테스트 18개 통과. 실제 DB 마이그레이션·음성 연결·푸시 발송은 이번 병합 검증에서 실행하지 않았다.
+
 ## 2026-10-20 직접 입력 약 지원 추가 검증
 
 - Gradle `--offline test bootJar`: 전체 220개 중 213개 통과, 전용 MySQL 테스트 7개 제외, 실패 0. 실행 파일 빌드 통과.

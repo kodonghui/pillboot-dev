@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -24,7 +25,7 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 
-/** OpenAI Responses/Embedding 클라이언트. 분류/임베딩 10초, 비전/답변/요약 30초.
+/** OpenAI Decisions/Responses/Embedding 클라이언트. 분류/임베딩 10초, 비전/답변/요약 30초.
  * 임베딩만 일시 오류를 0.5초 뒤 1회 재시도하며, 생성 요청은 자동 재시도하지 않는다.
  * 여러 호출을 합친 요청 전체 90초 제한은 담당 서비스에서 별도로 적용해야 한다.
  */
@@ -42,14 +43,17 @@ public class OpenAiClient {
     private final boolean enabled;
 
     private final String chatModel;
+    private final String decisionModel;
     private final String visionModel;
     private final String embeddingModel;
     private final String reasoningEffort;
+    private final BigDecimal decisionInputUsdPerMillion;
 
     public OpenAiClient(ObjectMapper objectMapper,
                         @Value("${openai.api-key}") String apiKey,
                         @Value("${openai.base-url}") String baseUrl,
                         @Value("${openai.model.chat}") String chatModel,
+                        @Value("${openai.model.decision:}") String decisionModel,
                         @Value("${openai.model.vision}") String visionModel,
                         @Value("${openai.model.embedding}") String embeddingModel,
                         @Value("${openai.reasoning-effort}") String reasoningEffort,
@@ -57,14 +61,20 @@ public class OpenAiClient {
                         @Value("${openai.short-read-timeout-ms}") long shortReadTimeoutMs,
                         @Value("${openai.long-read-timeout-ms}") long longReadTimeoutMs,
                         @Value("${openai.max-concurrent-calls:4}") int maxConcurrentCalls,
-                        @Value("${openai.permit-timeout-ms:1000}") long permitTimeoutMs) {
+                        @Value("${openai.permit-timeout-ms:1000}") long permitTimeoutMs,
+                        @Value("${openai.decision-input-usd-per-million:0.10}") BigDecimal decisionInputUsdPerMillion) {
 
         this.objectMapper = objectMapper;
         this.enabled = apiKey != null && !apiKey.isBlank();
         this.chatModel = chatModel;
+        this.decisionModel = decisionModel;
         this.visionModel = visionModel;
         this.embeddingModel = embeddingModel;
         this.reasoningEffort = reasoningEffort;
+        if (decisionInputUsdPerMillion == null || decisionInputUsdPerMillion.signum() < 0) {
+            throw new IllegalArgumentException("분류 입력 토큰 단가는 0 이상이어야 합니다.");
+        }
+        this.decisionInputUsdPerMillion = decisionInputUsdPerMillion;
 
         if (maxConcurrentCalls < 1 || permitTimeoutMs < 1) {
             throw new IllegalArgumentException("OpenAI 동시 호출 수와 대기 시간은 양수여야 합니다.");
@@ -84,9 +94,15 @@ public class OpenAiClient {
 
     /* 목차. 1. 글로 된 답을 한 번에 받기 */
     public String createText(String instructions, List<AiMessage> messages, int maxOutputTokens) {
+        return createTextResult(instructions, messages, maxOutputTokens).text();
+    }
 
+    /** CHAT-007: 본문과 보조 ID를 받는다. 이전 응답 연결 없이 매번 DB에서 만든 input을 보낸다. */
+    public AiTextResult createTextResult(String instructions, List<AiMessage> messages, int maxOutputTokens) {
         Map<String, Object> body = requestBody(chatModel, instructions, toInput(messages), maxOutputTokens);
-        return outputText(post(longClient, "/responses", body, chatModel, false));
+        JsonNode response = post(longClient, "/responses", body, chatModel, false);
+        String id = response.path("id").isString() ? response.path("id").asString("") : "";
+        return new AiTextResult(outputText(response), id.isBlank() || id.length() > 255 ? null : id);
     }
 
     /* 목차. 2. 분류를 JSON Schema 모양으로 받기 (구조화 출력, 10초)
@@ -102,6 +118,32 @@ public class OpenAiClient {
         body.put("text", jsonSchemaFormat(schemaName, schema));
 
         return parseJson(outputText(post(shortClient, "/responses", body, chatModel, false)));
+    }
+
+    /**
+     * CHAT-005 분류용 Decisions choice 호출. 질문 원문과 고정 선택지를 받아 선택된 값만 반환한다.
+     * Responses 전용 생성 옵션을 섞지 않고 짧은 클라이언트·공통 호출 제한을 사용하며 재시도하지 않는다.
+     * refusal·누락·다른 질문의 답·선택지 밖 값은 통과 결과로 사용하지 않고 공통 503 예외로 처리한다.
+     */
+    public String createChoice(String input, String name, String instructions, List<DecisionChoice> choices) {
+        Map<String, Object> question = Map.of("type", "choice", "name", name,
+                "instructions", instructions, "choices", choices);
+        Map<String, Object> body = Map.of("model", decisionModel, "input", input,
+                "questions", List.of(question));
+        JsonNode response = post(shortClient, "/decisions", body, decisionModel, false);
+        JsonNode answers = response.path("answers");
+        if (!answers.isArray() || answers.size() != 1) {
+            throw ExternalApiException.failed(API_NAME, "분류 응답이 올바르지 않습니다.", null);
+        }
+        JsonNode answer = answers.path(0);
+        JsonNode value = answer.path("choice");
+        if (!"choice".equals(answer.path("type").asString())
+                || !name.equals(answer.path("name").asString())
+                || !value.isString()
+                || choices.stream().noneMatch(choice -> choice.value().equals(value.asString()))) {
+            throw ExternalApiException.failed(API_NAME, "분류 응답이 올바르지 않습니다.", null);
+        }
+        return value.asString();
     }
 
     /* 목차. 3. 사진을 보고 JSON 으로 받기 (처방전 · 약봉투 · 알약 사진 식별)
@@ -124,12 +166,16 @@ public class OpenAiClient {
         return parseJson(outputText(post(longClient, "/responses", body, visionModel, false)));
     }
 
+    /** 벡터와 같은 모델명을 Qdrant payload·모델별 컬렉션에 기록할 때 사용한다. */
+    public String embeddingModel() { return embeddingModel; }
+
     /* 목차. 4. 문장을 벡터로 바꾸기 (임베딩) */
     public float[] embed(String text) {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", embeddingModel);
         body.put("input", text);
+        body.put("encoding_format", "float");
 
         JsonNode vector = post(shortClient, "/embeddings", body, embeddingModel, true).path("data").path(0).path("embedding");
 
@@ -142,6 +188,9 @@ public class OpenAiClient {
                 throw ExternalApiException.failed(API_NAME, "임베딩 응답이 올바르지 않습니다.", null);
             }
             result[i] = (float) vector.get(i).asDouble();
+            if (!Float.isFinite(result[i])) {
+                throw ExternalApiException.failed(API_NAME, "임베딩 응답이 올바르지 않습니다.", null);
+            }
         }
         return result;
     }
@@ -173,7 +222,7 @@ public class OpenAiClient {
         if (model == null || model.isBlank()) {
             throw new AiUnavailableException("해당 AI 작업의 모델이 설정되지 않았습니다.");
         }
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         Supplier<String> request = () -> client.post()
                 .uri(uri)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -189,7 +238,7 @@ public class OpenAiClient {
         if (!response.isObject()) {
             throw ExternalApiException.failed(API_NAME, "AI 응답이 올바르지 않습니다.", null);
         }
-        logUsage(model, response, start);
+        logUsage(uri, model, response, start);
         return response;
     }
 
@@ -244,8 +293,7 @@ public class OpenAiClient {
     /* 설명. 응답의 output 중 type=message 항목에서 output_text 글만 이어 붙인다. */
     private String outputText(JsonNode response) {
 
-        if ("incomplete".equals(response.path("status").asString())
-                || "failed".equals(response.path("status").asString())) {
+        if (!"completed".equals(response.path("status").asString())) {
             throw ExternalApiException.failed(API_NAME, "AI 응답 생성이 완료되지 않았습니다.", null);
         }
 
@@ -253,26 +301,49 @@ public class OpenAiClient {
         for (JsonNode item : response.path("output")) {
             if ("message".equals(item.path("type").asString())) {
                 for (JsonNode content : item.path("content")) {
+                    if ("refusal".equals(content.path("type").asString())) {
+                        throw ExternalApiException.failed(API_NAME, "AI가 응답을 생성하지 못했습니다.", null);
+                    }
                     if ("output_text".equals(content.path("type").asString())) {
+                        if (!content.path("text").isString()) {
+                            throw ExternalApiException.failed(API_NAME, "AI 응답 본문 형식이 올바르지 않습니다.", null);
+                        }
                         text.append(content.path("text").asString());
                     }
                 }
             }
         }
-        if (text.isEmpty()) {
+        if (text.toString().isBlank()) {
             throw ExternalApiException.failed(API_NAME, "AI 응답 본문이 없습니다.", null);
         }
         return text.toString();
     }
 
-    private void logUsage(String model, JsonNode response, long start) {
+    private void logUsage(String uri, String model, JsonNode response, long start) {
 
         JsonNode usage = response.path("usage");
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+        // Decisions는 입력 토큰만 과금한다. 사용량 누락을 0원으로 기록하지 않고, 단가 기반 추정과 실제 청구를 구분한다.
+        if ("/decisions".equals(uri)) {
+            JsonNode input = usage.path("input_tokens");
+            boolean known = input.isIntegralNumber() && input.asLong() >= 0;
+            String cost = known ? BigDecimal.valueOf(input.asLong()).multiply(decisionInputUsdPerMillion)
+                    .movePointLeft(6).toPlainString() : "unknown";
+            log.info("[OpenAiClient] api=decisions model={} inputTokens={} elapsedMs={} estimatedCostUsd={} inputUsdPerMillion={}",
+                    model, known ? input.asLong() : "unknown", elapsedMs, cost, decisionInputUsdPerMillion);
+            return;
+        }
+        if ("/embeddings".equals(uri)) {
+            JsonNode input = usage.path("prompt_tokens");
+            log.info("[OpenAiClient] api=embeddings model={} inputTokens={} elapsedMs={}", model,
+                    input.isIntegralNumber() && input.asLong() >= 0 ? input.asLong() : "unknown", elapsedMs);
+            return;
+        }
         log.info("[OpenAiClient] 완료 : model={}, 입력 토큰={}, 출력 토큰={}, {}ms",
                 model,
                 usage.path("input_tokens").asInt(),
                 usage.path("output_tokens").asInt(),
-                System.currentTimeMillis() - start);
+                elapsedMs);
     }
 
 }

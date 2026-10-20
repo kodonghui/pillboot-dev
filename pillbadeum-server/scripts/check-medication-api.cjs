@@ -67,7 +67,7 @@ async function check(name, run, needsToken = true) {
     const profileId = process.env.MEDICATION_PROFILE_ID || selected?.profileId;
     const drugId = process.env.MEDICATION_MY_DRUG_ID || selected?.myDrugId;
     if (!profileId || !drugId) throw new Error("일정 없는 계정은 MEDICATION_PROFILE_ID와 MEDICATION_MY_DRUG_ID 지정 필요");
-    const drugs = await request("/api/profiles/" + encodeURIComponent(profileId) + "/drugs");
+    const drugs = await request("/api/profiles/" + encodeURIComponent(profileId) + "/drugs/schedule-choices");
     assert.equal(drugs.status, 200); assert.ok(Array.isArray(drugs.body.drugs));
     const drug = drugs.body.drugs.find(item => String(item.myDrugId) === String(drugId));
     assert.ok(drug, "선택한 약이 현재 회원 목록에 없음");
@@ -75,7 +75,7 @@ async function check(name, run, needsToken = true) {
     assert.equal(schedule.status, drug.hasSchedule ? 200 : 404);
   });
   await check("unknown-profile-hidden", async () => {
-    assert.equal((await request("/api/profiles/9223372036854775807/drugs")).status, 404);
+    assert.equal((await request("/api/profiles/9223372036854775807/drugs/schedule-choices")).status, 404);
   });
   await check("notification-settings-contract", async () => {
     const result = await request("/api/notification-settings");

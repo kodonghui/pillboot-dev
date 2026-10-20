@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/profiles/{profileId}/drugs")
+@RequestMapping("/api/profiles/{profileId}/drugs/schedule-choices")
 @Tag(name = "복약 일정")
 public class MedicationDrugChoiceController {
     private final MedicationDrugChoiceService service;

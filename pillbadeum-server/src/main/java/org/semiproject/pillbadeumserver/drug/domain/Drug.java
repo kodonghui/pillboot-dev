@@ -12,11 +12,12 @@ import java.util.Objects;
  *  ----------------------------------------------------------------------------------
  *  공공데이터 '의약품 낱알식별 정보' 를 저장해 두는 테이블이다. PK 는 품목기준코드(item_seq).
  *  my_drug, dur_warning, dur_interaction 이 이 테이블을 FK 로 참조하므로
- *  내 약을 저장하기 전에 반드시 drug 행이 있어야 한다. (없으면 DrugSearchService 가 조회해서 저장)
+ *  내 약을 저장하기 전에 반드시 drug 행이 있어야 한다. (없으면 DrugSyncService 가 낱알식별을 조회해서 저장)
  *  ----------------------------------------------------------------------------------
  *  - 효능 · 용법 · 주의사항 글은 이 테이블에 없다. 근거 출처(guide)는 e약은요를 실시간으로 조회한다.
  *  - 테이블은 sql/01_PILLBADEUM_DB_SCRIPT.sql 로 만든다. (ddl-auto: none) 컬럼을 바꾸려면 팀 검토가 먼저다.
  *  - 팀 결정으로 DB 컬럼명 오타 matrial 을 material 로 바로잡았다. (기존 DB는 sql/05 적용)
+ *    (낱알식별에는 성분명이 없어 DrugSyncService 가 허가정보 API 에서 채운다)
  *  - etc_otc 는 CHECK 제약으로 'ETC' 또는 'OTC' 만 저장할 수 있다.
  * */
 @Entity
@@ -67,7 +68,7 @@ public class Drug {
     private String form;                // 제형 (정제, 연질캡슐, 경질캡슐 등)
 
     @Column(name = "material", length = 30, nullable = false)
-    private String material;            // 재질
+    private String material;            // 성분명 (예: 암로디핀베실산염)
 
     @Column(name = "synced_at", nullable = false)
     private LocalDateTime syncedAt;     // 공공데이터에서 가져온 시각 (근거 출처의 조회 시각으로도 보여줌)

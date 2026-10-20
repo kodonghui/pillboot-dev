@@ -32,7 +32,7 @@ class MedicationDrugChoiceWebTests {
     @Autowired MockMvc mvc;
     @Autowired JwtTokenProvider tokens;
     @MockitoBean MedicationDrugChoiceService service;
-    private static final String PATH = "/api/profiles/13/drugs";
+    private static final String PATH = "/api/profiles/13/drugs/schedule-choices";
 
     @Test
     void requiresAuthentication() throws Exception {
@@ -61,14 +61,14 @@ class MedicationDrugChoiceWebTests {
         when(service.get(5, 99)).thenThrow(new NotFoundException("조회할 수 있는 프로필이 없습니다."));
         mvc.perform(get(PATH).header("Authorization", bearer()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.drugs").isEmpty());
-        mvc.perform(get("/api/profiles/99/drugs").header("Authorization", bearer()))
+        mvc.perform(get("/api/profiles/99/drugs/schedule-choices").header("Authorization", bearer()))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void invalidProfileIdIsRejectedBeforeService() throws Exception {
-        mvc.perform(get("/api/profiles/0/drugs").header("Authorization", bearer())).andExpect(status().isBadRequest());
-        mvc.perform(get("/api/profiles/not-a-number/drugs").header("Authorization", bearer())).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/profiles/0/drugs/schedule-choices").header("Authorization", bearer())).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/profiles/not-a-number/drugs/schedule-choices").header("Authorization", bearer())).andExpect(status().isBadRequest());
         verifyNoInteractions(service);
     }
 

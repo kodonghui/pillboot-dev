@@ -328,40 +328,6 @@
         }
       }
     },
-    "/api/profiles/{profileId}/drugs": {
-      "get": {
-        "tags": [
-          "복약 일정"
-        ],
-        "summary": "일정 등록용 약 목록 조회",
-        "description": "로그인한 회원이 소유한 프로필의 내 약을 반환합니다. 일정 없는 약도 포함하며 약이 없으면 빈 목록, 없는 프로필이나 다른 회원의 프로필이면 404입니다.",
-        "operationId": "get_2",
-        "parameters": [
-          {
-            "name": "profileId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "exclusiveMinimum": 0
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/DrugChoices"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/medication/live/sessions/{sessionId}": {
       "get": {
         "tags": [
@@ -492,6 +458,40 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/DoseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profiles/{profileId}/drugs/schedule-choices": {
+      "get": {
+        "tags": [
+          "복약 일정"
+        ],
+        "summary": "일정 등록용 약 목록 조회",
+        "description": "로그인한 회원이 소유한 프로필의 내 약을 반환합니다. 일정 없는 약도 포함하며 약이 없으면 빈 목록, 없는 프로필이나 다른 회원의 프로필이면 404입니다.",
+        "operationId": "get_2",
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "exclusiveMinimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DrugChoices"
                 }
               }
             }
