@@ -54,15 +54,25 @@ public class ImageDrugConfirmationService {
           || !"IDENTIFIED".equals(photo.status())
           || (pill ? photo.kind() != ImagePhotoKind.PILL : photo.kind() == ImagePhotoKind.PILL))
         throw invalid("사진의 프로필·종류·상태를 확인해 주세요.");
-      var candidates =
-          new HashSet<>(
-              jdbc.queryForList(
-                  "SELECT item_seq FROM ocr_candidate WHERE photo_id=? AND lookup_status='OK' AND"
-                      + " item_seq IS NOT NULL",
-                  String.class,
-                  photo.id()));
+      var candidateCards = new LinkedHashMap<String, Set<Integer>>();
+      jdbc.query(
+          "SELECT item_seq,read_no FROM ocr_candidate WHERE photo_id=? AND lookup_status IN('OK','PARTIAL')"
+              + " AND item_seq IS NOT NULL ORDER BY read_no,candidate_rank",
+          rs -> {
+            candidateCards.computeIfAbsent(rs.getString("item_seq"), ignored -> new LinkedHashSet<>())
+                .add(rs.getInt("read_no"));
+          }, photo.id());
+      var candidates = candidateCards.keySet();
       if (codes.stream().anyMatch(c -> !existing.containsKey(c) && !candidates.contains(c)))
         throw invalid("사진 후보에 없는 약은 저장할 수 없습니다.");
+      // 서로 다른 코드여도 한 카드의 대안 후보를 여러 약으로 확정할 수 없음.
+      // 같은 품목이 여러 카드에 겹치는 처방전은 일대일 배정이 가능한지 확인함.
+      var assignment = new HashMap<Integer, String>();
+      for (String code : codes) {
+        if (!candidates.contains(code)) continue; // 기존 약의 skipped 호환 동작임.
+        if (!assignCard(code, candidateCards, assignment, new HashSet<>()))
+          throw invalid("약마다 후보를 하나만 선택해 주세요.");
+      }
     }
     var saved = new ArrayList<PhotoDrugSelectionRequest.Saved>();
     var skipped = new ArrayList<PhotoDrugSelectionRequest.Skipped>();
@@ -80,8 +90,8 @@ public class ImageDrugConfirmationService {
             var s =
                 c.prepareStatement(
                     "INSERT INTO"
-                        + " my_drug(profile_id,item_seq,dose_per_time,source,registered_at,updated_at)"
-                        + " VALUES(?,?,1,?,?,?)",
+                        + " my_drug(profile_id,item_seq,dose_per_time,dose_confirmed,source,registered_at,updated_at)"
+                        + " VALUES(?,?,1,FALSE,?,?,?)",
                     Statement.RETURN_GENERATED_KEYS);
             s.setLong(1, profileId);
             s.setString(2, code);
@@ -104,5 +114,18 @@ public class ImageDrugConfirmationService {
 
   private static BusinessException invalid(String s) {
     return new BusinessException(ErrorCode.INVALID_INPUT, s);
+  }
+
+  private static boolean assignCard(String code, Map<String, Set<Integer>> cards,
+                                    Map<Integer, String> assigned, Set<Integer> visited) {
+    for (int card : cards.getOrDefault(code, Set.of())) {
+      if (!visited.add(card)) continue;
+      String previous = assigned.get(card);
+      if (previous == null || assignCard(previous, cards, assigned, visited)) {
+        assigned.put(card, code);
+        return true;
+      }
+    }
+    return false;
   }
 }

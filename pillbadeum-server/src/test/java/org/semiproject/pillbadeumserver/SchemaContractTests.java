@@ -29,8 +29,8 @@ class SchemaContractTests {
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
             org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(127);
-            assertConstraintCount(connection, "PRIMARY KEY", 16);
+                    .isEqualTo(133);
+            assertConstraintCount(connection, "PRIMARY KEY", 17);
             assertConstraintCount(connection, "FOREIGN KEY", 18);
             assertConstraintCount(connection, "UNIQUE", 4);
             assertConstraintCount(connection, "CHECK", 3);
@@ -44,6 +44,10 @@ class SchemaContractTests {
             assertColumn(connection, "profile", "profile_pregnant", "tinyint", null, "NO", "0");
             assertColumn(connection, "profile", "relationship_type", "varchar", 10L, "NO", null);
             assertColumn(connection, "chat_message", "trun_no", "int", null, "NO", null);
+            assertColumn(connection, "chat_message", "dur_notice", "json", null, "YES", null);
+            assertColumn(connection, "drug", "metadata_source", "varchar", 20L, "NO", "UNKNOWN");
+            assertColumn(connection, "drug", "cancelled", "tinyint", null, "YES", null);
+            assertColumn(connection, "my_drug", "dose_confirmed", "tinyint", null, "NO", "1");
             assertColumn(connection, "chat_session", "snap_birth_year", "bigint", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_pregnant", "tinyint", null, "YES", null);
             assertColumn(connection, "my_drug", "start_date", "date", null, "YES", null);

@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
+import org.semiproject.pillbadeumserver.drug.domain.DrugCancellation;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -21,23 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-/* 설명. 공공데이터 '의약품 낱알식별 정보' 로 drug 테이블을 채운다. (upsert)
- *  ----------------------------------------------------------------------------------
- *  my_drug · dur_warning 이 drug 를 FK 로 참조하므로, 약을 저장하기 전에 drug 행이 반드시 있어야 한다.
- *  세 가지 등록 방법(이름 검색 · 알약 사진 · 처방전 사진)이 모두 이 서비스를 거친다.
- *  ----------------------------------------------------------------------------------
- *  공개 메서드 2개
- *  1) getOrSync(itemSeq)      : DB 에 있으면 그대로, 없으면 낱알식별 조회 후 저장
- *     - GET /api/drugs/{itemSeq}, POST /api/profiles/{profileId}/drugs, 이미지 팀 후보 확정에서 사용
- *  2) syncByItemSeq(itemSeq)  : 있어도 낱알식별을 다시 조회해 최신 값으로 덮어쓴다. (synced_at 갱신)
- *  ----------------------------------------------------------------------------------
- *  - 외부 API 를 기다리는 동안 DB 연결을 붙잡지 않도록 @Transactional 을 붙이지 않는다.
- *    (조회 · 저장은 Repository 자체 트랜잭션으로 짧게 끝난다)
- *  - 낱알식별에 없는 약(시럽 등 액상약 포함)은 404 로 끝난다. → 계획 문서 '팀 결정' 항목
- *  - material(성분명)은 낱알식별에 없어서 '의약품 제품 허가정보' API(Service08)를 한 번 더 조회한다.
- *    목록 API 는 item_seq 조건을 무시하므로 제품명으로 찾고 품목기준코드로 골라낸다. 성분명은 영문으로 온다.
- *  - form 분류(정제 / 연질캡슐 / 경질캡슐 / 기타)는 팀 결정 전 가정이다. → 계획 문서 임시 구현 T3
- * */
+/** REG-005/008: 공식 품목을 확인해 drug FK를 보장함. 낱알0건은 허가 상세로 확인하며 외부 호출은 TX 밖임. */
 @Service
 public class DrugSyncService {
 
@@ -79,7 +64,14 @@ public class DrugSyncService {
         String key = normalizeItemSeq(itemSeq);
         Optional<Drug> saved = drugRepository.findById(key);
         if (saved.isPresent()) {
-            return saved.get();
+            var cached = saved.get();
+            if (!needsRefresh(cached)) return cached;
+            try { return syncByItemSeq(key); }
+            catch (BusinessException unavailable) {
+                // 상세 보강 실패가 이미 등록한 약과 풍부한 기존 캐시를 없애지 않음.
+                log.warn("[drug sync] result=cache_retained");
+                return cached;
+            }
         }
         return syncByItemSeq(key);
     }
@@ -88,16 +80,40 @@ public class DrugSyncService {
     public Drug syncByItemSeq(String itemSeq) {
 
         String key = normalizeItemSeq(itemSeq);
-        JsonNode item = fetchGrainInfo(key);
-        String material = fetchMaterial(key, text(item, "ITEM_NAME"));
-        LocalDateTime now = LocalDateTime.now();
+        JsonNode found;
+        boolean permitOnly;
+        try {
+            found = fetchGrainInfo(key);
+            permitOnly = false;
+        } catch (NotFoundException noGrainRecord) {
+            // 시럽·연고 등 낱알 자료가 없는 약도 정확한 공식 품목으로 확인할 수 있음.
+            found = fetchPermitInfo(key);
+            permitOnly = true;
+        }
+        final JsonNode item = found;
+        String material = permitOnly ? materialOf(item) : fetchMaterial(key, text(item, "ITEM_NAME"));
+        Values values = Values.from(item, key, material, permitOnly);
+        LocalDateTime now = LocalDateTime.now(org.semiproject.pillbadeumserver.common.config.TimeZoneConfig.ZONE);
+        String source = permitOnly ? "PERMIT" : "MIXED";
 
         Drug drug = drugRepository.findById(key)
                 .map(existing -> {
-                    applyTo(existing, item, material, now);
+                    existing.sync(prefer(values.name, existing.getName()), prefer(values.maker, existing.getMaker()),
+                            values.etcOtc, prefer(values.className, existing.getClassName()), prefer(values.imageUrl, existing.getImageUrl()),
+                            prefer(values.printFront, existing.getPrintFront()), prefer(values.printBack, existing.getPrintBack()),
+                            prefer(values.shape, existing.getShape()), prefer(values.color, existing.getColor()),
+                            prefer(values.lineFront, existing.getLineFront()), prefer(values.lineBack, existing.getLineBack()),
+                            prefer(values.form, existing.getForm()), prefer(values.material, existing.getMaterial()), now);
+                    existing.recordMetadataSource((existing.getMetadataSource().equals("UNKNOWN") || existing.getMetadataSource().equals(source)) ? source : "MIXED", DrugCancellation.parse(item));
                     return existing;
                 })
-                .orElseGet(() -> create(key, item, material, now));
+                .orElseGet(() -> {
+                    var created = Drug.create(key, values.name, values.maker, values.etcOtc, values.className, values.imageUrl,
+                            values.printFront, values.printBack, values.shape, values.color, values.lineFront,
+                            values.lineBack, values.form, values.material, now);
+                    created.recordMetadataSource(source, DrugCancellation.parse(item));
+                    return created;
+                });
 
         try {
             return drugRepository.save(drug);
@@ -123,6 +139,14 @@ public class DrugSyncService {
                 .orElseThrow(() -> new NotFoundException("낱알식별 정보가 없는 약입니다. (itemSeq=" + itemSeq + ")"));
     }
 
+    private JsonNode fetchPermitInfo(String itemSeq) {
+        var body = publicDataClient.get(DrugGuideService.PERMIT_DETAIL_PATH,
+                Map.of("item_seq", itemSeq, "pageNo", 1, "numOfRows", 1));
+        return PublicDataClient.items(body).stream()
+                .filter(item -> itemSeq.equals(textIgnoreCase(item, "ITEM_SEQ")))
+                .findFirst().orElseThrow(() -> new NotFoundException("공식 허가정보에서 품목을 확인하지 못했습니다."));
+    }
+
     /* 설명. 허가정보 API 에서 성분명을 찾는다. 없으면 null (→ Values.from 에서 404) */
     private String fetchMaterial(String itemSeq, String itemName) {
 
@@ -141,6 +165,7 @@ public class DrugSyncService {
         return PublicDataClient.items(body).stream()
                 .filter(item -> itemSeq.equals(textIgnoreCase(item, "ITEM_SEQ")))
                 .map(DrugSyncService::materialOf)
+                .filter(java.util.Objects::nonNull)
                 .findFirst()
                 .orElse(null);
     }
@@ -183,20 +208,6 @@ public class DrugSyncService {
         return null;
     }
 
-    private static Drug create(String itemSeq, JsonNode item, String material, LocalDateTime now) {
-        Values v = Values.from(item, itemSeq, material);
-        return Drug.create(itemSeq, v.name, v.maker, v.etcOtc, v.className, v.imageUrl,
-                v.printFront, v.printBack, v.shape, v.color, v.lineFront, v.lineBack,
-                v.form, v.material, now);
-    }
-
-    private static void applyTo(Drug drug, JsonNode item, String material, LocalDateTime now) {
-        Values v = Values.from(item, drug.getItemSeq(), material);
-        drug.sync(v.name, v.maker, v.etcOtc, v.className, v.imageUrl,
-                v.printFront, v.printBack, v.shape, v.color, v.lineFront, v.lineBack,
-                v.form, v.material, now);
-    }
-
     /* 설명. 낱알식별 응답 한 건 → drug 컬럼 값
      *  ----------------------------------------------------------------------------------
      *  ITEM_NAME → name, ENTP_NAME → maker, ETC_OTC_NAME(전문/일반의약품) → etc_otc(ETC/OTC)
@@ -213,13 +224,17 @@ public class DrugSyncService {
                           String lineFront, String lineBack, String form, String material) {
 
         static Values from(JsonNode item, String itemSeq, String material) {
+            return from(item, itemSeq, material, false);
+        }
+
+        static Values from(JsonNode item, String itemSeq, String material, boolean permitOnly) {
 
             String formCodeName = text(item, "FORM_CODE_NAME");
 
-            Values v = new Values(
+            Values raw = new Values(
                     cut(text(item, "ITEM_NAME"), LEN_NAME),
                     cut(text(item, "ENTP_NAME"), LEN_MAKER),
-                    toEtcOtc(text(item, "ETC_OTC_NAME")),
+                    toEtcOtc(textIgnoreCase(item, "ETC_OTC_NAME")),
                     cut(text(item, "CLASS_NAME"), LEN_CLASS_NAME),
                     cut(text(item, "ITEM_IMAGE"), LEN_IMAGE_URL),
                     cut(text(item, "PRINT_FRONT"), LEN_PRINT),
@@ -230,6 +245,9 @@ public class DrugSyncService {
                     cut(text(item, "LINE_BACK"), LEN_LINE),
                     cut(toForm(formCodeName), LEN_FORM),
                     cut(material, LEN_MATERIAL));
+            Values v = !permitOnly ? raw : new Values(raw.name, raw.maker, raw.etcOtc,
+                    known(raw.className), raw.imageUrl, raw.printFront, raw.printBack, known(raw.shape),
+                    known(raw.color), raw.lineFront, raw.lineBack, known(raw.form), known(raw.material));
 
             List<String> missing = new ArrayList<>();
             if (v.name == null) missing.add("name(ITEM_NAME)");
@@ -255,10 +273,10 @@ public class DrugSyncService {
         if (etcOtcName == null) {
             return null;
         }
-        if (etcOtcName.contains("전문")) {
+        if (etcOtcName.contains("전문") || etcOtcName.equals("ETC")) {
             return Drug.ETC;
         }
-        if (etcOtcName.contains("일반")) {
+        if (etcOtcName.contains("일반") || etcOtcName.equals("OTC")) {
             return Drug.OTC;
         }
         return null;
@@ -303,5 +321,18 @@ public class DrugSyncService {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    private static String known(String value) { return value == null ? "미확인" : value; }
+
+    private static boolean unknown(String value) { return value == null || value.isBlank() || value.equals("미확인"); }
+    private static String prefer(String incoming, String existing) { return !unknown(incoming) ? incoming : !unknown(existing) ? existing : incoming; }
+
+    private static boolean needsRefresh(Drug cached) {
+        var now = LocalDateTime.now(org.semiproject.pillbadeumserver.common.config.TimeZoneConfig.ZONE);
+        if (cached.getSyncedAt().isBefore(now.minusDays(7)) || "UNKNOWN".equals(cached.getMetadataSource())) return true;
+        boolean missing = unknown(cached.getMaterial()) || unknown(cached.getClassName()) || unknown(cached.getShape()) || unknown(cached.getColor()) || unknown(cached.getForm());
+        // 허가자료만 있는 제형의 외형 미확인은 정상임. 클릭마다 낱알0건을 반복하지 않음.
+        return missing && (!"PERMIT".equals(cached.getMetadataSource()) || cached.getSyncedAt().isBefore(now.minusMinutes(10)));
     }
 }

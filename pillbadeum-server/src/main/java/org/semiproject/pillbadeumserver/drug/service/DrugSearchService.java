@@ -17,9 +17,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/* 설명. 약 이름 검색 (공공데이터 e약은요 getDrbEasyDrugList)
+/* 설명. REG-008: 허가정보에서 전체 제형을 이름으로 검색함.
  *  ----------------------------------------------------------------------------------
- *  검색 결과는 DB 에 저장하지 않는다. 사용자가 약을 고르면 DrugSyncService 가 낱알식별로 drug 를 채운다.
+ *  검색 결과는 DB 에 저장하지 않는다. 사용자가 약을 고르면 DrugSyncService가 낱알 또는 허가 상세로 drug를 보장함.
  *  ----------------------------------------------------------------------------------
  *  공개 메서드 2개
  *  1) searchForProfile(profileId, name, pageable)
@@ -36,13 +36,13 @@ import java.util.Set;
 @Service
 public class DrugSearchService {
 
-    public static final String EASY_DRUG_LIST_PATH = "/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList";
-    public static final String SOURCE_NAME = "식품의약품안전처 의약품개요정보(e약은요)";
+    public static final String SEARCH_PATH = DrugSyncService.PERMIT_INFO_PATH;
+    public static final String SOURCE_NAME = "식품의약품안전처 의약품 제품 허가정보";
 
     public static final int MIN_NAME_LENGTH = 2;
     public static final int MAX_NAME_LENGTH = 50;
     public static final int DEFAULT_PAGE_SIZE = 10;
-    public static final int MAX_PAGE_SIZE = 50;
+    public static final int MAX_PAGE_SIZE = 20;
 
     private final PublicDataClient publicDataClient;
     private final MyDrugRepository myDrugRepository;
@@ -73,15 +73,15 @@ public class DrugSearchService {
 
     /* 목차. 2. 순수 이름 검색 (이미지 팀 공유)
      *  @param name     약 이름 일부 (앞뒤 공백 제거 후 2~50자)
-     *  @param pageable 페이지 번호 · 크기 (크기는 최대 50, 없으면 1페이지 10개)
+     *  @param pageable 페이지 번호 · 크기 (크기는 최대 20, 없으면 1페이지 10개)
      * */
     public Page<DrugSearchResponse> search(String name, Pageable pageable) {
 
         String keyword = normalizeName(name);
         Pageable page = limitPage(pageable);
 
-        JsonNode body = publicDataClient.get(EASY_DRUG_LIST_PATH, Map.of(
-                "itemName", keyword,
+        JsonNode body = publicDataClient.get(SEARCH_PATH, Map.of(
+                "item_name", keyword,
                 "pageNo", page.getPageNumber() + 1,     // 공공데이터는 1페이지부터
                 "numOfRows", page.getPageSize()));
 
@@ -93,22 +93,21 @@ public class DrugSearchService {
         return new PageImpl<>(content, page, PublicDataClient.totalCount(body));
     }
 
-    /* 설명. e약은요 응답 한 건 → 검색 결과 한 줄 */
+    /* 허가정보 응답의 실제 코드·이름만 검색 결과로 전달함. */
     private static DrugSearchResponse toResponse(JsonNode item) {
         return DrugSearchResponse.of(
-                text(item, "itemSeq"),
-                text(item, "itemName"),
-                text(item, "entpName"),
-                text(item, "itemImage"),
+                text(item, "ITEM_SEQ"),
+                text(item, "ITEM_NAME"),
+                text(item, "ENTP_NAME"),
+                text(item, "ITEM_IMAGE"),
                 false);
     }
 
     private static String text(JsonNode item, String field) {
-        JsonNode value = item.path(field);
-        if (value.isMissingNode() || value.isNull()) {
-            return null;
-        }
-        return value.asString();
+        for (var entry : item.properties())
+            if (entry.getKey().equalsIgnoreCase(field) && !entry.getValue().isNull())
+                return entry.getValue().asString().strip();
+        return null;
     }
 
     private static String normalizeName(String name) {
@@ -125,7 +124,7 @@ public class DrugSearchService {
         return keyword;
     }
 
-    /* 설명. 페이지 정보가 없으면 1페이지 10개, 크기는 최대 50개로 제한한다. (공공데이터 호출량 보호) */
+    /* 설명. 페이지 정보가 없으면 1페이지 10개, 크기는 최대 20개로 제한한다. (공공데이터 호출량 보호) */
     private static Pageable limitPage(Pageable pageable) {
 
         if (pageable == null || pageable.isUnpaged()) {

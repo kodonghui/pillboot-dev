@@ -87,7 +87,7 @@ public class OfficialDrugEvidence {
             deadline.check();
             boolean easy = type == AnswerSource.Type.EASY_DRUG;
             var body = publicData.get(easy ? EASY_PATH : PERMIT_PATH, Map.of(
-                    easy ? "itemSeq" : "item_seq", medication.itemSeq(), "pageNo", 1, "numOfRows", 1));
+                    easy ? "itemSeq" : "item_seq", medication.itemSeq(), "pageNo", 1, "numOfRows", 1), deadline.remaining());
             deadline.check();
             String total = body.path("totalCount").asString("");
             if (!total.matches("\\d+")) throw invalid();

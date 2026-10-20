@@ -106,9 +106,15 @@ public final class OfficialEvidenceCli {
         private final Map<String,Call> calls=new ConcurrentHashMap<>();
         MeasuredClient(JsonMapper json,String baseUrl,String key) { super(json,baseUrl,key,2000,5000,4,1000); }
         @Override public JsonNode get(String path,Map<String,?> params) {
+            return measured(path, params, () -> super.get(path, params));
+        }
+        @Override public JsonNode get(String path,Map<String,?> params, java.time.Duration budget) {
+            return measured(path, params, () -> super.get(path, params, budget));
+        }
+        private JsonNode measured(String path, Map<String,?> params, java.util.function.Supplier<JsonNode> call) {
             long start=System.nanoTime();
             try {
-                var body=super.get(path,params);
+                var body=call.get();
                 var items=items(body);
                 boolean easy=path.equals(OfficialDrugEvidence.EASY_PATH);
                 String code=String.valueOf(params.get(easy?"itemSeq":"item_seq"));

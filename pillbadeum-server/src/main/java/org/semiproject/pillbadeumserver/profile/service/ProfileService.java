@@ -25,10 +25,12 @@ public class ProfileService {
     private final ProfileRepository profileRepository;
     private final MemberRepository memberRepository;
     private final PhotoLifecycleService photos;
+    private final org.semiproject.pillbadeumserver.chat.service.VectorCleanupService vectors;
 
     @Autowired
     public ProfileService(ProfileRepository profileRepository, MemberRepository memberRepository,
-                          PhotoLifecycleService photos) {
+                          PhotoLifecycleService photos, org.semiproject.pillbadeumserver.chat.service.VectorCleanupService vectors) {
+        this.vectors = vectors;
         this.profileRepository = profileRepository;
         this.photos = photos;
         this.memberRepository = memberRepository;
@@ -112,6 +114,9 @@ public class ProfileService {
 
         // 1. 토큰에서 로그인 한 회원 ID를 가져온다.
         Long memberId = SecurityUtil.getCurrentMemberId();
+        // PROF-004: 두 프로필을 동시에 지워도 개수 검사는 같은 회원 잠금 뒤의 최신 값으로 수행함.
+        memberRepository.lockMemberId(memberId)
+            .orElseThrow(() -> new NotFoundException("해당 회원이 존재하지 않습니다."));
 
         // 2. 다른 회원의 프로필이거나, 프로필이 존재하지 않으면 삭제하지 않는다.
         Profile profile = profileRepository
@@ -124,6 +129,8 @@ public class ProfileService {
                 ErrorCode.LAST_PROFILE, "마지막 프로필은 삭제할 수 없습니다."
             );
         }
+
+        vectors.profileDeleting(profileId);
 
         // 4. 채팅방을 참조하는 메세지/요약을 먼저 삭제한다.
         profileRepository.deleteChatMessagesByProfileId(profileId);

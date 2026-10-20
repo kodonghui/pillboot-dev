@@ -13,7 +13,14 @@ import java.util.List;
  */
 public record MedicationTarget(long myDrugId, long profileId, String profileName, String relationship,
                                String drugName, int dosePerTime, String timing, LocalDate startDate,
-                               LocalDate endDate, String storedDoseTimes, LocalDateTime updatedAt) {
+                               LocalDate endDate, String storedDoseTimes, LocalDateTime updatedAt, boolean doseConfirmed) {
+    public MedicationTarget(long myDrugId, long profileId, String profileName, String relationship,
+                            String drugName, int dosePerTime, String timing, LocalDate startDate,
+                            LocalDate endDate, String storedDoseTimes, LocalDateTime updatedAt) {
+        this(myDrugId, profileId, profileName, relationship, drugName, dosePerTime, timing, startDate, endDate, storedDoseTimes, updatedAt, true);
+    }
+
+    public Integer confirmedDosePerTime() { return doseConfirmed ? dosePerTime : null; }
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
     public boolean hasSchedule() {

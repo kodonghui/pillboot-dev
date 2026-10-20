@@ -1,6 +1,8 @@
 package org.semiproject.pillbadeumserver.chat.domain;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
+import org.semiproject.pillbadeumserver.chat.dto.DurNotice;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -29,6 +31,10 @@ public class ChatMessage {
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "dur_notice", columnDefinition = "JSON")
+    @Convert(converter = DurNoticeConverter.class)
+    private DurNotice durNotice;
+
     @Column(name = "token_count")
     private Integer tokenCount;
 
@@ -54,6 +60,14 @@ public class ChatMessage {
         message.role = "assistant";
         return message;
     }
+
+    public static ChatMessage answer(Long sessionId, int turnNo, String content, LocalDateTime now, DurNotice notice) {
+        var message = answer(sessionId, turnNo, content, now);
+        message.durNotice = notice;
+        return message;
+    }
+
+    public DurNotice getDurNotice() { return durNotice; }
 
     public Long getMessageId() { return messageId; }
     public int getTurnNo() { return turnNo; }

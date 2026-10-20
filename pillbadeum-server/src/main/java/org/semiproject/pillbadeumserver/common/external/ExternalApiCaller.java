@@ -79,6 +79,7 @@ public final class ExternalApiCaller {
             throw ExternalApiException.timeout(apiName, e);
         }
         if (!acquired) {
+            log.warn("[외부 API] api={} phase=permit result=busy", apiName);
             throw ExternalApiException.failed(apiName, "외부 서비스 요청이 많습니다. 잠시 후 다시 시도해주세요.", null);
         }
         try {

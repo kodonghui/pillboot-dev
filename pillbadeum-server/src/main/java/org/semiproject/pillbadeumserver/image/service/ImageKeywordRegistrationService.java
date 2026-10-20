@@ -79,7 +79,7 @@ public class ImageKeywordRegistrationService {
       else
         for (int i = 0; i < group.candidates().size(); i++) {
           var candidate = group.candidates().get(i);
-          cache(candidate);
+          cache(candidate, root.kind() == ImagePhotoKind.PILL ? "GRAIN" : "PERMIT");
           insertCandidate(root.id(), group, candidate, i + 1);
         }
     }
@@ -89,12 +89,15 @@ public class ImageKeywordRegistrationService {
         root.id());
   }
 
-  private void cache(PhotoCandidateData c) {
+  private void cache(PhotoCandidateData c, String source) {
+    var enrich = List.of("class_name", "image_url", "print_front", "print_back", "shape", "color", "line_front", "line_back", "form", "material")
+        .stream().map(column -> column + "=IF(" + column + " IS NULL OR " + column + "='미확인',COALESCE(VALUES(" + column + ")," + column + ")," + column + ")")
+        .collect(java.util.stream.Collectors.joining(","));
     jdbc.update(
         """
-        INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,image_url,print_front,print_back,shape,color,line_front,line_back,form,material,synced_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE item_seq=item_seq
-        """,
+        INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,image_url,print_front,print_back,shape,color,line_front,line_back,form,material,synced_at,metadata_source,cancelled)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
+        """ + enrich + ",metadata_source=CASE WHEN metadata_source='UNKNOWN' THEN VALUES(metadata_source) WHEN metadata_source=VALUES(metadata_source) THEN metadata_source ELSE 'MIXED' END,synced_at=VALUES(synced_at),cancelled=COALESCE(VALUES(cancelled),cancelled)",
         c.itemSeq(),
         c.name(),
         c.maker(),
@@ -109,7 +112,7 @@ public class ImageKeywordRegistrationService {
         c.lineBack(),
         c.form(),
         c.material(),
-        LocalDateTime.now(TimeZoneConfig.ZONE));
+        LocalDateTime.now(TimeZoneConfig.ZONE), source, c.cancelled());
   }
 
   private void insertCandidate(
@@ -173,7 +176,7 @@ public class ImageKeywordRegistrationService {
     var values =
         jdbc.queryForList(
             "SELECT"
-                + " c.*,d.name,d.maker,d.etc_otc,d.image_url,d.print_front,d.print_back,d.shape,d.color"
+                + " c.*,d.name,d.maker,d.etc_otc,d.image_url,d.print_front,d.print_back,d.shape,d.color,d.cancelled"
                 + " FROM ocr_candidate c LEFT JOIN drug d ON d.item_seq=c.item_seq WHERE"
                 + " c.photo_id=? ORDER BY read_no,candidate_rank",
             p.id());
@@ -196,7 +199,7 @@ public class ImageKeywordRegistrationService {
                   (String) value.get("maker"),
                   (String) value.get("etc_otc"),
                   (String) value.get("image_url"),
-                  null,
+                  bool(value.get("cancelled")),
                   registered.contains(code),
                   bool(value.get("print_matched")),
                   (String) value.get("print_front"),
@@ -232,6 +235,8 @@ public class ImageKeywordRegistrationService {
 
   /** 같은 프로필 선택 저장을 직렬화한다. 다른 회원의 ID로 잠금을 얻거나 행을 만들지 않는다. */
   public void lockProfile(long profileId) {
+    // 사진의 member FK와 프로필 삭제가 같은 회원 → 프로필 잠금 순서를 사용함.
+    jdbc.queryForList("SELECT member_id FROM member WHERE member_id=? FOR UPDATE", Long.class, SecurityUtil.getCurrentMemberId());
     if (jdbc.queryForList(
             "SELECT profile_id FROM profile WHERE profile_id=? AND member_id=? FOR UPDATE",
             Long.class,

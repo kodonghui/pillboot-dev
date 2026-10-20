@@ -48,7 +48,7 @@ public class DrugController {
 
     /* 목차. 1. 약 이름 검색 (이 프로필에 이미 등록된 약은 registered = true) */
     @Operation(summary = "약 이름 검색",
-            description = "e약은요에서 약 이름으로 검색합니다. 이 프로필에 이미 등록된 약은 registered 가 true 입니다.")
+            description = "허가정보에서 약 이름으로 검색합니다. 낱알식별에 없는 제형도 조회하며 페이지당 최대20개입니다.")
     @GetMapping("/search")
     public PageResponse<DrugSearchResponse> search(@RequestParam String name,
                                                    @RequestParam Long profileId,

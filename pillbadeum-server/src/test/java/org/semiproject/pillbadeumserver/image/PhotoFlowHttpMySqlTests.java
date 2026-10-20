@@ -69,6 +69,7 @@ class PhotoFlowHttpMySqlTests {
   volatile int visionStatus = 200;
   volatile List<Map<String, Object>> officialRows;
   volatile boolean sawUploaded;
+  volatile boolean grainEmpty, permitMetadata, durWarning;
   volatile CountDownLatch entered = new CountDownLatch(0), release = new CountDownLatch(0);
 
   @DynamicPropertySource
@@ -221,8 +222,35 @@ class PhotoFlowHttpMySqlTests {
   void pillRegistrationUsesBothPhotosAndLeavesScheduleUnset() throws Exception {
     vision = pill("합성약정", "A", "B");
     long id = identify("PILL", token, 200, "front", "back").path("photoId").asLong();
-    json("POST", drugs(profileId), selection(id, "PILL_PHOTO", code1), token, 201);
+    var registered = json("POST", drugs(profileId), selection(id, "PILL_PHOTO", code1), token, 201);
+    long drug = registered.path("saved").path(0).path("myDrugId").asLong();
+    var detail = json("GET", drugs(profileId) + "/" + drug, null, token, 200);
+    assertThat(detail.path("dosePerTime").isNull()).isTrue();
+    var list = json("GET", drugs(profileId), null, token, 200);
+    assertThat(list.path(0).path("dosePerTime").isNull()).isTrue();
+    var choices = json("GET", "/api/profiles/" + profileId + "/drugs/schedule-choices", null, token, 200);
+    assertThat(choices.path("drugs").path(0).path("dosePerTime").isNull()).isTrue();
+    var schedule = Map.of("startDate", "2026-10-21", "endDate", "2026-10-22", "doseTimes", List.of("08:00"), "dosePerTime", 2);
+    json("PUT", drugs(profileId) + "/" + drug + "/schedule", schedule, token, 200);
+    assertThat(json("GET", drugs(profileId) + "/" + drug, null, token, 200).path("dosePerTime").asInt()).isEqualTo(2);
+    json("DELETE", drugs(profileId) + "/" + drug + "/schedule", null, token, 204);
+    assertThat(json("GET", drugs(profileId) + "/" + drug, null, token, 200).path("dosePerTime").asInt()).isEqualTo(2);
     assertNoPhotos();
+  }
+
+  @Test
+  void sparsePermitCacheIsEnrichedByLaterPillMetadataAndKeepsRicherValues() throws Exception {
+    long first = identify("PRESCRIPTION", token, 200, "image").path("photoId").asLong();
+    jdbc.update("UPDATE drug SET shape='미확인',image_url=NULL,material='기존상세성분' WHERE item_seq=?", code1);
+    json("DELETE", "/api/photos/" + first, null, token, 204);
+    var richer = new LinkedHashMap<String, Object>(officialRows.getFirst()); richer.put("ITEM_IMAGE", "https://example.test/synthetic.png");
+    officialRows = List.of(richer); vision = pill("합성약정", "A", "B");
+    identify("PILL", token, 200, "front", "back");
+    assertThat(jdbc.queryForObject("SELECT shape FROM drug WHERE item_seq=?", String.class, code1)).isEqualTo("원형");
+    assertThat(jdbc.queryForObject("SELECT material FROM drug WHERE item_seq=?", String.class, code1)).isEqualTo("기존상세성분");
+    assertThat(jdbc.queryForObject("SELECT image_url FROM drug WHERE item_seq=?", String.class, code1)).endsWith("synthetic.png");
+    var detail = json("GET", "/api/drugs/" + code1, null, token, 200);
+    assertThat(detail.path("sourceName").asString()).contains("낱알식별·제품 허가정보");
   }
 
   @Test
@@ -232,6 +260,61 @@ class PhotoFlowHttpMySqlTests {
     assertThat(result.path("status").asString()).isEqualTo("UNREADABLE");
     assertThat(result.path("photoId").isNull()).isTrue();
     assertThat(lookups).isEmpty();
+    assertNoPhotos();
+  }
+
+  @Test
+  void onePillCannotRegisterTwoAlternativeCandidatesAndKeepsConfirmation() throws Exception {
+    vision = pill("합성약정", "A", "B");
+    long id = identify("PILL", token, 200, "front", "back").path("photoId").asLong();
+    json("POST", drugs(profileId), selection(id, "PILL_PHOTO", code1, code2), token, 400);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profileId)).isZero();
+    json("GET", "/api/photos/" + id + "/candidates", null, token, 200);
+    json("POST", drugs(profileId), selection(id, "PILL_PHOTO", code1), token, 201);
+  }
+
+  @Test
+  void onePrescriptionCardCannotRegisterTwoAlternativesButOverlappingCardsCan() throws Exception {
+    long id = identify("PRESCRIPTION", token, 200, "image").path("photoId").asLong();
+    json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code1, code2), token, 400);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profileId)).isZero();
+    json("DELETE", "/api/photos/" + id, null, token, 204);
+    vision = prescription("합성약정", "또다른약정");
+    id = identify("PRESCRIPTION", token, 200, "image").path("photoId").asLong();
+    // 두 카드의 후보 코드가 겹쳐도 카드마다 하나씩 배정할 수 있으면 정상 선택임.
+    var result = json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code1, code2), token, 201);
+    assertThat(result.path("saved").size()).isEqualTo(2);
+  }
+
+  @Test
+  void nameSearchCanInspectAndRegisterPermitOnlySyrupWithoutGrainData() throws Exception {
+    grainEmpty = true; permitMetadata = true;
+    officialRows = List.of(Map.of("ITEM_SEQ", code1, "ITEM_NAME", "합성시럽", "ENTP_NAME", "합성제약",
+        "ETC_OTC_NAME", "일반의약품", "MAIN_ITEM_INGR", "[SYN]합성성분"));
+    var result = json("GET", "/api/drugs/search?profileId=" + profileId + "&name="
+        + URLEncoder.encode("합성시럽", StandardCharsets.UTF_8), null, token, 200);
+    assertThat(result.path("content").path(0).path("itemSeq").asString()).isEqualTo(code1);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM drug WHERE item_seq=?", Integer.class, code1)).isZero();
+    var detail = json("GET", "/api/drugs/" + code1, null, token, 200);
+    assertThat(detail.path("name").asString()).isEqualTo("합성시럽");
+    assertThat(detail.path("shape").asString()).isEqualTo("미확인");
+    assertThat(detail.path("material").asString()).isEqualTo("합성성분");
+    var registered = json("POST", drugs(profileId), Map.of("source", "SEARCH", "items", List.of(Map.of("itemSeq", code1))), token, 201);
+    assertThat(registered.path("saved").size()).isEqualTo(1);
+    assertThat(lookups).anyMatch(s -> s.startsWith(DrugSyncService.PERMIT_INFO_PATH) && s.contains("item_name=합성시럽"));
+  }
+
+  @Test
+  void invalidCandidatePreservesValidCardWithPartialStatusThroughReloadAndSave() throws Exception {
+    var invalid = new LinkedHashMap<String, Object>(officialRows.get(1)); invalid.remove("ETC_OTC_NAME");
+    officialRows = List.of(officialRows.getFirst(), invalid);
+    var response = identify("PRESCRIPTION", token, 200, "image");
+    assertThat(response.path("drugs").path(0).path("lookup").asString()).isEqualTo("PARTIAL");
+    assertThat(response.path("drugs").path(0).path("candidates").size()).isEqualTo(1);
+    long id = response.path("photoId").asLong();
+    var reloaded = json("GET", "/api/photos/" + id + "/candidates", null, token, 200);
+    assertThat(reloaded.path("drugs")).isEqualTo(response.path("drugs"));
+    json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code1), token, 201);
     assertNoPhotos();
   }
 
@@ -348,6 +431,51 @@ class PhotoFlowHttpMySqlTests {
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM profile WHERE profile_id=?", Integer.class, otherProfileId))
         .isEqualTo(1);
+  }
+
+  @Test
+  void concurrentDifferentProfileDeletesPreserveLastProfileInMysql() throws Exception {
+    var start = new CountDownLatch(1);
+    try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
+      var left = pool.submit(() -> { start.await(); return raw("DELETE", "/api/profiles/" + profileId, null, token); });
+      var right = pool.submit(() -> { start.await(); return raw("DELETE", "/api/profiles/" + otherProfileId, null, token); });
+      start.countDown();
+      var responses = List.of(left.get(10, TimeUnit.SECONDS), right.get(10, TimeUnit.SECONDS));
+      assertThat(responses.stream().map(HttpResponse::statusCode)).containsExactlyInAnyOrder(204, 409);
+      assertThat(responses.stream().filter(r -> r.statusCode() == 409).findFirst().orElseThrow().body()).contains("LAST_PROFILE");
+      assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM profile WHERE member_id=?", Integer.class, memberId)).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void answeredDurSnapshotReloadsFromMysqlWithoutProviderRequery() throws Exception {
+    durWarning = true;
+    long photo = identify("PRESCRIPTION", token, 200, "image").path("photoId").asLong();
+    json("POST", drugs(profileId), selection(photo, "PRESCRIPTION_PHOTO", code1), token, 201);
+    long session = json("POST", "/api/profiles/" + profileId + "/chat-sessions", null, token, 201).path("sessionId").asLong();
+    var answered = json("POST", "/api/chat-sessions/" + session + "/messages", Map.of("content", "등록 약 주의사항"), token, 200);
+    var notice = answered.path("answer").path("durNotice");
+    assertThat(notice.path("result").asString()).isEqualTo("FOUND");
+    assertThat(notice.path("items").path(0).path("updatedAt").asString()).isEqualTo("2026-10-20");
+    assertThat(jdbc.queryForObject("SELECT JSON_EXTRACT(dur_notice,'$.result') FROM chat_message WHERE session_id=? AND role='assistant'", String.class, session)).contains("FOUND");
+    int calls = lookups.size();
+    var history = json("GET", "/api/chat-sessions/" + session + "/messages", null, token, 200);
+    assertThat(history.path("messages").path(1).path("durNotice")).isEqualTo(notice);
+    assertThat(lookups).hasSize(calls);
+  }
+
+  @Test
+  void cancellationIsRankedLastAndPreservedAcrossPhotoReload() throws Exception {
+    var cancelled = new java.util.LinkedHashMap<>(officialRows.getFirst()); cancelled.put("CANCEL_NAME", "취하");
+    var normal = new java.util.LinkedHashMap<>(officialRows.get(1)); normal.put("CANCEL_NAME", "정상");
+    officialRows = List.of(cancelled, normal);
+    var identified = identify("PRESCRIPTION", token, 200, "image");
+    var candidates = identified.path("drugs").path(0).path("candidates");
+    assertThat(candidates.path(0).path("itemSeq").asString()).isEqualTo(code2);
+    assertThat(candidates.path(0).path("cancelled").asBoolean()).isFalse();
+    assertThat(candidates.path(1).path("cancelled").asBoolean()).isTrue();
+    var reloaded = json("GET", "/api/photos/" + identified.path("photoId").asLong() + "/candidates", null, token, 200);
+    assertThat(reloaded.path("drugs").path(0).path("candidates")).isEqualTo(candidates);
   }
 
   @Test
@@ -797,6 +925,9 @@ class PhotoFlowHttpMySqlTests {
                               "updateDe",
                               "2026-10-20")))));
         } else if (path.contains("getDrugPrdtPrmsnDtlInq08")) {
+          var detail = new LinkedHashMap<String, Object>();
+          detail.put("ITEM_SEQ", t.code1); detail.put("EE_DOC_DATA", "<DOC>합성 허가 근거</DOC>"); detail.put("CHANGE_DATE", "20261020");
+          if (t.permitMetadata && !t.officialRows.isEmpty()) detail.putAll(t.officialRows.getFirst());
           respond(
               exchange,
               200,
@@ -808,14 +939,7 @@ class PhotoFlowHttpMySqlTests {
                       "totalCount",
                       1,
                       "items",
-                      List.of(
-                          Map.of(
-                              "ITEM_SEQ",
-                              t.code1,
-                              "EE_DOC_DATA",
-                              "<DOC>합성 허가 근거</DOC>",
-                              "CHANGE_DATE",
-                              "20261020")))));
+                      List.of(detail))));
         } else if (path.contains("DURPrdlst"))
           respond(
               exchange,
@@ -824,11 +948,13 @@ class PhotoFlowHttpMySqlTests {
                   "header",
                   Map.of("resultCode", "00"),
                   "body",
-                  Map.of("totalCount", 0, "items", List.of())));
+                  t.durWarning && path.contains("getSpcifyAgrdeTaboo")
+                      ? Map.of("totalCount", 1, "items", List.of(Map.of("ITEM_SEQ", t.code1, "TYPE_NAME", "연령금기", "PROHBT_CONTENT", "120세 미만", "CHANGE_DATE", "20261020")))
+                      : Map.of("totalCount", 0, "items", List.of())));
         else if (query.contains("item_name=실패"))
           respond(exchange, 400, Map.of("error", "synthetic_public_failure"));
         else {
-          var rows = query.contains("item_name=없음") ? List.of() : t.officialRows;
+          var rows = query.contains("item_name=없음") || (t.grainEmpty && path.contains("MdcinGrn")) ? List.of() : t.officialRows;
           respond(
               exchange,
               200,

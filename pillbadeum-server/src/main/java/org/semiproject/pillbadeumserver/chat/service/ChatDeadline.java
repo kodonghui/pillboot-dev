@@ -27,6 +27,12 @@ public final class ChatDeadline {
         }
     }
 
+    /** 공통 외부 클라이언트의 permit 대기도 같은 남은 예산 안에서 수행함. */
+    public Duration remaining() {
+        check();
+        return Duration.ofNanos(Math.max(1, endsAt - System.nanoTime()));
+    }
+
     /** Future는 DB 쓰기가 없는 작업만 받는다. 호출자는 결과를 받은 뒤 짧은 저장 트랜잭션을 시작한다. */
     public <T> T await(Future<T> task) {
         try {

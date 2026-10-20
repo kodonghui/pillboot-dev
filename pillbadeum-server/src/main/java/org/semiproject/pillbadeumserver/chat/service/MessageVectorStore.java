@@ -84,6 +84,24 @@ public class MessageVectorStore {
         if (result.getStatus() != Points.UpdateStatus.Completed) throw invalid();
     }
 
+    /** PROF-004: 같은 앱 접두사의 모든 모델/차원에서 해당 방의 MESSAGE·SUMMARY를 제거함. */
+    public void deleteSessions(List<Long> sessionIds) {
+        var client = clients.getIfAvailable();
+        if (client == null) throw invalid(); // off 동안에도 영속 정리 요청을 완료로 지우지 않음.
+        if (sessionIds.isEmpty()) return;
+        var deadline = ChatDeadline.after(Duration.ofSeconds(3));
+        var names = deadline.await(client.listCollectionsAsync(Duration.ofSeconds(3)));
+        var filter = Common.Filter.newBuilder().addMust(matchValues("session_id", sessionIds)).build();
+        for (String collection : names) {
+            if (!collection.matches(java.util.regex.Pattern.quote(prefix) + "_[a-f0-9]{32}_[0-9]+")) continue;
+            deadline.check();
+            var request = Points.DeletePoints.newBuilder().setCollectionName(collection).setWait(true)
+                    .setPoints(Points.PointsSelector.newBuilder().setFilter(filter)).build();
+            var result = deadline.await(client.deleteAsync(request, Duration.ofSeconds(3)));
+            if (result.getStatus() != Points.UpdateStatus.Completed) throw invalid();
+        }
+    }
+
     /** CHAT-004 retry: 기존 질문 벡터만 조회한다. 타입·방·원문·모델이 맞지 않거나 벡터가 없으면 사용하지 않는다. */
     public float[] questionVector(long sessionId, long messageId, String model, ChatDeadline requestDeadline) {
         var client = clients.getIfAvailable();
