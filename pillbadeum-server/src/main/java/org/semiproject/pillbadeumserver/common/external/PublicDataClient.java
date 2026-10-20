@@ -148,7 +148,7 @@ public class PublicDataClient {
 
         JsonNode header = root.path("header");
         String resultCode = header.path("resultCode").asString("");
-        if (!resultCode.isEmpty() && !"00".equals(resultCode)) {
+        if (!"00".equals(resultCode)) {
             throw ExternalApiException.failed(API_NAME, "공공데이터 응답이 성공이 아닙니다.", null);
         }
 

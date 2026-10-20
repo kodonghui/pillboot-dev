@@ -28,4 +28,9 @@ public interface DurWarningRepository extends JpaRepository<DurWarning, Long> {
             where w.drug.itemSeq = :itemSeq
             """)
     int deleteAllByItemSeq(@Param("itemSeq") String itemSeq);
+
+    /** COMMON-005: 실패한 다른 유형·용량 주의 등을 지우지 않고 성공한 유형만 교체한다. */
+    @Modifying(flushAutomatically = true)
+    @Query("delete from DurWarning w where w.drug.itemSeq = :code and w.type in :types")
+    int deleteForType(@Param("code") String code, @Param("types") List<String> types);
 }
