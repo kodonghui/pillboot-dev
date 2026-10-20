@@ -289,14 +289,14 @@ class ExternalClientTests {
         });
         new ApplicationContextRunner()
                 .withBean(ObjectMapper.class, () -> JSON)
-                .withUserConfiguration(PillDrugIdentificationService.class)
+                .withUserConfiguration(PillDrugIdentificationService.class, PublicDataClient.class)
                 .withPropertyValues("PUBLIC_DATA_SERVICE_KEY=local+test/key=",
-                        "public-data.service-key=${PUBLIC_DATA_SERVICE_KEY:}")
+                        "public-data.service-key=${PUBLIC_DATA_SERVICE_KEY:}",
+                        "public-data.base-url=" + baseUrl,
+                        "public-data.connect-timeout-ms=2000", "public-data.read-timeout-ms=1000")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     var service = context.getBean(PillDrugIdentificationService.class);
-                    ReflectionTestUtils.setField(service, "restClient", RestClient.builder().baseUrl(baseUrl).build());
-
                     assertThat(service.identify(new PillIdentification(
                             "테스트약", null, null, null, null, null, null, null, null))).isEmpty();
                     assertThat(query.get()).contains("serviceKey=local%2Btest%2Fkey%3D");

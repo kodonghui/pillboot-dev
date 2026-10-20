@@ -48,7 +48,8 @@ class MyDrugServiceTests {
     private final DrugSyncService drugSyncService = mock(DrugSyncService.class);
     private final MyDrugRegisterService registerService = mock(MyDrugRegisterService.class);
     private final MyDrugService myDrugService = new MyDrugService(myDrugRepository,
-            profileAccessChecker, drugSyncService, registerService);
+            profileAccessChecker, drugSyncService, registerService,
+            mock(org.semiproject.pillbadeumserver.image.service.SelectedImageRegistrationService.class));
 
     private final MyDrugCreateRequest request = request(ITEM_SEQ);
 

@@ -24,3 +24,7 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+photo:
+  cleanup:
+    enabled: false

@@ -29,9 +29,9 @@ class SchemaContractTests {
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
             org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(125);
+                    .isEqualTo(127);
             assertConstraintCount(connection, "PRIMARY KEY", 16);
-            assertConstraintCount(connection, "FOREIGN KEY", 16);
+            assertConstraintCount(connection, "FOREIGN KEY", 18);
             assertConstraintCount(connection, "UNIQUE", 4);
             assertConstraintCount(connection, "CHECK", 3);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.table_constraints "
@@ -55,6 +55,8 @@ class SchemaContractTests {
             assertColumn(connection, "drug", "etc_otc", "varchar", 10L, "NO", null);
             assertColumn(connection, "drug", "material", "varchar", 30L, "NO", null);
             assertColumn(connection, "photo", "kind", "varchar", 30L, "NO", null);
+            assertColumn(connection, "photo", "front_photo_id", "bigint", null, "YES", null);
+            assertColumn(connection, "ocr_candidate", "item_seq", "varchar", 100L, "YES", null);
             assertColumn(connection, "dur_interaction", "item_seq2", "varchar", 100L, "NO", null);
             assertColumn(connection, "dur_interaction", "mixture_item_seq", "varchar", 50L, "YES", null);
 
@@ -145,6 +147,14 @@ class SchemaContractTests {
                 execute(connection, "INSERT INTO ocr_candidate(photo_id,read_no,candidate_rank) VALUES(?,1,1)", photo);
                 assertThat(count(connection, "SELECT COUNT(*) FROM ocr_candidate WHERE photo_id=? "
                         + "AND read_name IS NULL AND lookup_status IS NULL AND print_matched IS NULL", photo)).isEqualTo(1);
+                // 05를 다시 적용해도 이전 NULL 후보와 원본 경로를 보존하며 연결 FK는 유효해야 한다.
+                ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/05_PHOTO_CANDIDATE_LINKS.sql"));
+                assertThat(count(connection,"SELECT COUNT(*) FROM ocr_candidate WHERE photo_id=? AND item_seq IS NULL",photo)).isEqualTo(1);
+                assertSqlError(connection,1452,"UPDATE photo SET front_photo_id=? WHERE photo_id=?",Long.MAX_VALUE,photo);
+                assertSqlError(connection,1452,"UPDATE ocr_candidate SET item_seq='nonexistent-fixture' WHERE photo_id=?",photo);
+                execute(connection,"UPDATE ocr_candidate SET item_seq=? WHERE photo_id=?",itemSeq,photo);
+                ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/05_PHOTO_CANDIDATE_LINKS.sql"));
+                assertThat(count(connection,"SELECT COUNT(*) FROM ocr_candidate WHERE photo_id=? AND item_seq=?",photo,itemSeq)).isEqualTo(1);
                 // ERD의 FK에는 CASCADE가 없습니다. 자식을 먼저 지워야 부모를 삭제할 수 있습니다.
                 assertSqlError(connection, 1451, "DELETE FROM photo WHERE photo_id=?", photo);
                 execute(connection, "DELETE FROM ocr_candidate WHERE photo_id=?", photo);

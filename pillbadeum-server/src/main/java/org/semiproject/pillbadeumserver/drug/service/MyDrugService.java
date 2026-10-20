@@ -8,6 +8,8 @@ import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
+import org.semiproject.pillbadeumserver.image.domain.PhotoDrugSelectionRequest;
+import org.semiproject.pillbadeumserver.image.service.SelectedImageRegistrationService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -39,15 +41,23 @@ public class MyDrugService {
     private final ProfileAccessChecker profileAccessChecker;
     private final DrugSyncService drugSyncService;
     private final MyDrugRegisterService myDrugRegisterService;
+    private final SelectedImageRegistrationService selectedRegistration;
 
     public MyDrugService(MyDrugRepository myDrugRepository,
                          ProfileAccessChecker profileAccessChecker,
                          DrugSyncService drugSyncService,
-                         MyDrugRegisterService myDrugRegisterService) {
+                         MyDrugRegisterService myDrugRegisterService,
+                         SelectedImageRegistrationService selectedRegistration) {
         this.myDrugRepository = myDrugRepository;
         this.profileAccessChecker = profileAccessChecker;
         this.drugSyncService = drugSyncService;
         this.myDrugRegisterService = myDrugRegisterService;
+        this.selectedRegistration = selectedRegistration;
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public PhotoDrugSelectionRequest.Result registerSelected(Long profileId, PhotoDrugSelectionRequest request) {
+        return selectedRegistration.register(profileId, request);
     }
 
     /* 목차. 1. 내 약 목록 (최근 등록순)

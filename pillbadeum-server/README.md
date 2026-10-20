@@ -59,7 +59,7 @@ Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 ### 신규 DB: 설치된 MySQL / Workbench
 
 관리자 연결에서 `sql/00_PILLBADEUM_DB_CREAT.sql` 실행 후 pilldb를 선택하고
-원본 `sql/01_PILLBADEUM_DB_SCRIPT.sql`, 필요하면 02 샘플, 마지막으로 `sql/03_MEDICATION_UPDATE.sql` 전체를 실행합니다.
+원본 `sql/01_PILLBADEUM_DB_SCRIPT.sql`, 필요하면 02 샘플, `sql/03_MEDICATION_UPDATE.sql` → `sql/04_MY_DRUG_COMPOSITE_UNIQUE.sql` → `sql/05_PHOTO_CANDIDATE_LINKS.sql`을 같은 연결에서 순서대로 실행함.
 
 ```powershell
 .\scripts\setup-local-db.ps1
@@ -67,7 +67,7 @@ Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 
 클라이언트를 못 찾으면 `-MySqlClient 'C:\...\mysql.exe'`를 지정합니다.
 스키마는 사용자가 제공한 **ERD Cloud 기준 MySQL 14개 테이블·114개 컬럼**입니다.
-01은 원본 14개 테이블 구조이며, 03이 복약지도 변경을 더해 최종 16개 테이블·125개 컬럼으로 맞춥니다.
+01은 원본 14개 테이블 구조이며, 03이 복약지도 변경을 더하고, 04·05 적용까지 마치면 16개 테이블·127개 컬럼으로 맞춤.
 테이블명은 소문자로 통일하고 `photo.kind`는 `VARCHAR(30)`으로 반영했습니다.
 `chat_session.snap_pregnant`의 자료형은 `BOOLEAN`으로 맞췄으며 기존 NULL 허용은 유지합니다.
 `drug.etc_otc`는 UNIQUE를 제거하고 `NOT NULL`과 `chk_drug_type CHECK (etc_otc IN ('ETC', 'OTC'))`를 적용했습니다.
@@ -88,6 +88,8 @@ Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 docker compose up -d --wait
 docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/01_PILLBADEUM_DB_SCRIPT.sql"
 docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/03_MEDICATION_UPDATE.sql"
+docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/04_MY_DRUG_COMPOSITE_UNIQUE.sql"
+docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/05_PHOTO_CANDIDATE_LINKS.sql"
 ```
 
 데이터는 named volume에 보존합니다. `.env` 변경만으로 기존 volume의 계정 비밀번호가 바뀌지 않습니다.
@@ -192,3 +194,8 @@ $env:MYSQL_TEST_PASSWORD = '<테스트 DB 비밀번호>'
 MYSQL_TEST_URL이 없으면 DB 검증만 생략됩니다. CI는 실제 MySQL 8.4에서 이를 실행합니다.
 테스트 컨트롤러·공개 테스트 키는 실행 JAR에 포함되지 않습니다. H2/Flyway는 추가하지 않습니다.
 실제 외부 API 키·공식 품목 코드·OpenAI 모델 사용권한·Qdrant CRUD·푸시 발송은 별도 실연동 검증이 필요합니다.
+
+
+## 사진 등록 통합
+
+REG-002~007의 정식 경로·응답·SQL 적용·확인 절차는 [사진 등록 안내](docs/PHOTO_REGISTRATION.md)에 기록함. 앞뒤 사진/실제 품목코드 연결에는 05 패치가 필요함. 기존 무저장 `/api/images/*` 보조 API와 새 후보 보존 API의 수명은 서로 다름.
