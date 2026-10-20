@@ -71,3 +71,5 @@ flowchart LR
 실제 비전 OCR 정확도·실제 식약처 품목·휴대폰 화면은 이 합성 검증으로 확인했다고 주장하지 않음. 실제 환경에는 OPENAI_API_KEY, 사용 가능한 OPENAI_VISION_MODEL 및 낱알식별03·제품허가08 활용승인이 있는 PUBLIC_DATA_SERVICE_KEY가 필요함. 비밀값은 채팅/Git에 남기지 않고 각 서버 .env에 둠.
 
 최종 전체 회귀는 **606개·73스위트·실패/오류/생략0·bootJar 성공**임. 원본 develop582개에 사진/공식 후보 검증24개를 추가한 결과이며 [검증 집계](PHOTO_REGISTRATION_VALIDATION.json)에 실행 조건을 기록함.
+
+REG-004 응답 대조 후속: NOT_FOUND에서도 drugs[].readName/lookup을 남겨 이름 검색어로 쓸 수 있게 함. 사진 ID/행/원본은 계속 정리함. 성공 후보와 GET 재조회는 공식 캐시에 저장된 printFront/printBack/shape/color를 함께 제공함. color는 drug의 일반 색상 표현이며 사진 앞뒤의 색으로 임의 분리하지 않음.

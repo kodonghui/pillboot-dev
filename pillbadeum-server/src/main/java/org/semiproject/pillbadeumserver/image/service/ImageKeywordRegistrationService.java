@@ -172,8 +172,10 @@ public class ImageKeywordRegistrationService {
                 p.profileId()));
     var values =
         jdbc.queryForList(
-            "SELECT c.*,d.name,d.maker,d.etc_otc,d.image_url FROM ocr_candidate c LEFT JOIN drug d"
-                + " ON d.item_seq=c.item_seq WHERE c.photo_id=? ORDER BY read_no,candidate_rank",
+            "SELECT"
+                + " c.*,d.name,d.maker,d.etc_otc,d.image_url,d.print_front,d.print_back,d.shape,d.color"
+                + " FROM ocr_candidate c LEFT JOIN drug d ON d.item_seq=c.item_seq WHERE"
+                + " c.photo_id=? ORDER BY read_no,candidate_rank",
             p.id());
     var grouped = new LinkedHashMap<Integer, List<Map<String, Object>>>();
     for (var value : values)
@@ -196,7 +198,11 @@ public class ImageKeywordRegistrationService {
                   (String) value.get("image_url"),
                   null,
                   registered.contains(code),
-                  bool(value.get("print_matched"))));
+                  bool(value.get("print_matched")),
+                  (String) value.get("print_front"),
+                  (String) value.get("print_back"),
+                  (String) value.get("shape"),
+                  (String) value.get("color")));
       }
       String lookup = (String) first.get("lookup_status");
       if (candidates.isEmpty() && "OK".equals(lookup))
