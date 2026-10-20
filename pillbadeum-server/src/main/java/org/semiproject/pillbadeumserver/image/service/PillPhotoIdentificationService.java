@@ -60,7 +60,7 @@ public class PillPhotoIdentificationService {
             JsonNode output = openAiClient.createJsonFromImages(
                     INSTRUCTIONS,
                     "알약 사진을 식별하고 다음 필드에 정보를 채우세요. 사진 순서는 업로드 순서입니다.",
-                    dataUrls, 500, "pill_image_reading", SCHEMA);
+                    dataUrls, 4000, "pill_image_reading", SCHEMA);
             PillIdentification extracted = toIdentification(output);
             if (!hasAttributes(extracted)) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT,

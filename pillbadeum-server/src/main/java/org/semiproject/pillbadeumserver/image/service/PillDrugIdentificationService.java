@@ -5,6 +5,7 @@ import org.semiproject.pillbadeumserver.common.external.ExternalApiCaller;
 import org.semiproject.pillbadeumserver.common.external.RestClientFactory;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentificationCandidate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import tools.jackson.core.JacksonException;
@@ -29,7 +30,7 @@ public class PillDrugIdentificationService {
     private static final String PILL_IDENTIFICATION_PATH =
             "/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03";
     private static final String PRODUCT_PERMIT_PATH =
-            "/1471000/DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnInq07";
+            "/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08";
     private static final String EASY_DRUG_PATH =
             "/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList";
     private static final int SEARCH_PAGE_SIZE = 100;
@@ -41,12 +42,11 @@ public class PillDrugIdentificationService {
     private final RestClient restClient;
     private final String serviceKey;
 
-    public PillDrugIdentificationService(ObjectMapper objectMapper) {
+    public PillDrugIdentificationService(
+            ObjectMapper objectMapper,
+            @Value("${public-data.service-key:}") String configuredServiceKey) {
         this.objectMapper = objectMapper;
-        this.serviceKey = firstNonBlank(
-                System.getenv("PUBLIC_DATA_API"),
-                System.getenv("PUBLIC_DATA_SERVICE_KEY"),
-                System.getenv("PUBLIC_API_KEY"));
+        this.serviceKey = present(configuredServiceKey) ? configuredServiceKey.strip() : null;
         this.restClient = RestClientFactory.builder(
                 API_BASE_URL, Duration.ofSeconds(3), Duration.ofSeconds(10)).build();
     }
@@ -62,7 +62,7 @@ public class PillDrugIdentificationService {
         }
         if (serviceKey == null) {
             throw ExternalApiException.failed(API_NAME,
-                    "환경변수 PUBLIC_DATA_API에 서비스 키를 설정해주세요.", null);
+                    "PUBLIC_DATA_SERVICE_KEY 설정을 확인해주세요.", null);
         }
 
         List<JsonNode> pillItems = new ArrayList<>();
@@ -262,15 +262,6 @@ public class PillDrugIdentificationService {
 
     private static boolean present(String value) {
         return value != null && !value.isBlank();
-    }
-
-    private static String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (present(value)) {
-                return value.strip();
-            }
-        }
-        return null;
     }
 
     private record RankedPill(JsonNode item, double score) {
