@@ -48,4 +48,13 @@ public class ProfileController {
         return ResponseEntity.ok(profileService.updateProfile(profileId, request));
 
     }
+
+    /* 프로필 삭제 */
+    @DeleteMapping("/{profileId}")
+    public ResponseEntity<Void> deleteProfile (@PathVariable("profileId") Long profileId) {
+
+        profileService.deleteProfile(profileId);
+
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -41,6 +41,7 @@ public enum ErrorCode {
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "LOGIN_FAILED", "이메일 또는 비밀번호가 맞지 않습니다."),
 
     // 프로필 (PROF)
+    LAST_PROFILE(HttpStatus.CONFLICT, "LAST_PROFILE", "마지막 프로필은 삭제할 수 없습니다."),
 
     // 약 등록 · 이미지 처리 (REG)
 
