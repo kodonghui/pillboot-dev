@@ -85,8 +85,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup").permitAll()
                         // 로그인 (AUTH-003)
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        // 로그아웃 (AUTH-004): 화면에서 토큰을 지운다. 만료·미보유 상태도 허용한다.
-                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
 
                         /* 목차. 3-3. 프로필 (PROF)        /api/profiles/** */
 
