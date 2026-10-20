@@ -1,0 +1,70 @@
+# 약 검색 · 약 정보 · 근거 출처 · 내 약(목록 · 저장 · 상세 · 삭제) API 호출 예시
+# - accessToken 은 로그인 API 로 받은 값으로 바꿔 쓴다. 실제 토큰은 이 파일에 커밋하지 않는다.
+#   (자기 PC 에서만 쓸 값은 http-client.private.env.json 에 넣는다. .gitignore 에 등록돼 있음)
+# - profileId 는 토큰 주인(로그인한 회원)의 프로필 번호, myDrugId 는 그 프로필 목록에 있는 번호를 넣는다.
+# - itemSeq 는 품목기준코드(숫자). 예시 202106092 = 타이레놀정500밀리그램
+# - 로컬 DB 는 sql/03 → sql/04 를 적용한 상태여야 한다.
+
+@baseUrl = http://localhost:8080
+@accessToken = REPLACE_WITH_YOUR_BEARER_TOKEN
+@profileId = 1
+@myDrugId = 1
+@itemSeq = 202106092
+
+### 1. 약 이름 검색 (e약은요, 2~50자). 이 프로필에 이미 등록된 약은 registered = true. page 는 1부터(one-indexed), size 는 최대 50
+GET {{baseUrl}}/api/drugs/search?name=타이레놀&profileId={{profileId}}&page=1&size=10
+Authorization: Bearer {{accessToken}}
+
+### 2. 약 정보 (등록 전 확인). DB 에 없으면 공공데이터(낱알식별 · 허가정보)에서 가져와 저장한다. 낱알식별에 없는 약(시럽 · 가루약 등)은 404
+GET {{baseUrl}}/api/drugs/{{itemSeq}}
+Authorization: Bearer {{accessToken}}
+
+### 3. 근거 출처 (효능 · 사용법 · 주의사항 · DUR + 출처 · 조회 시각 · 상담 안내). drug 테이블에 없는 약은 404
+GET {{baseUrl}}/api/drugs/{{itemSeq}}/guide
+Authorization: Bearer {{accessToken}}
+
+### 4. 확인한 약 저장 (201, 저장된 상세 배열). source: SEARCH · PILL_PHOTO · PRESCRIPTION_PHOTO, drugs 1~10개
+# - 1회 개수 1~10, 복용 시점 20자 이하, 복용 시각 하루 1~3개(생략하면 07:00 · 11:00 · 17:00)
+# - 이미 등록된 약 409, 요청 안에 같은 약 2번 400. 하나라도 실패하면 전부 저장되지 않는다
+POST {{baseUrl}}/api/profiles/{{profileId}}/drugs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "source": "SEARCH",
+  "drugs": [
+    {
+      "itemSeq": "{{itemSeq}}",
+      "dosePerTime": 1,
+      "timing": "식후 30분",
+      "startDate": "2026-10-20",
+      "endDate": "2026-10-26",
+      "doseTimes": ["08:00", "13:00", "19:00"]
+    }
+  ]
+}
+
+### 5. 처방전에서 읽은 약 여러 개를 한 번에 저장 (같은 형식, drugs 에 여러 개)
+POST {{baseUrl}}/api/profiles/{{profileId}}/drugs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "source": "PRESCRIPTION_PHOTO",
+  "drugs": [
+    { "itemSeq": "197900277", "dosePerTime": 1, "timing": "식후 30분", "startDate": "2026-10-20", "endDate": "2026-10-22" },
+    { "itemSeq": "197700120", "dosePerTime": 2, "timing": "식후 30분", "startDate": "2026-10-20", "endDate": "2026-10-22", "doseTimes": ["09:00", "21:00"] }
+  ]
+}
+
+### 6. 내 약 목록 (최근 등록순, 없으면 빈 배열). 직접 입력한 약(source = MANUAL)은 itemSeq 가 null
+GET {{baseUrl}}/api/profiles/{{profileId}}/drugs
+Authorization: Bearer {{accessToken}}
+
+### 7. 내 약 상세 (복용정보 + 약 정보). 다른 프로필의 약이면 404. 직접 입력한 약은 drug = null, name = 입력한 이름
+GET {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}
+Authorization: Bearer {{accessToken}}
+
+### 8. 내 약 삭제 (204, 본문 없음). 약과 그 일정이 함께 없어진다. 일정만 지우려면 DELETE .../schedule (medication-schedule.http)
+DELETE {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}
+Authorization: Bearer {{accessToken}}
