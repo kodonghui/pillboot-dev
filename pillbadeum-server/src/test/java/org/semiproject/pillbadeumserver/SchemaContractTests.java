@@ -27,7 +27,7 @@ class SchemaContractTests {
         try (var connection = dataSource.getConnection()) {
             assertThat(count(connection, "SELECT DATABASE() = 'pill_test'"))
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
+            org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
                     .isEqualTo(125);
             assertConstraintCount(connection, "PRIMARY KEY", 16);

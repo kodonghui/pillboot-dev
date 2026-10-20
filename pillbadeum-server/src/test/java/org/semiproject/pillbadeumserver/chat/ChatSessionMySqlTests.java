@@ -51,7 +51,7 @@ class ChatSessionMySqlTests {
     void prepareOwnedFixturesInTheDedicatedTestDatabase() throws Exception {
         assertThat(jdbc.queryForObject("SELECT DATABASE()", String.class)).isEqualTo("pill_test");
         try (var connection = dataSource.getConnection()) {
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
+            org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
         }
         memberId = member();
         profileId = profile(memberId, false);

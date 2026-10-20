@@ -122,7 +122,7 @@
 ```
 
 생성 응답: `{ "sessionId": "앱 세션 ID", "sdp": "answer SDP", "expiresAt": "2026-10-19T03:01:00Z" }`.
-`selectedMyDrugId`는 생략 또는 `null`을 허용한다. 약 이름도 선택한 약도 없으면 이름을 물으며, “혈압약”처럼 말한 이름으로 등록할 수 있다. 새 약은 저장 확정 시 `my_drug.item_seq=NULL`, `custom_name=발화 이름`, `source=MANUAL`로 생성되고 실제 발급 ID가 완료 응답에 담긴다. 기존 DB는 `sql/06_MY_DRUG_CUSTOM_NAME.sql` 적용이 필요하다.
+`selectedMyDrugId`는 생략 또는 `null`을 허용한다. 약 이름도 선택한 약도 없으면 이름을 물으며, “혈압약”처럼 말한 이름으로 등록할 수 있다. 새 약은 저장 확정 시 `my_drug.item_seq=NULL`, `custom_name=발화 이름`, `source=MANUAL`로 생성되고 실제 발급 ID가 완료 응답에 담긴다. 기존 DB는 `sql/03_MEDICATION_UPDATE.sql` 적용이 필요하다.
 OpenAI 원격 ID나 API 키를 프론트에서 관리하지 않는다. 브라우저는 우리 서버만으로 세션 생성·조회·종료를 요청한다.
 SDP에 임의 문자열을 넣는 HTTP 요청으로는 실제 음성 연결을 테스트할 수 없다.
 

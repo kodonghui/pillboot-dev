@@ -56,7 +56,7 @@ Functional Spec ver.4의 NOTI-001(알림 켜기)·NOTI-002(알림 끄기)·NOTI-
 | `WEB_PUSH_ALLOWED_HOSTS` | 구독 주소로 허용할 푸시 서비스. 점으로 시작하면 하위 주소 전체 |
 | `WEB_PUSH_SCHEDULER_ENABLED` | 기본 true. 테스트 프로필은 false |
 
-기존 DB에는 `sql/04_PUSH_NOTIFICATION.sql`을 03 다음에 한 번 적용합니다.
+기존 DB에는 `sql/03_MEDICATION_UPDATE.sql` 전체를 실행하고 마지막 상태 READY를 확인합니다. 이미 적용된 항목은 건너뜁니다.
 화면 쪽에는 서비스 워커(예: `/sw.js`)에서 `push` 이벤트의 JSON으로 `showNotification(title, { body, tag, data: { url } })`을 하고,
 `notificationclick`에서 `url`을 여는 처리가 필요합니다. 웹 푸시는 HTTPS에서만 동작합니다(개발 중 localhost 예외).
 

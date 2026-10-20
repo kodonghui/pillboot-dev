@@ -108,10 +108,10 @@ DELETE는 해당 행의 `start_date/end_date/dose_times`만 NULL로 바꿉니다
 일정 없는 약은 내 약 목록에서 기간 NULL·복용 시간 빈 목록으로 표현할 수 있습니다.
 일정 상세 GET과 그만 먹기·삭제는 일정이 없으면 404입니다. 삭제 후 같은 주소에 PUT하면 같은 약에 일정을 다시 등록하고 200을 반환합니다.
 
-신규 DB는 변경된 `sql/01_PILLBADEUM_DB_SCRIPT.sql`로 생성합니다.
-기존 14개 테이블 DB에는 대상 DB를 확인한 뒤 `sql/03_MY_DRUG_OPTIONAL_SCHEDULE.sql`을 별도로 한 번 적용해야 합니다.
+신규 DB는 기존 `sql/01_PILLBADEUM_DB_SCRIPT.sql` → 02(샘플 선택) → `sql/03_MEDICATION_UPDATE.sql` 순서로 준비합니다.
+기존 14개 테이블 DB에는 대상 DB를 확인한 뒤 `sql/03_MEDICATION_UPDATE.sql`을 별도로 한 번 적용해야 합니다.
 01의 IF NOT EXISTS는 기존 컬럼을 바꾸지 않습니다. 변경 전 DB에서는 일정 삭제 시 NOT NULL 제약에 실패합니다.
-03은 기존 일정 값을 보존하고 세 컬럼의 NULL 허용·기본값과 CHECK만 변경합니다. 새 01로 생성한 DB에는 중복 적용하지 않습니다.
+통합 03은 기존 일정 값을 보존하고 일정 NULL 허용·직접 입력 이름·알림 표·컬럼명 오타 변경을 함께 적용합니다. 이미 적용된 항목은 건너뛰므로 새 DB와 기존 DB 모두 사용합니다.
 DB의 dose_times 기본값은 NULL이고, 약을 기간과 함께 등록할 때 시각을 생략하면 MyDrug가 07:00·11:00·17:00을 채웁니다.
 일정 PUT에는 날짜·시각이 필수이므로 화면에서 기본값을 채워 보냅니다.
 
@@ -187,7 +187,7 @@ OPENAI_TTS_MODEL은 Speech API 모델이며 예시는 gpt-4o-mini-tts입니다. 
 fixture는 롤백하며, MYSQL_TEST_URL이 없으면 이 검증을 생략합니다.
 음성 테스트는 로컬 HTTP fixture·mock으로 구조화 출력 요청, 기본값, 소유권, 검증 실패, MP3 응답과 TTS 실패 처리를 확인합니다.
 실제 MySQL에서 쿼리·JPA 잠금·커밋이 동작하는지 확인하는 통합 검증은 별도로 필요합니다.
-MySQL 스키마 테스트를 켤 때는 전용 pill_test DB도 새 01로 준비하거나 기존 구조에 03을 먼저 적용합니다.
+MySQL 스키마 테스트를 켤 때는 전용 pill_test DB도 원본 01과 통합 03으로 준비합니다. 테스트 준비 도구가 이 순서를 적용합니다.
 테스트가 실행하는 CREATE TABLE IF NOT EXISTS만으로는 기존 pill_test 스키마가 갱신되지 않습니다.
 
 ```powershell

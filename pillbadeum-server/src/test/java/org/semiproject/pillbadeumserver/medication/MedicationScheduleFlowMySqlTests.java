@@ -56,7 +56,7 @@ class MedicationScheduleFlowMySqlTests {
              var rows = statement.executeQuery("SELECT DATABASE()")) {
             assertThat(rows.next()).isTrue();
             assertThat(rows.getString(1)).as("업무 DB에는 테스트 데이터를 쓰지 않는다").isEqualTo("pill_test");
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
+            org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
         }
         today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         fixture = new TransactionTemplate(transactions).execute(status -> {

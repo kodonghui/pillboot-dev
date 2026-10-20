@@ -39,7 +39,7 @@ class MedicationCalendarMySqlTests {
              var rows = statement.executeQuery("SELECT DATABASE()")) {
             assertThat(rows.next()).isTrue();
             assertThat(rows.getString(1)).as("Only the dedicated pill_test database may be modified").isEqualTo("pill_test");
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
+            org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
         }
 
         var jdbc = new JdbcTemplate(dataSource);

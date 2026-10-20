@@ -7,7 +7,7 @@
 
 ## 실행
 
-1. 기존 일정 DB 변경(03)과 직접 입력 약 지원 변경(06)이 적용된 로컬 DB와 로그인 JWT를 준비합니다. 신규 DB는 최신 01만 사용합니다.
+1. 통합 변경 sql/03_MEDICATION_UPDATE.sql이 적용된 로컬 DB와 로그인 JWT를 준비합니다. 새 DB는 01 → 02(샘플 선택) → 03 순서입니다.
 2. 개인 `.env`에 `OPENAI_API_KEY`, `OPENAI_CHAT_MODEL`을 지정합니다. 후자는 구조화 출력 지원 모델이어야 합니다.
 3. Live 모델은 `OPENAI_LIVE_MODEL`, 기본 `gpt-live-1`입니다. 음색은 `OPENAI_LIVE_VOICE`, 기본 `marin`입니다.
 4. 서버를 local 프로필로 재시작하고 `http://localhost:8080/dev/medication-live`를 엽니다.

@@ -5,11 +5,6 @@
 -- 사용자 결정에 따라 chat_session.snap_pregnant는 BOOLEAN으로 통일하고 기존 NULL 허용은 유지합니다.
 -- 최신 내보내기의 소문자 표명과 photo.kind VARCHAR(30)을 반영했습니다.
 -- 사용자 결정으로 drug.etc_otc UNIQUE를 제거하고 ETC/OTC만 허용하는 CHECK를 적용합니다.
--- 일정 한 건만 삭제하고 약을 유지하기 위해 my_drug 일정 3개 필드를 NULL 허용으로 변경합니다.
--- 일정은 세 값이 모두 NULL(없음)이거나 모두 NOT NULL(있음)이어야 합니다. 기본 시각은 앱에서 채웁니다.
--- 사용자 결정으로 복약 알림용 push_subscription·notification_dispatch 2개 표를 추가해 16개 표·124개 컬럼입니다.
--- notification_setting은 회원당 1행이 되도록 member_id에 UNIQUE를 적용합니다.
--- 팀 결정으로 컬럼명 오타 profile.realationship_type → relationship_type, drug.matrial → material로 바로잡았습니다.
 -- 위 교정·결정 외 컬럼명/자료형/NULL/기본값/제약은 내보내기 원문을 유지합니다.
 -- 00번으로 DB를 준비한 뒤 대상 DB를 선택하여 실행하세요.
 -- 기존 테이블을 삭제하거나 변경하지 않습니다. 기존 DB의 변경은 별도 검토가 필요합니다.
@@ -52,7 +47,7 @@ CREATE TABLE IF NOT EXISTS `drug` (
 	`line_front`	VARCHAR(10)	NULL	COMMENT '분할선 없는 경우도 있음',
 	`line_back`	VARCHAR(10)	NULL	COMMENT '//',
 	`form`	VARCHAR(10)	NOT NULL	COMMENT '정제, 연질캡슐, 경질캡슐(통상적인 캡슐모양)',
-	`material`	VARCHAR(30)	NOT NULL,
+	`matrial`	VARCHAR(30)	NOT NULL,
 	`synced_at`	DATETIME	NOT NULL,
 	PRIMARY KEY (`item_seq`),
 	CONSTRAINT chk_drug_type CHECK (`etc_otc` IN ('ETC', 'OTC'))
@@ -62,7 +57,7 @@ CREATE TABLE IF NOT EXISTS `profile` (
 	`profile_id`	BIGINT AUTO_INCREMENT	NOT NULL	COMMENT '프로필코드',
 	`member_id`	BIGINT	NOT NULL	COMMENT '회원 코드',
 	`profile_name`	VARCHAR(10)	NOT NULL	COMMENT '프로필명',
-	`relationship_type`	VARCHAR(10)	NOT NULL	COMMENT '회원과의 관계',
+	`realationship_type`	VARCHAR(10)	NOT NULL	COMMENT '회원과의 관계',
 	`profile_birth_year`	INT	NOT NULL	COMMENT '출생년도',
 	`profile_gender`	VARCHAR(10)	NOT NULL	COMMENT '성별',
 	`profile_height`	INT	NULL	COMMENT '키',
@@ -91,53 +86,24 @@ CREATE TABLE IF NOT EXISTS `notification_setting` (
 	`push_enabled`	BOOLEAN	NOT NULL	DEFAULT FALSE	COMMENT '알림 동의 여부와 연동',
 	`updated_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '알림 설정 마지막 변경 시각',
 	PRIMARY KEY (`setting_id`),
-	CONSTRAINT uk_notification_setting_member UNIQUE (`member_id`),
 	FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`)
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS `push_subscription` (
-	`subscription_id`	BIGINT AUTO_INCREMENT	NOT NULL	COMMENT '브라우저 푸시 구독 코드',
-	`member_id`	BIGINT	NOT NULL	COMMENT '회원 코드, 이 브라우저로 마지막에 알림을 켠 회원',
-	`endpoint`	VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin	NOT NULL	COMMENT '브라우저 푸시 주소(UK), 대소문자 구분',
-	`p256dh`	VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin	NOT NULL	COMMENT '브라우저 공개 키(base64url)',
-	`auth`	VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin	NOT NULL	COMMENT '브라우저 인증 비밀값(base64url)',
-	`user_agent`	VARCHAR(500)	NULL	COMMENT '브라우저 정보',
-	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '구독 최초 저장 시각',
-	`updated_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '구독 정보 마지막 갱신 시각',
-	PRIMARY KEY (`subscription_id`),
-	CONSTRAINT uk_push_subscription_endpoint UNIQUE (`endpoint`),
-	FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`)
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS `notification_dispatch` (
-	`dose_at`	DATETIME	NOT NULL	COMMENT '발송을 맡은 복용 시각(한국 시간, 분 단위). 같은 분은 한 번만 보냄',
-	`claimed_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '실행이 이 시각을 가져간 시각',
-	PRIMARY KEY (`dose_at`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `my_drug` (
 	`my_drug_id`	BIGINT AUTO_INCREMENT	NOT NULL	COMMENT '등록한 내약 고유 식별자',
 	`profile_id`	BIGINT	NOT NULL	COMMENT '프로필코드',
-	`item_seq`	VARCHAR(100)	NULL DEFAULT NULL,
-	`custom_name`	VARCHAR(100)	NULL DEFAULT NULL	COMMENT '약품을 특정하지 않은 직접 입력 이름',
+	`item_seq`	VARCHAR(100)	NOT NULL,
 	`dose_per_time`	INT	NOT NULL	COMMENT '한 번에 복용하는 약 개수',
 	`timing`	VARCHAR(50)	NULL	COMMENT '식후 30분, 식전 등',
-	`start_date`	DATE	NULL DEFAULT NULL	COMMENT '복용 시작 날짜, 일정 없으면 NULL',
-	`end_date`	DATE	NULL DEFAULT NULL	COMMENT '복용 종료 날짜, 일정 등록 시 필수',
-	`dose_times`	VARCHAR(50)	NULL DEFAULT NULL	COMMENT '하루 1~3개 복용 시각, 일정 없으면 NULL',
-	`source`	VARCHAR(30)	NOT NULL	COMMENT 'PRESCRIPTION_PHOTO / PILL_PHOTO / SEARCH / MANUAL',
+	`start_date`	DATE	NOT NULL	COMMENT '복용 시작 날짜',
+	`end_date`	DATE	NOT NULL	COMMENT '복용 종료 날짜, 필수 입력',
+	`dose_times`	VARCHAR(50)	NOT NULL	DEFAULT '07:00,11:00,17:00'	COMMENT '하루 1~3개 복용 시각',
+	`source`	VARCHAR(30)	NOT NULL	COMMENT 'PRESCRIPTION_PHOTO / PILL_PHOTO / SEARCH',
 	`registered_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '내약 최초 등록 시각',
 	`updated_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP	COMMENT '내약 정보 마지막 수정 시각',
 	PRIMARY KEY (`my_drug_id`),
 	FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`),
-	FOREIGN KEY (`item_seq`) REFERENCES `drug` (`item_seq`),
-	CONSTRAINT chk_my_drug_identity CHECK (
-		`item_seq` IS NOT NULL OR (`custom_name` IS NOT NULL AND CHAR_LENGTH(TRIM(`custom_name`)) > 0)
-	),
-	CONSTRAINT chk_my_drug_schedule_presence CHECK (
-		(`start_date` IS NULL AND `end_date` IS NULL AND `dose_times` IS NULL)
-		OR (`start_date` IS NOT NULL AND `end_date` IS NOT NULL AND `dose_times` IS NOT NULL)
-	)
+	FOREIGN KEY (`item_seq`) REFERENCES `drug` (`item_seq`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `chat_session` (

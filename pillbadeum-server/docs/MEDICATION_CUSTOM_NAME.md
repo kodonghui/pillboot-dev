@@ -5,11 +5,11 @@
 - 식별된 약: 기존 item_seq와 drug.name을 그대로 사용한다.
 - 직접 입력한 약: item_seq=NULL, custom_name=실제 말한 이름, source=MANUAL이다. 약품 코드 또는 직접 입력 이름 중 하나는 반드시 있어야 한다.
 - profile_id와 자동 발급 my_drug_id는 필수이며 기존 일정 컬럼·FK·API 경로를 유지한다.
-- 기존 DB는 대상 DB를 선택한 뒤 `sql/06_MY_DRUG_CUSTOM_NAME.sql`을 한 번 실행한다. 신규 DB는 최신 01을 사용하며 06을 추가 실행하지 않는다. 앱이 자동 적용하지 않는다.
+- 기존 DB는 대상 DB를 선택한 뒤 `sql/03_MEDICATION_UPDATE.sql` 전체를 실행한다. 새 DB는 원본 01 → 02(샘플 선택) → 03 순서다. 이미 적용한 항목은 건너뛰며 앱이 자동 적용하지 않는다.
 
 ## Live 테스트
 
-1. 06 SQL을 적용하고 서버를 재시작한다. `/dev/medication-live`를 새로고침한다.
+1. 통합 03 SQL을 적용하고 서버를 재시작한다. `/dev/medication-live`를 새로고침한다.
 2. 로그인 JWT와 본인 프로필 ID·선택 날짜를 넣는다. 내 약 ID는 비운다. 등록된 약이 없는 프로필도 가능하다.
 3. “오늘부터 일주일 혈압약”이라고 말한다. 하루 3번 07:00·11:00·17:00, 1회 1개, 식후 30분 제안을 받고 “응”이라고 한다.
 4. `SAVED` 응답의 `savedSchedule.myDrugId`와 `completedOperation.myDrugId`가 실제 새 ID이며 drugName이 혈압약인지 확인한다.
