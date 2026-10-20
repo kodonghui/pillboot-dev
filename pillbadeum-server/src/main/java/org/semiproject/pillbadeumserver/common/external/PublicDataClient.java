@@ -59,7 +59,7 @@ public class PublicDataClient {
         if (maxConcurrentCalls < 1 || permitTimeoutMs < 1) {
             throw new IllegalArgumentException("공공데이터 동시 호출 수와 대기 시간은 양수여야 합니다.");
         }
-        this.permits = new Semaphore(maxConcurrentCalls);
+        this.permits = new Semaphore(maxConcurrentCalls, true);
         this.permitTimeoutMs = permitTimeoutMs;
         this.restClient = RestClientFactory.builder(baseUrl,
                 Duration.ofMillis(connectTimeoutMs), Duration.ofMillis(readTimeoutMs)).build();
@@ -70,6 +70,19 @@ public class PublicDataClient {
      *  @param params 요청 파라미터 (값이 null 이면 보내지 않는다)
      * */
     public JsonNode get(String path, Map<String, ?> params) {
+        return execute(path, params, permitTimeoutMs, Long.MAX_VALUE);
+    }
+
+    /** COMMON-001/006: 병렬 수집기의 내부 대기를 요청의 남은 시간에 포함함. */
+    public JsonNode get(String path, Map<String, ?> params, Duration remainingBudget) {
+        if (remainingBudget == null || remainingBudget.isNegative() || remainingBudget.isZero())
+            throw ExternalApiException.timeout(API_NAME, null);
+        long waitMillis = Math.max(1, remainingBudget.toMillis());
+        long deadline = System.nanoTime() + remainingBudget.toNanos();
+        return execute(path, params, waitMillis, deadline);
+    }
+
+    private JsonNode execute(String path, Map<String, ?> params, long waitMillis, long deadline) {
 
         if (serviceKey == null || serviceKey.isBlank()) {
             throw ExternalApiException.failed(API_NAME, "서비스 키(PUBLIC_DATA_SERVICE_KEY)가 설정되지 않았습니다.", null);
@@ -88,12 +101,15 @@ public class PublicDataClient {
             }
         });
 
-        String responseBody = ExternalApiCaller.withPermit(API_NAME, permits, permitTimeoutMs,
-                () -> ExternalApiCaller.callWithRetry(API_NAME, () ->
-                restClient.get()
+        String responseBody = ExternalApiCaller.withPermit(API_NAME, permits, waitMillis,
+                () -> ExternalApiCaller.callWithRetry(API_NAME, () -> {
+                    if (Thread.currentThread().isInterrupted() || System.nanoTime() >= deadline)
+                        throw ExternalApiException.timeout(API_NAME, null);
+                    return restClient.get()
                         .uri(uri.toString(), variables)
                         .retrieve()
-                        .body(String.class)));
+                        .body(String.class);
+                }));
 
         return extractBody(responseBody);
     }

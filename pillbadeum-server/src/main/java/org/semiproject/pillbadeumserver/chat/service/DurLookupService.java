@@ -105,7 +105,7 @@ public class DurLookupService {
             int expectedTotal = -1;
             for (int page = 1; ; page++) {
                 deadline.check();
-                JsonNode body = client.get(request.type().path(), Map.of("itemSeq", request.code(), "pageNo", page, "numOfRows", PAGE_SIZE));
+                JsonNode body = client.get(request.type().path(), Map.of("itemSeq", request.code(), "pageNo", page, "numOfRows", PAGE_SIZE), deadline.remaining());
                 deadline.check();
                 String count = body.path("totalCount").asString("");
                 if (!count.matches("\\d{1,9}")) throw invalid();
