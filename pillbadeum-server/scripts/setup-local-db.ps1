@@ -14,6 +14,7 @@ $sqlFiles = @('00_PILLBADEUM_DB_CREAT.sql', '01_PILLBADEUM_DB_SCRIPT.sql')
 if ($IncludeTestData) { $sqlFiles += '02_PILLBADEUM_TEST_DATA.sql' }
 $sqlFiles += '03_MEDICATION_UPDATE.sql'
 $sqlFiles += '04_MY_DRUG_COMPOSITE_UNIQUE.sql'
+$sqlFiles += '05_PHOTO_CANDIDATE_LINKS.sql'
 $sqlPaths = $sqlFiles | ForEach-Object { Join-Path $projectRoot "sql/$_" }
 foreach ($sqlPath in $sqlPaths) {
     if (-not (Test-Path -LiteralPath $sqlPath -PathType Leaf)) {
@@ -74,6 +75,7 @@ Write-Host ''
 Write-Host 'Database/account/schema setup completed. Existing data and passwords were preserved.'
 Write-Host '03_MEDICATION_UPDATE.sql applies medication changes and skips changes already applied. Check that its final status is READY.'
 Write-Host '04_MY_DRUG_COMPOSITE_UNIQUE.sql adds pair uniqueness. Its final my_drug_unique_status must also be READY.'
+Write-Host '05_PHOTO_CANDIDATE_LINKS.sql connects candidate codes and front/back photos. Its final photo_links_status must be READY.'
 Write-Host 'Use an empty development database for the ERD Cloud schema. For existing databases, read sql/README.md first.'
 Write-Host 'Copy .env.example to .env if needed, then fill DB_USERNAME, DB_PASSWORD and JWT_SECRET.'
 Write-Host 'Run .\gradlew.bat bootRun from the project directory.'

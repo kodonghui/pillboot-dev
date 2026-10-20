@@ -20,6 +20,7 @@ public final class TestDatabaseSchema {
         ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
         ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/03_MEDICATION_UPDATE.sql"));
         ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/04_MY_DRUG_COMPOSITE_UNIQUE.sql"));
+        ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/05_PHOTO_CANDIDATE_LINKS.sql"));
     }
 
     /** 이미 이름 변경된 테스트 DB에도 원본 02의 샘플을 넣을 수 있게 메모리에서만 이름을 대응한다. */

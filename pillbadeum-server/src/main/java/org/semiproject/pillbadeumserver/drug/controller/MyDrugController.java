@@ -7,7 +7,9 @@ import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
 import org.semiproject.pillbadeumserver.drug.service.MyDrugService;
+import org.semiproject.pillbadeumserver.image.domain.PhotoDrugSelectionRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -53,10 +55,14 @@ public class MyDrugController {
     @Operation(summary = "확인한 약 저장",
             description = "사용자가 확인한 약을 복용정보와 함께 저장합니다. 하나라도 실패하면 전부 저장되지 않습니다.")
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public List<MyDrugDetailResponse> register(@PathVariable Long profileId,
+    public ResponseEntity<?> register(@PathVariable Long profileId,
                                                @Valid @RequestBody MyDrugCreateRequest request) {
-        return myDrugService.registerAll(profileId, request);
+        if (request.items() != null) {
+            var result = myDrugService.registerSelected(profileId,
+                    new PhotoDrugSelectionRequest(request.source(), request.photoId(), request.items()));
+            return ResponseEntity.status(result.saved().isEmpty() ? HttpStatus.OK : HttpStatus.CREATED).body(result);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(myDrugService.registerAll(profileId, request));
     }
 
     /* 목차. 3. 내 약 상세 (복용정보 + 약 정보, 근거 출처는 GET /api/drugs/{itemSeq}/guide) */

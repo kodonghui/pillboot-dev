@@ -1,14 +1,16 @@
 package org.semiproject.pillbadeumserver.drug.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.semiproject.pillbadeumserver.drug.domain.DrugSource;
+import org.semiproject.pillbadeumserver.image.domain.PhotoDrugSelectionRequest;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -45,10 +47,25 @@ public record MyDrugCreateRequest(
         @NotNull(message = "등록 방법(source)을 선택해주세요.")
         DrugSource source,
 
-        @NotEmpty(message = "저장할 약을 1개 이상 보내주세요.")
         @Size(max = MAX_DRUGS, message = "한 번에 최대 " + MAX_DRUGS + "개까지 저장할 수 있습니다.")
-        List<@NotNull(message = "약 정보가 비어 있습니다.") @Valid Item> drugs
+        List<@NotNull(message = "약 정보가 비어 있습니다.") @Valid Item> drugs,
+
+        Long photoId,
+        @Size(max = MAX_DRUGS, message = "한 번에 최대 " + MAX_DRUGS + "개까지 저장할 수 있습니다.")
+        List<PhotoDrugSelectionRequest.Item> items
 ) {
+
+    // 기존 복용정보 포함 요청도 유지한다. 후보 선택 요청(items)과 한 본문에 섞지는 않는다.
+    public MyDrugCreateRequest(DrugSource source, List<Item> drugs) {
+        this(source, drugs, null, null);
+    }
+
+    @JsonIgnore
+    @AssertTrue(message = "저장할 약을 1개 이상 보내주세요.")
+    public boolean isValidPayload() {
+        return (drugs != null && !drugs.isEmpty() && items == null && photoId == null)
+                || (drugs == null && items != null && !items.isEmpty());
+    }
 
     public static final int MAX_DRUGS = 10;   // 처방전에서 읽는 약 최대 개수 (ocr_candidate.read_no 1~10)
     public static final int MAX_DOSE_PER_TIME = 10;     // 1회 개수 최대 (팀 명세 · 일정 수정과 같음)

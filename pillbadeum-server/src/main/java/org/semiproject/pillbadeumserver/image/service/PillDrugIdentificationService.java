@@ -1,56 +1,35 @@
 package org.semiproject.pillbadeumserver.image.service;
 
-import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
-import org.semiproject.pillbadeumserver.common.external.ExternalApiCaller;
-import org.semiproject.pillbadeumserver.common.external.RestClientFactory;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentificationCandidate;
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Semaphore;
 import java.util.stream.Stream;
 
 /** Queries the MFDS APIs and ranks pill records using OCR/visual recognition output. */
 @Service
 public class PillDrugIdentificationService {
 
-    private static final String API_BASE_URL = "https://apis.data.go.kr";
     private static final String PILL_IDENTIFICATION_PATH =
             "/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03";
     private static final String PRODUCT_PERMIT_PATH =
-            "/1471000/DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnInq07";
+            "/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08";
     private static final String EASY_DRUG_PATH =
             "/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList";
     private static final int SEARCH_PAGE_SIZE = 100;
     private static final int MAX_ENRICHED_CANDIDATES = 5;
-    private static final String API_NAME = "MFDS Public Data";
-    private static final Semaphore API_PERMITS = new Semaphore(4);
 
-    private final ObjectMapper objectMapper;
-    private final RestClient restClient;
-    private final String serviceKey;
+    private final org.semiproject.pillbadeumserver.common.external.PublicDataClient publicData;
 
-    public PillDrugIdentificationService(ObjectMapper objectMapper, Environment environment) {
-        this.objectMapper = objectMapper;
-        this.serviceKey = firstNonBlank(
-                environment.getProperty("public-data.service-key"),
-                environment.getProperty("PUBLIC_DATA_SERVICE_KEY"),
-                environment.getProperty("PUBLIC_DATA_API"),
-                environment.getProperty("PUBLIC_API_KEY"));
-        this.restClient = RestClientFactory.builder(
-                API_BASE_URL, Duration.ofSeconds(3), Duration.ofSeconds(10)).build();
+    public PillDrugIdentificationService(org.semiproject.pillbadeumserver.common.external.PublicDataClient publicData) {
+        this.publicData = publicData;
     }
 
     /**
@@ -62,11 +41,6 @@ public class PillDrugIdentificationService {
         if (!hasSearchCriteria(input)) {
             throw new IllegalArgumentException("약 이름, 각인, 모양 또는 색상 중 하나 이상이 필요합니다.");
         }
-        if (serviceKey == null) {
-            throw ExternalApiException.failed(API_NAME,
-                    "PUBLIC_DATA_SERVICE_KEY에 서비스 키를 설정해주세요.", null);
-        }
-
         List<JsonNode> pillItems = new ArrayList<>();
         for (Map<String, Object> query : buildPillQueries(input)) {
             query.put("pageNo", 1);
@@ -99,44 +73,8 @@ public class PillDrugIdentificationService {
     }
 
     private JsonNode get(String path, Map<String, ?> parameters) {
-        StringBuilder uri = new StringBuilder(path).append("?serviceKey={serviceKey}&type={type}");
-        Map<String, Object> variables = new LinkedHashMap<>();
-        variables.put("serviceKey", serviceKey);
-        variables.put("type", "json");
-        parameters.forEach((name, value) -> {
-            if (value != null && !name.equals("serviceKey") && !name.equals("type")) {
-                uri.append('&').append(name).append("={").append(name).append('}');
-                variables.put(name, value);
-            }
-        });
-
-        String json = ExternalApiCaller.withPermit(API_NAME, API_PERMITS, 1000,
-                () -> ExternalApiCaller.callWithRetry(API_NAME, () -> restClient.get()
-                        .uri(uri.toString(), variables)
-                        .retrieve()
-                        .body(String.class)));
-        if (json == null || json.isBlank()) {
-            throw ExternalApiException.failed(API_NAME, "응답 본문이 비어 있습니다.", null);
-        }
-        try {
-            JsonNode root = objectMapper.readTree(json);
-            if (root == null) {
-                throw ExternalApiException.failed(API_NAME, "응답 본문이 비어 있습니다.", null);
-            }
-            JsonNode response = root.has("response") ? root.path("response") : root;
-            JsonNode header = response.path("header");
-            String resultCode = header.path("resultCode").asString("");
-            if (!resultCode.isEmpty() && !"00".equals(resultCode)) {
-                throw ExternalApiException.failed(API_NAME, "공공데이터 응답이 성공이 아닙니다.", null);
-            }
-            JsonNode body = response.path("body");
-            if (!body.isObject()) {
-                throw ExternalApiException.failed(API_NAME, "응답 본문 형식이 올바르지 않습니다.", null);
-            }
-            return body;
-        } catch (JacksonException e) {
-            throw ExternalApiException.failed(API_NAME, "JSON 응답을 읽을 수 없습니다.", e);
-        }
+        // 기존 무저장 경로도 공통 키·인코딩·호출 제한·오류 처리를 사용한다.
+        return publicData.get(path, parameters);
     }
 
     private JsonNode findByItemSeq(String path, String queryName, String responseName, String itemSeq) {

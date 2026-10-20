@@ -32,6 +32,8 @@ dependencies {
 
     // 입력값 검증
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+    // REG-002/006: WEBP도 실제 디코딩·축소·메타데이터 제거를 거친다. Java ImageIO SPI를 재사용한다.
+    implementation 'com.twelvemonkeys.imageio:imageio-webp:3.12.0'
 
     // JWT 기반 로그인·인가
     implementation 'org.springframework.boot:spring-boot-starter-security'

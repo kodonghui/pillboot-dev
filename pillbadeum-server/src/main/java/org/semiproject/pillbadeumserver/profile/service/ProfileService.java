@@ -12,6 +12,7 @@ import org.semiproject.pillbadeumserver.profile.domain.ProfileRepository;
 import org.semiproject.pillbadeumserver.profile.dto.ProfileCreateRequest;
 import org.semiproject.pillbadeumserver.profile.dto.ProfileResponse;
 import org.semiproject.pillbadeumserver.profile.dto.ProfileUpdateRequest;
+import org.semiproject.pillbadeumserver.image.service.PhotoLifecycleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,10 +24,13 @@ public class ProfileService {
 
     private final ProfileRepository profileRepository;
     private final MemberRepository memberRepository;
+    private final PhotoLifecycleService photos;
 
     @Autowired
-    public ProfileService(ProfileRepository profileRepository, MemberRepository memberRepository) {
+    public ProfileService(ProfileRepository profileRepository, MemberRepository memberRepository,
+                          PhotoLifecycleService photos) {
         this.profileRepository = profileRepository;
+        this.photos = photos;
         this.memberRepository = memberRepository;
     }
 
@@ -128,6 +132,9 @@ public class ProfileService {
         // 5. 채팅방과 이 프로필에 등록된 약을 삭제한다.
         profileRepository.deleteChatSessionsByProfileId(profileId);
         profileRepository.deleteMyDrugsByProfileId(profileId);
+
+        // 사진 FK는 먼저 정리하고, 실제 파일은 프로필 삭제 커밋 후에만 지운다.
+        photos.removeForProfile(profileId);
 
         // 6. 마지막으로 프로필을 삭제한다.
         profileRepository.delete(profile);
