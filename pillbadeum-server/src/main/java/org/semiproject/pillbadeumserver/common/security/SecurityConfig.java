@@ -90,7 +90,7 @@ public class SecurityConfig {
 
                         /* 목차. 3-4. 약 등록 · 이미지 (REG) /api/images/**, /api/drugs/search 등 */
 
-                        /* 목차. 3-5. 내 약 목록 (DRUG)     /api/medications/** */
+                        /* 목차. 3-5. 내 약 목록 (DRUG)     /api/profiles/{profileId}/drugs */
 
                         /* 목차. 3-6. 복약 일정 · 기록 (SCHED, DOSE) /api/schedules/**, /api/doses/** */
 
