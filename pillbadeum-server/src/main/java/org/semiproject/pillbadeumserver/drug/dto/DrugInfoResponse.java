@@ -31,7 +31,7 @@ import java.time.LocalDateTime;
  *    "syncedAt": "2026-10-19T15:10:00"
  *  }
  *  ----------------------------------------------------------------------------------
- *  - material 은 성분명이다. (DB 컬럼 matrial)
+ *  - material 은 성분명이다. (DB 컬럼 material, sql/03 에서 matrial 오타를 고침)
  *  - 각인 · 분할선 · 이미지는 없는 약도 있어서 null 일 수 있다.
  *  - sourceName · syncedAt 은 화면의 '근거 출처' 표시에 쓴다. (어디서, 언제 가져온 정보인지)
  * */

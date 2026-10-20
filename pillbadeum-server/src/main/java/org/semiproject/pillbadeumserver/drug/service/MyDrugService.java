@@ -8,6 +8,7 @@ import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,6 +72,8 @@ public class MyDrugService {
      *  ----------------------------------------------------------------------------------
      *  - 3) 은 외부 API 를 기다리므로 트랜잭션 밖에서 한다. (NOT_SUPPORTED: 클래스의 readOnly 트랜잭션을 쓰지 않음)
      *  - 3) 에서 앞쪽 약의 drug 행이 저장된 뒤 뒤쪽 약이 실패해도, drug 는 공용 캐시라 남겨 둔다.
+     *  - 같은 약을 거의 동시에 저장하면 2) 를 둘 다 통과할 수 있다. 이때는 DB 의 (profile_id, item_seq)
+     *    UNIQUE(sql/04)가 뒤 요청을 막는다. 그 오류를 다시 확인해 409 로 바꾼다. (그대로 두면 500)
      * */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public List<MyDrugDetailResponse> registerAll(Long profileId, MyDrugCreateRequest request) {
@@ -84,7 +87,13 @@ public class MyDrugService {
             drugSyncService.getOrSync(item.itemSeq());
         }
 
-        return myDrugRegisterService.saveAll(profileId, request.source(), items);
+        try {
+            return myDrugRegisterService.saveAll(profileId, request.source(), items);
+        } catch (DataIntegrityViolationException e) {
+            // 같은 약이 먼저 저장됐으면 409. 다른 제약 오류면 그대로 던진다. (공통 처리 500)
+            checkNoDuplicates(profileId, items);
+            throw e;
+        }
     }
 
     /* 설명. 요청 안의 중복(400)과 이미 등록된 약(409)을 확인한다. */
