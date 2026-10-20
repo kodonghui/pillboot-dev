@@ -13,8 +13,11 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -40,6 +43,9 @@ public class FileStorage {
     public static final String DIR_PRESCRIPTION = "prescriptions";   // 처방전 · 약봉투 사진 (REG-002)
     public static final String DIR_PILL = "pills";                   // 알약 앞 · 뒤 사진 (REG-006)
     public static final String DIR_PROFILE = "profiles";             // 프로필 사진 (PROF-001)
+    public static final String DIR_TEMP = "img_temp";                 // 식별용 임시 이미지 (REQ-18)
+
+    public enum DeleteResult { DELETED, NOT_FOUND, FAILED }
 
     /* 설명. 허용하는 이미지 확장자
      *  OpenAI 이미지 입력이 지원하는 형식(jpg, png, webp)만 허용한다.
@@ -64,14 +70,19 @@ public class FileStorage {
 
         String extension = validateImage(file);
         Path directory = Paths.get(getBasePath(), subDirectory);
+        String savedName = UUID.randomUUID().toString().replace("-", "") + "." + extension;
 
         try {
             Files.createDirectories(directory);
-            String savedName = UUID.randomUUID().toString().replace("-", "") + "." + extension;
             file.transferTo(directory.resolve(savedName));
             return savedName;
         } catch (IOException e) {
+            // transferTo가 파일을 일부 쓴 뒤 실패하면 호출자는 파일명을 받지 못한다. 여기서 직접 정리한다.
+            if (DIR_TEMP.equals(subDirectory)) deleteTemporaryImage(savedName);
             throw new UncheckedIOException("파일 저장 실패: " + directory, e);
+        } catch (RuntimeException e) {
+            if (DIR_TEMP.equals(subDirectory)) deleteTemporaryImage(savedName);
+            throw e;
         }
     }
 
@@ -138,6 +149,38 @@ public class FileStorage {
             Files.deleteIfExists(resolve(savedName, subDirectory));
         } catch (IOException e) {
             log.warn("[FileStorage] 파일 삭제 실패 : {}/{}", subDirectory, savedName);
+        }
+    }
+
+    /**
+     * 서버가 발급한 임시 이미지 한 개만 지운다. 디렉터리·링크·다른 경로는 삭제하지 않는다.
+     * 저장/식별 결과를 파일 IO 실패로 뒤집지 않도록 실패는 결과값으로 돌려준다.
+     */
+    public DeleteResult deleteTemporaryImage(String savedName) {
+        if (savedName == null || !savedName.matches("[0-9a-f]{32}\\.(jpg|png|webp)")) {
+            return DeleteResult.FAILED;
+        }
+        try {
+            Path base = Paths.get(getBasePath()).toAbsolutePath().normalize();
+            Path directory = base.resolve(DIR_TEMP);
+            Path target = directory.resolve(savedName).normalize();
+            if (!target.getParent().equals(directory) || !target.startsWith(directory)) {
+                return DeleteResult.FAILED;
+            }
+            // img_temp 자체가 링크/Windows junction으로 바뀌어 다른 폴더를 가리키는 경우도 차단한다.
+            if (Files.isSymbolicLink(directory)
+                    || !directory.toRealPath().equals(base.toRealPath().resolve(DIR_TEMP))) {
+                return DeleteResult.FAILED;
+            }
+            BasicFileAttributes attributes = Files.readAttributes(target, BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            if (!attributes.isRegularFile()) return DeleteResult.FAILED;
+            return Files.deleteIfExists(target) ? DeleteResult.DELETED : DeleteResult.NOT_FOUND;
+        } catch (NoSuchFileException e) {
+            return DeleteResult.NOT_FOUND;
+        } catch (IOException | SecurityException e) {
+            log.warn("[FileStorage] 임시 이미지 삭제 실패 type={}", e.getClass().getSimpleName());
+            return DeleteResult.FAILED;
         }
     }
 

@@ -11,20 +11,22 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 처방전/약봉투 사진을 검증해 서버의 temp 폴더에 임시 저장합니다. */
+/** 처방전/약봉투 사진을 검증해 서버의 img_temp 폴더에 임시 저장합니다. */
 @Service
 public class TemporaryPhotoUploadService {
 
-    private static final String TEMP_DIRECTORY = "img_temp";
     private static final int MAX_PHOTOS = 3;
 
     private final FileStorage fileStorage;
     private final ProfileAccessChecker profileAccessChecker;
+    private final TemporaryPhotoCleanupService cleanup;
 
     public TemporaryPhotoUploadService(FileStorage fileStorage,
-                                       ProfileAccessChecker profileAccessChecker) {
+                                       ProfileAccessChecker profileAccessChecker,
+                                       TemporaryPhotoCleanupService cleanup) {
         this.fileStorage = fileStorage;
         this.profileAccessChecker = profileAccessChecker;
+        this.cleanup = cleanup;
     }
 
     public TemporaryPhotoUploadResponse upload(Long profileId, List<MultipartFile> images) {
@@ -36,12 +38,12 @@ public class TemporaryPhotoUploadService {
         List<String> savedNames = new ArrayList<>();
         try {
             for (MultipartFile image : images) {
-                savedNames.add(fileStorage.saveImage(image, TEMP_DIRECTORY));
+                savedNames.add(fileStorage.saveImage(image, FileStorage.DIR_TEMP));
             }
             return new TemporaryPhotoUploadResponse(List.copyOf(savedNames));
         } catch (RuntimeException exception) {
             // 한 장 저장 후 다음 파일이 잘못되면 이미 저장한 임시 파일도 정리합니다.
-            savedNames.forEach(name -> fileStorage.delete(name, TEMP_DIRECTORY));
+            cleanup.deleteNow(savedNames);
             throw exception;
         }
     }
