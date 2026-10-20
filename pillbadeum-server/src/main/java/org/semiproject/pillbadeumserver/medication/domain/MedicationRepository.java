@@ -19,7 +19,7 @@ public class MedicationRepository {
     private final JdbcClient jdbc;
     private static final String SELECT = """
             SELECT md.my_drug_id, md.profile_id, p.profile_name, p.relationship_type, COALESCE(d.name,md.custom_name) AS drug_name,
-                   md.dose_per_time, md.timing, md.start_date, md.end_date, md.dose_times, md.updated_at
+                   md.dose_per_time, md.timing, md.start_date, md.end_date, md.dose_times, md.updated_at, md.dose_confirmed
             FROM my_drug md JOIN profile p ON p.profile_id=md.profile_id LEFT JOIN drug d ON d.item_seq=md.item_seq
             WHERE p.member_id=:memberId
             """;
@@ -28,7 +28,7 @@ public class MedicationRepository {
         return new MedicationTarget(rs.getLong("my_drug_id"), rs.getLong("profile_id"), rs.getString("profile_name"),
                 rs.getString("relationship_type"), rs.getString("drug_name"), rs.getInt("dose_per_time"),
                 rs.getString("timing"), start == null ? null : start.toLocalDate(), end == null ? null : end.toLocalDate(),
-                rs.getString("dose_times"), rs.getTimestamp("updated_at").toLocalDateTime());
+                rs.getString("dose_times"), rs.getTimestamp("updated_at").toLocalDateTime(), rs.getBoolean("dose_confirmed"));
     };
 
     public MedicationRepository(JdbcClient jdbc) { this.jdbc = jdbc; }

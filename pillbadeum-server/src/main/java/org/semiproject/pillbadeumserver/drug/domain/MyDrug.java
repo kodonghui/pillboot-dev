@@ -75,6 +75,9 @@ public class MyDrug {
     @Column(name = "dose_per_time", nullable = false)
     private int dosePerTime;            // 한 번에 복용하는 개수
 
+    @Column(name = "dose_confirmed", nullable = false)
+    private boolean doseConfirmed = true;
+
     @Column(name = "timing", length = 50)
     private String timing;              // 식후 30분, 식전 등 (선택)
 
@@ -131,6 +134,7 @@ public class MyDrug {
         myDrug.customName = customName.strip();
         myDrug.source = DrugSource.MANUAL;
         myDrug.apply(1, "식후 30분", null, null, null);
+        myDrug.doseConfirmed = false;
         return myDrug;
     }
 
@@ -145,6 +149,7 @@ public class MyDrug {
                 startDate != null ? startDate : this.startDate,
                 endDate != null ? endDate : this.endDate,
                 doseTimes != null ? doseTimes : this.doseTimes == null ? null : getDoseTimes());
+        if (dosePerTime != null) doseConfirmed = true;
     }
 
     /** 선택한 내 약의 일정만 제거한다. 약·프로필·1회 개수·복용 때·등록 경로는 유지한다. */
@@ -241,6 +246,9 @@ public class MyDrug {
     public int getDosePerTime() {
         return dosePerTime;
     }
+
+    public Integer getConfirmedDosePerTime() { return doseConfirmed ? dosePerTime : null; }
+    public boolean isDoseConfirmed() { return doseConfirmed; }
 
     public String getTiming() {
         return timing;

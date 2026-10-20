@@ -42,7 +42,7 @@ public record MyDrugListResponse(
         String maker,               // 업체명
         String imageUrl,            // 공식 사진 (없으면 null)
         String etcOtc,              // ETC(전문) / OTC(일반)
-        int dosePerTime,            // 1회 복용량
+        Integer dosePerTime,        // 복용정보 미설정이면 NULL임.
         String timing,              // 복용 시점 (식후 30분 등, 없으면 null)
         List<String> doseTimes,     // 복용 시각 'HH:mm' 목록 (이른 시각부터)
         LocalDate startDate,        // 복용 시작일
@@ -68,7 +68,7 @@ public record MyDrugListResponse(
                 drug == null ? null : drug.getMaker(),
                 drug == null ? null : drug.getImageUrl(),
                 drug == null ? null : drug.getEtcOtc(),
-                myDrug.getDosePerTime(),
+                myDrug.getConfirmedDosePerTime(),
                 myDrug.getTiming(),
                 doseTimes,
                 myDrug.getStartDate(),

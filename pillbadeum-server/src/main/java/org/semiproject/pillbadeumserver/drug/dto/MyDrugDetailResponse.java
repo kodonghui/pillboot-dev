@@ -41,7 +41,7 @@ import java.util.List;
 public record MyDrugDetailResponse(
         Long myDrugId,
         String name,                // 화면에 보여줄 이름 (약 이름, 직접 입력한 약은 입력한 이름)
-        int dosePerTime,            // 1회 복용량
+        Integer dosePerTime,        // 미확정이면 NULL이며 DB 초기값을 실제 복용량으로 표시하지 않음.
         String timing,              // 복용 시점 (없으면 null)
         List<String> doseTimes,     // 복용 시각 'HH:mm' 목록 (이른 시각부터)
         LocalDate startDate,        // 복용 시작일
@@ -66,7 +66,7 @@ public record MyDrugDetailResponse(
         return new MyDrugDetailResponse(
                 myDrug.getMyDrugId(),
                 drug == null ? myDrug.getCustomName() : drug.getName(),
-                myDrug.getDosePerTime(),
+                myDrug.getConfirmedDosePerTime(),
                 myDrug.getTiming(),
                 doseTimes,
                 myDrug.getStartDate(),

@@ -111,7 +111,7 @@ public class QuestionStore {
                 .map(m -> m.getCustomName()).toList();
         var drugs = registered.stream().filter(m -> m.getDrug() != null).map(m ->
                 new AnswerInput.Medication(m.getDrug().getItemSeq(), m.getDrug().getName(), m.getDrug().getMaker(),
-                        m.getDrug().getEtcOtc(), m.getDosePerTime(), m.getTiming(), m.getStartDate(), m.getEndDate(),
+                        m.getDrug().getEtcOtc(), m.getConfirmedDosePerTime(), m.getTiming(), m.getStartDate(), m.getEndDate(),
                         m.getDoseTimes(), m.getUpdatedAt().toLocalDate())).toList();
         var turns = messages.findRecentCompleteTurns(sessionId, savedQuestion.getTurnNo()).stream().map(turn ->
                 new AnswerInput.Turn(turn.getTurnNo(), turn.getQuestion(), turn.getAnswer(),

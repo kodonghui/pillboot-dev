@@ -37,7 +37,7 @@ public record AnswerInput(long birthYear, String gender, Boolean pregnant, Strin
         return new AnswerInput(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer,
                 recentSummaries, similarSummaries, summaryCount, names);
     }
-    public record Medication(String itemSeq, String name, String maker, String etcOtc, int dosePerTime,
+    public record Medication(String itemSeq, String name, String maker, String etcOtc, Integer dosePerTime,
                               String timing, LocalDate startDate, LocalDate endDate,
                               List<LocalTime> doseTimes, LocalDate updatedAt) {}
     public record Turn(int turnNo, String question, String answer, Integer questionTokens, Integer answerTokens) {}

@@ -35,12 +35,12 @@ public final class MedicationDtos {
 
     public record ScheduleResponse(long myDrugId, long profileId, String profileName, String drugName,
                                    LocalDate startDate, LocalDate endDate, List<String> doseTimes,
-                                   int dosePerTime, String timing, boolean pushEnabled, boolean hasSchedule) {
+                                   Integer dosePerTime, String timing, boolean pushEnabled, boolean hasSchedule) {
         public static ScheduleResponse from(MedicationTarget target, boolean pushEnabled) {
             return new ScheduleResponse(target.myDrugId(), target.profileId(), target.profileName(), target.drugName(),
                     target.startDate(), target.endDate(),
                     target.doseTimes().stream().map(t -> t.format(DateTimeFormatter.ofPattern("HH:mm"))).toList(),
-                    target.dosePerTime(), target.timing(), pushEnabled, target.hasSchedule());
+                    target.confirmedDosePerTime(), target.timing(), pushEnabled, target.hasSchedule());
         }
 
         /** JPA로 바꾼 값을 바로 응답한다. JDBC 재조회에 아직 flush되지 않은 값이 섞이는 일을 피한다. */
@@ -48,7 +48,7 @@ public final class MedicationDtos {
             return new ScheduleResponse(myDrug.getMyDrugId(), myDrug.getProfileId(), target.profileName(), target.drugName(),
                     myDrug.getStartDate(), myDrug.getEndDate(),
                     myDrug.getDoseTimes().stream().map(t -> t.format(DateTimeFormatter.ofPattern("HH:mm"))).toList(),
-                    myDrug.getDosePerTime(), myDrug.getTiming(), pushEnabled, myDrug.hasSchedule());
+                    myDrug.getConfirmedDosePerTime(), myDrug.getTiming(), pushEnabled, myDrug.hasSchedule());
         }
     }
 

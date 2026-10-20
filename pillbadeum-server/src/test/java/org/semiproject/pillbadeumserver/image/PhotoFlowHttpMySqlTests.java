@@ -222,7 +222,19 @@ class PhotoFlowHttpMySqlTests {
   void pillRegistrationUsesBothPhotosAndLeavesScheduleUnset() throws Exception {
     vision = pill("합성약정", "A", "B");
     long id = identify("PILL", token, 200, "front", "back").path("photoId").asLong();
-    json("POST", drugs(profileId), selection(id, "PILL_PHOTO", code1), token, 201);
+    var registered = json("POST", drugs(profileId), selection(id, "PILL_PHOTO", code1), token, 201);
+    long drug = registered.path("saved").path(0).path("myDrugId").asLong();
+    var detail = json("GET", drugs(profileId) + "/" + drug, null, token, 200);
+    assertThat(detail.path("dosePerTime").isNull()).isTrue();
+    var list = json("GET", drugs(profileId), null, token, 200);
+    assertThat(list.path(0).path("dosePerTime").isNull()).isTrue();
+    var choices = json("GET", "/api/profiles/" + profileId + "/drugs/schedule-choices", null, token, 200);
+    assertThat(choices.path("drugs").path(0).path("dosePerTime").isNull()).isTrue();
+    var schedule = Map.of("startDate", "2026-10-21", "endDate", "2026-10-22", "doseTimes", List.of("08:00"), "dosePerTime", 2);
+    json("PUT", drugs(profileId) + "/" + drug + "/schedule", schedule, token, 200);
+    assertThat(json("GET", drugs(profileId) + "/" + drug, null, token, 200).path("dosePerTime").asInt()).isEqualTo(2);
+    json("DELETE", drugs(profileId) + "/" + drug + "/schedule", null, token, 204);
+    assertThat(json("GET", drugs(profileId) + "/" + drug, null, token, 200).path("dosePerTime").asInt()).isEqualTo(2);
     assertNoPhotos();
   }
 

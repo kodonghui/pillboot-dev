@@ -51,6 +51,16 @@ class AnswerContextTests {
     }
 
     @Test
+    void unconfirmedDoseIsNullInModelContextAndNeverInventsSchedule() {
+        var medications = List.of(new AnswerInput.Medication("900001", "합성약", "합성제약", "OTC", null,
+                null, null, null, List.of(), LocalDate.now()));
+        var input = new AnswerInput(1990, "MALE", false, "얼마나 먹나요", medications, List.of(), true);
+        var notice = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("ALL", "NONE", 1, List.of(), List.of(), "합성 안내");
+        var messages = generator.messages(input, medications, new OfficialDrugEvidence.Evidence(List.of()), notice);
+        assertThat(messages.toString()).contains("\"dosePerTime\":null", "\"userSchedules\":[]");
+    }
+
+    @Test
     void unknownTokenCountsKeepModerateKoreanTurnsAsWholePairs() {
         var messages = generator.recentMessages(List.of(
                 new AnswerInput.Turn(1, "가".repeat(500), "나".repeat(500), null, null),

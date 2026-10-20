@@ -90,8 +90,8 @@ public class ImageDrugConfirmationService {
             var s =
                 c.prepareStatement(
                     "INSERT INTO"
-                        + " my_drug(profile_id,item_seq,dose_per_time,source,registered_at,updated_at)"
-                        + " VALUES(?,?,1,?,?,?)",
+                        + " my_drug(profile_id,item_seq,dose_per_time,dose_confirmed,source,registered_at,updated_at)"
+                        + " VALUES(?,?,1,FALSE,?,?,?)",
                     Statement.RETURN_GENERATED_KEYS);
             s.setLong(1, profileId);
             s.setString(2, code);
