@@ -22,7 +22,7 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
     /* 프로필 삭제 시 해당 프로필의 등록 약 삭제 */
     @Modifying
     @Query(value="DELETE FROM my_drug WHERE profile_id = :profileId", nativeQuery = true)
-    int deleteMyDrugsByProfileId(@Param("profileId") Long profileId);
+    void deleteMyDrugsByProfileId(@Param("profileId") Long profileId);
 
     /* 채팅 관련 삭제 */
     /* 1. 프로필 삭제 시 해당 프로필 채팅방의 메세지 삭제 */
@@ -30,19 +30,19 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
     @Query(value="DELETE FROM chat_message WHERE session_id IN (" +
                     "SELECT session_id FROM chat_session WHERE profile_id = :profileId" +
                     ")", nativeQuery = true)
-    int deleteChatMessagesByProfileId(@Param("profileId") Long profileId);
+    void deleteChatMessagesByProfileId(@Param("profileId") Long profileId);
 
     /* 2. 프로필 삭제 시 해당 프로필 채팅방의 요약 삭제 */
     @Modifying
     @Query(value = "DELETE FROM chat_summary WHERE session_id IN (" +
                     "SELECT session_id FROM chat_session WHERE profile_id = :profileId" +
                     ")",  nativeQuery = true)
-    int deleteChatSummariesByProfileId(@Param("profileId") Long profileId);
+    void deleteChatSummariesByProfileId(@Param("profileId") Long profileId);
 
     /* 3. 프로필 삭제 시 해당 프로필의 채팅방 삭제 */
     @Modifying
     @Query(value = "DELETE FROM chat_session WHERE profile_id = :profileId", nativeQuery = true)
-    int deleteChatSessionsByProfileId(@Param("profileId") Long profileId);
+    void deleteChatSessionsByProfileId(@Param("profileId") Long profileId);
 
 
 }
