@@ -45,7 +45,8 @@ public class PillDrugIdentificationService {
         this.objectMapper = objectMapper;
         this.serviceKey = firstNonBlank(
                 System.getenv("PUBLIC_DATA_API"),
-                System.getenv("PUBLIC_DATA_SERVICE_KEY"));
+                System.getenv("PUBLIC_DATA_SERVICE_KEY"),
+                System.getenv("PUBLIC_API_KEY"));
         this.restClient = RestClientFactory.builder(
                 API_BASE_URL, Duration.ofSeconds(3), Duration.ofSeconds(10)).build();
     }
@@ -263,8 +264,13 @@ public class PillDrugIdentificationService {
         return value != null && !value.isBlank();
     }
 
-    private static String firstNonBlank(String first, String second) {
-        return present(first) ? first.strip() : present(second) ? second.strip() : null;
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (present(value)) {
+                return value.strip();
+            }
+        }
+        return null;
     }
 
     private record RankedPill(JsonNode item, double score) {
