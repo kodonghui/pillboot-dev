@@ -1,0 +1,154 @@
+package org.semiproject.pillbadeumserver.chat.service;
+
+import java.time.Duration;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Future;
+import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
+import org.semiproject.pillbadeumserver.common.exception.BusinessException;
+import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
+import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.task.AsyncTaskExecutor;
+import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+
+/** CHAT-008: 등록 품목코드의 필요한 DUR 유형을 조회한다. 외부 작업에는 DB 쓰기가 없다. */
+@Service
+public class DurLookupService {
+    private static final Logger log = LoggerFactory.getLogger(DurLookupService.class);
+    private static final int PAGE_SIZE = 100;
+    private static final int MAX_ROWS = 200;
+    private final PublicDataClient client;
+    private final AsyncTaskExecutor executor;
+    private final int batchSize;
+
+    public DurLookupService(PublicDataClient client,
+                            @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor,
+                            @Value("${public-data.max-concurrent-calls:4}") int concurrency) {
+        this.client = client;
+        this.executor = executor;
+        this.batchSize = Math.max(1, Math.min(10, concurrency));
+    }
+
+    /** 전체 등록 목록을 중복 제거한다. 최대 10품목을 조회하고 초과 품목은 미확인 결과로 남긴다. */
+    public List<DurLookup> collect(AnswerInput input, ChatDeadline requestDeadline) {
+        LocalDate today = LocalDate.now(TimeZoneConfig.ZONE);
+        var unique = new LinkedHashMap<String, AnswerInput.Medication>();
+        input.medications().forEach(m -> unique.putIfAbsent(m.itemSeq(), m));
+        var types = requiredTypes(input, unique.size(), today);
+        var requests = new ArrayList<Request>();
+        int index = 0;
+        var results = new ArrayList<DurLookup>();
+        for (String code : unique.keySet()) {
+            for (var type : types) {
+                if (index < 10) requests.add(new Request(code, type));
+                else results.add(DurLookup.failed(code, type, today));
+            }
+            index++;
+        }
+        var deadline = requestDeadline.within(Duration.ofSeconds(30));
+        int remaining = 24_000;
+        for (int offset = 0; offset < requests.size(); offset += batchSize) {
+            var batch = requests.subList(offset, Math.min(requests.size(), offset + batchSize));
+            var tasks = new ArrayList<Future<DurLookup>>();
+            try {
+                for (var request : batch) tasks.add(executor.submit(() -> lookup(request, deadline)));
+                for (int i = 0; i < tasks.size(); i++) {
+                    DurLookup lookup;
+                    try { lookup = deadline.await(tasks.get(i)); }
+                    catch (BusinessException exception) { lookup = DurLookup.failed(batch.get(i).code(), batch.get(i).type(), today); }
+                    int size = lookup.rows().stream().mapToInt(row -> row.content().length() + row.ingredient().length()
+                            + row.effect().length() + (row.partnerItemSeq() == null ? 0 : row.partnerItemSeq().length())).sum();
+                    // 금기 내용을 중간에서 자르지 않고 초과한 유형 전체를 미확인으로 처리한다.
+                    if (size > remaining) lookup = DurLookup.failed(lookup.itemSeq(), lookup.type(), today);
+                    else remaining -= size;
+                    results.add(lookup);
+                }
+            } finally {
+                tasks.stream().filter(task -> !task.isDone()).forEach(task -> task.cancel(true));
+            }
+        }
+        return List.copyOf(results);
+    }
+
+    static EnumSet<DurLookup.Type> requiredTypes(AnswerInput input, int drugCount, LocalDate today) {
+        var types = EnumSet.of(DurLookup.Type.AGE);
+        long years = today.getYear() - input.birthYear();
+        if (drugCount > 1) types.add(DurLookup.Type.INTERACTION);
+        if (years >= 65 || years < 0 || years > 130) types.add(DurLookup.Type.ELDERLY);
+        if (!"MALE".equals(input.gender()) && !Boolean.FALSE.equals(input.pregnant())) types.add(DurLookup.Type.PREGNANCY);
+        return types;
+    }
+
+    /** 페이지 일부만 읽은 결과를 성공으로 쓰지 않는다. 한 유형의 모든 페이지가 검증돼야 캐시 교체가 가능하다. */
+    private DurLookup lookup(Request request, ChatDeadline deadline) {
+        var today = LocalDate.now(TimeZoneConfig.ZONE);
+        try {
+            var rows = new ArrayList<DurLookup.Row>();
+            int expectedTotal = -1;
+            for (int page = 1; ; page++) {
+                deadline.check();
+                JsonNode body = client.get(request.type().path(), Map.of("itemSeq", request.code(), "pageNo", page, "numOfRows", PAGE_SIZE));
+                deadline.check();
+                String count = body.path("totalCount").asString("");
+                if (!count.matches("\\d{1,9}")) throw invalid();
+                int total = Integer.parseInt(count);
+                if (total > MAX_ROWS || (expectedTotal != -1 && expectedTotal != total)) throw invalid();
+                expectedTotal = total;
+                if (body.has("pageNo") && body.path("pageNo").asInt(-1) != page) throw invalid();
+                var items = PublicDataClient.items(body);
+                int expectedSize = Math.min(PAGE_SIZE, Math.max(0, total - (page - 1) * PAGE_SIZE));
+                if (items.size() != expectedSize) throw invalid();
+                for (var item : items) rows.add(parse(request, item, today));
+                if (page * PAGE_SIZE >= total) break;
+            }
+            // 동일 페이지가 반복되거나 응답의 전체 수와 실내용이 맞지 않으면 완전한 조회로 인정하지 않는다.
+            if (rows.stream().distinct().count() != rows.size()) throw invalid();
+            var updated = rows.stream().map(DurLookup.Row::updatedAt).min(LocalDate::compareTo).orElse(today);
+            return new DurLookup(request.code(), request.type(), true, List.copyOf(rows), updated);
+        } catch (BusinessException | NumberFormatException exception) {
+            log.warn("[DUR 조회] type={} result=unavailable", request.type());
+            return DurLookup.failed(request.code(), request.type(), today);
+        }
+    }
+
+    private DurLookup.Row parse(Request request, JsonNode item, LocalDate today) {
+        if (!request.code().equals(item.path("ITEM_SEQ").asString(""))) throw invalid();
+        String label = text(item, "TYPE_NAME");
+        if (!label.isEmpty() && !request.type().cacheAliases().contains(label)) throw invalid();
+        String content = text(item, "PROHBT_CONTENT");
+        String partner = text(item, "MIXTURE_ITEM_SEQ");
+        if (content.isBlank()) {
+            // 상대 NULL인 빈 행은 병용금기 상대 없음 표현일 뿐 다른 유형의 확인 증거는 아니다.
+            if (request.type() != DurLookup.Type.INTERACTION || !partner.isBlank()) throw invalid();
+        } else if (request.type() == DurLookup.Type.INTERACTION && partner.isBlank()) throw invalid();
+        if (partner.length() > 100) throw invalid();
+        LocalDate updated = OfficialDrugEvidence.parseDate(text(item, "CHANGE_DATE"));
+        if (updated == null) updated = OfficialDrugEvidence.parseDate(text(item, "NOTIFICATION_DATE"));
+        String ingredient = text(item, request.type() == DurLookup.Type.INTERACTION ? "INGR_KOR_NAME" : "INGR_NAME");
+        return new DurLookup.Row(partner.isBlank() ? null : partner, ingredient, text(item, "CLASS_NAME"), content,
+                updated == null || updated.isAfter(today) ? today : updated);
+    }
+
+    private String text(JsonNode item, String field) {
+        var node = item.path(field);
+        if (!node.isMissingNode() && !node.isNull() && !node.isString()) throw invalid();
+        String raw = node.asString("");
+        if (raw.length() > 8_000) throw invalid();
+        return OfficialDrugEvidence.clean(raw);
+    }
+
+    private static ExternalApiException invalid() {
+        return ExternalApiException.failed("DUR", "DUR 응답을 확인할 수 없습니다.", null);
+    }
+
+    private record Request(String code, DurLookup.Type type) {}
+}

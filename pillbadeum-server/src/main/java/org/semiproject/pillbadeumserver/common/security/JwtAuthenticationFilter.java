@@ -57,7 +57,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.setContext(context);
 
             } catch (ExpiredJwtException e) {
-                request.setAttribute(JWT_ERROR_ATTRIBUTE, "토큰이 만료되었습니다. 다시 로그인해주세요.");
+                request.setAttribute(JWT_ERROR_ATTRIBUTE, "로그인 시간이 만료되었어요. 다시 로그인해 주세요.");
 
             } catch (JwtException | IllegalArgumentException e) {
                 // 서명 불일치(위조), 형식 오류 등. 토큰 값은 로그에 남기지 않는다.
