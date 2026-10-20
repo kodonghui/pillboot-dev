@@ -66,6 +66,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     if (docsEnabled) {
                         auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
+                        // 컨트롤러도 local 프로필에만 존재한다. Live 업무 API는 인증을 유지한다.
+                        auth.requestMatchers(HttpMethod.GET, "/dev/medication-live", "/dev/medication-live.js").permitAll();
                     }
                     auth
 

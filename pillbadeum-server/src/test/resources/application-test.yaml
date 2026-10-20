@@ -10,6 +10,15 @@ spring:
 jwt:
   secret: cGlsbGJhZGV1bS10ZXN0LW9ubHktc2lnbmluZy1rZXktMzItYnl0ZXM
 
+# 테스트 DB에 매분 발송 시각 행이 생기지 않도록 복약 알림 스케줄러를 끈다. 실제 키도 넣지 않는다.
+web-push:
+  scheduler:
+    enabled: false
+  vapid:
+    public-key: ""
+    private-key: ""
+    subject: ""
+
 springdoc:
   api-docs:
     enabled: true

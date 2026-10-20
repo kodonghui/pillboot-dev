@@ -39,14 +39,14 @@ class PillbadeumServerApplicationTests {
                 assertThat(rows.getString(1)).as("Only the dedicated pill_test database may be modified")
                         .isEqualTo("pill_test");
             }
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
+            org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             Set<String> tables = new HashSet<>();
             try (var rows = statement.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()")) {
                 while (rows.next()) tables.add(rows.getString(1));
             }
             Set<String> expectedTables = Set.of("member", "consent", "profile", "consent_history",
                     "notification_setting", "drug", "my_drug", "chat_session", "chat_message", "chat_summary",
-                    "photo", "ocr_candidate", "dur_warning", "dur_interaction");
+                    "photo", "ocr_candidate", "dur_warning", "dur_interaction", "push_subscription", "notification_dispatch");
             // 최신 ERD와 생성 SQL은 운영체제와 관계없이 테이블 이름을 소문자로 통일합니다.
             assertThat(tables).containsExactlyInAnyOrderElementsOf(expectedTables);
             try (var rows = statement.executeQuery("SELECT COUNT(*) FROM member")) {
@@ -64,11 +64,11 @@ class PillbadeumServerApplicationTests {
                         connection.rollback();
                         connection.setAutoCommit(true);
                     }
-                    ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/02_PILLBADEUM_TEST_DATA.sql"));
+                    org.semiproject.pillbadeumserver.TestDatabaseSchema.seed(connection);
                 }
             }
             // 생성 SQL을 다시 실행해도 샘플 데이터가 지워지지 않아야 합니다.
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
+            org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertRows(connection, "member", 5);
             assertRows(connection, "profile", 15);
             assertRows(connection, "drug", 2);
@@ -81,7 +81,8 @@ class PillbadeumServerApplicationTests {
             }
             assertRows(connection, "chat_message", 180);
             assertRows(connection, "chat_summary", 45);
-            for (String table : Set.of("photo", "ocr_candidate", "dur_warning", "dur_interaction")) {
+            for (String table : Set.of("photo", "ocr_candidate", "dur_warning", "dur_interaction",
+                    "push_subscription", "notification_dispatch")) {
                 assertRows(connection, table, 0);
             }
             connection.setAutoCommit(false);

@@ -30,6 +30,7 @@ Java·Jackson·로그의 `Asia/Seoul` 설정은 유지합니다.
 | `OPENAI_CHAT_MODEL`, `OPENAI_VISION_MODEL` | AI 사용 시 계정에서 사용할 수 있는 Responses API 모델 ID 명시. 공란인 기능은 호출 전 503 |
 | `PUBLIC_DATA_SERVICE_KEY` | 선택. 공공데이터포털 일반 인증키(Decoding) |
 | `QDRANT_ENABLED` | 선택. Qdrant를 따로 띄운 사람만 true |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | 선택. 복약 알림 웹 푸시 키와 연락처(mailto:/https://). 셋을 함께 넣거나 모두 비움. 비우면 푸시 API만 503 |
 
 개인 JWT 키 생성(PowerShell):
 
@@ -43,6 +44,10 @@ $rng.Dispose()
 
 Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 서명키가 없거나 짧으면 서버를 시작하지 않습니다. 실제 키는 공유하지 않습니다.
+
+복약 알림 키(VAPID)는 P-256 키 한 쌍을 base64url로 넣습니다. 공개 키는 65바이트, 개인 키는 32바이트입니다.
+`npx web-push generate-vapid-keys`로 만든 값을 그대로 넣어도 됩니다. 배포 서버 키는 한 번 정하면 바꾸지 않습니다.
+키를 바꾸면 모든 브라우저가 알림을 다시 켜야 합니다. 공개 키와 개인 키가 짝이 아니면 서버를 시작하지 않습니다.
 추론 옵션은 선택한 모델이 지원할 때만 `OPENAI_REASONING_EFFORT`로 지정합니다.
 임베딩 기본 모델은 `text-embedding-3-small`입니다. 모델/차원을 바꾸면 Qdrant 컬렉션도 함께 맞춥니다.
 
@@ -54,7 +59,7 @@ Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 ### 신규 DB: 설치된 MySQL / Workbench
 
 관리자 연결에서 `sql/00_PILLBADEUM_DB_CREAT.sql` 실행 후 pilldb를 선택하고
-`sql/01_PILLBADEUM_DB_SCRIPT.sql`을 실행합니다. 기존 계정 비밀번호는 변경하지 않습니다.
+원본 `sql/01_PILLBADEUM_DB_SCRIPT.sql`, 필요하면 02 샘플, 마지막으로 `sql/03_MEDICATION_UPDATE.sql` 전체를 실행합니다.
 
 ```powershell
 .\scripts\setup-local-db.ps1
@@ -62,10 +67,16 @@ Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 
 클라이언트를 못 찾으면 `-MySqlClient 'C:\...\mysql.exe'`를 지정합니다.
 스키마는 사용자가 제공한 **ERD Cloud 기준 MySQL 14개 테이블·114개 컬럼**입니다.
-ERD 밖의 API 기반 추가 표·컬럼은 포함하지 않으며, 표명 대소문자와 컬럼명도 원문을 따릅니다.
+01은 원본 14개 테이블 구조이며, 03이 복약지도 변경을 더해 최종 16개 테이블·125개 컬럼으로 맞춥니다.
 테이블명은 소문자로 통일하고 `photo.kind`는 `VARCHAR(30)`으로 반영했습니다.
 `chat_session.snap_pregnant`의 자료형은 `BOOLEAN`으로 맞췄으며 기존 NULL 허용은 유지합니다.
 `drug.etc_otc`는 UNIQUE를 제거하고 `NOT NULL`과 `chk_drug_type CHECK (etc_otc IN ('ETC', 'OTC'))`를 적용했습니다.
+일정만 삭제하고 약은 유지하도록 `my_drug.start_date/end_date/dose_times`는 NULL을 허용하며 세 값을 함께 채우거나 비우도록 CHECK를 적용했습니다.
+기존 00~02는 GitHub 원본을 유지하고 복약지도 변경은 [통합 SQL](sql/03_MEDICATION_UPDATE.sql) 하나로 적용합니다. 기존 원본 DB와 예전 변경을 일부 적용한 DB 모두 03 전체를 실행하고 마지막 READY를 확인합니다. 적용된 항목은 건너뜁니다. 자세한 순서는 [SQL 안내](sql/README.md)를 참고하세요.
+일정 API·삭제 동작은 [복약 일정 안내](docs/MEDICATION_SCHEDULE.md)를 참고하세요.
+실시간 음성 대화 테스트는 [GPT-Live 안내](docs/MEDICATION_LIVE.md)를 참고하세요. local 실행 후 `/dev/medication-live`에서 시작합니다.
+프론트 전달 기준은 [복약지도 연결 계약](docs/MEDICATION_FRONTEND_HANDOFF.md), 실행 방법과 확인 결과는 [백엔드 검증 기록](docs/MEDICATION_VERIFICATION.md)에 정리했습니다. 복약 완료 체크·실제 복용 기록은 구현 범위에서 제외합니다.
+새 회원으로 복약지도만 테스트하려면 [테스트 계정 준비](docs/MEDICATION_TEST_ACCOUNT.md)의 명령 한 번으로 프로필·내 약·여러 상태의 일정을 함께 준비합니다.
 Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 
 ### 신규 DB: Docker Compose
@@ -76,6 +87,7 @@ Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 ```text
 docker compose up -d --wait
 docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/01_PILLBADEUM_DB_SCRIPT.sql"
+docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/03_MEDICATION_UPDATE.sql"
 ```
 
 데이터는 named volume에 보존합니다. `.env` 변경만으로 기존 volume의 계정 비밀번호가 바뀌지 않습니다.

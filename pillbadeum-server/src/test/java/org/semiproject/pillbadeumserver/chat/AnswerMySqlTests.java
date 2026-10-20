@@ -146,7 +146,7 @@ class AnswerMySqlTests {
     void prepareOwnedSyntheticDataAndResetProviderResponses() throws Exception {
         assertThat(jdbc.queryForObject("SELECT DATABASE()", String.class)).isEqualTo("pill_test");
         try (var connection = dataSource.getConnection()) {
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
+            org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
         }
         decisions.set(0); generations.set(0); publicCalls.set(0);
         requests.clear(); publicCodes.clear(); category.set("PASS");
@@ -535,7 +535,7 @@ class AnswerMySqlTests {
     }
 
     private long profile(long member, boolean pregnant) {
-        return insert("INSERT INTO profile(member_id,profile_name,realationship_type,profile_birth_year,profile_gender,profile_height,profile_weight,profile_pregnant,created_at,updated_at) "
+        return insert("INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,profile_height,profile_weight,profile_pregnant,created_at,updated_at) "
                 + "VALUES(?, '개인표식', 'SELF', 2000, 'FEMALE', 177, 73, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", member, pregnant);
     }
 
@@ -545,7 +545,7 @@ class AnswerMySqlTests {
 
     private String medication(long profile, String name) {
         String code = "answer-" + UUID.randomUUID();
-        jdbc.update("INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,matrial,synced_at) VALUES(?,?,'fixture-maker','OTC','fixture','fixture','fixture','TABLET','fixture',CURRENT_TIMESTAMP)", code, name);
+        jdbc.update("INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,material,synced_at) VALUES(?,?,'fixture-maker','OTC','fixture','fixture','fixture','TABLET','fixture',CURRENT_TIMESTAMP)", code, name);
         drugs.add(code);
         insert("INSERT INTO my_drug(profile_id,item_seq,dose_per_time,timing,start_date,end_date,dose_times,source) VALUES(?,?,1,'user-timing',?,?,'07:00,17:00','SEARCH')", profile, code,
                 LocalDate.now(TimeZoneConfig.ZONE), LocalDate.now(TimeZoneConfig.ZONE).plusDays(1));

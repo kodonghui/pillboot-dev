@@ -1,6 +1,8 @@
 package org.semiproject.pillbadeumserver.profile.service;
 
 
+import org.semiproject.pillbadeumserver.common.exception.BusinessException;
+import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
 import org.semiproject.pillbadeumserver.common.security.SecurityUtil;
 import org.semiproject.pillbadeumserver.member.domain.Member;
@@ -72,6 +74,7 @@ public class ProfileService {
                                 .toList();
     }
 
+
     /* 로그인 한 회원의 프로필 수정 */
     @Transactional
     public ProfileResponse updateProfile(Long profileId, ProfileUpdateRequest request) {
@@ -79,7 +82,7 @@ public class ProfileService {
         // 1. 토큰에서 로그인 한 회원 ID를 가져온다.
         Long memberId = SecurityUtil.getCurrentMemberId();
 
-        // 2. 로그인 한 회원소유의 프로필을 조회한다.
+        // 2. 로그인 한 회원 소유의 프로필을 조회한다.
         Profile profile  = profileRepository.findByProfileIdAndMember_MemberId(profileId, memberId)
             .orElseThrow(() -> new NotFoundException("해당 프로필이 존재하지 않습니다."));
 
@@ -96,5 +99,38 @@ public class ProfileService {
 
         // 4. 변경된 객체를 응답 dto로 변환한다.
         return ProfileResponse.from(profile);
+    }
+
+
+    /* 로그인 한 회원의 프로필 삭제 */
+    @Transactional
+    public void deleteProfile(Long profileId) {
+
+        // 1. 토큰에서 로그인 한 회원 ID를 가져온다.
+        Long memberId = SecurityUtil.getCurrentMemberId();
+
+        // 2. 다른 회원의 프로필이거나, 프로필이 존재하지 않으면 삭제하지 않는다.
+        Profile profile = profileRepository
+            .findByProfileIdAndMember_MemberId(profileId, memberId)
+            .orElseThrow(()-> new NotFoundException("해당 프로필이 존재하지 않습니다."));
+
+        // 3. 마지막 프로필은 삭제할 수 없다.
+        if(profileRepository.countByMember_MemberId(memberId) <= 1) {
+            throw new BusinessException(
+                ErrorCode.LAST_PROFILE, "마지막 프로필은 삭제할 수 없습니다."
+            );
+        }
+
+        // 4. 채팅방을 참조하는 메세지/요약을 먼저 삭제한다.
+        profileRepository.deleteChatMessagesByProfileId(profileId);
+        profileRepository.deleteChatSummariesByProfileId(profileId);
+
+        // 5. 채팅방과 이 프로필에 등록된 약을 삭제한다.
+        profileRepository.deleteChatSessionsByProfileId(profileId);
+        profileRepository.deleteMyDrugsByProfileId(profileId);
+
+        // 6. 마지막으로 프로필을 삭제한다.
+        profileRepository.delete(profile);
+
     }
 }

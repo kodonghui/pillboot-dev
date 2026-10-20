@@ -147,7 +147,7 @@ class MessageEmbeddingMySqlTests {
         assertThat(jdbc.queryForObject("SELECT DATABASE()",String.class)).isEqualTo("pill_test");
         try(var c=dataSource.getConnection()){ScriptUtils.executeSqlScript(c,new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));}
         memberId=insert("INSERT INTO member(email,password_hash,nickname,user_role,created_at,updated_at) VALUES(?,'fixture','embed','USER',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)","embed-"+UUID.randomUUID()+"@example.test");
-        profileId=insert("INSERT INTO profile(member_id,profile_name,realationship_type,profile_birth_year,profile_gender,profile_pregnant,created_at,updated_at) VALUES(?,'embed','SELF',1990,'FEMALE',FALSE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",memberId);
+        profileId=insert("INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,profile_pregnant,created_at,updated_at) VALUES(?,'embed','SELF',1990,'FEMALE',FALSE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",memberId);
         sessionId=insert("INSERT INTO chat_session(member_id,profile_id,snap_birth_year,snap_gender,snap_pregnant,created_at,updated_at) VALUES(?,?,1990,'FEMALE',NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",memberId,profileId);
         current=this;
         when(classifier.classify(anyString())).thenReturn(QuestionCategory.PASS);
