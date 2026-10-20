@@ -134,6 +134,29 @@ class ExternalClientTests {
     }
 
     @Test
+    void embeddingLogsPromptTokensWithoutInputOrKey(CapturedOutput output) {
+        var request = new AtomicReference<tools.jackson.databind.JsonNode>();
+        server.createContext("/embeddings", exchange -> {
+            request.set(JSON.readTree(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+            respond(exchange, 200, "{\"data\":[{\"embedding\":[0.25,-0.5]}],\"usage\":{\"prompt_tokens\":7,\"total_tokens\":7}}");
+        });
+        assertThat(openAi(1000,1000,1).embed("private-embedding-input")).containsExactly(0.25f,-0.5f);
+        assertThat(request.get().path("encoding_format").asString()).isEqualTo("float");
+        assertThat(output.getAll()).contains("api=embeddings", "inputTokens=7", "elapsedMs=")
+                .doesNotContain("private-embedding-input", "local-test-key");
+    }
+
+    @Test
+    void overflowingEmbeddingNumberDoesNotBecomeAnInfiniteVectorOrRetry() {
+        var calls = new AtomicInteger();
+        server.createContext("/embeddings", exchange -> {
+            calls.incrementAndGet(); respond(exchange, 200, "{\"data\":[{\"embedding\":[1e39]}]}");
+        });
+        assertThrows(ExternalApiException.class, () -> openAi(1000,1000,1).embed("fixture"));
+        assertThat(calls.get()).isEqualTo(1);
+    }
+
+    @Test
     void answerIsNotRetriedAndReleasesPermitAfterFailure() {
         AtomicInteger calls = new AtomicInteger();
         server.createContext("/responses", exchange -> {
@@ -225,8 +248,8 @@ class ExternalClientTests {
 
     @Test
     void absentAiKeyDoesNotCallExternalService() {
-        OpenAiClient client = new OpenAiClient(JSON, "", baseUrl, "chat", "vision", "embedding", "",
-                2000, 1000, 1000, 1, 20);
+        OpenAiClient client = new OpenAiClient(JSON, "", baseUrl, "chat", "decision", "vision", "embedding", "",
+                2000, 1000, 1000, 1, 20, new java.math.BigDecimal("0.10"));
         assertThat(client.isEnabled()).isFalse();
         assertThrows(AiUnavailableException.class, () -> client.createText("규칙", MESSAGES, 100));
     }
@@ -240,8 +263,8 @@ class ExternalClientTests {
         });
         server.createContext("/embeddings", exchange ->
                 respond(exchange, 200, "{\"data\":[{\"embedding\":[0.5]}]}"));
-        OpenAiClient client = new OpenAiClient(JSON, "local-test-key", baseUrl, "", "", "embedding", "",
-                2000, 1000, 1000, 1, 20);
+        OpenAiClient client = new OpenAiClient(JSON, "local-test-key", baseUrl, "", "", "", "embedding", "",
+                2000, 1000, 1000, 1, 20, new java.math.BigDecimal("0.10"));
         assertThat(client.isEnabled()).isTrue(); // 키 설정 여부와 모델 설정 여부는 다르다.
         assertThrows(AiUnavailableException.class, () -> client.createText("규칙", MESSAGES, 100));
         assertThrows(AiUnavailableException.class, () -> client.createJsonFromImages("규칙", "사진",
@@ -255,8 +278,8 @@ class ExternalClientTests {
     }
 
     private OpenAiClient openAi(long shortTimeout, long longTimeout, int maxConcurrentCalls) {
-        return new OpenAiClient(JSON, "local-test-key", baseUrl, "chat", "vision", "embedding", "",
-                2000, shortTimeout, longTimeout, maxConcurrentCalls, 20);
+        return new OpenAiClient(JSON, "local-test-key", baseUrl, "chat", "decision", "vision", "embedding", "",
+                2000, shortTimeout, longTimeout, maxConcurrentCalls, 20, new java.math.BigDecimal("0.10"));
     }
 
     private static String textResponse(String text) {

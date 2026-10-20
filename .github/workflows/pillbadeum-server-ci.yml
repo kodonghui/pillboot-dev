@@ -33,10 +33,16 @@ jobs:
           --health-interval=5s
           --health-timeout=3s
           --health-retries=30
+      qdrant:
+        image: qdrant/qdrant:v1.19.2
+        ports:
+          - 6333:6333
+          - 6334:6334
     env:
       MYSQL_TEST_URL: jdbc:mysql://127.0.0.1:3306/pill_test?connectionTimeZone=%2B09:00&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true&useSSL=false
       MYSQL_TEST_USER: pill
       MYSQL_TEST_PASSWORD: pill-ci-only
+      QDRANT_TEST_PORT: 6334
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -44,6 +50,13 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Wait for Qdrant
+        run: |
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:6333/readyz; then exit 0; fi
+            sleep 1
+          done
+          exit 1
       - name: Test and build
         run: ./gradlew test bootJar --no-daemon
       - name: Upload test reports
