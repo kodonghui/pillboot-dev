@@ -65,6 +65,20 @@ class PhotoCandidateLookupTests {
             Map.of("item_name", "합성약", "entp_name", "합성제약", "pageNo", 1, "numOfRows", 100));
   }
 
+  @Test
+  void incompleteCandidateDoesNotRemoveValidAlternativesOrBecomeOtc() {
+    var valid = row("900001", "합성약");
+    var invalid = row("900002", "합성약"); invalid.remove("ETC_OTC_NAME");
+    when(client.get(anyString(), anyMap())).thenReturn(json.valueToTree(Map.of("items", List.of(invalid, valid))));
+    var result = lookup.prescriptionResult("합성약", null);
+    assertThat(result.status()).isEqualTo("PARTIAL");
+    assertThat(result.candidates()).singleElement().satisfies(value -> assertThat(value.itemSeq()).isEqualTo("900001"));
+    assertThat(result.excludedCount()).isEqualTo(1);
+    var pill = lookup.pillResult(new PillIdentification("합성약", null, null, null, null, null, null, null, null));
+    assertThat(pill.status()).isEqualTo("PARTIAL");
+    assertThat(pill.candidates()).hasSize(1);
+  }
+
   static Map<String, Object> row(String code, String name) {
     return new LinkedHashMap<>(
         Map.of("ITEM_SEQ", code, "ITEM_NAME", name, "ENTP_NAME", "합성제약", "ETC_OTC_NAME", "일반의약품"));

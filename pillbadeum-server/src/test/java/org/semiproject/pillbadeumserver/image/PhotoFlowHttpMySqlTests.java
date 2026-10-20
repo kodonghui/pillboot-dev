@@ -278,6 +278,20 @@ class PhotoFlowHttpMySqlTests {
   }
 
   @Test
+  void invalidCandidatePreservesValidCardWithPartialStatusThroughReloadAndSave() throws Exception {
+    var invalid = new LinkedHashMap<String, Object>(officialRows.get(1)); invalid.remove("ETC_OTC_NAME");
+    officialRows = List.of(officialRows.getFirst(), invalid);
+    var response = identify("PRESCRIPTION", token, 200, "image");
+    assertThat(response.path("drugs").path(0).path("lookup").asString()).isEqualTo("PARTIAL");
+    assertThat(response.path("drugs").path(0).path("candidates").size()).isEqualTo(1);
+    long id = response.path("photoId").asLong();
+    var reloaded = json("GET", "/api/photos/" + id + "/candidates", null, token, 200);
+    assertThat(reloaded.path("drugs")).isEqualTo(response.path("drugs"));
+    json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code1), token, 201);
+    assertNoPhotos();
+  }
+
+  @Test
   void zeroResultsAreNotFoundAndUnreadableOrInvalidVisionNeverLeavePhotos() throws Exception {
     vision = prescription("없음");
     var notFound = identify("PRESCRIPTION", token, 200, "image");

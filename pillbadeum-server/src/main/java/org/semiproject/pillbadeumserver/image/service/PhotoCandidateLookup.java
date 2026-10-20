@@ -18,41 +18,46 @@ public class PhotoCandidateLookup {
     this.client = client;
   }
 
+  public record Result(List<PhotoCandidateData> candidates, int excludedCount) {
+    public String status() { return candidates.isEmpty() ? "NOT_FOUND" : excludedCount > 0 ? "PARTIAL" : "OK"; }
+  }
+
   public List<PhotoCandidateData> prescription(String name, String maker) {
-    var query = query(name, maker);
-    var rows = PublicDataClient.items(client.get(DrugSyncService.PERMIT_INFO_PATH, query));
-    return rows.stream()
-        .sorted(
-            Comparator.<JsonNode>comparingInt(row -> exact(name, text(row, "ITEM_NAME")) ? 0 : 1)
-                .thenComparingInt(row -> exact(maker, text(row, "ENTP_NAME")) ? 0 : 1))
-        .map(row -> candidate(row, null))
-        .filter(Objects::nonNull)
-        .collect(
-            java.util.stream.Collectors.toMap(
-                PhotoCandidateData::itemSeq, c -> c, (a, b) -> a, LinkedHashMap::new))
-        .values()
-        .stream()
-        .limit(5)
-        .toList();
+    return prescriptionResult(name, maker).candidates();
+  }
+
+  public Result prescriptionResult(String name, String maker) {
+    var rows = PublicDataClient.items(client.get(DrugSyncService.PERMIT_INFO_PATH, query(name, maker)));
+    var ordered = rows.stream().sorted(Comparator.<JsonNode>comparingInt(row -> exact(name, text(row, "ITEM_NAME")) ? 0 : 1)
+        .thenComparingInt(row -> exact(maker, text(row, "ENTP_NAME")) ? 0 : 1)).toList();
+    return validated(ordered, null);
   }
 
   public List<PhotoCandidateData> pill(PillIdentification clues) {
-    var rows =
-        PublicDataClient.items(
-            client.get(DrugSyncService.GRAIN_INFO_PATH, query(clues.itemName(), clues.entpName())));
-    var unique = new LinkedHashMap<String, JsonNode>();
-    for (var row : rows)
-      if (text(row, "ITEM_SEQ") != null) unique.putIfAbsent(text(row, "ITEM_SEQ"), row);
-    return unique.values().stream()
-        .sorted(
-            Comparator.<JsonNode>comparingDouble(row -> score(clues, row))
-                .reversed()
-                .thenComparingInt(row -> exact(clues.itemName(), text(row, "ITEM_NAME")) ? 0 : 1)
-                .thenComparing(row -> text(row, "ITEM_SEQ")))
-        .limit(5)
-        .map(row -> candidate(row, printMatch(clues, row)))
-        .filter(Objects::nonNull)
-        .toList();
+    return pillResult(clues).candidates();
+  }
+
+  public Result pillResult(PillIdentification clues) {
+    var rows = PublicDataClient.items(client.get(DrugSyncService.GRAIN_INFO_PATH, query(clues.itemName(), clues.entpName())));
+    var ordered = rows.stream().sorted(Comparator.<JsonNode>comparingDouble(row -> score(clues, row)).reversed()
+        .thenComparingInt(row -> exact(clues.itemName(), text(row, "ITEM_NAME")) ? 0 : 1)
+        .thenComparing(row -> java.util.Objects.toString(text(row, "ITEM_SEQ"), ""))).toList();
+    return validated(ordered, clues);
+  }
+
+  /** 후보 하나의 불완전함이 정상 후보를 없애지 않도록 행별 검증 후 중복/상한을 적용함. */
+  private static Result validated(List<JsonNode> rows, PillIdentification clues) {
+    var valid = new LinkedHashMap<String, PhotoCandidateData>();
+    int excluded = 0;
+    for (var row : rows) {
+      try {
+        var value = candidate(row, clues == null ? null : printMatch(clues, row));
+        valid.putIfAbsent(value.itemSeq(), value);
+      } catch (ExternalApiException invalidCandidate) { excluded++; }
+    }
+    if (valid.isEmpty() && excluded > 0)
+      throw ExternalApiException.failed("공공데이터", "후보의 필수 정보를 확인하지 못했습니다.", null);
+    return new Result(valid.values().stream().limit(5).toList(), excluded);
   }
 
   private static Map<String, Object> query(String name, String maker) {

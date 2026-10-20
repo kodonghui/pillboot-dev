@@ -99,12 +99,13 @@ public class PhotoIdentificationWorkflow {
         if (!present(clues.itemName()) && !present(clues.entpName()))
           return empty(kind, "UNREADABLE");
         PillIdentification input = clues;
-        var candidates = await(executor.submit(() -> lookup.pill(input)), deadline, 40);
+        var result = await(executor.submit(() -> lookup.pillResult(input)), deadline, 40);
+        var candidates = result.candidates();
         groups.add(
             new PhotoCandidateData.Group(
                 1,
                 shortName(present(clues.itemName()) ? clues.itemName() : clues.entpName()),
-                candidates.isEmpty() ? "NOT_FOUND" : "OK",
+                result.status(),
                 candidates));
       } else {
         if (!vision.path("readable").asBoolean(false)) return empty(kind, "UNREADABLE");
@@ -123,21 +124,22 @@ public class PhotoIdentificationWorkflow {
         // 공공데이터 동시 호출 설정에 맞춰 묶는다. 한꺼번에 제출해 permit 대기 실패를 만들지 않는다.
         for (int offset = 0; offset < entries.size(); offset += batchSize) {
           if (System.nanoTime() >= deadline) throw ExternalApiException.timeout("사진 식별", null);
-          List<Future<List<PhotoCandidateData>>> tasks = new ArrayList<>();
+          List<Future<PhotoCandidateLookup.Result>> tasks = new ArrayList<>();
           int end = Math.min(offset + batchSize, entries.size());
           try {
             for (int i = offset; i < end; i++) {
               var entry = entries.get(i);
               tasks.add(
-                  executor.submit(() -> lookup.prescription(entry.getKey(), entry.getValue())));
+                  executor.submit(() -> lookup.prescriptionResult(entry.getKey(), entry.getValue())));
             }
             for (int i = offset; i < end; i++) {
               var entry = entries.get(i);
               List<PhotoCandidateData> candidates;
               String status;
               try {
-                candidates = await(tasks.get(i - offset), deadline, 40);
-                status = candidates.isEmpty() ? "NOT_FOUND" : "OK";
+                var result = await(tasks.get(i - offset), deadline, 40);
+                candidates = result.candidates();
+                status = result.status();
               } catch (ExternalApiException exception) {
                 candidates = List.of();
                 status = "FAILED";

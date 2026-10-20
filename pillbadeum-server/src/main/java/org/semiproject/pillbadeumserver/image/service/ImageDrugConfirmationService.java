@@ -56,7 +56,7 @@ public class ImageDrugConfirmationService {
         throw invalid("사진의 프로필·종류·상태를 확인해 주세요.");
       var candidateCards = new LinkedHashMap<String, Set<Integer>>();
       jdbc.query(
-          "SELECT item_seq,read_no FROM ocr_candidate WHERE photo_id=? AND lookup_status='OK'"
+          "SELECT item_seq,read_no FROM ocr_candidate WHERE photo_id=? AND lookup_status IN('OK','PARTIAL')"
               + " AND item_seq IS NOT NULL ORDER BY read_no,candidate_rank",
           rs -> {
             candidateCards.computeIfAbsent(rs.getString("item_seq"), ignored -> new LinkedHashSet<>())
