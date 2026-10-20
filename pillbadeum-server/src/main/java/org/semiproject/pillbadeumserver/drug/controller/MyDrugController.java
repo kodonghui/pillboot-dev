@@ -26,8 +26,8 @@ import java.util.List;
  *  지금 구현된 API
  *  - GET    /api/profiles/{profileId}/drugs              내 약 목록
  *  - POST   /api/profiles/{profileId}/drugs              확인한 약 저장 (201, 저장된 상세 배열)
+ *  - GET    /api/profiles/{profileId}/drugs/{myDrugId}   약 상세 (다른 프로필의 약이면 404)
  *  이후 추가할 API
- *  - GET    /api/profiles/{profileId}/drugs/{myDrugId}   약 상세
  *  - PATCH  /api/profiles/{profileId}/drugs/{myDrugId}   복용정보 수정
  *  - DELETE /api/profiles/{profileId}/drugs/{myDrugId}   약 삭제 (204)
  * */
@@ -57,5 +57,14 @@ public class MyDrugController {
     public List<MyDrugDetailResponse> register(@PathVariable Long profileId,
                                                @Valid @RequestBody MyDrugCreateRequest request) {
         return myDrugService.registerAll(profileId, request);
+    }
+
+    /* 목차. 3. 내 약 상세 (복용정보 + 약 정보, 근거 출처는 GET /api/drugs/{itemSeq}/guide) */
+    @Operation(summary = "내 약 상세",
+            description = "복용정보와 약 정보(모양 · 색 · 각인 · 전문/일반 · 성분명 · 출처)를 돌려줍니다. 이 프로필의 약이 아니면 404 입니다.")
+    @GetMapping("/{myDrugId}")
+    public MyDrugDetailResponse getMyDrug(@PathVariable Long profileId,
+                                          @PathVariable Long myDrugId) {
+        return myDrugService.getMyDrug(profileId, myDrugId);
     }
 }
