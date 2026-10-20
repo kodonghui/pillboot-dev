@@ -69,6 +69,7 @@ class PhotoFlowHttpMySqlTests {
   volatile int visionStatus = 200;
   volatile List<Map<String, Object>> officialRows;
   volatile boolean sawUploaded;
+  volatile boolean grainEmpty, permitMetadata;
   volatile CountDownLatch entered = new CountDownLatch(0), release = new CountDownLatch(0);
 
   @DynamicPropertySource
@@ -256,6 +257,24 @@ class PhotoFlowHttpMySqlTests {
     // 두 카드의 후보 코드가 겹쳐도 카드마다 하나씩 배정할 수 있으면 정상 선택임.
     var result = json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code1, code2), token, 201);
     assertThat(result.path("saved").size()).isEqualTo(2);
+  }
+
+  @Test
+  void nameSearchCanInspectAndRegisterPermitOnlySyrupWithoutGrainData() throws Exception {
+    grainEmpty = true; permitMetadata = true;
+    officialRows = List.of(Map.of("ITEM_SEQ", code1, "ITEM_NAME", "합성시럽", "ENTP_NAME", "합성제약",
+        "ETC_OTC_NAME", "일반의약품", "MAIN_ITEM_INGR", "[SYN]합성성분"));
+    var result = json("GET", "/api/drugs/search?profileId=" + profileId + "&name="
+        + URLEncoder.encode("합성시럽", StandardCharsets.UTF_8), null, token, 200);
+    assertThat(result.path("content").path(0).path("itemSeq").asString()).isEqualTo(code1);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM drug WHERE item_seq=?", Integer.class, code1)).isZero();
+    var detail = json("GET", "/api/drugs/" + code1, null, token, 200);
+    assertThat(detail.path("name").asString()).isEqualTo("합성시럽");
+    assertThat(detail.path("shape").asString()).isEqualTo("미확인");
+    assertThat(detail.path("material").asString()).isEqualTo("합성성분");
+    var registered = json("POST", drugs(profileId), Map.of("source", "SEARCH", "items", List.of(Map.of("itemSeq", code1))), token, 201);
+    assertThat(registered.path("saved").size()).isEqualTo(1);
+    assertThat(lookups).anyMatch(s -> s.startsWith(DrugSyncService.PERMIT_INFO_PATH) && s.contains("item_name=합성시럽"));
   }
 
   @Test
@@ -820,6 +839,9 @@ class PhotoFlowHttpMySqlTests {
                               "updateDe",
                               "2026-10-20")))));
         } else if (path.contains("getDrugPrdtPrmsnDtlInq08")) {
+          var detail = new LinkedHashMap<String, Object>();
+          detail.put("ITEM_SEQ", t.code1); detail.put("EE_DOC_DATA", "<DOC>합성 허가 근거</DOC>"); detail.put("CHANGE_DATE", "20261020");
+          if (t.permitMetadata && !t.officialRows.isEmpty()) detail.putAll(t.officialRows.getFirst());
           respond(
               exchange,
               200,
@@ -831,14 +853,7 @@ class PhotoFlowHttpMySqlTests {
                       "totalCount",
                       1,
                       "items",
-                      List.of(
-                          Map.of(
-                              "ITEM_SEQ",
-                              t.code1,
-                              "EE_DOC_DATA",
-                              "<DOC>합성 허가 근거</DOC>",
-                              "CHANGE_DATE",
-                              "20261020")))));
+                      List.of(detail))));
         } else if (path.contains("DURPrdlst"))
           respond(
               exchange,
@@ -851,7 +866,7 @@ class PhotoFlowHttpMySqlTests {
         else if (query.contains("item_name=실패"))
           respond(exchange, 400, Map.of("error", "synthetic_public_failure"));
         else {
-          var rows = query.contains("item_name=없음") ? List.of() : t.officialRows;
+          var rows = query.contains("item_name=없음") || (t.grainEmpty && path.contains("MdcinGrn")) ? List.of() : t.officialRows;
           respond(
               exchange,
               200,
