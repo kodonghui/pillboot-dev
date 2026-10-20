@@ -64,3 +64,21 @@ tasks.named('test') {
     useJUnitPlatform()
     jvmArgs += "-javaagent:${configurations.mockitoAgent.asPath}"
 }
+
+// 키 값 출력·유료 호출·DB 변경 없이 현재 챗봇 설정의 누락 항목만 확인한다.
+tasks.register('checkChatConfiguration', JavaExec) {
+    group = 'verification'
+    description = '챗봇 키·모델 설정 여부 점검 (외부 호출 없음)'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.semiproject.pillbadeumserver.chat.ChatConfigurationCli'
+}
+
+// 실제 API 연결은 일반 테스트와 분리한다. 합성 입력만 사용하며 DB를 변경하지 않는다.
+tasks.register('tryChatProviders', JavaExec) {
+    group = 'verification'
+    description = '실제 OpenAI 또는 공공데이터의 명시적 연결 점검 (OpenAI 모드는 유료 호출)'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.semiproject.pillbadeumserver.chat.ChatProviderCli'
+}

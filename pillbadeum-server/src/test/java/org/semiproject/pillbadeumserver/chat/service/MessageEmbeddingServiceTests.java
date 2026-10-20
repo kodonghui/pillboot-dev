@@ -42,7 +42,7 @@ class MessageEmbeddingServiceTests {
         when(vectors.isEnabled()).thenReturn(false);
         service.questionCommitted(42,1,"question",deadline());service.answerCommitted(42,2,"answer");
         verifyNoInteractions(openAi);
-        verify(vectors,never()).upsert(anyLong(),anyLong(),anyString(),any(),any());
+        verify(vectors,never()).upsert(any(MessageVectorStore.SourceType.class),anyLong(),anyLong(),anyString(),any(),any());
     }
 
     @Test
@@ -58,7 +58,7 @@ class MessageEmbeddingServiceTests {
         when(openAi.embed("question")).thenAnswer(inv->{virtual.set(Thread.currentThread().isVirtual());return new float[]{1,2};});
         service.questionCommitted(42,1,"question",deadline());
         assertThat(virtual).isTrue();
-        verify(vectors).upsert(eq(42L),eq(1L),eq("fixture-model"),argThat(v -> java.util.Arrays.equals(v,new float[]{1,2})),any());
+        verify(vectors).upsert(eq(MessageVectorStore.SourceType.MESSAGE),eq(42L),eq(1L),eq("fixture-model"),argThat(v -> java.util.Arrays.equals(v,new float[]{1,2})),any());
     }
 
     @Test
@@ -66,7 +66,7 @@ class MessageEmbeddingServiceTests {
         when(openAi.embed(anyString())).thenThrow(new IllegalStateException("private-question private-key"));
         assertThatCode(()->service.questionCommitted(42,1,"private-question",deadline())).doesNotThrowAnyException();
         doReturn(new float[]{1,2}).when(openAi).embed(anyString());
-        doThrow(new IllegalStateException("private-answer private-key")).when(vectors).upsert(anyLong(),anyLong(),anyString(),any(),any());
+        doThrow(new IllegalStateException("private-answer private-key")).when(vectors).upsert(any(MessageVectorStore.SourceType.class),anyLong(),anyLong(),anyString(),any(),any());
         assertThatCode(()->service.questionCommitted(42,1,"private-answer",deadline())).doesNotThrowAnyException();
         assertThat(output.getAll()).contains("result=not_confirmed").doesNotContain("private-question","private-answer","private-key");
     }
@@ -80,14 +80,14 @@ class MessageEmbeddingServiceTests {
         });
         service.questionCommitted(42,1,"question",ChatDeadline.after(Duration.ofMillis(80)));
         release.countDown();assertThat(finished.await(1,TimeUnit.SECONDS)).isTrue();
-        verify(vectors,never()).upsert(anyLong(),anyLong(),anyString(),any(),any());
+        verify(vectors,never()).upsert(any(MessageVectorStore.SourceType.class),anyLong(),anyLong(),anyString(),any(),any());
     }
 
     @Test
     void answerDoesNotWaitAndEmbedsBodyWithoutSources() throws Exception {
         var started=new CountDownLatch(1);var stored=new CountDownLatch(1);
         when(openAi.embed("answer-body")).thenAnswer(inv->{started.countDown();release.await(2,TimeUnit.SECONDS);return new float[]{1,2};});
-        doAnswer(inv->{stored.countDown();return null;}).when(vectors).upsert(eq(42L),eq(2L),anyString(),any(),any());
+        doAnswer(inv->{stored.countDown();return null;}).when(vectors).upsert(eq(MessageVectorStore.SourceType.MESSAGE),eq(42L),eq(2L),anyString(),any(),any());
         service.answerCommitted(42,2,"answer-body\n@@SOURCES@@\n[{\"private\":true}]");
         assertThat(started.await(1,TimeUnit.SECONDS)).isTrue();assertThat(stored.getCount()).isEqualTo(1);
         release.countDown();assertThat(stored.await(1,TimeUnit.SECONDS)).isTrue();

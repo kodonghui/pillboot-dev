@@ -6,9 +6,25 @@ import java.util.List;
 
 /** CHAT-006·007: 짧은 읽기 트랜잭션 밖에서도 사용할 최소 사본이다. 이름·회원 정보는 포함하지 않는다. */
 public record AnswerInput(long birthYear, String gender, Boolean pregnant, String question,
-                          List<Medication> medications, List<Turn> recentTurns, boolean firstAnswer) {
+                          List<Medication> medications, List<Turn> recentTurns, boolean firstAnswer,
+                          List<Summary> recentSummaries, List<Summary> similarSummaries, long summaryCount) {
+    /** 요약이 없는 기존 경로·짧은 대화도 같은 입력 계약으로 처리한다. */
+    public AnswerInput(long birthYear, String gender, Boolean pregnant, String question,
+                       List<Medication> medications, List<Turn> recentTurns, boolean firstAnswer) {
+        this(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer, List.of(), List.of(), 0);
+    }
+    public AnswerInput(long birthYear, String gender, Boolean pregnant, String question,
+                       List<Medication> medications, List<Turn> recentTurns, boolean firstAnswer, List<Summary> recentSummaries) {
+        this(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer, recentSummaries, List.of(), recentSummaries.size());
+    }
+
+    public AnswerInput withSimilarSummaries(List<Summary> summaries) {
+        return new AnswerInput(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer,
+                recentSummaries, summaries, summaryCount);
+    }
     public record Medication(String itemSeq, String name, String maker, String etcOtc, int dosePerTime,
                               String timing, LocalDate startDate, LocalDate endDate,
                               List<LocalTime> doseTimes, LocalDate updatedAt) {}
     public record Turn(int turnNo, String question, String answer, Integer questionTokens, Integer answerTokens) {}
+    public record Summary(long summaryId, int fromTurn, int toTurn, String content) {}
 }

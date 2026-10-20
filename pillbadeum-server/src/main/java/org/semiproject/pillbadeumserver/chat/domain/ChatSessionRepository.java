@@ -18,6 +18,15 @@ public interface ChatSessionRepository extends JpaRepository<ChatSession, Long> 
             nativeQuery = true)
     Optional<SessionOwner> findSessionOwner(@Param("sessionId") Long sessionId);
 
+    /** CHAT-003: 소유권 확인 뒤 현재 프로필 이름·내 약 개수만 읽고 건강 사본·회원 정보는 응답에 넣지 않는다. */
+    @Query(value = """
+            SELECT s.profile_id AS profileId, p.profile_name AS profileName, s.title AS title,
+                   (SELECT COUNT(*) FROM my_drug d WHERE d.profile_id=s.profile_id) AS drugCount
+            FROM chat_session s JOIN profile p ON p.profile_id=s.profile_id
+            WHERE s.session_id=:sessionId AND s.member_id=:memberId AND p.member_id=:memberId
+            """, nativeQuery = true)
+    Optional<HistoryHeader> findHistoryHeader(@Param("sessionId") Long sessionId, @Param("memberId") Long memberId);
+
     /** 프로필 → 대화방 순서로 잠가 CHAT-002와 잠금 순서를 맞춘다. 저장 직전에 현재 행을 다시 읽는다. */
     @Query(value = "SELECT * FROM chat_session WHERE session_id = :sessionId FOR UPDATE", nativeQuery = true)
     Optional<ChatSession> lockSession(@Param("sessionId") Long sessionId);
@@ -65,5 +74,12 @@ public interface ChatSessionRepository extends JpaRepository<ChatSession, Long> 
     interface SessionOwner {
         Long getMemberId();
         Long getProfileId();
+    }
+
+    interface HistoryHeader {
+        Long getProfileId();
+        String getProfileName();
+        String getTitle();
+        long getDrugCount();
     }
 }

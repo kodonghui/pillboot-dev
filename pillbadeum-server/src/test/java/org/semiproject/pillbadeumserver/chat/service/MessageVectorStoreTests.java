@@ -55,6 +55,19 @@ class MessageVectorStoreTests {
     }
 
     @Test
+    void messageAndSummaryWithTheSameNumericIdUseDistinctPointsAndTheSummaryRemainsIdempotent() {
+        store.upsert(42,1,"model-a",new float[]{1,2,3},deadline());
+        store.upsert(MessageVectorStore.SourceType.SUMMARY,42,1,"model-a",new float[]{1,2,3},deadline());
+        store.upsert(MessageVectorStore.SourceType.SUMMARY,42,1,"model-a",new float[]{3,2,1},deadline());
+        var capture=ArgumentCaptor.forClass(Points.UpsertPoints.class);
+        verify(client,times(3)).upsertAsync(capture.capture(),any(Duration.class));
+        var points=capture.getAllValues().stream().map(r->r.getPoints(0)).toList();
+        assertThat(points.get(0).getId()).isNotEqualTo(points.get(1).getId());
+        assertThat(points.get(1).getId()).isEqualTo(points.get(2).getId());
+        assertThat(points.get(1).getPayloadMap().get("source_type").getStringValue()).isEqualTo("SUMMARY");
+    }
+
+    @Test
     void missingCollectionIsCreatedWithCosineAndRechecked() {
         when(client.getCollectionInfoAsync(anyString(),any(Duration.class)))
                 .thenReturn(Futures.immediateFailedFuture(Status.NOT_FOUND.asRuntimeException()),Futures.immediateFuture(info(3,Collections.Distance.Cosine)));

@@ -30,6 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+/** 실제 보안 필터·Controller 응답을 검사한다. Service는 대역이므로 DB 동작은 MySQL 테스트에서 확인한다. */
 @WebMvcTest(controllers = ChatSessionController.class)
 @ActiveProfiles("test")
 @Import({SecurityConfig.class, JwtTokenProvider.class, JwtAuthenticationEntryPoint.class,
