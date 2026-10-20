@@ -77,7 +77,7 @@ function environment({ media, fetcher, audioSupported = false } = {}) {
   };
   globals.window = globals;
   vm.runInNewContext(source, globals, { filename: 'medication-live/live.js' });
-  return { el: id => elements.get(id), stream, requests, peers, stopped: () => stops, advance,
+  return { el: id => elements.get(id), stream, requests, peers, stopped: () => stops, advance, jump: ms => { now += ms; },
     sound: value => { amplitude = value; }, audioClosed: () => audioClosed,
     emitTrack: () => peers.at(-1).events.track({ track: {} }),
     receive: (type, delta) => peers.at(-1).channel.events.message({ data: JSON.stringify({ type, delta }) }) };
@@ -88,6 +88,36 @@ test('로그인 토큰이 없으면 마이크·API를 시작하지 않음', asyn
   await app.el('start').click();
   assert.match(app.el('status').textContent, /로그인 토큰/);
   assert.equal(app.requests.length, 0);
+});
+
+test('1분 만료 즉시 시간 초과 안내와 미디어 정리를 하고 종료 응답을 기다림', async () => {
+  const closing = deferred();
+  const app = environment({ fetcher: (url, options) => {
+    if (options.method === 'POST') return response({ sessionId: 'fixture-session', sdp: 'answer', expiresAt: '2026-10-19T00:01:00Z' }, 201);
+    if (options.method === 'DELETE') return closing.promise;
+    return response({ status: 'LISTENING' });
+  } });
+  app.el('token').value = 'fixture-jwt'; await app.el('start').click();
+  await app.advance(59999); assert.equal(app.stopped(), 0);
+  await app.advance(1);
+  assert.equal(app.el('status').textContent, '시간이 초과되어 종료됩니다');
+  assert.equal(app.stopped(), 1); assert.equal(app.peers[0].closed, true);
+  assert.equal(app.requests.filter(request => request.options.method === 'DELETE').length, 1);
+  closing.resolve(response({ message: '이미 종료된 세션' }, 404)); await tick();
+  assert.equal(app.el('status').textContent, '시간이 초과되어 종료됩니다');
+  assert.equal(app.el('start').disabled, false);
+});
+
+test('타이머보다 서버 종료 이벤트가 먼저 와도 만료 시각이면 시간 초과로 안내함', async () => {
+  const app = environment({ fetcher: (url, options) => {
+    if (options.method === 'POST') return response({ sessionId: 'fixture-session', sdp: 'answer', expiresAt: '2026-10-19T00:01:00Z' }, 201);
+    if (options.method === 'DELETE') return response(null, 204);
+    return response({ status: 'LISTENING' });
+  } });
+  app.el('token').value = 'fixture-jwt'; await app.el('start').click();
+  app.jump(60000); app.receive('session.closed'); await tick();
+  assert.equal(app.el('status').textContent, '시간이 초과되어 종료됩니다');
+  assert.equal(app.stopped(), 1); assert.equal(app.el('start').disabled, false);
 });
 
 test('마이크 권한을 기다리는 중 종료하면 늦게 도착한 트랙도 정리함', async () => {

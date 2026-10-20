@@ -2,6 +2,8 @@
 (() => {
   const el = (id) => document.getElementById(id);
   const status = (message) => { el("status").textContent = message; };
+  const TIMEOUT_MESSAGE = "시간이 초과되어 종료됩니다";
+  let sessionDeadline = 0;
   let peer, microphone, channel, sessionId, polling, expiry, busy = false, stopping = false;
   let activeToken = "", activeDate = "", lastSaved = "", currentSpeaker = "", transcriptText, generation = 0, checking = null;
   let completing = false, completionTimer, playbackTimer, playbackContext, playbackSource, playbackAnalyser, playbackSamples;
@@ -36,12 +38,17 @@
   }
   function cleanup() {
     releaseMedia(); completing = false;
-    sessionId = null; stopping = false; activeToken = ""; checking = null; setBusy(false);
+    sessionId = null; sessionDeadline = 0; stopping = false; activeToken = ""; checking = null; setBusy(false);
+  }
+  function endMessage(fallback) {
+    if (completing) return completedMessage;
+    return sessionDeadline && Date.now() >= sessionDeadline ? TIMEOUT_MESSAGE : fallback;
   }
   async function finish(message = "대화를 종료했어요. 이미 저장한 일정은 유지돼요.") {
     if (stopping) return;
     stopping = true; generation++; el("stop").disabled = true;
     const id = sessionId;
+    status(message);
     releaseMedia();
     try {
       if (id) await api("/api/medication/live/sessions/" + encodeURIComponent(id), { method: "DELETE" });
@@ -130,7 +137,7 @@
           });
         }
       }
-    } catch (error) { if (sessionId === id) await finish(completing ? completedMessage : error.message); }
+    } catch (error) { if (sessionId === id) await finish(endMessage(error.message)); }
     finally { if (checking === id) checking = null; }
   }
   async function ice(connection) {
@@ -153,7 +160,7 @@
     }
     const attempt = ++generation, connectionToken = token();
     const alive = () => generation === attempt && busy && !stopping;
-    setBusy(true); activeToken = connectionToken; activeDate = el("date").value; lastSaved = "";
+    setBusy(true); activeToken = connectionToken; activeDate = el("date").value; lastSaved = ""; sessionDeadline = 0;
     completing = false; completionText = ""; completionCaptionAt = lastAudibleAt = lastOutputCaptionAt = 0; completionAudioHeard = false;
     completedMessage = "일정을 등록하고 대화를 자동 종료했어요.";
     el("conversation").replaceChildren(); transcriptText = null; currentSpeaker = "";
@@ -186,11 +193,11 @@
           if (!completionCaptionAt && /(등록|저장|삭제|변경).{0,24}(했|됐|되었|완료)|완료(됐|했|되었|예요|입니다)/.test(completionText)) {
             completionCaptionAt = Date.now();
           }
-        } else if (event.type === "session.closed") void finish(completing ? completedMessage : "Live 대화가 끝났어요.");
+        } else if (event.type === "session.closed") void finish(endMessage("Live 대화가 끝났어요."));
         else if (event.type === "error") status("Live에서 오류가 발생했어요. 대화를 종료하고 다시 연결해주세요.");
       });
       connection.addEventListener("connectionstatechange", () => {
-        if (alive() && ["failed", "disconnected"].includes(connection.connectionState)) void finish(completing ? completedMessage : "음성 연결이 끊겨 대화를 종료했어요.");
+        if (alive() && ["failed", "disconnected"].includes(connection.connectionState)) void finish(endMessage("음성 연결이 끊겨 대화를 종료했어요."));
       });
       await connection.setLocalDescription(await connection.createOffer()); await ice(connection);
       if (!alive()) { connection.close(); return; }
@@ -203,12 +210,13 @@
         connection.close(); return;
       }
       sessionId = result.sessionId;
+      sessionDeadline = Date.parse(result.expiresAt);
       await connection.setRemoteDescription({ type: "answer", sdp: result.sdp });
       if (!alive()) { connection.close(); return; }
       polling = setInterval(() => { void progress(); }, 1500);
-      expiry = setTimeout(() => { void finish(completing ? completedMessage : "대화 시간 제한으로 종료했어요."); }, Math.max(0, Date.parse(result.expiresAt) - Date.now()));
+      expiry = setTimeout(() => { void finish(endMessage(TIMEOUT_MESSAGE)); }, Math.max(0, sessionDeadline - Date.now()));
       await progress();
-    } catch (error) { if (alive()) await finish(error.message || "Live 연결에 실패했어요."); }
+    } catch (error) { if (alive()) await finish(endMessage(error.message || "Live 연결에 실패했어요.")); }
   });
   el("stop").addEventListener("click", () => { void finish(); });
   el("calendar").addEventListener("click", () => { void calendar().catch((error) => status(error.message)); });
