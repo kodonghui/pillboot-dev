@@ -12,6 +12,11 @@ import org.semiproject.pillbadeumserver.common.exception.AiUnavailableException;
 import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.common.external.ExternalApiCaller;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
+import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
+import org.semiproject.pillbadeumserver.image.service.PillDrugIdentificationService;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.RestClient;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import tools.jackson.databind.ObjectMapper;
@@ -271,6 +276,31 @@ class ExternalClientTests {
                 List.of("data:image/png;base64,AA=="), 100, "category", SCHEMA));
         assertThat(generations.get()).isZero();
         assertThat(client.embed("테스트")).containsExactly(0.5f);
+    }
+
+    @Test
+    void pillIdentificationUsesKeyFromSpringConfigurationWithoutOsEnvironmentVariable() {
+        AtomicReference<String> query = new AtomicReference<>();
+        server.createContext("/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03", exchange -> {
+            query.set(exchange.getRequestURI().getRawQuery());
+            respond(exchange, 200, """
+                    {"response":{"header":{"resultCode":"00"},"body":{"items":[]}}}
+                    """);
+        });
+        new ApplicationContextRunner()
+                .withBean(ObjectMapper.class, () -> JSON)
+                .withUserConfiguration(PillDrugIdentificationService.class)
+                .withPropertyValues("PUBLIC_DATA_SERVICE_KEY=local+test/key=",
+                        "public-data.service-key=${PUBLIC_DATA_SERVICE_KEY:}")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    var service = context.getBean(PillDrugIdentificationService.class);
+                    ReflectionTestUtils.setField(service, "restClient", RestClient.builder().baseUrl(baseUrl).build());
+
+                    assertThat(service.identify(new PillIdentification(
+                            "테스트약", null, null, null, null, null, null, null, null))).isEmpty();
+                    assertThat(query.get()).contains("serviceKey=local%2Btest%2Fkey%3D");
+                });
     }
 
     private PublicDataClient publicData() {

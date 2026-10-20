@@ -38,15 +38,18 @@ public class PrescriptionPhotoIdentificationService {
     private final OpenAiClient openAiClient;
     private final DrugSearchService drugSearchService;
     private final ProfileAccessChecker profileAccessChecker;
+    private final TemporaryPhotoCleanupService cleanup;
 
     public PrescriptionPhotoIdentificationService(FileStorage fileStorage,
                                                    OpenAiClient openAiClient,
                                                    DrugSearchService drugSearchService,
-                                                   ProfileAccessChecker profileAccessChecker) {
+                                                   ProfileAccessChecker profileAccessChecker,
+                                                   TemporaryPhotoCleanupService cleanup) {
         this.fileStorage = fileStorage;
         this.openAiClient = openAiClient;
         this.drugSearchService = drugSearchService;
         this.profileAccessChecker = profileAccessChecker;
+        this.cleanup = cleanup;
     }
 
     public PrescriptionPhotoIdentificationResponse identify(Long profileId, List<MultipartFile> images) {
@@ -56,13 +59,14 @@ public class PrescriptionPhotoIdentificationService {
         }
 
         List<String> savedNames = new ArrayList<>();
+        boolean completed = false;
         try {
             List<String> dataUrls = new ArrayList<>();
             for (MultipartFile image : images) {
-                String savedName = fileStorage.saveImage(image, FileStorage.DIR_PRESCRIPTION);
+                String savedName = fileStorage.saveImage(image, FileStorage.DIR_TEMP);
                 savedNames.add(savedName);
                 dataUrls.add(OpenAiClient.toDataUrl(
-                        fileStorage.readBytes(savedName, FileStorage.DIR_PRESCRIPTION),
+                        fileStorage.readBytes(savedName, FileStorage.DIR_TEMP),
                         fileStorage.getMimeType(savedName)));
             }
 
@@ -81,9 +85,12 @@ public class PrescriptionPhotoIdentificationService {
                     .map(name -> new PrescriptionPhotoIdentificationResponse.MedicineCandidates(
                             name, search(name)))
                     .toList();
-            return new PrescriptionPhotoIdentificationResponse(medicines);
+            var response = new PrescriptionPhotoIdentificationResponse(medicines);
+            completed = true;
+            return response;
         } finally {
-            savedNames.forEach(name -> fileStorage.delete(name, FileStorage.DIR_PRESCRIPTION));
+            if (completed) cleanup.deleteAfterProcessing(savedNames);
+            else cleanup.deleteNow(savedNames);
         }
     }
 

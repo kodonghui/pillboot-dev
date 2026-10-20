@@ -32,13 +32,16 @@ public class PillPhotoIdentificationService {
     private final FileStorage fileStorage;
     private final OpenAiClient openAiClient;
     private final PillDrugIdentificationService identificationService;
+    private final TemporaryPhotoCleanupService cleanup;
 
     public PillPhotoIdentificationService(FileStorage fileStorage,
                                           OpenAiClient openAiClient,
-                                          PillDrugIdentificationService identificationService) {
+                                          PillDrugIdentificationService identificationService,
+                                          TemporaryPhotoCleanupService cleanup) {
         this.fileStorage = fileStorage;
         this.openAiClient = openAiClient;
         this.identificationService = identificationService;
+        this.cleanup = cleanup;
     }
 
     public PillPhotoIdentificationResponse identify(List<MultipartFile> images) {
@@ -47,13 +50,14 @@ public class PillPhotoIdentificationService {
         }
 
         List<String> savedNames = new ArrayList<>();
+        boolean completed = false;
         try {
             List<String> dataUrls = new ArrayList<>();
             for (MultipartFile image : images) {
-                String savedName = fileStorage.saveImage(image, FileStorage.DIR_PILL);
+                String savedName = fileStorage.saveImage(image, FileStorage.DIR_TEMP);
                 savedNames.add(savedName);
                 dataUrls.add(OpenAiClient.toDataUrl(
-                        fileStorage.readBytes(savedName, FileStorage.DIR_PILL),
+                        fileStorage.readBytes(savedName, FileStorage.DIR_TEMP),
                         fileStorage.getMimeType(savedName)));
             }
 
@@ -68,9 +72,11 @@ public class PillPhotoIdentificationService {
             }
 
             List<PillIdentificationCandidate> candidates = identificationService.identify(extracted);
+            completed = true;
             return new PillPhotoIdentificationResponse(extracted, candidates);
         } finally {
-            savedNames.forEach(name -> fileStorage.delete(name, FileStorage.DIR_PILL));
+            if (completed) cleanup.deleteAfterProcessing(savedNames);
+            else cleanup.deleteNow(savedNames);
         }
     }
 
