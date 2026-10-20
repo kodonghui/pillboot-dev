@@ -63,11 +63,11 @@ public record MyDrugListResponse(
 
         return new MyDrugListResponse(
                 myDrug.getMyDrugId(),
-                drug.getItemSeq(),
-                drug.getName(),
-                drug.getMaker(),
-                drug.getImageUrl(),
-                drug.getEtcOtc(),
+                drug == null ? null : drug.getItemSeq(),
+                drug == null ? myDrug.getCustomName() : drug.getName(),
+                drug == null ? null : drug.getMaker(),
+                drug == null ? null : drug.getImageUrl(),
+                drug == null ? null : drug.getEtcOtc(),
                 myDrug.getDosePerTime(),
                 myDrug.getTiming(),
                 doseTimes,

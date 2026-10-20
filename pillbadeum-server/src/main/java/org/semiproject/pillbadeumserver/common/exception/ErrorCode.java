@@ -41,6 +41,7 @@ public enum ErrorCode {
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "LOGIN_FAILED", "이메일 또는 비밀번호가 맞지 않습니다."),
 
     // 프로필 (PROF)
+    LAST_PROFILE(HttpStatus.CONFLICT, "LAST_PROFILE", "마지막 프로필은 삭제할 수 없습니다."),
 
     // 약 등록 · 이미지 처리 (REG)
 
@@ -49,6 +50,8 @@ public enum ErrorCode {
     // 복약 일정 (SCHED)
 
     // 복약 알림 (NOTI)
+    CONSENT_REQUIRED(HttpStatus.CONFLICT, "CONSENT_REQUIRED", "알림 수신 동의가 필요합니다."),
+    PUSH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "EXTERNAL_API_FAILED", "알림 기능을 지금 사용할 수 없습니다."),
 
     // 복약 기록 (DOSE)
 

@@ -1,0 +1,53 @@
+@baseUrl = http://localhost:8080
+@accessToken = REPLACE_WITH_YOUR_BEARER_TOKEN
+@profileId = 1
+@myDrugId = 1
+
+### 일정 등록용 약 목록: 일정 없는 약도 포함. 내 프로필에 약이 없으면 drugs=[]
+GET {{baseUrl}}/api/profiles/{{profileId}}/drugs/schedule-choices
+Authorization: Bearer {{accessToken}}
+
+### 계정 전체 캘린더: 토큰 회원의 모든 프로필 일정. 조회 기간 양 끝 포함
+GET {{baseUrl}}/api/calendar?from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{accessToken}}
+
+### 일정 조회: 이 회원의 이 프로필에 실제 등록된 내 약 ID를 사용합니다.
+GET {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}/schedule
+Authorization: Bearer {{accessToken}}
+
+### 선택한 날짜 하루 전체 복용 예정 목록
+GET {{baseUrl}}/api/calendar/doses?date=2026-10-19
+Authorization: Bearer {{accessToken}}
+
+### 선택한 날짜 07:00 복용 예정 목록: 모든 내 프로필 포함
+GET {{baseUrl}}/api/calendar/doses?date=2026-10-19&time=07:00
+Authorization: Bearer {{accessToken}}
+
+### 일정 저장·수정 (전체 교체, timing을 생략하면 기존 복용 때도 지움)
+PUT {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}/schedule
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "startDate": "2026-10-19",
+  "endDate": "2026-10-25",
+  "doseTimes": ["07:00", "11:00", "17:00"],
+  "dosePerTime": 1,
+  "timing": "식후 30분"
+}
+
+### 그만 먹기: 종료일을 한국 시간 오늘로 변경, 오늘은 포함
+POST {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}/schedule/stop
+Authorization: Bearer {{accessToken}}
+
+### 일정 삭제: 204, 약 행은 유지. 기존 DB는 sql/03 적용 후 사용
+DELETE {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}/schedule
+Authorization: Bearer {{accessToken}}
+
+### 삭제 후 일정 조회: 404. 위 PUT으로 같은 약에 일정을 다시 등록할 수 있음
+GET {{baseUrl}}/api/profiles/{{profileId}}/drugs/{{myDrugId}}/schedule
+Authorization: Bearer {{accessToken}}
+
+### 삭제 후 캘린더: 삭제한 myDrugId만 빠지고 다른 일정은 유지됨
+GET {{baseUrl}}/api/calendar?from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{accessToken}}

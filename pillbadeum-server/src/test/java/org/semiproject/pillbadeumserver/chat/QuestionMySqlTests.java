@@ -84,10 +84,10 @@ class QuestionMySqlTests {
     void prepareDedicatedDatabaseFixtures() throws Exception {
         assertThat(jdbc.queryForObject("SELECT DATABASE()", String.class)).isEqualTo("pill_test");
         try (var connection = dataSource.getConnection()) {
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/01_PILLBADEUM_DB_SCRIPT.sql"));
+            org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
         }
         memberId = member();
-        profileId = insert("INSERT INTO profile(member_id,profile_name,realationship_type,profile_birth_year,profile_gender,profile_pregnant,created_at,updated_at) "
+        profileId = insert("INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,profile_pregnant,created_at,updated_at) "
                 + "VALUES(?, 'fixture', 'SELF', 2000, 'FEMALE', FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", memberId);
         sessionId = session(memberId, profileId);
         when(classifier.classify(anyString())).thenAnswer(invocation -> {

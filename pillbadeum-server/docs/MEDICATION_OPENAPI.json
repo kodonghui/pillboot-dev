@@ -1,0 +1,896 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "필받음 복약지도 API",
+    "version": "v1",
+    "description": "복용 예정 일정·Live·알림. 실제 복용 여부 체크는 제공하지 않습니다. 연결 순서는 MEDICATION_FRONTEND_HANDOFF.md 참고."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/profiles/{profileId}/drugs/{myDrugId}/schedule": {
+      "get": {
+        "tags": [
+          "복약 일정"
+        ],
+        "summary": "일정 상세 조회",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "exclusiveMinimum": 0
+            }
+          },
+          {
+            "name": "myDrugId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "exclusiveMinimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "복약 일정"
+        ],
+        "summary": "일정 저장·수정",
+        "description": "선택한 내 약에 일정을 등록하거나 교체하고 200을 반환합니다.",
+        "operationId": "save",
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "exclusiveMinimum": 0
+            }
+          },
+          {
+            "name": "myDrugId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "exclusiveMinimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "복약 일정"
+        ],
+        "summary": "일정 한 건 삭제",
+        "description": "선택한 내 약의 기간·복용 시각만 비우고 204를 반환합니다. 약·프로필·다른 일정은 유지합니다.",
+        "operationId": "delete",
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "exclusiveMinimum": 0
+            }
+          },
+          {
+            "name": "myDrugId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "exclusiveMinimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/notification-settings": {
+      "get": {
+        "tags": [
+          "복약 알림"
+        ],
+        "summary": "알림 설정 조회",
+        "description": "알림 켜짐, 동의 상태, 동의할 약관 버전, 구독한 브라우저 수",
+        "operationId": "get_1",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingSummary"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "복약 알림"
+        ],
+        "summary": "알림 켜기·끄기",
+        "description": "켜기는 동의가 없으면 notificationConsent가 필요하고 없으면 409 CONSENT_REQUIRED. 끄기는 동의 철회를 기록하고 이 회원의 모든 브라우저 구독을 지운다.",
+        "operationId": "change",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/push/subscriptions": {
+      "post": {
+        "tags": [
+          "복약 알림"
+        ],
+        "summary": "이 브라우저 구독 저장",
+        "description": "처음이면 201, 같은 브라우저(endpoint)를 고쳤으면 200. 다른 회원 구독이었으면 지금 회원으로 옮긴다.",
+        "operationId": "subscribe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profiles/{profileId}/drugs/{myDrugId}/schedule/stop": {
+      "post": {
+        "tags": [
+          "복약 일정"
+        ],
+        "summary": "그만 먹기",
+        "description": "진행 중 일정의 종료일을 한국 시간 오늘로 변경합니다. 내일부터 제외됩니다.",
+        "operationId": "stop",
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "exclusiveMinimum": 0
+            }
+          },
+          {
+            "name": "myDrugId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "exclusiveMinimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/medication/live/sessions": {
+      "post": {
+        "tags": [
+          "복약 Live"
+        ],
+        "summary": "Live 음성 대화 시작",
+        "description": "선택한 내 약·날짜와 WebRTC SDP offer로 대화를 시작합니다. API 키는 서버에만 있습니다.",
+        "operationId": "start",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/push/vapid-public-key": {
+      "get": {
+        "tags": [
+          "복약 알림"
+        ],
+        "summary": "웹 푸시 공개 키",
+        "description": "브라우저 구독을 만들 때 applicationServerKey로 쓴다. 키가 없으면 503",
+        "operationId": "publicKey",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/VapidKeyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/medication/live/sessions/{sessionId}": {
+      "get": {
+        "tags": [
+          "복약 Live"
+        ],
+        "summary": "내 Live 대화의 수집·저장 상태 조회",
+        "operationId": "get_3",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Progress"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "복약 Live"
+        ],
+        "summary": "내 Live 대화 종료",
+        "description": "추가 저장을 막고 연결을 종료합니다. 이미 저장한 일정은 유지됩니다.",
+        "operationId": "stop_1",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/calendar": {
+      "get": {
+        "tags": [
+          "복약 일정"
+        ],
+        "summary": "계정 캘린더 조회",
+        "description": "로그인한 회원의 모든 프로필에서 조회 기간과 겹치는 일정을 반환합니다. 양 끝 날짜를 포함하며, 일정이 없으면 빈 목록입니다. 저장된 일정 기간은 잘라내지 않습니다.",
+        "operationId": "get_4",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/calendar/doses": {
+      "get": {
+        "tags": [
+          "복약 일정"
+        ],
+        "summary": "날짜·시간별 복용 예정 목록 조회",
+        "description": "로그인한 회원의 모든 프로필에서 해당 날짜의 복용 예정 약을 조회합니다. time은 선택이며 HH:mm 형식입니다. 생략하면 하루 전체, 지정하면 해당 시각만 반환합니다.",
+        "operationId": "get_5",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "time",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profiles/{profileId}/drugs/schedule-choices": {
+      "get": {
+        "tags": [
+          "복약 일정"
+        ],
+        "summary": "일정 등록용 약 목록 조회",
+        "description": "로그인한 회원이 소유한 프로필의 내 약을 반환합니다. 일정 없는 약도 포함하며 약이 없으면 빈 목록, 없는 프로필이나 다른 회원의 프로필이면 404입니다.",
+        "operationId": "get_2",
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "exclusiveMinimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DrugChoices"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ScheduleResponse": {
+        "type": "object",
+        "properties": {
+          "myDrugId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "profileId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "profileName": {
+            "type": "string"
+          },
+          "drugName": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "doseTimes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dosePerTime": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "timing": {
+            "type": "string"
+          },
+          "pushEnabled": {
+            "type": "boolean"
+          },
+          "hasSchedule": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ScheduleRequest": {
+        "type": "object",
+        "properties": {
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "doseTimes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1
+          },
+          "dosePerTime": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 10,
+            "minimum": 1
+          },
+          "timing": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "dosePerTime",
+          "doseTimes",
+          "endDate",
+          "startDate"
+        ]
+      },
+      "SettingSummary": {
+        "type": "object",
+        "properties": {
+          "pushEnabled": {
+            "type": "boolean"
+          },
+          "consentActive": {
+            "type": "boolean"
+          },
+          "consentPolicyVersion": {
+            "type": "string"
+          },
+          "subscriptionCount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SettingRequest": {
+        "type": "object",
+        "properties": {
+          "pushEnabled": {
+            "type": "boolean"
+          },
+          "notificationConsent": {
+            "$ref": "#/components/schemas/ConsentAnswer"
+          }
+        },
+        "required": [
+          "pushEnabled"
+        ]
+      },
+      "ConsentAnswer": {
+        "type": "object",
+        "properties": {
+          "agreed": {
+            "type": "boolean"
+          },
+          "policyVersion": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "agreed"
+        ]
+      },
+      "SettingResponse": {
+        "type": "object",
+        "properties": {
+          "pushEnabled": {
+            "type": "boolean"
+          },
+          "consentAgreedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consentRevokedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SubscriptionRequest": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 0
+          },
+          "keys": {
+            "$ref": "#/components/schemas/SubscriptionKeys"
+          },
+          "userAgent": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ]
+      },
+      "SubscriptionKeys": {
+        "type": "object",
+        "properties": {
+          "p256dh": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "auth": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "auth",
+          "p256dh"
+        ]
+      },
+      "SubscriptionResponse": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "StartRequest": {
+        "type": "object",
+        "properties": {
+          "sdp": {
+            "type": "string",
+            "maxLength": 100000,
+            "minLength": 0
+          },
+          "selectedProfileId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "selectedMyDrugId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "selectedDate": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "sdp",
+          "selectedDate",
+          "selectedProfileId"
+        ]
+      },
+      "StartResponse": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "sdp": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VapidKeyResponse": {
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "string"
+          }
+        }
+      },
+      "DrugChoices": {
+        "type": "object",
+        "properties": {
+          "drugs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleResponse"
+            }
+          }
+        }
+      },
+      "Progress": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "missingFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "appliedDefaults": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "savedSchedule": {
+            "$ref": "#/components/schemas/ScheduleResponse"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedOperation": {
+            "$ref": "#/components/schemas/CompletedOperation"
+          }
+        }
+      },
+      "CompletedOperation": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "SAVE",
+              "DELETE",
+              "STOP"
+            ]
+          },
+          "profileId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "myDrugId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CalendarResponse": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "schedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleResponse"
+            }
+          }
+        }
+      },
+      "DoseResponse": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "time": {
+            "type": "string"
+          },
+          "doses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DoseItem"
+            }
+          }
+        }
+      },
+      "DoseItem": {
+        "type": "object",
+        "properties": {
+          "myDrugId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "profileId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "profileName": {
+            "type": "string"
+          },
+          "drugName": {
+            "type": "string"
+          },
+          "time": {
+            "type": "string"
+          },
+          "dosePerTime": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "timing": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

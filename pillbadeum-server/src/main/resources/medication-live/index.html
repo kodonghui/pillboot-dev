@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>필바듬 · Live 음성 일정 테스트</title>
+  <style>
+    :root{color-scheme:light;font-family:system-ui,sans-serif;color:#183344;background:#f3f6f7}
+    body{margin:0;padding:32px 16px}main{max-width:850px;margin:auto}h1{font-size:27px;margin:10px 0}
+    .intro{color:#486170;line-height:1.7}.card{background:white;border:1px solid #dbe4e8;border-radius:14px;padding:22px;margin:20px 0}
+    label{display:block;font-size:14px;font-weight:600;margin:12px 0 6px}input,textarea,button{font:inherit;box-sizing:border-box}
+    input,textarea{width:100%;padding:11px;border:1px solid #b8c9d2;border-radius:7px}textarea{resize:vertical}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+    button{border:0;border-radius:8px;padding:12px 18px;background:#087c75;color:white;cursor:pointer}button.secondary{background:#e7eef1;color:#183344}
+    button:disabled{opacity:.45;cursor:default}.badge{font-size:12px;letter-spacing:.05em;color:#087c75;font-weight:700}
+    #status{padding:12px;background:#eaf4f3;border-radius:8px;line-height:1.6}#conversation{min-height:100px;max-height:300px;overflow:auto;white-space:pre-wrap;line-height:1.8}
+    .speaker{font-weight:700;color:#087c75}.message{padding:5px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:#425967}
+    audio{width:100%;margin-top:12px}.hint{font-size:13px;color:#576d78;line-height:1.7}a{color:#087c75}
+    @media(max-width:560px){.grid{grid-template-columns:1fr}body{padding-top:16px}.card{padding:16px}}
+  </style>
+  <script src="/dev/medication-live.js" defer></script>
+</head>
+<body><main>
+  <span class="badge">필바듬 / 로컬 연동 테스트</span>
+  <h1>말로 복약 일정 등록하기</h1>
+  <p class="intro">“오늘부터 이틀 타이레놀”처럼 말하면 빠진 항목을 기본 설정으로 채운 일정을 제안해요.
+    “응”이면 저장하고, “저녁에만”처럼 바꿀 수도 있어요. “알아서 저장해”라고 맡기면 바로 저장해요.
+    “엄마 타이레놀 일정 삭제해줘”로 일정을 지우거나 “그만 먹을래”로 오늘까지만 남길 수도 있어요.</p>
+  <section class="card">
+    <label for="token">로그인 토큰</label>
+    <textarea id="token" rows="2" placeholder="로그인 응답의 accessToken 또는 테스트 JWT" autocomplete="off" spellcheck="false"></textarea>
+    <p class="hint">토큰은 이 화면 메모리에서만 사용해요. OpenAI API 키는 입력하지 마세요.</p>
+    <div class="grid">
+      <div><label for="profile">프로필 ID</label><input id="profile" type="number" min="1" value="13"></div>
+      <div><label for="drug">내 약 ID (선택)</label><input id="drug" type="number" min="1" placeholder="비우면 말한 약 이름으로 등록"></div>
+      <div><label for="date">캘린더에서 선택한 날짜</label><input id="date" type="date"></div>
+    </div>
+    <div class="actions"><button id="start">음성 대화 시작</button><button id="stop" class="secondary" disabled>대화 종료</button>
+      <button id="calendar" class="secondary">저장된 캘린더 확인</button></div>
+    <p class="hint">실제 OpenAI 세션을 시작하면 사용 요금이 발생해요. 이 화면은 AI가 생성하는 음성을 재생해요.
+      대화는 최대 1분이며 등록·삭제·그만 먹기 완료 안내 후 자동 종료돼요. 입력한 프로필·약은 로그인 회원 소유여야 해요.
+      내 약 ID를 비우면 “오늘부터 일주일 혈압약”처럼 말한 이름으로 등록할 수 있어요.</p>
+    <div id="status" role="status" aria-live="polite">대기 중</div>
+    <audio id="audio" autoplay controls aria-label="Live 음성 답변"></audio>
+  </section>
+  <section class="card"><h2>실시간 대화</h2><div id="conversation" aria-label="대화 자막"></div></section>
+  <section class="card"><h2>일정 저장 상태</h2><pre id="progress">대화를 시작하면 상태를 표시해요.</pre></section>
+  <section class="card"><h2>캘린더 조회 결과</h2><pre id="result">캘린더 확인 버튼으로 저장 결과를 볼 수 있어요.</pre></section>
+</main></body></html>

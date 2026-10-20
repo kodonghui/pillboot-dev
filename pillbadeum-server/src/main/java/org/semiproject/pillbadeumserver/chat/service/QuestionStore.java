@@ -84,7 +84,8 @@ public class QuestionStore {
                 .orElseThrow(() -> new NotFoundException("대화방을 찾을 수 없습니다."));
         var savedQuestion = messages.findByMessageIdAndSessionIdAndRole(question.messageId(), sessionId, "user")
                 .orElseThrow(() -> new NotFoundException("질문을 찾을 수 없습니다."));
-        var drugs = medications.findAllWithDrugByProfileId(profileId).stream().map(m ->
+        // 직접 입력한 일정 이름에는 품목 코드가 없으므로 공식 약품·DUR 조회 대상으로 보내지 않는다.
+        var drugs = medications.findAllWithDrugByProfileId(profileId).stream().filter(m -> m.getDrug() != null).map(m ->
                 new AnswerInput.Medication(m.getDrug().getItemSeq(), m.getDrug().getName(), m.getDrug().getMaker(),
                         m.getDrug().getEtcOtc(), m.getDosePerTime(), m.getTiming(), m.getStartDate(), m.getEndDate(),
                         m.getDoseTimes(), m.getUpdatedAt().toLocalDate())).toList();

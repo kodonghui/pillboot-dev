@@ -1,0 +1,36 @@
+@baseUrl = http://localhost:8080
+@accessToken = REPLACE_WITH_YOUR_BEARER_TOKEN
+
+### 알림 설정 조회: 켜짐, 동의 상태, 동의할 약관 버전, 구독한 브라우저 수
+GET {{baseUrl}}/api/notification-settings
+Authorization: Bearer {{accessToken}}
+
+### 웹 푸시 공개 키 (브라우저 구독의 applicationServerKey)
+GET {{baseUrl}}/api/push/vapid-public-key
+Authorization: Bearer {{accessToken}}
+
+### 이 브라우저 구독 저장: 처음 201, 같은 endpoint면 200
+# 실제 값은 브라우저 pushManager.subscribe() 결과의 toJSON()을 그대로 보냅니다.
+POST {{baseUrl}}/api/push/subscriptions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "endpoint": "https://fcm.googleapis.com/fcm/send/REPLACE_WITH_BROWSER_ENDPOINT",
+  "keys": { "p256dh": "REPLACE_WITH_BROWSER_P256DH", "auth": "REPLACE_WITH_BROWSER_AUTH" },
+  "userAgent": "Chrome"
+}
+
+### 알림 켜기: 동의가 없으면 notificationConsent 필요(없으면 409 CONSENT_REQUIRED)
+PUT {{baseUrl}}/api/notification-settings
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "pushEnabled": true, "notificationConsent": { "agreed": true, "policyVersion": "1.0" } }
+
+### 알림 끄기: 동의 철회 기록 + 모든 브라우저 구독 삭제
+PUT {{baseUrl}}/api/notification-settings
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "pushEnabled": false }

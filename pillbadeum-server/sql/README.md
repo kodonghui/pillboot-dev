@@ -1,52 +1,55 @@
-# ERD Cloud 기준 MySQL 초기 설정
+# MySQL SQL 실행 순서
 
-DB 정의의 기준은 사용자가 제공한 ERD Cloud의 MySQL 내보내기 원문입니다.
-**관계형 14개 테이블·114개 컬럼**이며 `vector_point`는 별도 Qdrant 모델입니다.
-다른 노션 ERD나 API를 근거로 표·컬럼을 추가하지 않습니다.
+GitHub develop e7c5338의 기존 00~02번은 내용 그대로 유지합니다. 복약지도에서 추가한 변경만 03번 하나에 모았습니다.
 
 | 파일 | 용도 |
 | --- | --- |
-| `00_PILLBADEUM_DB_CREAT.sql` | 관리자 연결에서 로컬 pilldb·개발 계정 준비 |
-| `01_PILLBADEUM_DB_SCRIPT.sql` | 비어 있는 개발 DB에 ERD Cloud 구조 생성 |
-| `02_PILLBADEUM_TEST_DATA.sql` | 선택 실행. 빈 테이블에 DB·화면 확인용 샘플 입력 |
+| `00_PILLBADEUM_DB_CREAT.sql` | 기존 DB·개발 계정 생성 스크립트 |
+| `01_PILLBADEUM_DB_SCRIPT.sql` | 기존 ERD 원본 구조: 14개 테이블·114개 컬럼 |
+| `02_PILLBADEUM_TEST_DATA.sql` | 선택 사항. 빈 원본 구조에 테스트 샘플 입력 |
+| `03_MEDICATION_UPDATE.sql` | 복약지도 변경 통합. 기존 03~06번 대체 |
 
-00을 실행한 뒤 대상 DB를 선택하여 01을 실행합니다. 샘플이 필요하면 빈 테이블에서만 02를 한 번 실행합니다.
-앱은 SQL을 자동 실행하지 않으며 JPA ddl-auto는 none입니다. IF NOT EXISTS는 기존 컬럼·제약을 변경하지 않습니다.
-기존 10개/15개 테이블 DB에는 그대로 실행하지 말고 백업 후 새 DB에서 먼저 확인합니다.
-이전 API 확장 구조를 적용하던 자동 업그레이드 파일은 제거했습니다.
+## 새 DB
 
-## 원문과 실행 SQL의 관계
+1. 관리자 연결에서 00 실행 후 대상 DB 선택.
+2. 01 실행.
+3. 샘플이 필요하면 빈 DB에서 02를 한 번 실행.
+4. 03 전체를 같은 연결에서 실행하고 마지막 medication_update_status가 READY인지 확인.
+5. 최신 서버 실행.
 
-- 최신 ERD Cloud에 맞춰 테이블명과 모든 SQL 참조를 소문자로 통일했습니다. trun_no·realationship_type·matrial·item_seq2는 원문 그대로입니다.
-- consent.terms_title의 VARHCHAR(30)는 유효한 자료형 VARCHAR(30)으로 교정했습니다.
-- 사용자 결정에 따라 chat_session.snap_pregnant는 BOOLEAN으로 통일했습니다. 기존 NULL 허용과 기본값 없음은 유지합니다.
-- 최신 내보내기의 photo.kind VARCHAR(30)을 반영했습니다.
-- 최신 내보내기의 PK/FK는 Qdrant를 제외해 PK 14개·FK 15개로 반영했습니다.
-  AUTO_INCREMENT가 생성 시점부터 유효하도록 PK를 CREATE TABLE 안에 배치합니다.
-- 사용자 결정에 따라 drug.etc_otc의 UNIQUE는 제거하고, NOT NULL과 chk_drug_type CHECK (etc_otc IN ('ETC', 'OTC'))를 적용했습니다.
-- 위 교정·결정 외 자료형·길이·NULL·기본값·제약은 유지하며 추가 CHECK·복합 UNIQUE·CASCADE·ON UPDATE는 넣지 않습니다.
-- ERD 밖 push_subscription, 프로필 색상, 약 상세 확장, 사진 앞뒤 연결, 후보 약 참조 컬럼은 제거했습니다.
-- 기본값이 없는 필수 생성·수정 시각 등은 저장 코드에서 직접 채워야 합니다.
-- Linux MySQL에서는 표명 대소문자를 구분하므로 실제 이름으로 조회합니다.
+02는 원본 컬럼명을 쓰므로 03보다 먼저 실행합니다. 이미 샘플이 있는 DB에서 02를 다시 실행하지 않습니다.
+03 적용 후 구조는 16개 테이블·125개 컬럼입니다. 앱의 SQL 자동 실행과 JPA 자동 DDL은 꺼져 있습니다.
+setup-local-db.ps1도 00 → 01 → 02(선택) → 03 순서로 실행합니다.
 
-## 약 분류와 기존 DB
+## 이미 사용 중인 DB
 
-drug.etc_otc는 내부 저장 코드 ETC(전문)·OTC(일반)만 허용합니다. 같은 분류의 약은 여러 개 저장할 수 있습니다.
-공공데이터 원문의 분류 표기가 다르면 약 저장 기능에서 내부 코드로 변환한 뒤 저장해야 합니다.
-샘플 약은 기존과 같이 분류별 1개, 총 2개입니다.
+기존 원본 14개 테이블 구조 또는 예전 03~06번 변경을 일부/전부 적용한 DB라면 **새 03만 실행**합니다.
+01·02를 다시 실행하거나 기존 데이터를 초기화할 필요가 없습니다. 03은 이미 적용된 컬럼·제약·표를 확인해 건너뜁니다.
 
-photo.kind는 VARCHAR(30)으로 PRESCRIPTION(12자)을 저장할 수 있습니다.
-프로필 임신 여부·일정 필수값은 원문을 유지하며, 기능 명세와 다른 부분은 함께 정리합니다.
+통합 내용:
 
-대화방 임신 여부 사본은 사용자 결정으로 BOOLEAN NULL로 변경했습니다.
-기존 DB에는 01을 재실행해도 표명·자료형·제약이 바뀌지 않습니다. 기존 문자열 TRUE/FALSE, 약 분류값,
-실제 표명과 UNIQUE 인덱스를 먼저 확인하고 데이터를 보존하는 별도 변경이 필요합니다.
-현재 SQL은 신규 DB 생성용이며 기존 DB를 자동 변환하지 않습니다.
+- profile.realationship_type → relationship_type, drug.matrial → material 오타 수정.
+- my_drug.start_date/end_date/dose_times NULL 허용. 세 값을 함께 채우거나 비우도록 CHECK 유지.
+- my_drug.item_seq NULL 허용과 custom_name VARCHAR(100) NULL 추가. 약품 코드 또는 직접 입력 이름 필수 CHECK.
+- notification_setting.member_id 회원당 한 행 UNIQUE.
+- push_subscription 브라우저 구독과 notification_dispatch 분 단위 중복 발송 방지 표 추가.
+- MANUAL은 기존 source VARCHAR(30)에 저장하므로 타입 변경이 없습니다.
 
-## 샘플
+업무 데이터 INSERT·UPDATE·DELETE, 테이블 DROP은 포함하지 않습니다. item_seq FK도 유지합니다.
+MySQL 8.0.16 이상에서 대상 DB를 선택한 뒤 파일 전체를 같은 연결에서 실행합니다. DDL은 자동 커밋되므로 중간 SQL 오류를 무시하지 않습니다.
 
-회원 5개·프로필 15개·약 2개·내 약 30개·대화방 45개·메시지 180개·요약 45개입니다.
-사진·OCR 후보·DUR은 초기 행 없이 준비합니다. 품목 코드·약 이름은 공식 검증되지 않은 DB 확인용 샘플입니다.
-실제 공공데이터 호출에는 공식 응답으로 확인한 품목 코드를 별도로 사용합니다.
+## BLOCKED가 나올 때
 
-검토·결정 기록은 개인 노션에 둡니다.
+사전 검사에서 필수 원본 표가 없거나, 이름 변경 전·후 컬럼이 함께 있거나 모두 없거나, 회원당 알림 설정이 중복되면 모든 DDL을 건너뛰고 BLOCKED를 표시합니다.
+출력의 required_tables_present / profile_column_unambiguous / drug_column_unambiguous / duplicate_notification_members를 확인합니다.
+알림 설정 중복은 아래 조회로 확인하고 어떤 행을 남길지 정리한 뒤 03을 재실행합니다. 통합 SQL이 임의로 삭제하지 않습니다.
+
+```sql
+SELECT member_id, COUNT(*) AS setting_rows
+FROM notification_setting
+GROUP BY member_id
+HAVING COUNT(*) > 1;
+```
+
+이 파일은 원본 14개 테이블 이후의 복약지도 변경용입니다. 이전 별도 설계의 10개/15개 테이블 DB 변환이나 팀원의 다른 데이터 이관은 다루지 않습니다.
+원본 샘플은 공식 품목 코드·계정 비밀번호 검증 자료가 아닙니다. Qdrant는 MySQL 생성 대상이 아닙니다.
