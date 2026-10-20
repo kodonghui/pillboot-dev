@@ -104,7 +104,7 @@ public class DrugSyncService {
                             prefer(values.shape, existing.getShape()), prefer(values.color, existing.getColor()),
                             prefer(values.lineFront, existing.getLineFront()), prefer(values.lineBack, existing.getLineBack()),
                             prefer(values.form, existing.getForm()), prefer(values.material, existing.getMaterial()), now);
-                    existing.recordMetadataSource(existing.getMetadataSource().equals(source) ? source : "MIXED", DrugCancellation.parse(item));
+                    existing.recordMetadataSource((existing.getMetadataSource().equals("UNKNOWN") || existing.getMetadataSource().equals(source)) ? source : "MIXED", DrugCancellation.parse(item));
                     return existing;
                 })
                 .orElseGet(() -> {
