@@ -152,7 +152,16 @@ public class PhotoIdentificationWorkflow {
       if (groups.stream().allMatch(g -> g.candidates().isEmpty())) {
         if (groups.stream().anyMatch(g -> "FAILED".equals(g.lookup())))
           throw ExternalApiException.failed("공공데이터", "약 후보를 확인하지 못했습니다.", null);
-        return empty(kind, "NOT_FOUND");
+        // 사진/후보 행은 finally에서 정리하되 이름 검색으로 넘길 읽은 약 이름은 응답에 남긴다.
+        var cards =
+            groups.stream()
+                .map(
+                    g ->
+                        new PhotoIdentificationResponse.DrugGroup(
+                            g.readNo(), g.readName(), g.lookup(), List.of()))
+                .toList();
+        return new PhotoIdentificationResponse(
+            kind, null, null, "NOT_FOUND", clues, null, cards, List.of());
       }
       if (System.nanoTime() >= deadline || Thread.currentThread().isInterrupted())
         throw ExternalApiException.timeout("사진 식별", null);

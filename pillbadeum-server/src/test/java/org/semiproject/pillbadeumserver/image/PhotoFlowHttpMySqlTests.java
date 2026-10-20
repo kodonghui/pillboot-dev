@@ -199,6 +199,14 @@ class PhotoFlowHttpMySqlTests {
     long id = result.path("photoId").asLong(), back = result.path("photoIds").path(1).asLong();
     assertThat(result.path("candidates").path(0).path("itemSeq").asString()).isEqualTo(code1);
     assertThat(result.path("candidates").path(0).path("printMatched").asBoolean()).isTrue();
+    var candidate = result.path("candidates").path(0);
+    assertThat(candidate.path("printFront").asString()).isEqualTo("A");
+    assertThat(candidate.path("printBack").asString()).isEqualTo("B");
+    assertThat(candidate.path("shape").asString()).isEqualTo("원형");
+    assertThat(candidate.path("color").asString()).isEqualTo("흰색");
+    assertThat(
+            json("GET", "/api/photos/" + id + "/candidates", null, token, 200).path("candidates"))
+        .isEqualTo(result.path("candidates"));
     assertThat(
             jdbc.queryForObject(
                 "SELECT front_photo_id FROM photo WHERE photo_id=?", Long.class, back))
@@ -230,8 +238,12 @@ class PhotoFlowHttpMySqlTests {
   @Test
   void zeroResultsAreNotFoundAndUnreadableOrInvalidVisionNeverLeavePhotos() throws Exception {
     vision = prescription("없음");
-    assertThat(identify("PRESCRIPTION", token, 200, "image").path("status").asString())
-        .isEqualTo("NOT_FOUND");
+    var notFound = identify("PRESCRIPTION", token, 200, "image");
+    assertThat(notFound.path("status").asString()).isEqualTo("NOT_FOUND");
+    assertThat(notFound.path("photoId").isNull()).isTrue();
+    assertThat(notFound.path("drugs").path(0).path("readName").asString()).isEqualTo("없음");
+    assertThat(notFound.path("drugs").path(0).path("lookup").asString()).isEqualTo("NOT_FOUND");
+    assertThat(notFound.path("drugs").path(0).path("candidates").isEmpty()).isTrue();
     assertNoPhotos();
     vision = Map.of("readable", false, "medicines", List.of());
     assertThat(identify("MEDICINE_BAG", token, 200, "image").path("status").asString())

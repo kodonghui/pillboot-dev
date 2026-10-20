@@ -22,5 +22,9 @@ public record PhotoIdentificationResponse(
       String imageUrl,
       Boolean cancelled,
       boolean alreadyRegistered,
-      Boolean printMatched) {}
+      Boolean printMatched,
+      String printFront,
+      String printBack,
+      String shape,
+      String color) {}
 }
