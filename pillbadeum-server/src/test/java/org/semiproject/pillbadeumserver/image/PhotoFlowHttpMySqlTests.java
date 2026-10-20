@@ -236,6 +236,29 @@ class PhotoFlowHttpMySqlTests {
   }
 
   @Test
+  void onePillCannotRegisterTwoAlternativeCandidatesAndKeepsConfirmation() throws Exception {
+    vision = pill("합성약정", "A", "B");
+    long id = identify("PILL", token, 200, "front", "back").path("photoId").asLong();
+    json("POST", drugs(profileId), selection(id, "PILL_PHOTO", code1, code2), token, 400);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profileId)).isZero();
+    json("GET", "/api/photos/" + id + "/candidates", null, token, 200);
+    json("POST", drugs(profileId), selection(id, "PILL_PHOTO", code1), token, 201);
+  }
+
+  @Test
+  void onePrescriptionCardCannotRegisterTwoAlternativesButOverlappingCardsCan() throws Exception {
+    long id = identify("PRESCRIPTION", token, 200, "image").path("photoId").asLong();
+    json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code1, code2), token, 400);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profileId)).isZero();
+    json("DELETE", "/api/photos/" + id, null, token, 204);
+    vision = prescription("합성약정", "또다른약정");
+    id = identify("PRESCRIPTION", token, 200, "image").path("photoId").asLong();
+    // 두 카드의 후보 코드가 겹쳐도 카드마다 하나씩 배정할 수 있으면 정상 선택임.
+    var result = json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code1, code2), token, 201);
+    assertThat(result.path("saved").size()).isEqualTo(2);
+  }
+
+  @Test
   void zeroResultsAreNotFoundAndUnreadableOrInvalidVisionNeverLeavePhotos() throws Exception {
     vision = prescription("없음");
     var notFound = identify("PRESCRIPTION", token, 200, "image");
