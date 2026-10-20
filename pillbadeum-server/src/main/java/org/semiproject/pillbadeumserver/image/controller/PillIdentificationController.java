@@ -4,10 +4,13 @@ import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentificationCandidate;
 import org.semiproject.pillbadeumserver.image.domain.PillDrugRegistrationRequest;
 import org.semiproject.pillbadeumserver.image.domain.PillPhotoIdentificationResponse;
+import org.semiproject.pillbadeumserver.image.domain.ImagePhotoKind;
+import org.semiproject.pillbadeumserver.image.domain.PrescriptionPhotoIdentificationResponse;
 import org.semiproject.pillbadeumserver.image.domain.TemporaryPhotoUploadResponse;
 import org.semiproject.pillbadeumserver.image.service.PillDrugRegistrationService;
 import org.semiproject.pillbadeumserver.image.service.PillDrugIdentificationService;
 import org.semiproject.pillbadeumserver.image.service.PillPhotoIdentificationService;
+import org.semiproject.pillbadeumserver.image.service.PrescriptionPhotoIdentificationService;
 import org.semiproject.pillbadeumserver.image.service.TemporaryPhotoUploadService;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
 import org.springframework.http.HttpStatus;
@@ -29,15 +32,18 @@ public class PillIdentificationController {
     private final PillDrugIdentificationService identificationService;
     private final PillDrugRegistrationService registrationService;
     private final PillPhotoIdentificationService photoIdentificationService;
+    private final PrescriptionPhotoIdentificationService prescriptionPhotoIdentificationService;
     private final TemporaryPhotoUploadService temporaryPhotoUploadService;
 
     public PillIdentificationController(PillDrugIdentificationService identificationService,
                                         PillDrugRegistrationService registrationService,
                                         PillPhotoIdentificationService photoIdentificationService,
+                                        PrescriptionPhotoIdentificationService prescriptionPhotoIdentificationService,
                                         TemporaryPhotoUploadService temporaryPhotoUploadService) {
         this.identificationService = identificationService;
         this.registrationService = registrationService;
         this.photoIdentificationService = photoIdentificationService;
+        this.prescriptionPhotoIdentificationService = prescriptionPhotoIdentificationService;
         this.temporaryPhotoUploadService = temporaryPhotoUploadService;
     }
 
@@ -49,8 +55,19 @@ public class PillIdentificationController {
 
     /** 임시 알약 사진 한두 장을 읽어 들여 공개 데이터 기반의 후보 항목들을 반환 */
     @PostMapping(value = "/pill-photo/identify", consumes = "multipart/form-data")
-    public PillPhotoIdentificationResponse identifyPhotos(@RequestParam("images") List<MultipartFile> images) {
-        return photoIdentificationService.identify(images);
+    public PillPhotoIdentificationResponse identifyPhotos(
+            @RequestParam(value = "profileId", required = false) Long profileId,
+            @RequestParam("images") List<MultipartFile> images) {
+        return photoIdentificationService.identify(profileId, images);
+    }
+
+    /** 처방전/약봉투 사진에서 읽은 약 이름과 조회 후보를 기존 OCR 테이블에 등록 */
+    @PostMapping(value = "/profiles/{profileId}/prescription-photo/identify", consumes = "multipart/form-data")
+    public PrescriptionPhotoIdentificationResponse identifyPrescriptionPhotos(
+            @PathVariable Long profileId,
+            @RequestParam(value = "kind", defaultValue = "PRESCRIPTION") ImagePhotoKind kind,
+            @RequestParam("images") List<MultipartFile> images) {
+        return prescriptionPhotoIdentificationService.identify(profileId, kind, images);
     }
 
     /** 임시 처방전/봉투 사진을 읽어 약물명 후보를 반환 */

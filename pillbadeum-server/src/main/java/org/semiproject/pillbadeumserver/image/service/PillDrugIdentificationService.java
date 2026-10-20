@@ -19,6 +19,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Stream;
 
@@ -85,15 +89,36 @@ public class PillDrugIdentificationService {
                 .limit(MAX_ENRICHED_CANDIDATES)
                 .toList();
 
-        List<PillIdentificationCandidate> result = new ArrayList<>(ranked.size());
-        for (int index = 0; index < ranked.size(); index++) {
-            RankedPill match = ranked.get(index);
-            String itemSeq = itemSeq(match.item);
-            JsonNode permit = findByItemSeq(PRODUCT_PERMIT_PATH, "item_seq", "ITEM_SEQ", itemSeq);
-            JsonNode easyDrug = findByItemSeq(EASY_DRUG_PATH, "itemSeq", "itemSeq", itemSeq);
-            result.add(toCandidate(index + 1, match, permit, easyDrug));
+        // 후보별 허가정보·e약은요 조회는 서로 독립적이다. 직렬로 처리하면 사진 식별 응답이
+        // 외부 호출 10회를 모두 기다리게 되므로 가상 스레드로 동시에 보강한다.
+        // API_PERMITS가 전체 MFDS 동시 호출을 4개로 제한하므로 외부 서비스 과부하는 막는다.
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<CompletableFuture<PillIdentificationCandidate>> enrichments = new ArrayList<>(ranked.size());
+            for (int index = 0; index < ranked.size(); index++) {
+                int rank = index + 1;
+                RankedPill match = ranked.get(index);
+                enrichments.add(CompletableFuture.supplyAsync(() -> enrich(rank, match), executor));
+            }
+            return enrichments.stream().map(PillDrugIdentificationService::await).toList();
         }
-        return List.copyOf(result);
+    }
+
+    private PillIdentificationCandidate enrich(int rank, RankedPill match) {
+        String itemSeq = itemSeq(match.item);
+        JsonNode permit = findByItemSeq(PRODUCT_PERMIT_PATH, "item_seq", "ITEM_SEQ", itemSeq);
+        JsonNode easyDrug = findByItemSeq(EASY_DRUG_PATH, "itemSeq", "itemSeq", itemSeq);
+        return toCandidate(rank, match, permit, easyDrug);
+    }
+
+    private static PillIdentificationCandidate await(CompletableFuture<PillIdentificationCandidate> enrichment) {
+        try {
+            return enrichment.join();
+        } catch (CompletionException exception) {
+            if (exception.getCause() instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw exception;
+        }
     }
 
     private JsonNode get(String path, Map<String, ?> parameters) {

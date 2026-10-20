@@ -4,6 +4,8 @@ import org.semiproject.pillbadeumserver.common.ai.OpenAiClient;
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 import org.semiproject.pillbadeumserver.common.file.FileStorage;
+import org.semiproject.pillbadeumserver.common.security.SecurityUtil;
+import org.semiproject.pillbadeumserver.drug.service.ProfileAccessChecker;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentificationCandidate;
 import org.semiproject.pillbadeumserver.image.domain.PillPhotoIdentificationResponse;
@@ -20,6 +22,7 @@ import java.util.Map;
 @Service
 public class PillPhotoIdentificationService {
 
+    private static final String IMG_TEMP_DIRECTORY = "img_temp";
     private static final int MAX_PHOTOS = 2;
     private static final Map<String, Object> SCHEMA = schema();
     private static final String INSTRUCTIONS = """
@@ -32,28 +35,39 @@ public class PillPhotoIdentificationService {
     private final FileStorage fileStorage;
     private final OpenAiClient openAiClient;
     private final PillDrugIdentificationService identificationService;
+    private final ImageKeywordRegistrationService keywordRegistrationService;
+    private final ProfileAccessChecker profileAccessChecker;
 
     public PillPhotoIdentificationService(FileStorage fileStorage,
                                           OpenAiClient openAiClient,
-                                          PillDrugIdentificationService identificationService) {
+                                          PillDrugIdentificationService identificationService,
+                                          ImageKeywordRegistrationService keywordRegistrationService,
+                                          ProfileAccessChecker profileAccessChecker) {
         this.fileStorage = fileStorage;
         this.openAiClient = openAiClient;
         this.identificationService = identificationService;
+        this.keywordRegistrationService = keywordRegistrationService;
+        this.profileAccessChecker = profileAccessChecker;
     }
 
-    public PillPhotoIdentificationResponse identify(List<MultipartFile> images) {
+    public PillPhotoIdentificationResponse identify(Long profileId, List<MultipartFile> images) {
+        SecurityUtil.getCurrentMemberId();
+        if (profileId != null) {
+            profileAccessChecker.checkOwner(profileId);
+        }
         if (images == null || images.isEmpty() || images.size() > MAX_PHOTOS) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "알약 사진은 앞면과 뒷면을 최대 2장까지 올려 주세요.");
         }
 
         List<String> savedNames = new ArrayList<>();
+        boolean registered = false;
         try {
             List<String> dataUrls = new ArrayList<>();
             for (MultipartFile image : images) {
-                String savedName = fileStorage.saveImage(image, FileStorage.DIR_PILL);
+                String savedName = fileStorage.saveImage(image, IMG_TEMP_DIRECTORY);
                 savedNames.add(savedName);
                 dataUrls.add(OpenAiClient.toDataUrl(
-                        fileStorage.readBytes(savedName, FileStorage.DIR_PILL),
+                        fileStorage.readBytes(savedName, IMG_TEMP_DIRECTORY),
                         fileStorage.getMimeType(savedName)));
             }
 
@@ -67,10 +81,24 @@ public class PillPhotoIdentificationService {
                         "알약 정보를 읽지 못했습니다. 알약 앞면이 선명하게 보이도록 다시 촬영해 주세요.");
             }
 
-            List<PillIdentificationCandidate> candidates = identificationService.identify(extracted);
-            return new PillPhotoIdentificationResponse(extracted, candidates);
+            List<PillIdentificationCandidate> candidates;
+            String lookupStatus;
+            try {
+                candidates = identificationService.identify(extracted);
+                lookupStatus = candidates.isEmpty() ? "NOT_FOUND" : "OK";
+            } catch (BusinessException exception) {
+                candidates = List.of();
+                lookupStatus = "FAILED";
+            }
+
+            List<Long> photoIds = keywordRegistrationService.registerPillKeywords(
+                    profileId, images, savedNames, extracted, candidates, lookupStatus);
+            registered = true;
+            return new PillPhotoIdentificationResponse(extracted, candidates, photoIds, lookupStatus);
         } finally {
-            savedNames.forEach(name -> fileStorage.delete(name, FileStorage.DIR_PILL));
+            if (!registered) {
+                savedNames.forEach(name -> fileStorage.delete(name, IMG_TEMP_DIRECTORY));
+            }
         }
     }
 
