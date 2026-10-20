@@ -36,6 +36,8 @@ import java.util.List;
  *  - 여기서는 형식만 검사한다. (빠진 값, 길이, 숫자 범위)
  *    시작일 ≤ 종료일, 복용 시각 중복 같은 업무 규칙은 MyDrug 엔티티가 다시 검사한다.
  *  - doseTimes 를 보내지 않으면 기본 시각(07:00, 11:00, 17:00)으로 저장한다.
+ *  - 1회 개수 1~10, 복용 시점 20자 이하는 팀 명세(복용정보 수정)와 복약 일정 수정(PUT .../schedule)과 같은 규칙이다.
+ *    한쪽만 바꾸면 등록은 되는데 수정은 안 되는 값이 생기므로 함께 바꾼다.
  *  - 이미지 분석 결과 사용 시 itemSeq 는 이미지 팀이 확정해 넘겨준 품목기준코드를 그대로 쓴다.
  * */
 public record MyDrugCreateRequest(
@@ -49,6 +51,8 @@ public record MyDrugCreateRequest(
 ) {
 
     public static final int MAX_DRUGS = 10;   // 처방전에서 읽는 약 최대 개수 (ocr_candidate.read_no 1~10)
+    public static final int MAX_DOSE_PER_TIME = 10;     // 1회 개수 최대 (팀 명세 · 일정 수정과 같음)
+    public static final int MAX_TIMING_LENGTH = 20;     // 복용 시점 최대 글자 수 (팀 명세 · 일정 수정과 같음)
 
     /* 설명. 저장할 약 하나와 그 복용정보 */
     public record Item(
@@ -59,10 +63,10 @@ public record MyDrugCreateRequest(
 
             @NotNull(message = "1회 복용량을 입력해주세요.")
             @Min(value = 1, message = "1회 복용량은 1개 이상이어야 합니다.")
-            @Max(value = 99, message = "1회 복용량은 99개 이하로 입력해주세요.")
+            @Max(value = MAX_DOSE_PER_TIME, message = "1회 개수는 1부터 " + MAX_DOSE_PER_TIME + "까지 숫자로 넣어 주세요.")
             Integer dosePerTime,
 
-            @Size(max = 50, message = "복용 시점은 50자 이하로 입력해주세요.")
+            @Size(max = MAX_TIMING_LENGTH, message = "복용 시점은 " + MAX_TIMING_LENGTH + "자까지 쓸 수 있어요.")
             String timing,
 
             @NotNull(message = "복용 시작일을 입력해주세요.")

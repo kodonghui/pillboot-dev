@@ -28,7 +28,7 @@ public interface MyDrugRepository extends JpaRepository<MyDrug, Long> {
             """)
     List<MyDrug> findAllWithDrugByProfileId(@Param("profileId") Long profileId);
 
-    // 내 약 상세 · 수정 응답 (GET / PATCH /api/profiles/{profileId}/drugs/{myDrugId})
+    // 내 약 상세 (GET /api/profiles/{profileId}/drugs/{myDrugId})
     // 어느 프로필의 약인지는 서비스에서 MyDrug.belongsTo(profileId) 로 확인한다.
     @Query("""
             select m

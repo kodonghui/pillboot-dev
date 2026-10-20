@@ -1,5 +1,6 @@
 package org.semiproject.pillbadeumserver.drug.dto;
 
+import org.semiproject.pillbadeumserver.drug.domain.Drug;
 import org.semiproject.pillbadeumserver.drug.domain.DrugSource;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrug;
 
@@ -12,12 +13,12 @@ import java.util.List;
  *  ----------------------------------------------------------------------------------
  *  쓰는 곳
  *  - POST  /api/profiles/{profileId}/drugs              저장 결과 (배열)
- *  - GET   /api/profiles/{profileId}/drugs/{myDrugId}   약 상세 (예정)
- *  - PATCH /api/profiles/{profileId}/drugs/{myDrugId}   수정 결과 (예정)
+ *  - GET   /api/profiles/{profileId}/drugs/{myDrugId}   약 상세
  *  ----------------------------------------------------------------------------------
  *  응답 예)
  *  {
  *    "myDrugId": 3,
+ *    "name": "타이레놀정500밀리그램",   // 화면에 보여줄 이름 (직접 입력한 약은 입력한 이름)
  *    "dosePerTime": 1,
  *    "timing": "식후 30분",
  *    "doseTimes": ["08:00", "13:00", "19:00"],
@@ -33,9 +34,13 @@ import java.util.List;
  *  - 약 정보는 DrugInfoResponse 를 그대로 넣어 GET /api/drugs/{itemSeq} 와 같은 모양으로 내려준다.
  *  - 효능 · 용법 · 주의사항(근거 출처)은 넣지 않는다. → GET /api/drugs/{itemSeq}/guide
  *  - from() 은 트랜잭션 안에서 호출한다. (MyDrug.drug 지연 로딩)
+ *  - 직접 입력한 약(source = MANUAL, 복약 일정 쪽에서 이름만 넣어 등록)은 drug 가 없어 drug = null 이고,
+ *    name 에 입력한 이름(customName)이 들어간다. 근거 출처(guide)도 품목기준코드가 없어 부를 수 없다.
+ *  - 일정 없는 약은 startDate · endDate 가 null, doseTimes 가 빈 배열이다.
  * */
 public record MyDrugDetailResponse(
         Long myDrugId,
+        String name,                // 화면에 보여줄 이름 (약 이름, 직접 입력한 약은 입력한 이름)
         int dosePerTime,            // 1회 복용량
         String timing,              // 복용 시점 (없으면 null)
         List<String> doseTimes,     // 복용 시각 'HH:mm' 목록 (이른 시각부터)
@@ -45,7 +50,7 @@ public record MyDrugDetailResponse(
         String sourceName,          // 등록 방법 한글
         LocalDateTime registeredAt, // 등록 시각
         LocalDateTime updatedAt,    // 마지막 수정 시각
-        DrugInfoResponse drug       // 약 정보
+        DrugInfoResponse drug       // 약 정보 (직접 입력한 약이면 null)
 ) {
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
@@ -56,8 +61,11 @@ public record MyDrugDetailResponse(
                 .map(TIME_FORMAT::format)
                 .toList();
 
+        Drug drug = myDrug.getDrug();
+
         return new MyDrugDetailResponse(
                 myDrug.getMyDrugId(),
+                drug == null ? myDrug.getCustomName() : drug.getName(),
                 myDrug.getDosePerTime(),
                 myDrug.getTiming(),
                 doseTimes,
@@ -67,6 +75,6 @@ public record MyDrugDetailResponse(
                 myDrug.getSource().getDescription(),
                 myDrug.getRegisteredAt(),
                 myDrug.getUpdatedAt(),
-                DrugInfoResponse.from(myDrug.getDrug()));
+                drug == null ? null : DrugInfoResponse.from(drug));
     }
 }

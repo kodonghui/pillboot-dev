@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  *  - 외부 API 를 기다리는 동안 DB 연결을 붙잡지 않도록 @Transactional 을 붙이지 않는다.
  *    (조회 · 저장은 Repository 자체 트랜잭션으로 짧게 끝난다)
  *  - 낱알식별에 없는 약(시럽 등 액상약 포함)은 404 로 끝난다. → 계획 문서 '팀 결정' 항목
- *  - matrial(성분명)은 낱알식별에 없어서 '의약품 제품 허가정보' API(Service08)를 한 번 더 조회한다.
+ *  - material(성분명)은 낱알식별에 없어서 '의약품 제품 허가정보' API(Service08)를 한 번 더 조회한다.
  *    목록 API 는 item_seq 조건을 무시하므로 제품명으로 찾고 품목기준코드로 골라낸다. 성분명은 영문으로 온다.
  *  - form 분류(정제 / 연질캡슐 / 경질캡슐 / 기타)는 팀 결정 전 가정이다. → 계획 문서 임시 구현 T3
  * */
@@ -46,7 +46,7 @@ public class DrugSyncService {
     public static final String GRAIN_INFO_PATH = "/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03";
     public static final String SOURCE_NAME = "식품의약품안전처 의약품 낱알식별 정보";
 
-    // 성분명(matrial)을 얻는 허가정보 목록 API. 팀 활용신청 주소와 다르면 이 상수만 바꾼다.
+    // 성분명(material)을 얻는 허가정보 목록 API. 팀 활용신청 주소와 다르면 이 상수만 바꾼다.
     public static final String PERMIT_INFO_PATH = "/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08";
     // 성분명 후보 필드 (앞에서부터 찾는다, 대소문자 무시). 목록 API 는 ITEM_INGR_NAME(영문)을 준다.
     public static final List<String> PERMIT_MATERIAL_FIELDS = List.of("ITEM_INGR_NAME", "MAIN_ITEM_INGR");
@@ -204,7 +204,7 @@ public class DrugSyncService {
      *  DRUG_SHAPE → shape, COLOR_CLASS1 → color (뒷면 색 COLOR_CLASS2 는 저장할 컬럼 없음)
      *  LINE_FRONT/BACK → line_front/back
      *  FORM_CODE_NAME(예: 필름코팅정, 경질캡슐제)을 정제 / 연질캡슐 / 경질캡슐 / 기타 로 묶은 값 → form   ※ 가정 (T3)
-     *  허가정보 MAIN_ITEM_INGR(없으면 ITEM_INGR_NAME), 성분 코드 제거 → matrial (성분명, 30자 초과는 자름)
+     *  허가정보 MAIN_ITEM_INGR(없으면 ITEM_INGR_NAME), 성분 코드 제거 → material (성분명, 30자 초과는 자름)
      *  ----------------------------------------------------------------------------------
      *  NOT NULL 컬럼에 넣을 값이 없으면 저장할 수 없으므로 '식별할 수 없는 약' 으로 보고 404
      * */
@@ -239,7 +239,7 @@ public class DrugSyncService {
             if (v.shape == null) missing.add("shape(DRUG_SHAPE)");
             if (v.color == null) missing.add("color(COLOR_CLASS1)");
             if (v.form == null) missing.add("form(FORM_CODE_NAME)");
-            if (v.material == null) missing.add("matrial(" + String.join("/", PERMIT_MATERIAL_FIELDS) + ")");
+            if (v.material == null) missing.add("material(" + String.join("/", PERMIT_MATERIAL_FIELDS) + ")");
 
             if (!missing.isEmpty()) {
                 log.info("[drug sync] 필수 값 없음 itemSeq={} missing={}", itemSeq, missing);

@@ -134,7 +134,7 @@ public class MyDrug {
         return myDrug;
     }
 
-    // 복용정보 수정 (PATCH /api/profiles/{profileId}/drugs/{myDrugId})
+    // 복용정보 수정 (복약 일정 PUT /api/profiles/{profileId}/drugs/{myDrugId}/schedule 에서 쓴다)
     // null 로 넘긴 값은 바꾸지 않는다. 바뀐 값과 기존 값을 합친 결과로 다시 검사한다.
     // timing 을 지우려면 빈 문자열("")을 넘긴다.
     public void changeDoseInfo(Integer dosePerTime, String timing,
