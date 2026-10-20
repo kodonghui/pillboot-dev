@@ -56,6 +56,7 @@ public enum ErrorCode {
     // 복약 기록 (DOSE)
 
     // AI 챗봇 (CHAT)
+    RETRY_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "RETRY_NOT_ALLOWED", "답변 없는 마지막 질문만 다시 보낼 수 있습니다."),
 
     ;
 

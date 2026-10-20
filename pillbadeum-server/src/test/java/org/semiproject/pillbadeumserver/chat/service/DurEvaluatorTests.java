@@ -45,7 +45,24 @@ class DurEvaluatorTests {
         assertThat(notice.checkedCount()).isEqualTo(1);
         assertThat(notice.uncheckedDrugNames()).containsExactly("drug-B");
         assertThat(notice.items()).hasSize(1);
+        assertThat(notice.items().getFirst().type()).isEqualTo("INTERACTION");
         assertThat(notice.items().getFirst().drugNames()).containsExactly("drug-A", "drug-B");
+    }
+
+    @Test
+    void cardPolicyKeepsWarningsAndDrugQuestionsButOmitsRepeatedGeneralGuidance() {
+        var noDrug = new AnswerInput(1990, "MALE", false, "알림 설정은 어디에 있어?", List.of(), List.of(), false);
+        var empty = evaluator.evaluate(noDrug, List.of()).notice();
+        assertThat(evaluator.cardNotice(noDrug, empty)).isNull();
+        var question = new AnswerInput(1990, "MALE", false, "약은 언제 먹어?", List.of(), List.of(), false);
+        assertThat(evaluator.cardNotice(question, empty)).isSameAs(empty);
+        var warning = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("ALL", "FOUND", 1, List.of(), List.of(), "warning");
+        assertThat(evaluator.cardNotice(noDrug, warning)).isSameAs(warning);
+        var first = new AnswerInput(1990, "MALE", false, "약은 언제 먹어?", List.of(), List.of(), true);
+        assertThat(evaluator.cardNotice(first, empty)).isNull();
+        assertThat(evaluator.cardNotice(first, warning)).isSameAs(warning);
+        var named = new AnswerInput(1990, "MALE", false, "drug-A는?", List.of(drug("A")), List.of(), false);
+        assertThat(evaluator.cardNotice(named, empty)).isSameAs(empty);
     }
 
     @Test

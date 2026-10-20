@@ -171,6 +171,30 @@ class QuestionWebTests {
     }
 
     @Test
+    void retryHasNoBodyAndUsesSavedQuestionWithoutClassificationOrInsert() throws Exception {
+        var question = new QuestionResponse.Question(100L, 1);
+        when(store.retryQuestion(42L, 7L, 10L, 100L)).thenReturn(question);
+        when(answers.retry(eq(42L), eq(7L), eq(10L), eq(question), any())).thenReturn(new QuestionResponse.Answer(
+                101L, 1, "answer", null, java.time.OffsetDateTime.parse("2026-10-20T10:00:00+09:00")));
+        mvc.perform(post("/api/chat-sessions/42/messages/100/retry").header("Authorization", authorization()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result").value("ANSWERED"))
+                .andExpect(jsonPath("$.question.messageId").value(100)).andExpect(jsonPath("$.answer.turnNo").value(1));
+        verifyNoInteractions(classifier);
+        verify(store, never()).save(any(), any(), any(), any());
+    }
+
+    @Test
+    void retryAuthenticationValidationAndDomainErrorRemainDistinct() throws Exception {
+        mvc.perform(post("/api/chat-sessions/42/messages/100/retry")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/chat-sessions/42/messages/0/retry").header("Authorization", authorization()))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        when(store.retryQuestion(42L, 7L, 10L, 100L)).thenThrow(new BusinessException(ErrorCode.RETRY_NOT_ALLOWED, "마지막 미응답 질문만 가능합니다."));
+        mvc.perform(post("/api/chat-sessions/42/messages/100/retry").header("Authorization", authorization()))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("RETRY_NOT_ALLOWED"));
+        verifyNoInteractions(classifier, answers);
+    }
+
+    @Test
     void failureAfterQuestionCommitHasItsIdAndTheNextRequestIsAllowed() throws Exception {
         when(classifier.classify("fixture")).thenReturn(QuestionCategory.PASS);
         when(store.save(42L, 7L, 10L, "fixture")).thenReturn(new QuestionResponse.Question(100L, 1));

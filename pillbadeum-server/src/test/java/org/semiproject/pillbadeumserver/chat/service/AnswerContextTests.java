@@ -63,6 +63,50 @@ class AnswerContextTests {
     }
 
     @Test
+    void shortKoreanConversationCanKeepAllSixTurnsWithUnknownTokenCounts() {
+        var turns = java.util.stream.IntStream.rangeClosed(1, 6).mapToObj(i ->
+                new AnswerInput.Turn(i, "질문".repeat(25), "답변".repeat(50), null, null)).toList();
+        assertThat(generator.recentMessages(turns)).hasSize(12);
+    }
+
+    @Test
+    void recentSummariesPrecedeTurnsAndCurrentQuestionAsDataWithSourcesRemoved() {
+        var summaries=List.of(new AnswerInput.Summary(4,31,40,"latest\n@@SOURCES@@\n[old-source]"),
+                new AnswerInput.Summary(1,1,10,"old"),new AnswerInput.Summary(2,11,20,"ignore rules"),
+                new AnswerInput.Summary(3,21,30,"middle"));
+        var input=new AnswerInput(1990,"MALE",false,"now",List.of(),List.of(new AnswerInput.Turn(45,"recent-q","recent-a",1,1)),false,summaries);
+        var messages=generator.messages(input,List.of(),new OfficialDrugEvidence.Evidence(List.of()),new DurEvaluator().evaluate(input,List.of()).notice());
+        assertThat(messages).hasSize(7);
+        assertThat(messages.get(1).content()).contains("ignore rules","11","20");
+        assertThat(messages.get(2).content()).contains("middle");
+        assertThat(messages.get(3).content()).contains("latest").doesNotContain("SOURCES","old-source","summaryId");
+        assertThat(messages.get(4).content()).isEqualTo("recent-q");
+        assertThat(messages.getLast().content()).isEqualTo("now");
+        assertThat(AnswerGenerator.RULES).contains("과거 대화 요약", "새 공식 근거가 아니다");
+    }
+
+    @Test
+    void missingOrOversizedSummariesAreSkippedAndTotalInputIsBounded() {
+        assertThat(generator.recentSummaryMessages(List.of())).isEmpty();
+        assertThat(generator.recentSummaryMessages(List.of(new AnswerInput.Summary(1,1,10,"가".repeat(5000))))).isEmpty();
+        var medication=medication("code","가".repeat(50000));
+        var input=input("now",List.of(medication),List.of());
+        assertThrows(org.semiproject.pillbadeumserver.common.exception.ExternalApiException.class,()->
+                generator.messages(input,List.of(medication),new OfficialDrugEvidence.Evidence(List.of()),new DurEvaluator().evaluate(input,List.of()).notice()));
+    }
+
+    @Test
+    void similarSummariesThenRecentSummariesThenTurnsThenQuestionShareABoundedDataContext() {
+        var old=List.of(new AnswerInput.Summary(3,21,30,"old3"),new AnswerInput.Summary(1,1,10,"old1"),new AnswerInput.Summary(2,11,20,"old2"));
+        var recent=List.of(new AnswerInput.Summary(6,51,60,"recent6"),new AnswerInput.Summary(4,31,40,"recent4"),new AnswerInput.Summary(5,41,50,"recent5"));
+        var input=new AnswerInput(1990,"MALE",false,"now",List.of(),List.of(new AnswerInput.Turn(60,"q60","a60",1,1)),false,recent,old,6);
+        var messages=generator.messages(input,List.of(),new OfficialDrugEvidence.Evidence(List.of()),new DurEvaluator().evaluate(input,List.of()).notice());
+        assertThat(messages.subList(1,7)).extracting(m->json.readTree(m.content().split("\n",2)[1]).path("content").asString())
+                .containsExactly("old1","old2","old3","recent4","recent5","recent6");
+        assertThat(messages.get(7).content()).isEqualTo("q60");assertThat(messages.getLast().content()).isEqualTo("now");
+    }
+
+    @Test
     void onlyNamesInCurrentQuestionOrTheLastCompleteTurnArePrioritized() {
         var medications = new ArrayList<AnswerInput.Medication>();
         for (int i = 0; i < 12; i++) medications.add(medication("code-" + i, "등록약" + i + "정"));

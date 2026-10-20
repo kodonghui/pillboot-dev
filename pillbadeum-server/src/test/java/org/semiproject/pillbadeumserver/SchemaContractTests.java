@@ -32,7 +32,7 @@ class SchemaContractTests {
                     .isEqualTo(125);
             assertConstraintCount(connection, "PRIMARY KEY", 16);
             assertConstraintCount(connection, "FOREIGN KEY", 16);
-            assertConstraintCount(connection, "UNIQUE", 3);
+            assertConstraintCount(connection, "UNIQUE", 4);
             assertConstraintCount(connection, "CHECK", 3);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.table_constraints "
                     + "WHERE constraint_schema=DATABASE() AND table_name='drug' "
@@ -93,13 +93,19 @@ class SchemaContractTests {
                         + "AND profile_id=? AND item_seq=? AND start_date IS NULL AND end_date IS NULL AND dose_times IS NULL",
                         myDrug, profile, itemSeq)).as("Deleting one schedule must preserve its medication and profile").isEqualTo(1);
                 assertSqlError(connection, 3819, "UPDATE my_drug SET dose_times='07:00' WHERE my_drug_id=?", myDrug);
-                // ERD에는 프로필/약의 복합 UNIQUE가 없으므로 임의로 중복 등록을 금지하지 않습니다.
-                insert(connection, "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,dose_times,source) "
+                // 사용자 확정: 같은 조합만 거절하고 다른 품목·다른 프로필의 같은 품목은 허용합니다.
+                assertSqlError(connection, 1062, "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,start_date,end_date,dose_times,source) "
                         + "VALUES(?,?,1,'2026-10-17','2026-10-18','07:00','SEARCH')", profile, itemSeq);
                 long unscheduled = insert(connection,
-                        "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,source) VALUES(?,?,1,'SEARCH')", profile, itemSeq);
+                        "INSERT INTO my_drug(profile_id,item_seq,dose_per_time,source) VALUES(?,?,1,'SEARCH')", profile, itemSeq + "-2");
                 assertThat(count(connection, "SELECT COUNT(*) FROM my_drug WHERE my_drug_id=? AND start_date IS NULL "
                         + "AND end_date IS NULL AND dose_times IS NULL", unscheduled)).isEqualTo(1);
+                long familyProfile = insert(connection,
+                        "INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,created_at,updated_at) "
+                                + "VALUES(?,'family','FAMILY',1990,'MALE',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", member);
+                insert(connection,"INSERT INTO my_drug(profile_id,item_seq,dose_per_time,source) VALUES(?,?,1,'SEARCH')",familyProfile,itemSeq);
+                for (int i=0;i<2;i++) insert(connection,
+                        "INSERT INTO my_drug(profile_id,custom_name,dose_per_time,source) VALUES(?,'unidentified fixture',1,'MANUAL')",profile);
 
                 // 알림 설정은 회원당 1행, 푸시 구독은 브라우저 주소(대소문자 구분)당 1행, 발송은 같은 분에 1번입니다.
                 execute(connection, "INSERT INTO notification_setting(member_id,push_enabled) VALUES(?,TRUE)", member);
