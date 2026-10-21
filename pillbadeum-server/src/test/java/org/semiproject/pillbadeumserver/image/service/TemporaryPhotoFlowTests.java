@@ -8,7 +8,6 @@ import org.semiproject.pillbadeumserver.common.exception.InvalidFileException;
 import org.semiproject.pillbadeumserver.common.file.FileStorage;
 import org.semiproject.pillbadeumserver.drug.service.DrugSearchService;
 import org.semiproject.pillbadeumserver.drug.service.ProfileAccessChecker;
-import org.springframework.data.domain.Page;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -103,9 +102,9 @@ class TemporaryPhotoFlowTests {
         when(ai.createJsonFromImages(anyString(), anyString(), anyList(), anyInt(), anyString(), anyMap()))
                 .thenReturn(json.readTree("{\"medicines\":[{\"readName\":\"테스트약\"}]}"));
         var search = mock(DrugSearchService.class);
-        when(search.search(eq("테스트약"), any())).thenAnswer(call -> {
+        when(search.searchPrescription("테스트약")).thenAnswer(call -> {
             assertThat(temporaryCount()).isEqualTo(1);
-            return Page.empty();
+            return List.of();
         });
         var service = new PrescriptionPhotoIdentificationService(files, ai, search, access, cleanup);
 
@@ -123,7 +122,7 @@ class TemporaryPhotoFlowTests {
                 .thenReturn(json.readTree("{\"medicines\":[{\"readName\":\"테스트약\"}]}"));
         var search = mock(DrugSearchService.class);
         var failure = new IllegalStateException("lookup unavailable");
-        when(search.search(anyString(), any())).thenThrow(failure);
+        when(search.searchPrescription(anyString())).thenThrow(failure);
         var service = new PrescriptionPhotoIdentificationService(files, ai, search, access, cleanup);
         assertThatThrownBy(() -> service.identify(16L, List.of(image()))).isSameAs(failure);
         assertThat(temporaryCount()).isZero();
