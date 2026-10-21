@@ -261,9 +261,57 @@ class ExternalClientTests {
     @Test
     void absentAiKeyDoesNotCallExternalService() {
         OpenAiClient client = new OpenAiClient(JSON, "", baseUrl, "chat", "decision", "vision", "embedding", "",
-                2000, 1000, 1000, 1, 20, new java.math.BigDecimal("0.10"));
+                2000, 1000, 1000, 60000, 1, 20, new java.math.BigDecimal("0.10"));
         assertThat(client.isEnabled()).isFalse();
         assertThrows(AiUnavailableException.class, () -> client.createText("규칙", MESSAGES, 100));
+    }
+
+    @Test
+    void visionEffortIsIndependentFromChatAndKeepsStructuredOutput() {
+        var requests = new CopyOnWriteArrayList<tools.jackson.databind.JsonNode>();
+        server.createContext("/responses", exchange -> {
+            requests.add(JSON.readTree(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+            respond(exchange, 200, textResponse("{}"));
+        });
+        var client = new OpenAiClient(JSON, "local-test-key", baseUrl, "chat", "decision", "pill-model", "embedding", "high",
+                2000, 1000, 1000, 60000, 1, 20, new java.math.BigDecimal("0.10"));
+        ReflectionTestUtils.setField(client, "prescriptionMaxOutputTokens", 8192);
+        ReflectionTestUtils.setField(client, "prescriptionModel", "gpt-6-luna");
+        ReflectionTestUtils.setField(client, "prescriptionReasoningEffort", "max");
+        client.createJsonFromImages("규칙", "사진", List.of("data:image/png;base64,AA=="), 1600, "photo_pill_clues", SCHEMA);
+        for (String schema : List.of("photo_prescription_names", "prescription_medicine_names"))
+            client.createJsonFromImages("규칙", "사진", List.of("data:image/png;base64,AA=="), 1600, schema, SCHEMA);
+        client.createText("규칙", MESSAGES, 100);
+        assertThat(requests.getFirst().path("model").asString()).isEqualTo("pill-model");
+        assertThat(requests.getFirst().path("reasoning").path("effort").asString()).isEqualTo("high");
+        assertThat(requests.getFirst().path("max_output_tokens").asInt()).isEqualTo(1600);
+        assertThat(requests.getFirst().path("text").path("format").path("strict").asBoolean()).isTrue();
+        for (var request : requests.subList(1, 3)) {
+            assertThat(request.path("model").asString()).isEqualTo("gpt-6-luna");
+            assertThat(request.path("reasoning").path("effort").asString()).isEqualTo("max");
+            assertThat(request.path("max_output_tokens").asInt()).isEqualTo(8192);
+        }
+        assertThat(requests.getLast().path("model").asString()).isEqualTo("chat");
+        assertThat(requests.getLast().path("reasoning").path("effort").asString()).isEqualTo("high");
+        assertThat(requests.getLast().path("max_output_tokens").asInt()).isEqualTo(100);
+    }
+
+    @Test
+    void longerPrescriptionReadTimeoutDoesNotExtendPillOrChatRequests() {
+        server.createContext("/responses", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            try { Thread.sleep(350); }
+            catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); return; }
+            try { respond(exchange, 200, textResponse("{}")); }
+            catch (IOException ignored) { exchange.close(); } // 짧은 경로는 이미 시간 초과로 연결을 닫음.
+        });
+        var client = new OpenAiClient(JSON, "local-test-key", baseUrl, "chat", "decision", "vision", "embedding", "",
+                2000, 100, 100, 2000, 1, 20, new java.math.BigDecimal("0.10"));
+        for (String schema : List.of("photo_prescription_names", "prescription_medicine_names"))
+            assertThat(client.createJsonFromImages("규칙", "사진", List.of("data:image/png;base64,AA=="), 100, schema, SCHEMA).isObject()).isTrue();
+        assertThat(assertThrows(ExternalApiException.class, () -> client.createJsonFromImages(
+                "규칙", "사진", List.of("data:image/png;base64,AA=="), 100, "photo_pill_clues", SCHEMA)).isTimeout()).isTrue();
+        assertThat(assertThrows(ExternalApiException.class, () -> client.createText("규칙", MESSAGES, 100)).isTimeout()).isTrue();
     }
 
     @Test
@@ -276,7 +324,7 @@ class ExternalClientTests {
         server.createContext("/embeddings", exchange ->
                 respond(exchange, 200, "{\"data\":[{\"embedding\":[0.5]}]}"));
         OpenAiClient client = new OpenAiClient(JSON, "local-test-key", baseUrl, "", "", "", "embedding", "",
-                2000, 1000, 1000, 1, 20, new java.math.BigDecimal("0.10"));
+                2000, 1000, 1000, 60000, 1, 20, new java.math.BigDecimal("0.10"));
         assertThat(client.isEnabled()).isTrue(); // 키 설정 여부와 모델 설정 여부는 다르다.
         assertThrows(AiUnavailableException.class, () -> client.createText("규칙", MESSAGES, 100));
         assertThrows(AiUnavailableException.class, () -> client.createJsonFromImages("규칙", "사진",
@@ -430,7 +478,7 @@ class ExternalClientTests {
 
     private OpenAiClient openAi(long shortTimeout, long longTimeout, int maxConcurrentCalls) {
         return new OpenAiClient(JSON, "local-test-key", baseUrl, "chat", "decision", "vision", "embedding", "",
-                2000, shortTimeout, longTimeout, maxConcurrentCalls, 20, new java.math.BigDecimal("0.10"));
+                2000, shortTimeout, longTimeout, 60000, maxConcurrentCalls, 20, new java.math.BigDecimal("0.10"));
     }
 
     private static String textResponse(String text) {

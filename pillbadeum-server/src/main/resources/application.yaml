@@ -70,6 +70,10 @@ jwt:
   # 1시간 (밀리초)
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
 
+photo:
+  # 처방전 OCR 대기와 OpenAI 응답 한도임. 낱알·채팅은 기존 30초임.
+  prescription-ocr-timeout-ms: ${PRESCRIPTION_OCR_TIMEOUT_MS:60000}
+
 openai:
   api-key: ${OPENAI_API_KEY:}
   base-url: https://api.openai.com/v1
@@ -77,9 +81,12 @@ openai:
     chat: ${OPENAI_CHAT_MODEL:}
     decision: ${OPENAI_DECISION_MODEL:}
     vision: ${OPENAI_VISION_MODEL:}
+    prescription: ${OPENAI_PRESCRIPTION_MODEL:gpt-6-luna}
     embedding: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
   # 설명. 모델이 지원하는 값만 쓴다. 추론 기능이 없는 모델이면 비워 둔다.
   reasoning-effort: ${OPENAI_REASONING_EFFORT:}
+  prescription-reasoning-effort: ${OPENAI_PRESCRIPTION_REASONING_EFFORT:max}
+  prescription-max-output-tokens: ${OPENAI_PRESCRIPTION_MAX_OUTPUT_TOKENS:8192}
   connect-timeout-ms: 2000
   short-read-timeout-ms: 10000
   long-read-timeout-ms: 30000

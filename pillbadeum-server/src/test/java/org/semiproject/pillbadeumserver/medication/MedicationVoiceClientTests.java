@@ -128,7 +128,7 @@ class MedicationVoiceClientTests {
 
     private OpenAiClient openAi() {
         return new OpenAiClient(json, "fixture-key", baseUrl, "fixture-model", "decision", "fixture-model", "embedding", "",
-                1000, 2000, 2000, 1, 100, new java.math.BigDecimal("0.10"));
+                1000, 2000, 2000, 60000, 1, 100, new java.math.BigDecimal("0.10"));
     }
 
     private MedicationSpeechClient speech(String key, String model) {

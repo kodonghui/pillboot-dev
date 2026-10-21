@@ -8,7 +8,6 @@ import org.semiproject.pillbadeumserver.drug.dto.DrugSearchResponse;
 import org.semiproject.pillbadeumserver.drug.service.DrugSearchService;
 import org.semiproject.pillbadeumserver.drug.service.ProfileAccessChecker;
 import org.semiproject.pillbadeumserver.image.domain.PrescriptionPhotoIdentificationResponse;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.JsonNode;
@@ -30,9 +29,8 @@ public class PrescriptionPhotoIdentificationService {
     private static final String INSTRUCTIONS = """
             처방전 또는 약봉투 사진에서 처방/조제된 의약품의 제품명을 읽으세요.
             환자명, 생년월일, 주소, 병원명, 처방 날짜 등 개인정보는 읽거나 반환하지 마세요.
-            약품명은 인쇄된 제품명을 가능한 한 원문 그대로 적고, 용량이나 복용법은 이름에 합치지 마세요.
             약품명을 확신할 수 없는 항목은 제외하고, 같은 제품명은 한 번만 반환하세요.
-            """;
+            """ + PrescriptionOcrRules.PRODUCT_NAME;
 
     private final FileStorage fileStorage;
     private final OpenAiClient openAiClient;
@@ -96,7 +94,7 @@ public class PrescriptionPhotoIdentificationService {
 
     private List<DrugSearchResponse> search(String name) {
         try {
-            return drugSearchService.search(name, PageRequest.of(0, 5)).getContent();
+            return drugSearchService.searchPrescription(name);
         } catch (BusinessException exception) {
             // 너무 짧거나 비정상적으로 읽힌 문자열은 나머지 약 검색을 중단하지 않습니다.
             if (exception.getErrorCode() == ErrorCode.INVALID_INPUT) {
