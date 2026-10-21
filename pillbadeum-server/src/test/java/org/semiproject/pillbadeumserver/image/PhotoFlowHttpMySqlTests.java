@@ -57,6 +57,7 @@ class PhotoFlowHttpMySqlTests {
   @Autowired JwtTokenProvider tokens;
   @Autowired PasswordEncoder passwords;
   @Autowired PhotoLifecycleService lifecycle;
+  @Autowired org.semiproject.pillbadeumserver.image.service.PillCatalog catalog;
   @Autowired FileStorage files;
   @Autowired org.semiproject.pillbadeumserver.chat.service.RegistrationDurPrefetch durPrefetch;
   @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
@@ -85,6 +86,7 @@ class PhotoFlowHttpMySqlTests {
     r.add("file.upload.mac.path", () -> UPLOAD.toString());
     r.add("file.upload.windows.path", () -> UPLOAD.toString());
     r.add("qdrant.enabled", () -> false);
+    r.add("pill-identification.catalog-file", () -> UPLOAD.resolve("catalog.json").toString());
   }
 
   static synchronized String providerUrl() {
@@ -129,6 +131,8 @@ class PhotoFlowHttpMySqlTests {
     officialRows = List.of(row(code1, "합성약정", "A", "B"), row(code2, "합성약정", "X", "Y"));
     vision = prescription("합성약정");
     current = this;
+    catalog.refresh();
+    lookups.clear();
   }
 
   @Test
@@ -245,6 +249,7 @@ class PhotoFlowHttpMySqlTests {
     json("DELETE", "/api/photos/" + first, null, token, 204);
     var richer = new LinkedHashMap<String, Object>(officialRows.getFirst()); richer.put("ITEM_IMAGE", "https://example.test/synthetic.png");
     officialRows = List.of(richer); vision = pill("합성약정", "A", "B");
+    catalog.refresh();
     identify("PILL", token, 200, "front", "back");
     assertThat(jdbc.queryForObject("SELECT shape FROM drug WHERE item_seq=?", String.class, code1)).isEqualTo("원형");
     assertThat(jdbc.queryForObject("SELECT material FROM drug WHERE item_seq=?", String.class, code1)).isEqualTo("기존상세성분");
@@ -254,12 +259,14 @@ class PhotoFlowHttpMySqlTests {
   }
 
   @Test
-  void imprintOnlyIsUnreadableAndDoesNotSearchWholeCatalog() throws Exception {
+  void imprintOnlyCanIdentifyFromPreparedCatalogWithoutExternalLookup() throws Exception {
     vision = pill("", "A", "B");
     var result = identify("PILL", token, 200, "front", "back");
-    assertThat(result.path("status").asString()).isEqualTo("UNREADABLE");
-    assertThat(result.path("photoId").isNull()).isTrue();
+    assertThat(result.path("status").asString()).isEqualTo("OK");
+    assertThat(result.path("candidates").path(0).path("itemSeq").asString()).isEqualTo(code1);
+    assertThat(result.path("candidates").path(0).path("printMatched").asBoolean()).isTrue();
     assertThat(lookups).isEmpty();
+    json("DELETE", "/api/photos/" + result.path("photoId").asLong(), null, token, 204);
     assertNoPhotos();
   }
 

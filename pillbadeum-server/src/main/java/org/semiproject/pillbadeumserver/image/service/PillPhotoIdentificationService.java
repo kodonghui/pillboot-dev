@@ -25,8 +25,7 @@ public class PillPhotoIdentificationService {
     private static final String INSTRUCTIONS = """
             사진에 있는 알약의 식별 정보를 읽으세요. 사진이 알약이 아니면 모든 문자열 필드를 빈 문자열로 반환하세요.
             약품명과 제조사명은 사진에서 명확히 읽히는 경우에만 적고, 추측하지 마세요.
-            인쇄 문자는 보이는 그대로 옮기고, 앞면과 뒷면은 업로드 순서(첫 번째 사진=앞면, 두 번째 사진=뒷면)를 따르세요.
-            모양/색상은 이미지에서 확인 가능한 값만 기록하세요. 불확실한 값은 빈 문자열로 반환하세요.
+            모양과 색상은 사진에서 확인 가능한 값만 기록하세요. 불확실한 값은 빈 문자열로 반환하세요.
             """;
 
     private final FileStorage fileStorage;
@@ -45,8 +44,12 @@ public class PillPhotoIdentificationService {
     }
 
     public PillPhotoIdentificationResponse identify(List<MultipartFile> images) {
+        return identify(images, false);
+    }
+
+    public PillPhotoIdentificationResponse identify(List<MultipartFile> images, boolean onlyBack) {
         if (images == null || images.isEmpty() || images.size() > MAX_PHOTOS) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "알약 사진은 앞면과 뒷면을 최대 2장까지 올려 주세요.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "알약 사진을 최소 1장, 최대 2장까지 올려 주세요.");
         }
 
         List<String> savedNames = new ArrayList<>();
@@ -61,11 +64,17 @@ public class PillPhotoIdentificationService {
                         fileStorage.getMimeType(savedName)));
             }
 
-            JsonNode output = openAiClient.createJsonFromImages(
-                    INSTRUCTIONS,
-                    "알약 사진을 식별하고 다음 필드에 정보를 채우세요. 사진 순서는 업로드 순서입니다.",
-                    dataUrls, 500, "pill_image_reading", SCHEMA);
-            PillIdentification extracted = toIdentification(output);
+            // 각 사진을 독립적으로 판독한다. 모델이 여러 장의 앞·뒷면을 한 번에 처리하며
+            // 한쪽 각인을 누락하거나 요청이 실패하는 일을 줄이고, 각 면의 단서를 명시적으로 보존한다.
+            PillIdentification front = null;
+            PillIdentification back = null;
+            for (int i = 0; i < dataUrls.size(); i++) {
+                boolean isBack = dataUrls.size() == 2 ? i == 1 : onlyBack;
+                PillIdentification side = toIdentification(readImage(dataUrls.get(i), isBack, dataUrls.size() == 1));
+                if (isBack) back = side;
+                else front = side;
+            }
+            PillIdentification extracted = merge(front, back);
             if (!hasAttributes(extracted)) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT,
                         "알약 정보를 읽지 못했습니다. 알약 앞면이 선명하게 보이도록 다시 촬영해 주세요.");
@@ -78,6 +87,38 @@ public class PillPhotoIdentificationService {
             if (completed) cleanup.deleteAfterProcessing(savedNames);
             else cleanup.deleteNow(savedNames);
         }
+    }
+
+    private JsonNode readImage(String dataUrl, boolean back, boolean singleImage) {
+        String side = back ? "뒷면" : "앞면";
+        String sideRules = " 제공된 사진은 알약 " + side + "입니다. 각인과 분할선은 " + side
+                + " 필드에만 기록하세요. 반대쪽 면의 필드는 빈 문자열로 반환하세요.";
+        String prompt = "알약 " + side + " 사진 한 장에서 보이는 정보만 읽어 정해진 JSON 필드에 반환하세요."
+                + (singleImage ? " " + side + "만 제공됐으므로 반대쪽 정보는 추측하지 마세요." : "");
+        return openAiClient.createJsonFromImages(
+                INSTRUCTIONS + sideRules,
+                prompt,
+                List.of(dataUrl),
+                1600,
+                "pill_image_reading",
+                SCHEMA);
+    }
+
+    private static PillIdentification merge(PillIdentification front, PillIdentification back) {
+        return new PillIdentification(
+                first(front == null ? null : front.itemName(), back == null ? null : back.itemName()),
+                first(front == null ? null : front.entpName(), back == null ? null : back.entpName()),
+                front == null ? null : front.printFront(),
+                back == null ? null : back.printBack(),
+                first(front == null ? null : front.shape(), back == null ? null : back.shape()),
+                first(front == null ? null : front.colorClass1(), back == null ? null : back.colorClass1()),
+                first(front == null ? null : front.colorClass2(), back == null ? null : back.colorClass2()),
+                front == null ? null : front.lineFront(),
+                back == null ? null : back.lineBack());
+    }
+
+    private static String first(String first, String second) {
+        return first != null && !first.isBlank() ? first : second;
     }
 
     private static PillIdentification toIdentification(JsonNode output) {
@@ -95,7 +136,7 @@ public class PillPhotoIdentificationService {
 
     private static String value(JsonNode node, String key) {
         String value = node.path(key).asString("").strip();
-        return value.isEmpty() ? null : value;
+        return value.isEmpty() || "null".equalsIgnoreCase(value) ? null : value;
     }
 
     private static boolean hasAttributes(PillIdentification input) {

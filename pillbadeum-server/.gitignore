@@ -49,3 +49,4 @@ http-client.private.env.json
 .http-client/
 *.log
 .gradle-user-home/
+/.cache/pill-identification/

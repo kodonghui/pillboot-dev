@@ -6,6 +6,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import java.nio.file.Path;
 import org.semiproject.pillbadeumserver.common.ai.AiMessage;
 import org.semiproject.pillbadeumserver.common.ai.OpenAiClient;
 import org.semiproject.pillbadeumserver.common.exception.AiUnavailableException;
@@ -14,6 +16,7 @@ import org.semiproject.pillbadeumserver.common.external.ExternalApiCaller;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
 import org.semiproject.pillbadeumserver.image.service.PillDrugIdentificationService;
+import org.semiproject.pillbadeumserver.image.service.PillCatalog;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
@@ -27,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -46,6 +50,8 @@ class ExternalClientTests {
     private HttpServer server;
     private ExecutorService serverExecutor;
     private String baseUrl;
+    @TempDir Path catalogDirectory;
+    private final List<PillCatalog> catalogs = new java.util.ArrayList<>();
 
     @BeforeEach
     void startServer() throws IOException {
@@ -58,6 +64,7 @@ class ExternalClientTests {
 
     @AfterEach
     void stopServer() {
+        catalogs.forEach(PillCatalog::close);
         server.stop(0);
         serverExecutor.shutdownNow();
     }
@@ -284,18 +291,21 @@ class ExternalClientTests {
         server.createContext("/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03", exchange -> {
             query.set(exchange.getRequestURI().getRawQuery());
             respond(exchange, 200, """
-                    {"response":{"header":{"resultCode":"00"},"body":{"items":[]}}}
+                    {"response":{"header":{"resultCode":"00"},"body":{"totalCount":0,"items":[]}}}
                     """);
         });
         new ApplicationContextRunner()
                 .withBean(ObjectMapper.class, () -> JSON)
-                .withUserConfiguration(PillDrugIdentificationService.class, PublicDataClient.class)
+                .withUserConfiguration(PillDrugIdentificationService.class, PublicDataClient.class, PillCatalog.class)
                 .withPropertyValues("PUBLIC_DATA_SERVICE_KEY=local+test/key=",
                         "public-data.service-key=${PUBLIC_DATA_SERVICE_KEY:}",
                         "public-data.base-url=" + baseUrl,
-                        "public-data.connect-timeout-ms=2000", "public-data.read-timeout-ms=1000")
+                        "public-data.connect-timeout-ms=2000", "public-data.read-timeout-ms=1000",
+                        "pill-identification.catalog-file=" + catalogDirectory.resolve("configured.json"),
+                        "pill-identification.catalog-refresh-enabled=false")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
+                    context.getBean(PillCatalog.class).refresh();
                     var service = context.getBean(PillDrugIdentificationService.class);
                     assertThat(service.identify(new PillIdentification(
                             "테스트약", null, null, null, null, null, null, null, null))).isEmpty();
@@ -307,7 +317,7 @@ class ExternalClientTests {
     void legacyPillCandidatesReadPermitSpecialtyField() {
         server.createContext("/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03", exchange ->
                 respond(exchange, 200, """
-                        {"response":{"header":{"resultCode":"00"},"body":{"items":[
+                        {"response":{"header":{"resultCode":"00"},"body":{"totalCount":1,"items":[
                         {"ITEM_SEQ":"900001","ITEM_NAME":"합성약"}]}}}
                         """));
         server.createContext("/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08", exchange ->
@@ -320,15 +330,103 @@ class ExternalClientTests {
                         {"response":{"header":{"resultCode":"00"},"body":{"items":[]}}}
                         """));
 
-        var candidates = new PillDrugIdentificationService(publicData()).identify(new PillIdentification(
+        var candidates = identificationService().identify(new PillIdentification(
                 "합성약", null, null, null, null, null, null, null, null));
 
         assertThat(candidates).singleElement().satisfies(candidate ->
                 assertThat(candidate.etcOtcName()).isEqualTo("일반의약품"));
     }
 
+    @Test
+    void pillIdentificationSearchesEveryExtractedFieldAndRanksOcrEquivalentImprints() {
+        List<String> queries = new CopyOnWriteArrayList<>();
+        server.createContext("/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03", exchange -> {
+            queries.add(exchange.getRequestURI().getRawQuery());
+            respond(exchange, 200, """
+                    {"response":{"header":{"resultCode":"00"},"body":{"totalCount":2,"items":[
+                    {"ITEM_SEQ":"100001","ITEM_NAME":"TEST","ENTP_NAME":"OTHER","PRINT_FRONT":"A2","PRINT_BACK":"X9","DRUG_SHAPE":"ROUND","COLOR_CLASS1":"WHITE","COLOR_CLASS2":"BLUE","LINE_FRONT":"-","LINE_BACK":"-"},
+                    {"ITEM_SEQ":"100002","ITEM_NAME":"TEST","ENTP_NAME":"MAKER","PRINT_FRONT":"AO","PRINT_BACK":"B1","DRUG_SHAPE":"ROUND","COLOR_CLASS1":"WHITE","COLOR_CLASS2":"BLUE","LINE_FRONT":"+","LINE_BACK":"-"}
+                    ]}}}
+                    """);
+        });
+        server.createContext("/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08", exchange ->
+                respond(exchange, 200, """
+                        {"response":{"header":{"resultCode":"00"},"body":{"items":[]}}}
+                        """));
+        server.createContext("/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList", exchange ->
+                respond(exchange, 200, """
+                        {"response":{"header":{"resultCode":"00"},"body":{"items":[]}}}
+                        """));
+
+        var candidates = identificationService().identify(new PillIdentification(
+                "TEST", "MAKER", "A0", "B1", "ROUND", "WHITE", "BLUE", "+", "-"));
+
+        assertThat(candidates).first().satisfies(candidate ->
+                assertThat(candidate.itemSeq()).isEqualTo("100002"));
+        // 낱알식별 목록 API는 식별필드 검색을 지원하지 않으므로 전체 페이지를 가져와 로컬에서 점수화한다.
+        assertThat(queries).allSatisfy(query -> assertThat(query)
+                .doesNotContain("entp_name=").doesNotContain("drug_shape=").doesNotContain("line_front="));
+        assertThat(queries).singleElement().satisfies(query -> assertThat(query).contains("pageNo=1").contains("numOfRows=100"));
+    }
+
+    @Test
+    void pillIdentificationFindsIndenolFromImprintsWhenNameAndMakerAreMissing() {
+        server.createContext("/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03", exchange ->
+                respond(exchange, 200, """
+                        {"response":{"header":{"resultCode":"00"},"body":{"numOfRows":100,"totalCount":5,"items":[
+                        {"ITEM_SEQ":"197400040","ITEM_NAME":"인데놀정10mg(프로프라놀롤염산염)","ENTP_NAME":"동광제약(주)","PRINT_FRONT":"DK","PRINT_BACK":"10","DRUG_SHAPE":"원형","COLOR_CLASS1":"하양"},
+                        {"ITEM_SEQ":"900001","ITEM_NAME":"다른약1","PRINT_FRONT":"DK","PRINT_BACK":"20","DRUG_SHAPE":"타원형","COLOR_CLASS1":"노랑"},
+                        {"ITEM_SEQ":"900002","ITEM_NAME":"다른약2","PRINT_FRONT":"XY","PRINT_BACK":"10","DRUG_SHAPE":"장방형","COLOR_CLASS1":"분홍"},
+                        {"ITEM_SEQ":"900003","ITEM_NAME":"다른약3","PRINT_FRONT":"DK","PRINT_BACK":"1","DRUG_SHAPE":"타원형","COLOR_CLASS1":"노랑"},
+                        {"ITEM_SEQ":"900004","ITEM_NAME":"다른약4","PRINT_FRONT":"M","PRINT_BACK":"10","DRUG_SHAPE":"장방형","COLOR_CLASS1":"분홍"}
+                        ]}}}
+                        """));
+
+        var candidates = identificationService().identify(new PillIdentification(
+                "null", "null", "DK", "10", "원형", "흰색", "null", "null", "null"));
+
+        assertThat(candidates).hasSize(5);
+        assertThat(candidates.getFirst().itemName()).isEqualTo("인데놀정10mg(프로프라놀롤염산염)");
+        assertThat(candidates.getFirst().similarityScore()).isEqualTo(100.0);
+    }
+
+    @Test
+    void pillIdentificationOnlyUsesPageSizeAcceptedByTheLiveApi() {
+        List<String> requests = new CopyOnWriteArrayList<>();
+        server.createContext("/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03", exchange -> {
+            String query = exchange.getRequestURI().getRawQuery();
+            requests.add(query);
+            if (query.contains("numOfRows=999")) {
+                respond(exchange, 200, """
+                        {"response":{"header":{"resultCode":"10"},"body":{}}}
+                        """);
+            } else {
+                respond(exchange, 200, """
+                        {"response":{"header":{"resultCode":"00"},"body":{"numOfRows":100,"totalCount":1,"items":[
+                        {"ITEM_SEQ":"10001","ITEM_NAME":"테스트약","PRINT_FRONT":"DK"}]}}}
+                        """);
+            }
+        });
+
+        var candidates = identificationService().identify(new PillIdentification(
+                null, null, "DK", null, null, null, null, null, null));
+
+        assertThat(candidates).singleElement().satisfies(candidate ->
+                assertThat(candidate.printFront()).isEqualTo("DK"));
+        assertThat(requests).allSatisfy(query -> assertThat(query).doesNotContain("numOfRows=999"));
+        assertThat(requests).anySatisfy(query -> assertThat(query).contains("numOfRows=100"));
+    }
+
     private PublicDataClient publicData() {
         return new PublicDataClient(JSON, baseUrl, "a+b/c=", 2000, 1000, 4, 20);
+    }
+
+    private PillDrugIdentificationService identificationService() {
+        var client = publicData();
+        var catalog = new PillCatalog(client, JSON, catalogDirectory.resolve(java.util.UUID.randomUUID() + ".json").toString(), false, 4);
+        catalogs.add(catalog);
+        catalog.refresh();
+        return new PillDrugIdentificationService(client, catalog);
     }
 
     private OpenAiClient openAi(long shortTimeout, long longTimeout, int maxConcurrentCalls) {

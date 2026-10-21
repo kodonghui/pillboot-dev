@@ -14,9 +14,11 @@ import tools.jackson.databind.JsonNode;
 @Service
 public class PhotoCandidateLookup {
   private final PublicDataClient client;
+  private final PillCatalog catalog;
 
-  public PhotoCandidateLookup(PublicDataClient client) {
+  public PhotoCandidateLookup(PublicDataClient client, PillCatalog catalog) {
     this.client = client;
+    this.catalog = catalog;
   }
 
   public record Result(List<PhotoCandidateData> candidates, int excludedCount) {
@@ -40,11 +42,10 @@ public class PhotoCandidateLookup {
   }
 
   public Result pillResult(PillIdentification clues) {
-    var rows = PublicDataClient.items(client.get(DrugSyncService.GRAIN_INFO_PATH, query(clues.itemName(), clues.entpName())));
-    var ordered = rows.stream().sorted(Comparator.<JsonNode>comparingInt(row -> Boolean.TRUE.equals(org.semiproject.pillbadeumserver.drug.domain.DrugCancellation.parse(row)) ? 1 : 0)
-        .thenComparing(Comparator.<JsonNode>comparingDouble(row -> score(clues, row)).reversed())
-        .thenComparingInt(row -> exact(clues.itemName(), text(row, "ITEM_NAME")) ? 0 : 1)
-        .thenComparing(row -> java.util.Objects.toString(text(row, "ITEM_SEQ"), ""))).toList();
+    if (!PillSimilarity.hasCriteria(clues)) throw new IllegalArgumentException("약 식별 단서가 필요합니다.");
+    var rows = PillSimilarity.hasVisualCriteria(clues) ? catalog.rows()
+        : PublicDataClient.items(client.get(DrugSyncService.GRAIN_INFO_PATH, query(clues.itemName(), clues.entpName())));
+    var ordered = PillSimilarity.rank(clues, rows).stream().map(PillSimilarity.Match::item).toList();
     return validated(ordered, clues);
   }
 
@@ -54,7 +55,7 @@ public class PhotoCandidateLookup {
     int excluded = 0;
     for (var row : rows) {
       try {
-        var value = candidate(row, clues == null ? null : printMatch(clues, row));
+        var value = candidate(row, clues == null ? null : PillSimilarity.printsMatch(clues, row));
         valid.putIfAbsent(value.itemSeq(), value);
       } catch (ExternalApiException invalidCandidate) { excluded++; }
     }
@@ -106,35 +107,6 @@ public class PhotoCandidateLookup {
         cancelled);
   }
 
-  private static double score(PillIdentification c, JsonNode row) {
-    return Math.max(orientation(c, row, false), orientation(c, row, true));
-  }
-
-  private static double orientation(PillIdentification c, JsonNode row, boolean reversed) {
-    String front = reversed ? "BACK" : "FRONT", back = reversed ? "FRONT" : "BACK";
-    return match(c.printFront(), text(row, "PRINT_" + front)) * 8
-        + match(c.printBack(), text(row, "PRINT_" + back)) * 8
-        + match(c.shape(), text(row, "DRUG_SHAPE")) * 2
-        + match(c.colorClass1(), text(row, reversed ? "COLOR_CLASS2" : "COLOR_CLASS1"))
-        + match(c.colorClass2(), text(row, reversed ? "COLOR_CLASS1" : "COLOR_CLASS2"))
-        + match(c.lineFront(), text(row, "LINE_" + front))
-        + match(c.lineBack(), text(row, "LINE_" + back));
-  }
-
-  private static Boolean printMatch(PillIdentification c, JsonNode row) {
-    if (!present(c.printFront()) && !present(c.printBack())) return null;
-    return pair(c.printFront(), text(row, "PRINT_FRONT"), c.printBack(), text(row, "PRINT_BACK"))
-        || pair(c.printFront(), text(row, "PRINT_BACK"), c.printBack(), text(row, "PRINT_FRONT"));
-  }
-
-  private static boolean pair(String a, String x, String b, String y) {
-    return (!present(a) || exact(a, x)) && (!present(b) || exact(b, y));
-  }
-
-  private static int match(String a, String b) {
-    return present(a) && exact(a, b) ? 1 : 0;
-  }
-
   private static boolean exact(String a, String b) {
     return present(a) && normalize(a).equals(normalize(b));
   }
@@ -149,16 +121,11 @@ public class PhotoCandidateLookup {
   }
 
   private static boolean present(String s) {
-    return s != null && !s.isBlank();
+    return PillSimilarity.present(s);
   }
 
   static String text(JsonNode node, String field) {
-    for (var e : node.properties())
-      if (e.getKey().equalsIgnoreCase(field)) {
-        String s = e.getValue().isNull() ? null : e.getValue().asString("").strip();
-        return !present(s) || "-".equals(s) ? null : s;
-      }
-    return null;
+    return PillSimilarity.text(node, field);
   }
 
   private static String first(JsonNode row, String... fields) {

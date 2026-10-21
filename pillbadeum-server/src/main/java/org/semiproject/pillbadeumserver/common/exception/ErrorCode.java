@@ -44,6 +44,7 @@ public enum ErrorCode {
     LAST_PROFILE(HttpStatus.CONFLICT, "LAST_PROFILE", "마지막 프로필은 삭제할 수 없습니다."),
 
     // 약 등록 · 이미지 처리 (REG)
+    PILL_CATALOG_PREPARING(HttpStatus.SERVICE_UNAVAILABLE, "PILL_CATALOG_PREPARING", "의약품 식별 자료를 준비하고 있습니다."),
 
     // 내 약 목록 (DRUG)
 

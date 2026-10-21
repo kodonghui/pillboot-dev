@@ -26,7 +26,7 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 
 /** OpenAI Decisions/Responses/Embedding 클라이언트. 분류/임베딩 10초, 비전/답변/요약 30초.
- * 임베딩만 일시 오류를 0.5초 뒤 1회 재시도하며, 생성 요청은 자동 재시도하지 않는다.
+ * 임베딩과 이미지 판독은 일시 오류를 0.5초 뒤 1회 재시도하며, 다른 생성 요청은 자동 재시도하지 않는다.
  * 여러 호출을 합친 요청 전체 90초 제한은 담당 서비스에서 별도로 적용해야 한다.
  */
 @Component
@@ -163,7 +163,7 @@ public class OpenAiClient {
         Map<String, Object> body = requestBody(visionModel, instructions, input, maxOutputTokens);
         body.put("text", jsonSchemaFormat(schemaName, schema));
 
-        return parseJson(outputText(post(longClient, "/responses", body, visionModel, false)));
+        return parseJson(outputText(post(longClient, "/responses", body, visionModel, true)));
     }
 
     /** 벡터와 같은 모델명을 Qdrant payload·모델별 컬렉션에 기록할 때 사용한다. */
