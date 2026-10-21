@@ -303,6 +303,30 @@ class ExternalClientTests {
                 });
     }
 
+    @Test
+    void legacyPillCandidatesReadPermitSpecialtyField() {
+        server.createContext("/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03", exchange ->
+                respond(exchange, 200, """
+                        {"response":{"header":{"resultCode":"00"},"body":{"items":[
+                        {"ITEM_SEQ":"900001","ITEM_NAME":"합성약"}]}}}
+                        """));
+        server.createContext("/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08", exchange ->
+                respond(exchange, 200, """
+                        {"response":{"header":{"resultCode":"00"},"body":{"items":[
+                        {"ITEM_SEQ":"900001","SPCLTY_PBLC":"일반의약품"}]}}}
+                        """));
+        server.createContext("/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList", exchange ->
+                respond(exchange, 200, """
+                        {"response":{"header":{"resultCode":"00"},"body":{"items":[]}}}
+                        """));
+
+        var candidates = new PillDrugIdentificationService(publicData()).identify(new PillIdentification(
+                "합성약", null, null, null, null, null, null, null, null));
+
+        assertThat(candidates).singleElement().satisfies(candidate ->
+                assertThat(candidate.etcOtcName()).isEqualTo("일반의약품"));
+    }
+
     private PublicDataClient publicData() {
         return new PublicDataClient(JSON, baseUrl, "a+b/c=", 2000, 1000, 4, 20);
     }

@@ -19,6 +19,19 @@ class PhotoCandidateLookupTests {
   final JsonMapper json = new JsonMapper();
 
   @Test
+  void permitListUsesRealSpecialtyFieldForBothDrugTypes() {
+    var otc = row("900001", "합성일반약");
+    otc.remove("ETC_OTC_NAME"); otc.put("SPCLTY_PBLC", "일반의약품");
+    var etc = row("900002", "합성전문약");
+    etc.remove("ETC_OTC_NAME"); etc.put("SPCLTY_PBLC", "전문의약품");
+    when(client.get(eq(DrugSyncService.PERMIT_INFO_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(otc, etc))));
+    var result = lookup.prescriptionResult("합성", null);
+    assertThat(result.status()).isEqualTo("OK");
+    assertThat(result.candidates()).extracting(value -> value.etcOtc()).containsExactly("OTC", "ETC");
+  }
+
+  @Test
   void exactNameComesFirstAndDuplicateCodesDoNotConsumeFiveCandidateLimit() {
     var rows = new ArrayList<Map<String, Object>>();
     for (int i = 1; i <= 7; i++) rows.add(row("90000" + i, i == 6 ? "정확한약" : "비슷한약"));

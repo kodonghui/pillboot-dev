@@ -158,7 +158,7 @@ public class PillDrugIdentificationService {
                 firstText(pill, "COLOR_CLASS2"),
                 firstText(pill, "LINE_FRONT"),
                 firstText(pill, "LINE_BACK"),
-                firstText(permit, "ETC_OTC_NAME"),
+                firstText(permit, "ETC_OTC_NAME", "SPCLTY_PBLC", "ETC_OTC_CODE"),
                 firstText(permit, "CLASS_NAME"),
                 firstText(permit, "ITEM_INGR_NAME", "MAIN_ITEM_INGR"),
                 firstText(permit, "ITEM_PERMIT_DATE"),

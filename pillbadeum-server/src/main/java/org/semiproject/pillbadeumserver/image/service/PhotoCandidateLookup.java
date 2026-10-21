@@ -4,6 +4,7 @@ import java.util.*;
 import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
 import org.semiproject.pillbadeumserver.drug.service.DrugSyncService;
+import org.semiproject.pillbadeumserver.drug.domain.DrugRegulatoryType;
 import org.semiproject.pillbadeumserver.image.domain.PhotoCandidateData;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
 import org.springframework.stereotype.Service;
@@ -76,13 +77,7 @@ public class PhotoCandidateLookup {
     String code = text(row, "ITEM_SEQ"),
         name = text(row, "ITEM_NAME"),
         maker = text(row, "ENTP_NAME");
-    String raw = text(row, "ETC_OTC_NAME");
-    String type =
-        raw == null
-            ? null
-            : raw.contains("전문") || raw.equals("ETC")
-                ? "ETC"
-                : raw.contains("일반") || raw.equals("OTC") ? "OTC" : null;
+    String type = DrugRegulatoryType.parse(row);
     if (code == null
         || !code.matches("[0-9]{1,100}")
         || name == null

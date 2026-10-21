@@ -12,6 +12,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import org.semiproject.pillbadeumserver.drug.domain.DrugCancellation;
+import org.semiproject.pillbadeumserver.drug.domain.DrugRegulatoryType;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -210,7 +211,7 @@ public class DrugSyncService {
 
     /* 설명. 낱알식별 응답 한 건 → drug 컬럼 값
      *  ----------------------------------------------------------------------------------
-     *  ITEM_NAME → name, ENTP_NAME → maker, ETC_OTC_NAME(전문/일반의약품) → etc_otc(ETC/OTC)
+     *  ITEM_NAME → name, ENTP_NAME → maker, 낱알·허가의 전문/일반 구분 → etc_otc(ETC/OTC)
      *  CLASS_NAME → class_name, ITEM_IMAGE → image_url, PRINT_FRONT/BACK → print_front/back
      *  DRUG_SHAPE → shape, COLOR_CLASS1 → color (뒷면 색 COLOR_CLASS2 는 저장할 컬럼 없음)
      *  LINE_FRONT/BACK → line_front/back
@@ -234,7 +235,7 @@ public class DrugSyncService {
             Values raw = new Values(
                     cut(text(item, "ITEM_NAME"), LEN_NAME),
                     cut(text(item, "ENTP_NAME"), LEN_MAKER),
-                    toEtcOtc(textIgnoreCase(item, "ETC_OTC_NAME")),
+                    DrugRegulatoryType.parse(item),
                     cut(text(item, "CLASS_NAME"), LEN_CLASS_NAME),
                     cut(text(item, "ITEM_IMAGE"), LEN_IMAGE_URL),
                     cut(text(item, "PRINT_FRONT"), LEN_PRINT),
@@ -252,7 +253,7 @@ public class DrugSyncService {
             List<String> missing = new ArrayList<>();
             if (v.name == null) missing.add("name(ITEM_NAME)");
             if (v.maker == null) missing.add("maker(ENTP_NAME)");
-            if (v.etcOtc == null) missing.add("etc_otc(ETC_OTC_NAME)");
+            if (v.etcOtc == null) missing.add("전문/일반 구분");
             if (v.className == null) missing.add("class_name(CLASS_NAME)");
             if (v.shape == null) missing.add("shape(DRUG_SHAPE)");
             if (v.color == null) missing.add("color(COLOR_CLASS1)");
@@ -266,20 +267,6 @@ public class DrugSyncService {
             }
             return v;
         }
-    }
-
-    /* 설명. '전문의약품' → ETC, '일반의약품' → OTC. 그 외는 null (저장 불가) */
-    private static String toEtcOtc(String etcOtcName) {
-        if (etcOtcName == null) {
-            return null;
-        }
-        if (etcOtcName.contains("전문") || etcOtcName.equals("ETC")) {
-            return Drug.ETC;
-        }
-        if (etcOtcName.contains("일반") || etcOtcName.equals("OTC")) {
-            return Drug.OTC;
-        }
-        return null;
     }
 
     /* 설명. 제형 분류 (가정 T3): 캡슐은 연질/경질로, 정(錠)으로 끝나는 제형은 정제로, 나머지는 기타 */
