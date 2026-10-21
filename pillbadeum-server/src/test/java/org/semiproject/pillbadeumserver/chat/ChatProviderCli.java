@@ -49,7 +49,7 @@ public final class ChatProviderCli {
             var ai=new OpenAiClient(json,setting(local,"OPENAI_API_KEY",""),"https://api.openai.com/v1",
                     setting(local,"OPENAI_CHAT_MODEL",""),setting(local,"OPENAI_DECISION_MODEL",""),"",
                     setting(local,"OPENAI_EMBEDDING_MODEL","text-embedding-3-small"),setting(local,"OPENAI_REASONING_EFFORT",""),
-                    2000,10000,30000,4,1000,new BigDecimal(setting(local,"OPENAI_DECISION_INPUT_USD_PER_MILLION","0.10")));
+                    2000,10000,30000,60000,4,1000,new BigDecimal(setting(local,"OPENAI_DECISION_INPUT_USD_PER_MILLION","0.10")));
             if("openai".equals(args[0])) check("decision",()->{
                 var category=new QuestionClassifier(ai).classify("복약 기록은 어디에서 확인하나요?");
                 return "category="+category;

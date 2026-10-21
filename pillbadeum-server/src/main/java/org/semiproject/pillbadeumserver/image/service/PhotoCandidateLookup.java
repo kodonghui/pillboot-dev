@@ -4,6 +4,7 @@ import java.util.*;
 import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
 import org.semiproject.pillbadeumserver.drug.service.DrugSyncService;
+import org.semiproject.pillbadeumserver.drug.service.PrescriptionDrugLookup;
 import org.semiproject.pillbadeumserver.drug.domain.DrugRegulatoryType;
 import org.semiproject.pillbadeumserver.image.domain.PhotoCandidateData;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
@@ -30,7 +31,7 @@ public class PhotoCandidateLookup {
   }
 
   public Result prescriptionResult(String name, String maker) {
-    var rows = PublicDataClient.items(client.get(DrugSyncService.PERMIT_INFO_PATH, query(name, maker)));
+    var rows = new PrescriptionDrugLookup(client).find(name, maker);
     var ordered = rows.stream().sorted(Comparator.<JsonNode>comparingInt(row -> Boolean.TRUE.equals(org.semiproject.pillbadeumserver.drug.domain.DrugCancellation.parse(row)) ? 1 : 0)
         .thenComparingInt(row -> exact(name, text(row, "ITEM_NAME")) ? 0 : 1)
         .thenComparingInt(row -> exact(maker, text(row, "ENTP_NAME")) ? 0 : 1)).toList();

@@ -93,6 +93,12 @@ public class DrugSearchService {
         return new PageImpl<>(content, page, PublicDataClient.totalCount(body));
     }
 
+    /** REG-003 보조 경로도 함량 대조를 공유함. 일반 이름 검색의 페이지네이션은 변경하지 않음. */
+    public List<DrugSearchResponse> searchPrescription(String name) {
+        return new PrescriptionDrugLookup(publicDataClient).find(normalizeName(name), null).stream()
+                .map(DrugSearchService::toResponse).filter(item -> item.itemSeq() != null).limit(5).toList();
+    }
+
     /* 허가정보 응답의 실제 코드·이름만 검색 결과로 전달함. */
     private static DrugSearchResponse toResponse(JsonNode item) {
         return DrugSearchResponse.of(

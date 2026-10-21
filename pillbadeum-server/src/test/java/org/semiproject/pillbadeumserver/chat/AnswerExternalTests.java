@@ -77,7 +77,7 @@ class AnswerExternalTests {
         executor.setVirtualThreads(true);
         var publicData = new PublicDataClient(json, base, "private-public-key", 1000, 300, 4, 20);
         var openAi = new OpenAiClient(json, "private-ai-key", base, "chat-only", "decision-only", "vision-only", "embedding-only",
-                "", 1000, 300, 500, 4, 20, new BigDecimal("0.10"));
+                "", 1000, 300, 500, 60000, 4, 20, new BigDecimal("0.10"));
         generator = new AnswerGenerator(openAi, new OfficialDrugEvidence(publicData, executor, 4),
                 new DurLookupService(publicData, executor, 4), new DurEvaluator(), sources, json, executor);
         easyBody.set(success(List.of(Map.of("itemSeq", CODE, "efcyQesitm", "<p>" + PRIVATE + "</p>",

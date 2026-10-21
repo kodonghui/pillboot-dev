@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 
-/** OpenAI Decisions/Responses/Embedding 클라이언트. 분류/임베딩 10초, 비전/답변/요약 30초.
+/** OpenAI Decisions/Responses/Embedding 클라이언트. 분류/임베딩 10초, 낱알/답변/요약 30초, 처방전 60초.
  * 임베딩과 이미지 판독은 일시 오류를 0.5초 뒤 1회 재시도하며, 다른 생성 요청은 자동 재시도하지 않는다.
  * 여러 호출을 합친 요청 전체 90초 제한은 담당 서비스에서 별도로 적용해야 한다.
  */
@@ -37,6 +37,7 @@ public class OpenAiClient {
 
     private final RestClient shortClient;
     private final RestClient longClient;
+    private final RestClient prescriptionClient;
     private final Semaphore permits;
     private final long permitTimeoutMs;
     private final ObjectMapper objectMapper;
@@ -47,6 +48,13 @@ public class OpenAiClient {
     private final String visionModel;
     private final String embeddingModel;
     private final String reasoningEffort;
+    // 처방전만 모델·effort·출력 예산을 바꿈. 낱알·채팅은 기존 설정을 사용함.
+    @Value("${openai.model.prescription:}")
+    private String prescriptionModel;
+    @Value("${openai.prescription-reasoning-effort:}")
+    private String prescriptionReasoningEffort;
+    @Value("${openai.prescription-max-output-tokens:0}")
+    private int prescriptionMaxOutputTokens;
     private final BigDecimal decisionInputUsdPerMillion;
 
     public OpenAiClient(ObjectMapper objectMapper,
@@ -60,6 +68,7 @@ public class OpenAiClient {
                         @Value("${openai.connect-timeout-ms}") long connectTimeoutMs,
                         @Value("${openai.short-read-timeout-ms}") long shortReadTimeoutMs,
                         @Value("${openai.long-read-timeout-ms}") long longReadTimeoutMs,
+                        @Value("${photo.prescription-ocr-timeout-ms:60000}") long prescriptionReadTimeoutMs,
                         @Value("${openai.max-concurrent-calls:4}") int maxConcurrentCalls,
                         @Value("${openai.permit-timeout-ms:1000}") long permitTimeoutMs,
                         @Value("${openai.decision-input-usd-per-million:0.10}") BigDecimal decisionInputUsdPerMillion) {
@@ -76,13 +85,14 @@ public class OpenAiClient {
         }
         this.decisionInputUsdPerMillion = decisionInputUsdPerMillion;
 
-        if (maxConcurrentCalls < 1 || permitTimeoutMs < 1) {
+        if (maxConcurrentCalls < 1 || permitTimeoutMs < 1 || prescriptionReadTimeoutMs < 1) {
             throw new IllegalArgumentException("OpenAI 동시 호출 수와 대기 시간은 양수여야 합니다.");
         }
         this.permits = new Semaphore(maxConcurrentCalls);
         this.permitTimeoutMs = permitTimeoutMs;
         this.shortClient = client(baseUrl, apiKey, connectTimeoutMs, shortReadTimeoutMs);
         this.longClient = client(baseUrl, apiKey, connectTimeoutMs, longReadTimeoutMs);
+        this.prescriptionClient = client(baseUrl, apiKey, connectTimeoutMs, prescriptionReadTimeoutMs);
 
         log.info("[OpenAiClient] API 키 설정 여부={} (모델/권한/연결 성공은 실제 호출 때 확인)", enabled);
     }
@@ -160,10 +170,19 @@ public class OpenAiClient {
         }
         List<Map<String, Object>> input = List.of(Map.<String, Object>of("role", "user", "content", content));
 
-        Map<String, Object> body = requestBody(visionModel, instructions, input, maxOutputTokens);
+        boolean prescription = "photo_prescription_names".equals(schemaName)
+                || "prescription_medicine_names".equals(schemaName);
+        String model = prescription && prescriptionModel != null && !prescriptionModel.isBlank()
+                ? prescriptionModel : visionModel;
+        String effort = prescription && prescriptionReasoningEffort != null && !prescriptionReasoningEffort.isBlank()
+                ? prescriptionReasoningEffort : reasoningEffort;
+        Map<String, Object> body = requestBody(model, instructions, input,
+                prescription && prescriptionMaxOutputTokens > 0 ? prescriptionMaxOutputTokens : maxOutputTokens);
+        if (effort != null && !effort.isBlank())
+            body.put("reasoning", Map.of("effort", effort));
         body.put("text", jsonSchemaFormat(schemaName, schema));
 
-        return parseJson(outputText(post(longClient, "/responses", body, visionModel, true)));
+        return parseJson(outputText(post(prescription ? prescriptionClient : longClient, "/responses", body, model, true)));
     }
 
     /** 벡터와 같은 모델명을 Qdrant payload·모델별 컬렉션에 기록할 때 사용한다. */

@@ -57,6 +57,7 @@ class PhotoFlowHttpMySqlTests {
   @Autowired JwtTokenProvider tokens;
   @Autowired PasswordEncoder passwords;
   @Autowired PhotoLifecycleService lifecycle;
+  @Autowired org.semiproject.pillbadeumserver.image.service.PhotoIdentificationWorkflow workflow;
   @Autowired org.semiproject.pillbadeumserver.image.service.PillCatalog catalog;
   @Autowired FileStorage files;
   @Autowired org.semiproject.pillbadeumserver.chat.service.RegistrationDurPrefetch durPrefetch;
@@ -68,6 +69,7 @@ class PhotoFlowHttpMySqlTests {
   final List<String> lookups = new CopyOnWriteArrayList<>();
   volatile Object vision;
   volatile int visionStatus = 200;
+  volatile long visionDelayMs;
   volatile List<Map<String, Object>> officialRows;
   volatile boolean sawUploaded;
   volatile boolean grainEmpty, permitMetadata, durWarning;
@@ -78,6 +80,8 @@ class PhotoFlowHttpMySqlTests {
     r.add("openai.base-url", PhotoFlowHttpMySqlTests::providerUrl);
     r.add("openai.api-key", () -> "synthetic-photo-ai-key");
     r.add("openai.model.vision", () -> "synthetic-photo-vision");
+    r.add("openai.model.prescription", () -> "synthetic-photo-vision");
+    r.add("photo.prescription-ocr-timeout-ms", () -> 60000);
     r.add("openai.model.chat", () -> "synthetic-photo-chat");
     r.add("openai.model.decision", () -> "synthetic-photo-decision");
     r.add("openai.reasoning-effort", () -> "");
@@ -133,6 +137,36 @@ class PhotoFlowHttpMySqlTests {
     current = this;
     catalog.refresh();
     lookups.clear();
+  }
+
+  @Test
+  void prescriptionOcrBeyondThirtySecondsReturnsSavedCandidatesAndReloads() throws Exception {
+    visionDelayMs = 31_000;
+    long started = System.nanoTime();
+    var response = upload("PRESCRIPTION", token, png(), Duration.ofSeconds(70), "image");
+    assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+    assertThat(Duration.ofNanos(System.nanoTime() - started)).isGreaterThan(Duration.ofSeconds(30));
+    var result = JSON.readTree(response.body());
+    long id = result.path("photoId").asLong();
+    assertThat(visionRequests).hasSize(1);
+    assertThat(json("GET", "/api/photos/" + id + "/candidates", null, token, 200).path("drugs"))
+        .isEqualTo(result.path("drugs"));
+    json("DELETE", "/api/photos/" + id, null, token, 204);
+    assertNoPhotos();
+  }
+
+  @Test
+  void expiredPrescriptionOcrCancelsAndRemovesUploadedPhoto() throws Exception {
+    long original = (long) ReflectionTestUtils.getField(workflow, "prescriptionOcrTimeoutMs");
+    try {
+      ReflectionTestUtils.setField(workflow, "prescriptionOcrTimeoutMs", 500L);
+      visionDelayMs = 2000;
+      identify("PRESCRIPTION", token, 503, "image");
+      assertNoPhotos();
+      assertThat(visionRequests).hasSize(1);
+    } finally {
+      ReflectionTestUtils.setField(workflow, "prescriptionOcrTimeoutMs", original);
+    }
   }
 
   @Test
@@ -697,6 +731,11 @@ class PhotoFlowHttpMySqlTests {
 
   HttpResponse<String> upload(String kind, String auth, byte[] image, String... parts)
       throws Exception {
+    return upload(kind, auth, image, Duration.ofSeconds(20), parts);
+  }
+
+  HttpResponse<String> upload(String kind, String auth, byte[] image, Duration timeout, String... parts)
+      throws Exception {
     String boundary = "photo-test-boundary";
     var out = new ByteArrayOutputStream();
     for (String name : parts) {
@@ -715,7 +754,7 @@ class PhotoFlowHttpMySqlTests {
         HttpRequest.newBuilder(
                 URI.create(
                     url("/api/profiles/" + profileId + "/photo-identifications?kind=" + kind)))
-            .timeout(Duration.ofSeconds(20))
+            .timeout(timeout)
             .header("Content-Type", "multipart/form-data; boundary=" + boundary)
             .POST(HttpRequest.BodyPublishers.ofByteArray(out.toByteArray()));
     if (auth != null) builder.header("Authorization", "Bearer " + auth);
@@ -878,6 +917,7 @@ class PhotoFlowHttpMySqlTests {
           t.entered.countDown();
           if (!t.release.await(10, TimeUnit.SECONDS))
             throw new IllegalStateException("synthetic gate timeout");
+          if (t.visionDelayMs > 0) Thread.sleep(t.visionDelayMs);
         }
         respond(
             exchange,
