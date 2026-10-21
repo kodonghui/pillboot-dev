@@ -1,6 +1,7 @@
 package org.semiproject.pillbadeumserver.member.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.semiproject.pillbadeumserver.member.dto.*;
@@ -49,6 +50,7 @@ public class AuthController {
 
     /* 회원가입 요청을 검증한 뒤 서비스에 전달하고, 성공하면 201 created 반환 */
     @Operation(summary = "회원가입")
+    @ApiResponse(responseCode = "201", description = "회원가입 완료")
     @PostMapping("/signup")
     public ResponseEntity<Void> signup (@Valid @RequestBody SignupRequest signupRequest) {
         authService.signup(signupRequest);
