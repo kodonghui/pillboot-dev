@@ -21,6 +21,20 @@ class DrugSyncFallbackTests {
   final DrugSyncService service = new DrugSyncService(client, drugs);
 
   @Test
+  void permitDetailUsesRealEtcOtcCodeField() {
+    var detail = new LinkedHashMap<>(row());
+    detail.remove("ETC_OTC_NAME"); detail.put("ETC_OTC_CODE", "전문의약품");
+    when(client.get(eq(DrugSyncService.GRAIN_INFO_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of())));
+    when(client.get(eq(DrugGuideService.PERMIT_DETAIL_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(detail))));
+    when(drugs.save(any())).thenAnswer(call -> call.getArgument(0));
+    var result = service.getOrSync("900001");
+    assertThat(result.getEtcOtc()).isEqualTo("ETC");
+    assertThat(result.getMetadataSource()).isEqualTo("PERMIT");
+  }
+
+  @Test
   void permitOnlyProductIsOfficiallyConfirmedWithoutInventingVisualMetadata() {
     when(client.get(eq(DrugSyncService.GRAIN_INFO_PATH), anyMap())).thenReturn(json.valueToTree(Map.of("items", List.of())));
     when(client.get(eq(DrugGuideService.PERMIT_DETAIL_PATH), anyMap())).thenReturn(json.valueToTree(Map.of("items", List.of(row()))));

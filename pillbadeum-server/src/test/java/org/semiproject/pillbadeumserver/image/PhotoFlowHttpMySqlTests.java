@@ -290,7 +290,7 @@ class PhotoFlowHttpMySqlTests {
   void nameSearchCanInspectAndRegisterPermitOnlySyrupWithoutGrainData() throws Exception {
     grainEmpty = true; permitMetadata = true;
     officialRows = List.of(Map.of("ITEM_SEQ", code1, "ITEM_NAME", "합성시럽", "ENTP_NAME", "합성제약",
-        "ETC_OTC_NAME", "일반의약품", "MAIN_ITEM_INGR", "[SYN]합성성분"));
+        "SPCLTY_PBLC", "일반의약품", "MAIN_ITEM_INGR", "[SYN]합성성분"));
     var result = json("GET", "/api/drugs/search?profileId=" + profileId + "&name="
         + URLEncoder.encode("합성시럽", StandardCharsets.UTF_8), null, token, 200);
     assertThat(result.path("content").path(0).path("itemSeq").asString()).isEqualTo(code1);
@@ -927,7 +927,12 @@ class PhotoFlowHttpMySqlTests {
         } else if (path.contains("getDrugPrdtPrmsnDtlInq08")) {
           var detail = new LinkedHashMap<String, Object>();
           detail.put("ITEM_SEQ", t.code1); detail.put("EE_DOC_DATA", "<DOC>합성 허가 근거</DOC>"); detail.put("CHANGE_DATE", "20261020");
-          if (t.permitMetadata && !t.officialRows.isEmpty()) detail.putAll(t.officialRows.getFirst());
+          if (t.permitMetadata && !t.officialRows.isEmpty()) {
+            detail.putAll(t.officialRows.getFirst());
+            // 실제 목록/상세는 전문·일반 필드명이 서로 다름.
+            Object type = detail.remove("SPCLTY_PBLC");
+            if (type != null) detail.put("ETC_OTC_CODE", type);
+          }
           respond(
               exchange,
               200,
