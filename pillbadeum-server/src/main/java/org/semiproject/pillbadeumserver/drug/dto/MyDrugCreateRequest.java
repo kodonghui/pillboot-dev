@@ -52,18 +52,24 @@ public record MyDrugCreateRequest(
 
         Long photoId,
         @Size(max = MAX_DRUGS, message = "한 번에 최대 " + MAX_DRUGS + "개까지 저장할 수 있습니다.")
-        List<PhotoDrugSelectionRequest.Item> items
+        List<PhotoDrugSelectionRequest.Item> items,
+        String identificationId
 ) {
 
     // 기존 복용정보 포함 요청도 유지한다. 후보 선택 요청(items)과 한 본문에 섞지는 않는다.
     public MyDrugCreateRequest(DrugSource source, List<Item> drugs) {
-        this(source, drugs, null, null);
+        this(source, drugs, null, null, null);
+    }
+
+    public MyDrugCreateRequest(DrugSource source, List<Item> drugs, Long photoId,
+                               List<PhotoDrugSelectionRequest.Item> items) {
+        this(source, drugs, photoId, items, null);
     }
 
     @JsonIgnore
     @AssertTrue(message = "저장할 약을 1개 이상 보내주세요.")
     public boolean isValidPayload() {
-        return (drugs != null && !drugs.isEmpty() && items == null && photoId == null)
+        return (drugs != null && !drugs.isEmpty() && items == null && photoId == null && identificationId == null)
                 || (drugs == null && items != null && !items.isEmpty());
     }
 

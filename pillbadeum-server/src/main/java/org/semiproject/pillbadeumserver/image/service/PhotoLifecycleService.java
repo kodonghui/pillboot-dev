@@ -19,6 +19,7 @@ public class PhotoLifecycleService {
   private final ImageKeywordRegistrationService store;
   private final TemporaryPhotoCleanupService cleanup;
   private final FileStorage files;
+  private final PillIdentificationSessions sessions;
 
   @Value("${photo.cleanup.enabled:true}")
   private boolean enabled = true;
@@ -26,14 +27,18 @@ public class PhotoLifecycleService {
   public PhotoLifecycleService(
       ImageKeywordRegistrationService store,
       TemporaryPhotoCleanupService cleanup,
-      FileStorage files) {
+      FileStorage files, PillIdentificationSessions sessions) {
     this.store = store;
     this.cleanup = cleanup;
     this.files = files;
+    this.sessions = sessions;
   }
 
   public void deleteOwned(long photoId) {
-    deleteGroup(store.owned(photoId, false).id());
+    var photo = store.owned(photoId, false);
+    if (photo.kind() == org.semiproject.pillbadeumserver.image.domain.ImagePhotoKind.PILL)
+      sessions.cancelPhoto(photo.id());
+    deleteGroup(photo.id());
   }
 
   public void deleteGroup(long rootId) {
@@ -75,6 +80,11 @@ public class PhotoLifecycleService {
       initialDelayString = "${photo.cleanup.interval-ms:600000}")
   public void removeExpired() {
     if (!enabled) return;
+    try {
+      sessions.removeExpired();
+    } catch (RuntimeException error) {
+      log.warn("[식별 결과 정리] result=failed type={}", error.getClass().getSimpleName());
+    }
     for (long id : store.expiredRoots()) {
       try {
         deleteGroup(id);

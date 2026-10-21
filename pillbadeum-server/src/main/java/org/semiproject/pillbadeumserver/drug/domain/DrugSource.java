@@ -15,6 +15,7 @@ public enum DrugSource {
 
     SEARCH("이름 검색"),
     PILL_PHOTO("알약 사진"),
+    PILL_CLUES("알약 정보 입력"),
     PRESCRIPTION_PHOTO("처방전 사진"),
     MANUAL("직접 입력");
 

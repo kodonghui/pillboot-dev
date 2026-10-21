@@ -3,7 +3,7 @@ package org.semiproject.pillbadeumserver.image.domain;
 /** Public-data details for one pill candidate. This is not a database entity. */
 public record PillIdentificationCandidate(
         int rank,
-        double similarityScore,
+        Double similarityScore,
         String itemSeq,
         String itemName,
         String entpName,
@@ -25,6 +25,9 @@ public record PillIdentificationCandidate(
         String precautions,
         String interactions,
         String sideEffects,
-        String storageMethod
+        String storageMethod,
+        String orientation,
+        Integer evidenceRank,
+        java.util.List<PillMatchDetail> matchDetails
 ) {
 }

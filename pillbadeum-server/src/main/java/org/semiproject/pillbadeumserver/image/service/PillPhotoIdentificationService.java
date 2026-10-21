@@ -22,11 +22,7 @@ public class PillPhotoIdentificationService {
 
     private static final int MAX_PHOTOS = 2;
     private static final Map<String, Object> SCHEMA = schema();
-    private static final String INSTRUCTIONS = """
-            사진에 있는 알약의 식별 정보를 읽으세요. 사진이 알약이 아니면 모든 문자열 필드를 빈 문자열로 반환하세요.
-            약품명과 제조사명은 사진에서 명확히 읽히는 경우에만 적고, 추측하지 마세요.
-            모양과 색상은 사진에서 확인 가능한 값만 기록하세요. 불확실한 값은 빈 문자열로 반환하세요.
-            """;
+    private static final String INSTRUCTIONS = PillOcrRules.INSTRUCTIONS;
 
     private final FileStorage fileStorage;
     private final OpenAiClient openAiClient;
@@ -90,11 +86,11 @@ public class PillPhotoIdentificationService {
     }
 
     private JsonNode readImage(String dataUrl, boolean back, boolean singleImage) {
-        String side = back ? "뒷면" : "앞면";
-        String sideRules = " 제공된 사진은 알약 " + side + "입니다. 각인과 분할선은 " + side
-                + " 필드에만 기록하세요. 반대쪽 면의 필드는 빈 문자열로 반환하세요.";
-        String prompt = "알약 " + side + " 사진 한 장에서 보이는 정보만 읽어 정해진 JSON 필드에 반환하세요."
-                + (singleImage ? " " + side + "만 제공됐으므로 반대쪽 정보는 추측하지 마세요." : "");
+        String side = back ? "사진2" : "사진1";
+        String sideRules = " 제공한 사진은 " + side + "이며 공식 앞면·뒷면을 뜻하지 않습니다. "
+                + "각인/분할선은 " + (back ? "printBack/lineBack" : "printFront/lineFront")
+                + "에만 적고 반대쪽 값은 null, 상태는 UNREADABLE로 반환하세요.";
+        String prompt = side + " 한 장에서 보이는 단서만 읽으세요. 반대 면이나 불확실한 글자는 추측하지 마세요.";
         return openAiClient.createJsonFromImages(
                 INSTRUCTIONS + sideRules,
                 prompt,
@@ -114,7 +110,11 @@ public class PillPhotoIdentificationService {
                 first(front == null ? null : front.colorClass1(), back == null ? null : back.colorClass1()),
                 first(front == null ? null : front.colorClass2(), back == null ? null : back.colorClass2()),
                 front == null ? null : front.lineFront(),
-                back == null ? null : back.lineBack());
+                back == null ? null : back.lineBack(),
+                front == null ? PillIdentification.ObservationState.UNREADABLE : front.printFrontState(),
+                back == null ? PillIdentification.ObservationState.UNREADABLE : back.printBackState(),
+                front == null ? PillIdentification.ObservationState.UNREADABLE : front.lineFrontState(),
+                back == null ? PillIdentification.ObservationState.UNREADABLE : back.lineBackState());
     }
 
     private static String first(String first, String second) {
@@ -122,21 +122,7 @@ public class PillPhotoIdentificationService {
     }
 
     private static PillIdentification toIdentification(JsonNode output) {
-        return new PillIdentification(
-                value(output, "itemName"),
-                value(output, "entpName"),
-                value(output, "printFront"),
-                value(output, "printBack"),
-                value(output, "shape"),
-                value(output, "colorClass1"),
-                value(output, "colorClass2"),
-                value(output, "lineFront"),
-                value(output, "lineBack"));
-    }
-
-    private static String value(JsonNode node, String key) {
-        String value = node.path(key).asString("").strip();
-        return value.isEmpty() || "null".equalsIgnoreCase(value) ? null : value;
+        return PillOcrRules.read(output);
     }
 
     private static boolean hasAttributes(PillIdentification input) {
@@ -145,13 +131,5 @@ public class PillPhotoIdentificationService {
                 || input.colorClass2() != null || input.lineFront() != null || input.lineBack() != null;
     }
 
-    private static Map<String, Object> schema() {
-        Map<String, Object> properties = new LinkedHashMap<>();
-        for (String field : List.of("itemName", "entpName", "printFront", "printBack", "shape",
-                "colorClass1", "colorClass2", "lineFront", "lineBack")) {
-            properties.put(field, Map.of("type", "string"));
-        }
-        return Map.of("type", "object", "properties", properties,
-                "required", List.copyOf(properties.keySet()), "additionalProperties", false);
-    }
+    private static Map<String, Object> schema() { return PillOcrRules.schema(); }
 }

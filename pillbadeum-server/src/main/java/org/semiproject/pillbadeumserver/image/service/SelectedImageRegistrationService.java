@@ -39,8 +39,14 @@ public class SelectedImageRegistrationService {
         || request.items().isEmpty()
         || request.items().size() > 10) throw invalid("저장할 약을 1~10개 선택해주세요.");
     boolean search = request.source() == DrugSource.SEARCH;
-    if (search ? request.photoId() != null : request.photoId() == null || request.photoId() < 1)
+    boolean clues = request.source() == DrugSource.PILL_CLUES;
+    boolean pill = clues || request.source() == DrugSource.PILL_PHOTO;
+    if (search || clues ? request.photoId() != null : request.photoId() == null || request.photoId() < 1)
       throw invalid("등록 경로와 사진을 확인해 주세요.");
+    if ((!pill && request.identificationId() != null)
+        || (clues && request.identificationId() == null))
+      throw invalid("식별 결과의 등록 출처와 ID를 확인해 주세요.");
+    if (pill && request.items().size() != 1) throw invalid("알약 후보는 한 개만 선택해 주세요.");
     var codes = new LinkedHashSet<String>();
     for (var item : request.items()) {
       if (item == null || item.itemSeq() == null || !item.itemSeq().strip().matches("[0-9]{1,100}"))
@@ -55,7 +61,7 @@ public class SelectedImageRegistrationService {
     } catch (DataIntegrityViolationException concurrent) {
       result = confirmation.confirm(profileId, request, List.copyOf(codes));
     }
-    if (!search)
+    if (!search && request.photoId() != null)
       try {
         lifecycle.deleteOwned(request.photoId());
       } catch (NotFoundException alreadyDeleted) {

@@ -89,7 +89,7 @@ public class ImageKeywordRegistrationService {
         root.id());
   }
 
-  private void cache(PhotoCandidateData c, String source) {
+  void cache(PhotoCandidateData c, String source) {
     var enrich = List.of("class_name", "image_url", "print_front", "print_back", "shape", "color", "line_front", "line_back", "form", "material")
         .stream().map(column -> column + "=IF(" + column + " IS NULL OR " + column + "='미확인',COALESCE(VALUES(" + column + ")," + column + ")," + column + ")")
         .collect(java.util.stream.Collectors.joining(","));

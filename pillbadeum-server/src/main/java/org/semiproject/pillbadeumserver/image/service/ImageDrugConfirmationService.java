@@ -19,18 +19,24 @@ public class ImageDrugConfirmationService {
   private final JdbcTemplate jdbc;
   private final ImageKeywordRegistrationService photos;
   private final ApplicationEventPublisher events;
+  private final PillIdentificationSessions sessions;
 
   public ImageDrugConfirmationService(
-      JdbcTemplate jdbc, ImageKeywordRegistrationService photos, ApplicationEventPublisher events) {
+      JdbcTemplate jdbc, ImageKeywordRegistrationService photos, ApplicationEventPublisher events,
+      PillIdentificationSessions sessions) {
     this.jdbc = jdbc;
     this.photos = photos;
     this.events = events;
+    this.sessions = sessions;
   }
 
   @Transactional
   public PhotoDrugSelectionRequest.Result confirm(
       long profileId, PhotoDrugSelectionRequest request, List<String> codes) {
     photos.lockProfile(profileId);
+    boolean pill = request.source() == DrugSource.PILL_PHOTO || request.source() == DrugSource.PILL_CLUES;
+    var verified = pill ? sessions.beforeConfirm(profileId, request, codes) : null;
+    if (verified != null && verified.replay() != null) return verified.replay();
     var existing = new HashMap<String, PhotoDrugSelectionRequest.Skipped>();
     jdbc.query(
         "SELECT m.my_drug_id,m.item_seq,d.name FROM my_drug m JOIN drug d ON d.item_seq=m.item_seq"
@@ -46,13 +52,12 @@ public class ImageDrugConfirmationService {
         },
         profileId);
     boolean hasNew = codes.stream().anyMatch(c -> !existing.containsKey(c));
-    if (request.source() != DrugSource.SEARCH && hasNew) {
+    if (!pill && request.source() != DrugSource.SEARCH && hasNew) {
       var photo = photos.owned(request.photoId(), true);
       ImageKeywordRegistrationService.checkFresh(photo);
-      boolean pill = request.source() == DrugSource.PILL_PHOTO;
       if (!Objects.equals(photo.profileId(), profileId)
           || !"IDENTIFIED".equals(photo.status())
-          || (pill ? photo.kind() != ImagePhotoKind.PILL : photo.kind() == ImagePhotoKind.PILL))
+          || photo.kind() == ImagePhotoKind.PILL)
         throw invalid("사진의 프로필·종류·상태를 확인해 주세요.");
       var candidateCards = new LinkedHashMap<String, Set<Integer>>();
       jdbc.query(
@@ -109,7 +114,9 @@ public class ImageDrugConfirmationService {
       events.publishEvent(
           new DrugRegistered(
               saved.stream().map(PhotoDrugSelectionRequest.Saved::itemSeq).toList()));
-    return new PhotoDrugSelectionRequest.Result(List.copyOf(saved), List.copyOf(skipped));
+    var result = new PhotoDrugSelectionRequest.Result(List.copyOf(saved), List.copyOf(skipped));
+    if (verified != null) sessions.consumed(verified, codes.getFirst(), result);
+    return result;
   }
 
   private static BusinessException invalid(String s) {

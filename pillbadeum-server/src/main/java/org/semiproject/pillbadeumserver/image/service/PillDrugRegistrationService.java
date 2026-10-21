@@ -34,6 +34,8 @@ public class PillDrugRegistrationService {
 
     public MyDrugListResponse register(Long profileId, PillDrugRegistrationRequest request) {
         profileAccessChecker.checkOwner(profileId);
+        if (request != null && (request.source() == DrugSource.PILL_PHOTO || request.source() == DrugSource.PILL_CLUES))
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "알약 식별은 결과 ID와 선택 후보로 저장해 주세요.");
         if (request == null || request.itemSeq() == null || request.itemSeq().isBlank()
                 || request.dosePerTime() == null || request.startDate() == null || request.endDate() == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,

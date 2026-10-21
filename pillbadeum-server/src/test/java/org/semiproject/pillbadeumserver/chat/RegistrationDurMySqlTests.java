@@ -138,13 +138,13 @@ class RegistrationDurMySqlTests {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profile)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT content FROM dur_warning WHERE item_seq=?", String.class, code)).isEqualTo("previous-cache");
     }
-    @Test void photoRegistrationAlsoStartsPrefetchAfterRepositoryCommit() throws Exception {
+    @Test void legacySearchRegistrationAlsoStartsPrefetchAfterRepositoryCommit() throws Exception {
         when(lookup.collectItems(anyList(), anySet(), any())).thenAnswer(invocation -> {
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profile)).isEqualTo(1);
             return List.of(new DurLookup(code, DurLookup.Type.AGE, false, List.of(), LocalDate.now(TimeZoneConfig.ZONE)));
         });
         var day = LocalDate.now(TimeZoneConfig.ZONE);
-        var response = photoRegistration.register(profile, new PillDrugRegistrationRequest(code, DrugSource.PILL_PHOTO,
+        var response = photoRegistration.register(profile, new PillDrugRegistrationRequest(code, DrugSource.SEARCH,
                 1, null, day, day.plusDays(1), List.of(LocalTime.of(7, 0))));
         assertThat(response.itemSeq()).isEqualTo(code);
         assertThat(cacheFinished.await(3, TimeUnit.SECONDS)).isTrue();
@@ -156,9 +156,21 @@ class RegistrationDurMySqlTests {
         clearInvocations(lookup);
         var day = LocalDate.now(TimeZoneConfig.ZONE);
         assertThrows(BusinessException.class, () -> photoRegistration.register(profile,
-                new PillDrugRegistrationRequest(code, DrugSource.PILL_PHOTO, 1, null, day, day,
+                new PillDrugRegistrationRequest(code, DrugSource.SEARCH, 1, null, day, day,
                         List.of(LocalTime.of(7, 0)))));
         verify(lookup, after(150).never()).collectItems(anyList(), anySet(), any());
+    }
+    @Test void legacyRegistrationCannotBypassPillResultValidation() {
+        var day = LocalDate.now(TimeZoneConfig.ZONE);
+        for (var source : List.of(DrugSource.PILL_PHOTO, DrugSource.PILL_CLUES)) {
+            var rejected = assertThrows(BusinessException.class, () -> photoRegistration.register(profile,
+                    new PillDrugRegistrationRequest(code, source, 1, null, day, day,
+                            List.of(LocalTime.of(7, 0)))));
+            assertThat(rejected.getErrorCode()).isEqualTo(org.semiproject.pillbadeumserver.common.exception.ErrorCode.INVALID_INPUT);
+        }
+        verify(sync, never()).getOrSync(anyString());
+        verify(lookup, after(150).never()).collectItems(anyList(), anySet(), any());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profile)).isZero();
     }
     @Test void concurrentRegistrationsKeepOneRowAndUseTheSameConflictContract() throws Exception {
         var ready = new CountDownLatch(2);

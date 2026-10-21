@@ -40,9 +40,9 @@ class PillCatalogTests {
         try (var catalog = new PillCatalog(client, json, file.toString(), false, 4)) {
             catalog.refresh();
             var result = new PillDrugIdentificationService(client, catalog).identify(clues);
-            assertThat(result).hasSize(5);
+            assertThat(result).hasSize(1);
             assertThat(result.getFirst().itemSeq()).isEqualTo("197400040");
-            assertThat(result.getFirst().similarityScore()).isEqualTo(100);
+            assertThat(result.getFirst().similarityScore()).isNull();
             verify(client, times(5)).get(eq(DrugSyncService.GRAIN_INFO_PATH), anyMap(), any(Duration.class));
         }
         clearInvocations(client);
@@ -107,7 +107,7 @@ class PillCatalogTests {
     }
 
     JsonNode row(String code, String name, String front, String back) {
-        return json.valueToTree(Map.of("ITEM_SEQ", code, "ITEM_NAME", name, "PRINT_FRONT", front,
+        return json.valueToTree(Map.of("ITEM_SEQ", code, "ITEM_NAME", name, "ENTP_NAME", "합성제약", "ETC_OTC_NAME", "일반의약품", "PRINT_FRONT", front,
                 "PRINT_BACK", back, "DRUG_SHAPE", "원형", "COLOR_CLASS1", "하양"));
     }
 }
