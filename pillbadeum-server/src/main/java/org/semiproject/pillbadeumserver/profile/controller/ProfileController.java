@@ -2,6 +2,7 @@ package org.semiproject.pillbadeumserver.profile.controller;
 
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.semiproject.pillbadeumserver.profile.dto.ProfileCreateRequest;
@@ -29,6 +30,7 @@ public class ProfileController {
 
     /* 프로필 생성 */
     @Operation(summary = "프로필 생성")
+    @ApiResponse(responseCode = "201", description = "프로필 생성 완료")
     @PostMapping
     public ResponseEntity<ProfileResponse> createProfiles(
                                             @Valid @RequestBody ProfileCreateRequest request) {
@@ -57,6 +59,7 @@ public class ProfileController {
 
     /* 프로필 삭제 */
     @Operation(summary = "프로필 삭제")
+    @ApiResponse(responseCode = "204", description = "프로필 삭제 완료")
     @DeleteMapping("/{profileId}")
     public ResponseEntity<Void> deleteProfile (@PathVariable("profileId") Long profileId) {
 
