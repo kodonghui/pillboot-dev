@@ -50,7 +50,7 @@ class TemporaryPhotoFlowTests {
                 .thenAnswer(call -> {
                     assertThat(temporaryCount()).isEqualTo(2);
                     assertThat(call.<List<String>>getArgument(2)).hasSize(1);
-                    return json.readTree(call.<String>getArgument(1).contains("뒷면")
+                    return json.readTree(call.<String>getArgument(1).contains("사진2")
                             ? "{\"printBack\":\"B\"}" : "{\"printFront\":\"A\"}");
                 });
         when(lookup.identify(any())).thenReturn(List.of());

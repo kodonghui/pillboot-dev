@@ -29,11 +29,15 @@ class SchemaContractTests {
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
             org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(133);
-            assertConstraintCount(connection, "PRIMARY KEY", 17);
-            assertConstraintCount(connection, "FOREIGN KEY", 18);
-            assertConstraintCount(connection, "UNIQUE", 4);
-            assertConstraintCount(connection, "CHECK", 3);
+                    .isEqualTo(146);
+            assertConstraintCount(connection, "PRIMARY KEY", 18);
+            assertConstraintCount(connection, "FOREIGN KEY", 21);
+            assertConstraintCount(connection, "UNIQUE", 5);
+            assertConstraintCount(connection, "CHECK", 6);
+            assertColumn(connection, "pill_identification_session", "identification_id", "char", 36L, "NO", null);
+            assertColumn(connection, "pill_identification_session", "photo_id", "bigint", null, "YES", null);
+            assertColumn(connection, "pill_identification_session", "snapshot", "json", null, "YES", null);
+            assertColumn(connection, "pill_identification_session", "expires_at", "datetime", null, "NO", null);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.table_constraints "
                     + "WHERE constraint_schema=DATABASE() AND table_name='drug' "
                     + "AND constraint_type='CHECK' AND constraint_name='chk_drug_type' AND enforced='YES'"))

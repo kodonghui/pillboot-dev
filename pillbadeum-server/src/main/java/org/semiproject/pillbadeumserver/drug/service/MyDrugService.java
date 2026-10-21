@@ -89,6 +89,9 @@ public class MyDrugService {
     public List<MyDrugDetailResponse> registerAll(Long profileId, MyDrugCreateRequest request) {
 
         profileAccessChecker.checkOwner(profileId);
+        if (request.source() == org.semiproject.pillbadeumserver.drug.domain.DrugSource.PILL_PHOTO
+                || request.source() == org.semiproject.pillbadeumserver.drug.domain.DrugSource.PILL_CLUES)
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "알약 식별은 결과 ID와 선택 후보로 저장해 주세요.");
 
         List<MyDrugCreateRequest.Item> items = request.drugs();
         checkNoDuplicates(profileId, items);

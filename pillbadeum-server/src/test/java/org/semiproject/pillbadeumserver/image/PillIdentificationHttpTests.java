@@ -35,9 +35,9 @@ class PillIdentificationHttpTests {
     void setup() {
         List<JsonNode> rows = new ArrayList<>();
         for (int i = 1; i <= 5; i++) rows.add(json.valueToTree(Map.of("ITEM_SEQ", "90000" + i,
-                "ITEM_NAME", "비슷한각인약" + i, "PRINT_FRONT", "DK", "PRINT_BACK", "20", "DRUG_SHAPE", "원형", "COLOR_CLASS1", "하양")));
+                "ITEM_NAME", "비슷한각인약" + i, "ENTP_NAME", "합성제약", "ETC_OTC_NAME", "일반의약품", "PRINT_FRONT", "DK", "PRINT_BACK", "20", "DRUG_SHAPE", "원형", "COLOR_CLASS1", "하양")));
         rows.add(json.valueToTree(Map.of("ITEM_SEQ", "197400040", "ITEM_NAME", "인데놀정10mg(프로프라놀롤염산염)",
-                "PRINT_FRONT", "DK", "PRINT_BACK", "10", "DRUG_SHAPE", "원형", "COLOR_CLASS1", "하양")));
+                "ENTP_NAME", "합성제약", "ETC_OTC_NAME", "일반의약품", "PRINT_FRONT", "DK", "PRINT_BACK", "10", "DRUG_SHAPE", "원형", "COLOR_CLASS1", "하양")));
         when(catalog.rows()).thenReturn(rows);
         var service = new PillDrugIdentificationService(publicData, catalog);
         var files = mock(FileStorage.class);
@@ -45,12 +45,14 @@ class PillIdentificationHttpTests {
         when(files.readBytes(anyString(), eq(FileStorage.DIR_TEMP))).thenReturn(new byte[]{1, 2, 3});
         when(files.getMimeType(anyString())).thenReturn("image/png");
         when(ai.createJsonFromImages(anyString(), anyString(), anyList(), anyInt(), anyString(), anyMap()))
-                .thenAnswer(call -> json.readTree(call.<String>getArgument(1).contains("뒷면")
+                .thenAnswer(call -> json.readTree(call.<String>getArgument(1).contains("사진2")
                         ? "{\"printBack\":\"10\",\"shape\":\"원형\",\"colorClass1\":\"흰색\"}"
                         : "{\"printFront\":\"DK\",\"shape\":\"원형\",\"colorClass1\":\"흰색\"}"));
         var photo = new PillPhotoIdentificationService(files, ai, service, mock(TemporaryPhotoCleanupService.class));
         http = MockMvcBuilders.standaloneSetup(new PillIdentificationController(service, mock(PillDrugRegistrationService.class),
-                photo, mock(TemporaryPhotoUploadService.class))).setControllerAdvice(new GlobalExceptionHandler()).build();
+                photo, mock(TemporaryPhotoUploadService.class), mock(PillIdentificationSessions.class),
+                mock(PhotoCandidateLookup.class), mock(PhotoIdentificationWorkflow.class)))
+                .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
     @Test
@@ -77,9 +79,10 @@ class PillIdentificationHttpTests {
     }
 
     void assertCandidates(JsonNode rows) {
-        assertThat(rows.size()).isEqualTo(5);
+        assertThat(rows.size()).isEqualTo(1);
         assertThat(rows.path(0).path("itemSeq").asString()).isEqualTo("197400040");
         assertThat(rows.path(0).path("itemName").asString()).isEqualTo("인데놀정10mg(프로프라놀롤염산염)");
-        assertThat(rows.path(0).path("similarityScore").asDouble()).isEqualTo(100);
+        assertThat(rows.path(0).path("similarityScore").isNull()).isTrue();
+        assertThat(rows.path(0).path("matchDetails")).isNotEmpty();
     }
 }

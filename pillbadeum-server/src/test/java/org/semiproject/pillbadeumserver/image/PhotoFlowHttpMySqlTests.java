@@ -59,6 +59,7 @@ class PhotoFlowHttpMySqlTests {
   @Autowired PhotoLifecycleService lifecycle;
   @Autowired org.semiproject.pillbadeumserver.image.service.PhotoIdentificationWorkflow workflow;
   @Autowired org.semiproject.pillbadeumserver.image.service.PillCatalog catalog;
+  @Autowired org.semiproject.pillbadeumserver.image.service.PillIdentificationSessions sessions;
   @Autowired FileStorage files;
   @Autowired org.semiproject.pillbadeumserver.chat.service.RegistrationDurPrefetch durPrefetch;
   @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
@@ -657,6 +658,359 @@ class PhotoFlowHttpMySqlTests {
     assertNoPhotos();
   }
 
+
+  @Test
+  void detailedCluesRequireImprintShapeColorAndNeverCallVision() throws Exception {
+    for (String field : List.of("printFront", "shape", "colorClass1")) {
+      var input = clueInput("A", null);
+      input.remove(field);
+      var result = clueSearch(input);
+      assertThat(result.path("status").asString()).isEqualTo("UNREADABLE");
+      assertThat(result.path("missingFields").size()).isEqualTo(1);
+      assertThat(result.path("selectionAllowed").asBoolean()).isFalse();
+      assertThat(result.path("candidates")).isEmpty();
+      assertThat(result.path("nextActions").toString()).contains("EDIT_CLUES", "RETAKE", "SEARCH_BY_NAME");
+      assertThat(result.path("identificationId").asString()).isNotBlank();
+    }
+    assertThat(visionRequests).isEmpty();
+    assertThat(lookups).isEmpty();
+    assertNoPhotos();
+  }
+
+  @Test
+  void malformedAndLegacyRequestsHaveDifferentContractsFromBusinessFailure() throws Exception {
+    json("POST", "/api/images/identify", Map.of("shape", "원형", "colorClass1", "흰색"), token, 400);
+    var valid = clueInput("A", "B");
+    var legacy = json("POST", "/api/images/identify?view=legacy", valid, token, 200);
+    assertThat(legacy.isArray()).isTrue();
+    assertThat(legacy.size()).isEqualTo(1);
+    assertThat(legacy.path(0).path("similarityScore").isNull()).isTrue();
+    assertThat(legacy.path(0).path("matchDetails")).isNotEmpty();
+    json("POST", "/api/images/identify?view=nope", valid, token, 400);
+    json("POST", "/api/images/identify?view=details", valid, token, 400);
+    valid.put("printFrontState", "NONE");
+    json("POST", cluePath(), valid, token, 400);
+    valid.put("printFrontState", "not-a-state");
+    json("POST", cluePath(), valid, token, 400);
+    valid.remove("printFrontState"); valid.put("printFront", 123);
+    json("POST", cluePath(), valid, token, 400);
+    valid.put("printFront", "A".repeat(51));
+    json("POST", cluePath(), valid, token, 400);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pill_identification_session WHERE profile_id=?", Integer.class, profileId)).isZero();
+    assertThat(visionRequests).isEmpty();
+  }
+
+  @Test
+  void validZeroIsNotFoundButNoneAndUnreadableRemainDistinct() throws Exception {
+    var unknown = clueSearch(clueInput("ZZ", null));
+    assertThat(unknown.path("status").asString()).isEqualTo("NOT_FOUND");
+    assertThat(unknown.path("reason").asString()).isEqualTo("NO_MATCH");
+    assertThat(unknown.path("missingFields")).isEmpty();
+    var input = clueInput(null, null);
+    input.put("printFrontState", "NONE"); input.put("printBackState", "UNREADABLE");
+    var missing = clueSearch(input);
+    assertThat(missing.path("clues").path("printFrontState").asString()).isEqualTo("NONE");
+    assertThat(missing.path("clues").path("printBackState").asString()).isEqualTo("UNREADABLE");
+    assertThat(missing.path("missingFields").toString()).contains("IMPRINT");
+    input.put("printFrontState", "READABLE"); input.put("printFront", "A?");
+    assertThat(clueSearch(input).path("status").asString()).isEqualTo("UNREADABLE");
+  }
+
+  @Test
+  void fullCountIsDeduplicatedBeforeFivePreviewLimitAndCannotBeSaved() throws Exception {
+    var rows = new ArrayList<Map<String, Object>>();
+    rows.add(row(code1, "합성약정", "A", "B"));
+    rows.add(row(code1, "중복행", "A", "B"));
+    rows.add(row(code2, "대안약정", "A", "B"));
+    for (int i = 1; i <= 5; i++) rows.add(row(code1 + i + "99", "대안" + i, "A", "B"));
+    officialRows = rows; catalog.refresh();
+    var result = clueSearch(clueInput("A", null));
+    assertThat(result.path("totalCandidateCount").asInt()).isEqualTo(7);
+    assertThat(result.path("returnedCandidateCount").asInt()).isEqualTo(5);
+    assertThat(result.path("candidateLimit").asInt()).isEqualTo(5);
+    assertThat(result.path("hasMoreCandidates").asBoolean()).isTrue();
+    assertThat(result.path("hasTiedCandidates").asBoolean()).isTrue();
+    assertThat(result.path("requiresRefinement").asBoolean()).isTrue();
+    assertThat(result.path("selectionAllowed").asBoolean()).isFalse();
+    assertThat(result.path("reason").asString()).isEqualTo("TOO_MANY_CANDIDATES");
+    assertThat(result.path("candidates").findValuesAsString("itemSeq")).doesNotHaveDuplicates();
+    String returned = result.path("candidates").path(0).path("itemSeq").asString();
+    json("POST", drugs(profileId), resultSelection(result, returned), token, 409);
+  }
+
+  @Test
+  void cluesRestoreFrozenEvidenceAndRefreshOnlyCurrentRegistrationFlags() throws Exception {
+    var original = clueSearch(clueInput("A", "B"));
+    assertThat(original.path("registrationSource").asString()).isEqualTo("PILL_CLUES");
+    assertThat(original.path("origin").asString()).isEqualTo("CLUES");
+    assertThat(original.path("photoId").isNull()).isTrue();
+    assertThat(original.path("candidates").path(0).has("similarityScore")).isFalse();
+    var http = raw("GET", resultPath(original), null, token);
+    assertThat(http.headers().firstValue("X-Pill-Identification-Version")).contains("1");
+    var restored = JSON.readTree(http.body());
+    assertThat(restored).isEqualTo(original);
+    var changed = new LinkedHashMap<String, Object>(row(code1, "갱신된이름", "X", "Y"));
+    changed.put("MAIN_ITEM_INGR", "합성성분");
+    officialRows = List.of(changed); catalog.refresh();
+    assertThat(json("GET", resultPath(original), null, token, 200)).isEqualTo(original);
+    // 다른 정상 경로에서 등록한 뒤에도 저장 당시 후보·근거는 바뀌지 않음.
+    json("POST", drugs(profileId), Map.of("source", "SEARCH", "items", List.of(Map.of("itemSeq", code1))), token, 201);
+    var refreshed = json("GET", resultPath(original), null, token, 200);
+    assertThat(refreshed.path("candidates").path(0).path("name").asString()).isEqualTo("합성약정");
+    assertThat(refreshed.path("candidates").path(0).path("matchDetails")).isEqualTo(original.path("candidates").path(0).path("matchDetails"));
+    assertThat(refreshed.path("candidates").path(0).path("alreadyRegistered").asBoolean()).isTrue();
+    assertThat(refreshed.path("selectionAllowed").asBoolean()).isFalse();
+    assertThat(refreshed.path("reason").asString()).isEqualTo("ALL_ALREADY_REGISTERED");
+    assertThat(refreshed.path("expiresAt")).isEqualTo(original.path("expiresAt"));
+    assertThat(visionRequests).isEmpty();
+  }
+
+  @Test
+  void clueRegistrationValidatesSourceMembershipAndOneSelectionBeforeCommittingReceipt() throws Exception {
+    officialRows = List.of(row(code1, "후보1", "A", "B"), row(code2, "후보2", "A", "B")); catalog.refresh();
+    var result = clueSearch(clueInput("A", "B"));
+    var forged = resultSelection(result, code1); forged.put("source", "PILL_PHOTO"); forged.put("photoId", 99999);
+    json("POST", drugs(profileId), forged, token, 400);
+    forged = resultSelection(result, code1); forged.put("source", "SEARCH");
+    json("POST", drugs(profileId), forged, token, 400);
+    json("POST", drugs(profileId), resultSelection(result, code1 + "999999"), token, 400);
+    forged = resultSelection(result, code1);
+    forged.put("items", List.of(Map.of("itemSeq", code1), Map.of("itemSeq", code2)));
+    json("POST", drugs(profileId), forged, token, 400);
+    forged.put("items", List.of(Map.of("itemSeq", code1), Map.of("itemSeq", code1)));
+    json("POST", drugs(profileId), forged, token, 400);
+    var body = resultSelection(result, code1);
+    var receipt = json("POST", drugs(profileId), body, token, 201);
+    long myDrug = receipt.path("saved").path(0).path("myDrugId").asLong();
+    assertThat(json("GET", drugs(profileId) + "/" + myDrug, null, token, 200).path("source").asString()).isEqualTo("PILL_CLUES");
+    assertThat(jdbc.queryForObject("SELECT snapshot IS NULL FROM pill_identification_session WHERE identification_id=?", Boolean.class,
+        result.path("identificationId").asString())).isTrue();
+    assertThat(json("POST", drugs(profileId), body, token, 201)).isEqualTo(receipt);
+    json("POST", drugs(profileId), resultSelection(result, code2), token, 409);
+    json("DELETE", drugs(profileId) + "/" + myDrug, null, token, 204);
+    assertThat(json("POST", drugs(profileId), body, token, 201)).isEqualTo(receipt);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profileId)).isZero();
+    var consumed = json("GET", resultPath(result), null, token, 200);
+    assertThat(consumed.path("lifecycle").asString()).isEqualTo("CONSUMED");
+    assertThat(consumed.path("registrationReceipt").path("httpStatus").asInt()).isEqualTo(201);
+    assertThat(consumed.has("clues")).isFalse();
+  }
+
+  @Test
+  void concurrentSameResultRegistrationReturnsTheFirstReceiptOnce() throws Exception {
+    var result = clueSearch(clueInput("A", "B"));
+    var body = resultSelection(result, code1);
+    try (var clients = Executors.newVirtualThreadPerTaskExecutor()) {
+      var first = clients.submit(() -> raw("POST", drugs(profileId), body, token));
+      var second = clients.submit(() -> raw("POST", drugs(profileId), body, token));
+      var a = first.get(10, TimeUnit.SECONDS); var b = second.get(10, TimeUnit.SECONDS);
+      assertThat(a.statusCode()).as(a.body()).isEqualTo(201);
+      assertThat(b.statusCode()).as(b.body()).isEqualTo(201);
+      assertThat(JSON.readTree(a.body())).isEqualTo(JSON.readTree(b.body()));
+    }
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profileId)).isEqualTo(1);
+  }
+
+  @Test
+  void resultOwnershipReplacementCancellationAndExpiryAreEnforced() throws Exception {
+    var old = clueSearch(clueInput("A", "B"));
+    json("GET", resultPath(old), null, foreignToken, 404);
+    json("DELETE", resultPath(old), null, foreignToken, 404);
+    String otherPath = resultPath(old).replace("/" + profileId + "/", "/" + otherProfileId + "/");
+    json("GET", otherPath, null, token, 404);
+    json("POST", drugs(otherProfileId), resultSelection(old, code1), token, 404);
+    json("POST", cluePath() + "&previousIdentificationId=" + old.path("identificationId").asString(), Map.of("printFrontState", "READABLE"), token, 400);
+    assertThat(json("GET", resultPath(old), null, token, 200).path("lifecycle").asString()).isEqualTo("ACTIVE");
+    var replacement = json("POST", cluePath() + "&previousIdentificationId=" + old.path("identificationId").asString(),
+        clueInput("ZZ", null), token, 200);
+    assertThat(replacement.path("status").asString()).isEqualTo("NOT_FOUND");
+    var replaced = json("GET", resultPath(old), null, token, 200);
+    assertThat(replaced.path("lifecycle").asString()).isEqualTo("REPLACED");
+    assertThat(replaced.path("replacementIdentificationId")).isEqualTo(replacement.path("identificationId"));
+    json("POST", drugs(profileId), resultSelection(old, code1), token, 409);
+    json("DELETE", resultPath(replacement), null, token, 204);
+    json("DELETE", resultPath(replacement), null, token, 204);
+    assertThat(json("GET", resultPath(replacement), null, token, 200).path("lifecycle").asString()).isEqualTo("CANCELLED");
+    json("POST", drugs(profileId), resultSelection(replacement, code1), token, 409);
+    var expires = clueSearch(clueInput("A", "B"));
+    jdbc.update("UPDATE pill_identification_session SET created_at=DATE_SUB(CURRENT_TIMESTAMP,INTERVAL 31 MINUTE), expires_at=DATE_SUB(CURRENT_TIMESTAMP,INTERVAL 1 SECOND) WHERE identification_id=?",
+        expires.path("identificationId").asString());
+    json("GET", resultPath(expires), null, token, 410);
+    json("POST", drugs(profileId), resultSelection(expires, code1), token, 410);
+    sessions.removeExpired();
+    json("GET", resultPath(expires), null, token, 404);
+  }
+
+  @Test
+  void concurrentReplacementAllowsOneNewActiveResult() throws Exception {
+    var old = clueSearch(clueInput("A", "B"));
+    String path = cluePath() + "&previousIdentificationId=" + old.path("identificationId").asString();
+    try (var clients = Executors.newVirtualThreadPerTaskExecutor()) {
+      var first = clients.submit(() -> raw("POST", path, clueInput("A", "B"), token));
+      var second = clients.submit(() -> raw("POST", path, clueInput("A", "B"), token));
+      assertThat(List.of(first.get(10, TimeUnit.SECONDS).statusCode(), second.get(10, TimeUnit.SECONDS).statusCode()))
+          .containsExactlyInAnyOrder(200, 409);
+    }
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pill_identification_session WHERE profile_id=? AND lifecycle='ACTIVE'", Integer.class, profileId)).isEqualTo(1);
+  }
+
+  @Test
+  void photoDetailsAndResultRestoreShareEvidenceAndKeepTheOriginalTtl() throws Exception {
+    vision = pill("", "B", "A");
+    var upload = upload("PILL", token, png(), "front", "back");
+    assertThat(upload.headers().firstValue("X-Pill-Identification-Version")).contains("1");
+    var result = JSON.readTree(upload.body());
+    assertThat(result.path("status").asString()).isEqualTo("OK");
+    assertThat(result.path("registrationSource").asString()).isEqualTo("PILL_PHOTO");
+    assertThat(result.path("candidates").path(0).path("orientation").asString()).isEqualTo("SWAPPED");
+    assertThat(json("GET", resultPath(result), null, token, 200)).isEqualTo(result);
+    long photo = result.path("photoId").asLong();
+    assertThat(json("GET", "/api/photos/" + photo + "/candidates", null, token, 200)).isEqualTo(result);
+    var uploadedAt = jdbc.queryForObject("SELECT uploaded_at FROM photo WHERE photo_id=?", java.sql.Timestamp.class, photo).toLocalDateTime();
+    assertThat(OffsetDateTime.parse(result.path("expiresAt").asString()).toLocalDateTime())
+        .isBeforeOrEqualTo(uploadedAt.plusMinutes(30));
+    var body = resultSelection(result, code1);
+    var saved = json("POST", drugs(profileId), body, token, 201);
+    assertNoPhotos();
+    assertThat(json("POST", drugs(profileId), body, token, 201)).isEqualTo(saved);
+    assertThat(visionRequests).hasSize(1);
+  }
+
+  @Test
+  void insufficientPhotoKeepsOnlyStructuredResultAndCanBeCorrectedWithoutVision() throws Exception {
+    vision = pill("", "", "");
+    var failed = identify("PILL", token, 200, "front", "back");
+    assertThat(failed.path("status").asString()).isEqualTo("UNREADABLE");
+    assertThat(failed.path("photoId").isNull()).isTrue();
+    assertNoPhotos();
+    assertThat(json("GET", resultPath(failed), null, token, 200)).isEqualTo(failed);
+    var corrected = json("POST", cluePath() + "&previousIdentificationId=" + failed.path("identificationId").asString(),
+        clueInput("A", "B"), token, 200);
+    assertThat(corrected.path("origin").asString()).isEqualTo("CLUES");
+    json("POST", drugs(profileId), resultSelection(corrected, code1), token, 201);
+    assertThat(visionRequests).hasSize(1);
+  }
+
+  @Test
+  void swaggerDescribesTheNewResultAndBrowserCanReadItsVersion() throws Exception {
+    var docs = json("GET", "/v3/api-docs", null, null, 200);
+    var path = docs.path("paths").path("/api/profiles/{profileId}/pill-identifications/{identificationId}");
+    assertThat(path.has("get")).isTrue(); assertThat(path.has("delete")).isTrue();
+    var schema = docs.path("components").path("schemas").path("PhotoIdentificationResponse");
+    assertThat(schema.path("properties").has("identificationId")).as(schema.toString()).isTrue();
+    assertThat(schema.path("properties").has("totalCandidateCount")).isTrue();
+    assertThat(docs.path("components").path("schemas").path("PillIdentification").path("properties").has("printFrontState")).isTrue();
+    var paths = docs.path("paths");
+    var clueResponse = paths.path("/api/images/identify").path("post").path("responses")
+        .path("200").path("content").path("application/json").path("schema");
+    assertThat(clueResponse.path("oneOf").size()).isEqualTo(2);
+    assertThat(clueResponse.findValuesAsString("$ref")).contains(
+        "#/components/schemas/PhotoIdentificationResponse", "#/components/schemas/PillIdentificationCandidate");
+    assertThat(clueResponse.findValuesAsString("type")).contains("array");
+    var photoResponse = paths.path("/api/images/pill-photo/identify").path("post").path("responses")
+        .path("200").path("content").path("application/json").path("schema");
+    assertThat(photoResponse.findValuesAsString("$ref")).contains(
+        "#/components/schemas/PhotoIdentificationResponse", "#/components/schemas/PillPhotoIdentificationResponse");
+    var resultResponse = path.path("get").path("responses").path("200").path("content").path("application/json").path("schema");
+    assertThat(resultResponse.findValuesAsString("$ref")).contains(
+        "#/components/schemas/PhotoIdentificationResponse", "#/components/schemas/PillIdentificationTerminal");
+    var terminal = docs.path("components").path("schemas").path("PillIdentificationTerminal");
+    assertThat(terminal.path("properties").has("replacementIdentificationId")).isTrue();
+    assertThat(terminal.path("properties").path("registrationReceipt").path("$ref").asString())
+        .isEqualTo("#/components/schemas/PillRegistrationReceipt");
+    var receipt = docs.path("components").path("schemas").path("PillRegistrationReceipt");
+    assertThat(receipt.path("properties").has("httpStatus")).isTrue();
+    assertThat(receipt.path("properties").path("body").path("$ref").asString())
+        .isEqualTo("#/components/schemas/PhotoDrugSelectionResult");
+    var registration = paths.path("/api/profiles/{profileId}/drugs").path("post").path("responses");
+    assertThat(registration.has("201")).isTrue(); assertThat(registration.has("200")).isTrue();
+    var createdSchema = registration.path("201").path("content").path("application/json").path("schema");
+    assertThat(createdSchema.findValuesAsString("$ref")).contains(
+        "#/components/schemas/PhotoDrugSelectionResult", "#/components/schemas/MyDrugDetailResponse");
+    assertThat(createdSchema.findValuesAsString("type")).contains("array");
+    for (var deletePath : List.of("/api/profiles/{profileId}/pill-identifications/{identificationId}", "/api/photos/{photoId}")) {
+      var responses = paths.path(deletePath).path("delete").path("responses");
+      assertThat(responses.has("204")).isTrue(); assertThat(responses.has("200")).isFalse();
+      assertThat(responses.path("204").has("content")).isFalse();
+    }
+    var request = HttpRequest.newBuilder(URI.create(url(cluePath())))
+        .header("Authorization", "Bearer " + token).header("Origin", "http://localhost:5173")
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(clueInput("A", "B")))).build();
+    var response = browser.send(request, HttpResponse.BodyHandlers.ofString());
+    assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+    assertThat(response.headers().firstValue("Access-Control-Expose-Headers").orElse("")).contains("X-Pill-Identification-Version");
+  }
+
+  @Test
+  void auxiliaryPhotoDetailsUsesCanonicalResultWhileDefaultKeepsLegacyEnvelope() throws Exception {
+    vision = pill("", "A", "B");
+    var detail = uploadTo("/api/images/pill-photo/identify?view=details&profileId=" + profileId,
+        token, png(), Duration.ofSeconds(20), "front", "back");
+    assertThat(detail.statusCode()).as(detail.body()).isEqualTo(200);
+    var result = JSON.readTree(detail.body());
+    assertThat(result.path("contractVersion").asInt()).isEqualTo(1);
+    assertThat(json("GET", resultPath(result), null, token, 200)).isEqualTo(result);
+    json("DELETE", resultPath(result), null, token, 204);
+    var legacy = uploadTo("/api/images/pill-photo/identify", token, png(), Duration.ofSeconds(20), "front", "back");
+    assertThat(legacy.statusCode()).as(legacy.body()).isEqualTo(200);
+    var body = JSON.readTree(legacy.body());
+    assertThat(body.has("extracted")).isTrue(); assertThat(body.has("identificationId")).isFalse();
+    assertThat(body.path("candidates").path(0).path("similarityScore").isNull()).isTrue();
+    assertNoPhotos();
+  }
+
+  @Test
+  void failedReplacementAndOversizedSnapshotPreserveThePriorActiveResult() throws Exception {
+    var old = clueSearch(clueInput("A", "B"));
+    visionStatus = 503;
+    var failed = uploadTo("/api/profiles/" + profileId + "/photo-identifications?kind=PILL&previousIdentificationId="
+        + old.path("identificationId").asString(), token, png(), Duration.ofSeconds(20), "front", "back");
+    assertThat(failed.statusCode()).as(failed.body()).isEqualTo(503);
+    assertNoPhotos();
+    assertThat(json("GET", resultPath(old), null, token, 200).path("lifecycle").asString()).isEqualTo("ACTIVE");
+    officialRows = List.of(row(code1, "공식약", "A" + " ".repeat(70000) + "A", "B")); catalog.refresh();
+    var error = json("POST", cluePath() + "&previousIdentificationId=" + old.path("identificationId").asString(), clueInput("AA", "B"), token, 503);
+    assertThat(error.path("code").asString()).isEqualTo("IDENTIFICATION_RESULT_UNAVAILABLE");
+    assertThat(json("GET", resultPath(old), null, token, 200).path("lifecycle").asString()).isEqualTo("ACTIVE");
+  }
+
+  @Test
+  void schemaPreflightBlocksPaidPillOcrButPreservesPrescriptionAndNameSearch() throws Exception {
+    jdbc.execute("RENAME TABLE pill_identification_session TO pill_identification_session_unavailable_test");
+    try {
+      var error = identify("PILL", token, 503, "front", "back");
+      assertThat(error.path("code").asString()).isEqualTo("IDENTIFICATION_SCHEMA_NOT_READY");
+      assertThat(visionRequests).isEmpty(); assertNoPhotos();
+      long id = identify("PRESCRIPTION", token, 200, "image").path("photoId").asLong();
+      json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code1), token, 201);
+      json("POST", drugs(profileId), Map.of("source", "SEARCH", "items", List.of(Map.of("itemSeq", code2))), token, 201);
+    } finally {
+      jdbc.execute("RENAME TABLE pill_identification_session_unavailable_test TO pill_identification_session");
+    }
+  }
+
+  String cluePath() { return "/api/images/identify?view=details&profileId=" + profileId; }
+  JsonNode clueSearch(Object input) throws Exception { return json("POST", cluePath(), input, token, 200); }
+  static Map<String, Object> clueInput(String front, String back) {
+    var input = new LinkedHashMap<String, Object>();
+    if (front != null) input.put("printFront", front);
+    if (back != null) input.put("printBack", back);
+    input.put("shape", "원형"); input.put("colorClass1", "흰색");
+    return input;
+  }
+  String resultPath(JsonNode result) {
+    return "/api/profiles/" + profileId + "/pill-identifications/" + result.path("identificationId").asString();
+  }
+  static Map<String, Object> resultSelection(JsonNode result, String code) {
+    var input = new LinkedHashMap<String, Object>();
+    input.put("identificationId", result.path("identificationId").asString());
+    input.put("source", result.path("registrationSource").asString());
+    if (!result.path("photoId").isNull()) input.put("photoId", result.path("photoId").asLong());
+    input.put("items", List.of(Map.of("itemSeq", code)));
+    return input;
+  }
+
   @AfterEach
   void cleanup() throws Exception {
     release.countDown();
@@ -736,6 +1090,11 @@ class PhotoFlowHttpMySqlTests {
 
   HttpResponse<String> upload(String kind, String auth, byte[] image, Duration timeout, String... parts)
       throws Exception {
+    return uploadTo("/api/profiles/" + profileId + "/photo-identifications?kind=" + kind, auth, image, timeout, parts);
+  }
+
+  HttpResponse<String> uploadTo(String path, String auth, byte[] image, Duration timeout, String... parts)
+      throws Exception {
     String boundary = "photo-test-boundary";
     var out = new ByteArrayOutputStream();
     for (String name : parts) {
@@ -753,7 +1112,7 @@ class PhotoFlowHttpMySqlTests {
     var builder =
         HttpRequest.newBuilder(
                 URI.create(
-                    url("/api/profiles/" + profileId + "/photo-identifications?kind=" + kind)))
+                    url(path)))
             .timeout(timeout)
             .header("Content-Type", "multipart/form-data; boundary=" + boundary)
             .POST(HttpRequest.BodyPublishers.ofByteArray(out.toByteArray()));
@@ -871,6 +1230,8 @@ class PhotoFlowHttpMySqlTests {
     m.put("itemName", name);
     m.put("printFront", front);
     m.put("printBack", back);
+    m.put("shape", "원형");
+    m.put("colorClass1", "흰색");
     return m;
   }
 

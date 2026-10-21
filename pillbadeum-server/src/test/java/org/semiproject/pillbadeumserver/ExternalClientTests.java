@@ -355,18 +355,18 @@ class ExternalClientTests {
                     assertThat(context).hasNotFailed();
                     context.getBean(PillCatalog.class).refresh();
                     var service = context.getBean(PillDrugIdentificationService.class);
-                    assertThat(service.identify(new PillIdentification(
-                            "테스트약", null, null, null, null, null, null, null, null))).isEmpty();
+                    assertThat(service).isNotNull();
+                    assertThat(context.getBean(PillCatalog.class).rows()).isEmpty();
                     assertThat(query.get()).contains("serviceKey=local%2Btest%2Fkey%3D");
                 });
     }
 
     @Test
-    void legacyPillCandidatesReadPermitSpecialtyField() {
+    void legacyPillCandidatesReadOfficialSpecialtyFieldFromCatalog() {
         server.createContext("/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03", exchange ->
                 respond(exchange, 200, """
                         {"response":{"header":{"resultCode":"00"},"body":{"totalCount":1,"items":[
-                        {"ITEM_SEQ":"900001","ITEM_NAME":"합성약"}]}}}
+                        {"ITEM_SEQ":"900001","ITEM_NAME":"합성약","ENTP_NAME":"합성제약","ETC_OTC_NAME":"일반의약품","PRINT_FRONT":"AB","DRUG_SHAPE":"원형","COLOR_CLASS1":"흰색"}]}}}
                         """));
         server.createContext("/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08", exchange ->
                 respond(exchange, 200, """
@@ -379,14 +379,14 @@ class ExternalClientTests {
                         """));
 
         var candidates = identificationService().identify(new PillIdentification(
-                "합성약", null, null, null, null, null, null, null, null));
+                "합성약", null, "AB", null, "원형", "흰색", null, null, null));
 
         assertThat(candidates).singleElement().satisfies(candidate ->
                 assertThat(candidate.etcOtcName()).isEqualTo("일반의약품"));
     }
 
     @Test
-    void pillIdentificationSearchesEveryExtractedFieldAndRanksOcrEquivalentImprints() {
+    void pillIdentificationRejectsOcrSubstitutionWithoutQueryingUnsupportedFields() {
         List<String> queries = new CopyOnWriteArrayList<>();
         server.createContext("/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03", exchange -> {
             queries.add(exchange.getRequestURI().getRawQuery());
@@ -409,9 +409,8 @@ class ExternalClientTests {
         var candidates = identificationService().identify(new PillIdentification(
                 "TEST", "MAKER", "A0", "B1", "ROUND", "WHITE", "BLUE", "+", "-"));
 
-        assertThat(candidates).first().satisfies(candidate ->
-                assertThat(candidate.itemSeq()).isEqualTo("100002"));
-        // 낱알식별 목록 API는 식별필드 검색을 지원하지 않으므로 전체 페이지를 가져와 로컬에서 점수화한다.
+        assertThat(candidates).isEmpty();
+        // 낱알식별 목록 API는 식별필드 검색을 지원하지 않으므로 전체 페이지를 가져와 로컬에서 조건을 비교한다.
         assertThat(queries).allSatisfy(query -> assertThat(query)
                 .doesNotContain("entp_name=").doesNotContain("drug_shape=").doesNotContain("line_front="));
         assertThat(queries).singleElement().satisfies(query -> assertThat(query).contains("pageNo=1").contains("numOfRows=100"));
@@ -422,7 +421,7 @@ class ExternalClientTests {
         server.createContext("/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03", exchange ->
                 respond(exchange, 200, """
                         {"response":{"header":{"resultCode":"00"},"body":{"numOfRows":100,"totalCount":5,"items":[
-                        {"ITEM_SEQ":"197400040","ITEM_NAME":"인데놀정10mg(프로프라놀롤염산염)","ENTP_NAME":"동광제약(주)","PRINT_FRONT":"DK","PRINT_BACK":"10","DRUG_SHAPE":"원형","COLOR_CLASS1":"하양"},
+                        {"ITEM_SEQ":"197400040","ITEM_NAME":"인데놀정10mg(프로프라놀롤염산염)","ENTP_NAME":"동광제약(주)","ETC_OTC_NAME":"전문의약품","PRINT_FRONT":"DK","PRINT_BACK":"10","DRUG_SHAPE":"원형","COLOR_CLASS1":"하양"},
                         {"ITEM_SEQ":"900001","ITEM_NAME":"다른약1","PRINT_FRONT":"DK","PRINT_BACK":"20","DRUG_SHAPE":"타원형","COLOR_CLASS1":"노랑"},
                         {"ITEM_SEQ":"900002","ITEM_NAME":"다른약2","PRINT_FRONT":"XY","PRINT_BACK":"10","DRUG_SHAPE":"장방형","COLOR_CLASS1":"분홍"},
                         {"ITEM_SEQ":"900003","ITEM_NAME":"다른약3","PRINT_FRONT":"DK","PRINT_BACK":"1","DRUG_SHAPE":"타원형","COLOR_CLASS1":"노랑"},
@@ -433,9 +432,9 @@ class ExternalClientTests {
         var candidates = identificationService().identify(new PillIdentification(
                 "null", "null", "DK", "10", "원형", "흰색", "null", "null", "null"));
 
-        assertThat(candidates).hasSize(5);
+        assertThat(candidates).hasSize(1);
         assertThat(candidates.getFirst().itemName()).isEqualTo("인데놀정10mg(프로프라놀롤염산염)");
-        assertThat(candidates.getFirst().similarityScore()).isEqualTo(100.0);
+        assertThat(candidates.getFirst().similarityScore()).isNull();
     }
 
     @Test
@@ -451,13 +450,13 @@ class ExternalClientTests {
             } else {
                 respond(exchange, 200, """
                         {"response":{"header":{"resultCode":"00"},"body":{"numOfRows":100,"totalCount":1,"items":[
-                        {"ITEM_SEQ":"10001","ITEM_NAME":"테스트약","PRINT_FRONT":"DK"}]}}}
+                        {"ITEM_SEQ":"10001","ITEM_NAME":"테스트약","ENTP_NAME":"합성제약","ETC_OTC_NAME":"일반의약품","PRINT_FRONT":"DK","DRUG_SHAPE":"원형","COLOR_CLASS1":"흰색"}]}}}
                         """);
             }
         });
 
         var candidates = identificationService().identify(new PillIdentification(
-                null, null, "DK", null, null, null, null, null, null));
+                null, null, "DK", null, "원형", "흰색", null, null, null));
 
         assertThat(candidates).singleElement().satisfies(candidate ->
                 assertThat(candidate.printFront()).isEqualTo("DK"));

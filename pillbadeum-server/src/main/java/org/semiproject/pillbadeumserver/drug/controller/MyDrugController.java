@@ -1,6 +1,10 @@
 package org.semiproject.pillbadeumserver.drug.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
@@ -54,12 +58,19 @@ public class MyDrugController {
     /* 목차. 2. 확인한 약 저장 (이름 검색 · 알약 사진 · 처방전 사진 공통, 1~10개 한 번에) */
     @Operation(summary = "확인한 약 저장",
             description = "사용자가 확인한 약을 복용정보와 함께 저장합니다. 하나라도 실패하면 전부 저장되지 않습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "items 방식은 saved/skipped, 기존 drugs 방식은 저장된 약 상세 배열임. 같은 식별 결과 재전송은 최초 응답을 재사용함.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(oneOf = {
+                            PhotoDrugSelectionRequest.Result.class, MyDrugDetailResponse[].class}))),
+            @ApiResponse(responseCode = "200", description = "items 방식에서 전부 이미 등록돼 건너뛴 경우임.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PhotoDrugSelectionRequest.Result.class)))
+    })
     @PostMapping
     public ResponseEntity<?> register(@PathVariable Long profileId,
                                                @Valid @RequestBody MyDrugCreateRequest request) {
         if (request.items() != null) {
             var result = myDrugService.registerSelected(profileId,
-                    new PhotoDrugSelectionRequest(request.source(), request.photoId(), request.items()));
+                    new PhotoDrugSelectionRequest(request.source(), request.photoId(), request.items(), request.identificationId()));
             return ResponseEntity.status(result.saved().isEmpty() ? HttpStatus.OK : HttpStatus.CREATED).body(result);
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(myDrugService.registerAll(profileId, request));

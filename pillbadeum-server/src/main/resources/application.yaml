@@ -106,6 +106,7 @@ public-data:
   permit-timeout-ms: 1000
 
 pill-identification:
+  enabled: ${PILL_IDENTIFICATION_ENABLED:true}
   catalog-file: ${PILL_CATALOG_FILE:./.cache/pill-identification/catalog.json}
   catalog-refresh-enabled: ${PILL_CATALOG_REFRESH_ENABLED:true}
 

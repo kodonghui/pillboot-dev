@@ -29,7 +29,7 @@ public class CorsConfig {
         configuration.setAllowedOrigins(properties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Request-Id", "X-Requested-With"));
-        configuration.setExposedHeaders(List.of("Location", "X-Request-Id"));
+        configuration.setExposedHeaders(List.of("Location", "X-Request-Id", "X-Pill-Identification-Version"));
         configuration.setAllowCredentials(false);
         // 사전 확인(OPTIONS) 결과를 브라우저가 1시간 동안 기억한다.
         configuration.setMaxAge(3600L);

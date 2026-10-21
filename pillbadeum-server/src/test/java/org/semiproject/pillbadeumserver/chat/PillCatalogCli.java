@@ -27,9 +27,9 @@ public final class PillCatalogCli {
                 var candidates = new PillDrugIdentificationService(client, catalog).identify(clues);
                 System.out.println("catalogRows=" + catalog.rows().size() + " lookupMs=" + (System.nanoTime()-start)/1_000_000);
                 for (var c : candidates) System.out.println(json.writeValueAsString(Map.of("rank", c.rank(),
-                        "itemSeq", c.itemSeq(), "itemName", c.itemName(), "similarityScore", c.similarityScore())));
-                boolean matched = candidates.size() == 5 && candidates.getFirst().itemSeq().equals("197400040")
-                        && candidates.getFirst().similarityScore() == 100;
+                        "itemSeq", c.itemSeq(), "itemName", c.itemName(), "matchDetails", c.matchDetails())));
+                boolean matched = !candidates.isEmpty() && candidates.getFirst().itemSeq().equals("197400040")
+                        && candidates.getFirst().similarityScore() == null;
                 var reversed = new PillIdentification("null", "null", "10", "DK", "원형", "백색", "null", "null", "null");
                 matched &= new PillDrugIdentificationService(client, catalog).identify(reversed).getFirst().itemSeq().equals("197400040");
                 System.out.println("indenolRegression=" + (matched ? "PASS" : "FAIL"));

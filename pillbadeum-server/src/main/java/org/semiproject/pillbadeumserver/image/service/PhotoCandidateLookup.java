@@ -42,12 +42,53 @@ public class PhotoCandidateLookup {
     return pillResult(clues).candidates();
   }
 
-  public Result pillResult(PillIdentification clues) {
-    if (!PillSimilarity.hasCriteria(clues)) throw new IllegalArgumentException("약 식별 단서가 필요합니다.");
-    var rows = PillSimilarity.hasVisualCriteria(clues) ? catalog.rows()
-        : PublicDataClient.items(client.get(DrugSyncService.GRAIN_INFO_PATH, query(clues.itemName(), clues.entpName())));
-    var ordered = PillSimilarity.rank(clues, rows).stream().map(PillSimilarity.Match::item).toList();
-    return validated(ordered, clues);
+  /** REG-007: 알약 사진은 거의 항상 모양·색을 읽어 낱알 목록이 필요하다. 목록이 없으면 판독 전에 준비 중(503)으로 끝낸다. */
+  public void requirePillCatalog() {
+    catalog.rows();
+  }
+
+  public record PillResult(List<PhotoCandidateData> candidates, int totalCandidateCount,
+      int excludedCount, boolean hasTiedCandidates, List<String> missingFields, String catalogVersion) {
+    public String status() {
+      return !missingFields.isEmpty() ? "UNREADABLE" : totalCandidateCount == 0 ? "NOT_FOUND" : "OK";
+    }
+    public String lookupStatus() { return totalCandidateCount == 0 ? "NOT_FOUND" : excludedCount > 0 ? "PARTIAL" : "OK"; }
+  }
+
+  public PillResult pillResult(PillIdentification clues) {
+    var rows = catalog.rows();
+    var missing = PillSimilarity.missingFields(clues, rows);
+    String version = catalogVersion(rows);
+    if (!missing.isEmpty()) return new PillResult(List.of(), 0, 0, false, missing, version);
+    var valid = new LinkedHashMap<String, PhotoCandidateData>();
+    int excluded = 0, rank = 0;
+    String previous = null;
+    boolean tied = false;
+    for (var match : PillSimilarity.rank(clues, rows)) {
+      PhotoCandidateData value;
+      try { value = candidate(match.item(), match.printMatched()); }
+      catch (ExternalApiException invalid) { excluded++; continue; }
+      if (valid.containsKey(value.itemSeq())) continue;
+      String tuple = match.exactImprints() + ":" + match.exactLines();
+      if (tuple.equals(previous)) tied = true;
+      else rank++;
+      previous = tuple;
+      valid.put(value.itemSeq(), value.withMatch(match.orientation(), rank, match.matchDetails()));
+    }
+    if (valid.isEmpty() && excluded > 0)
+      throw ExternalApiException.failed("공공데이터", "후보의 필수 정보를 확인하지 못했습니다.", null);
+    return new PillResult(valid.values().stream().limit(5).toList(), valid.size(), excluded, tied, List.of(), version);
+  }
+
+  private static String catalogVersion(List<JsonNode> rows) {
+    try {
+      var hash = java.security.MessageDigest.getInstance("SHA-256");
+      for (var row : rows) {
+        hash.update(row.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        hash.update((byte) '\n');
+      }
+      return java.util.HexFormat.of().formatHex(hash.digest());
+    } catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
   }
 
   /** 후보 하나의 불완전함이 정상 후보를 없애지 않도록 행별 검증 후 중복/상한을 적용함. */
