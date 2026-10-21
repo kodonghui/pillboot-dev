@@ -112,3 +112,12 @@ tasks.register('tryDurEvidence', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'org.semiproject.pillbadeumserver.chat.DurEvidenceCli'
 }
+
+// 공개 낱알식별 목록을 로컬 캐시에 적재하고 DK/10 인데놀 대조를 확인한다. DB·OpenAI 호출 없음.
+tasks.register('syncPillCatalog', JavaExec) {
+    group = 'verification'
+    description = '낱알식별 카탈로그 적재 및 실제 식별 후보 점검 (--args=refresh)'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.semiproject.pillbadeumserver.chat.PillCatalogCli'
+}

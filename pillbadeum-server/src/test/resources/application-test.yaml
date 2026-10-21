@@ -28,3 +28,7 @@ springdoc:
 photo:
   cleanup:
     enabled: false
+
+pill-identification:
+  catalog-refresh-enabled: false
+  catalog-file: ${java.io.tmpdir}/pill-catalog-tests-${random.uuid}.json

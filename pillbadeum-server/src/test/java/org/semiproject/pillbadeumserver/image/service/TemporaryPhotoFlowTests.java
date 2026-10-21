@@ -50,8 +50,9 @@ class TemporaryPhotoFlowTests {
         when(ai.createJsonFromImages(anyString(), anyString(), anyList(), anyInt(), anyString(), anyMap()))
                 .thenAnswer(call -> {
                     assertThat(temporaryCount()).isEqualTo(2);
-                    assertThat(call.<List<String>>getArgument(2)).hasSize(2);
-                    return json.readTree("{\"printFront\":\"A\"}");
+                    assertThat(call.<List<String>>getArgument(2)).hasSize(1);
+                    return json.readTree(call.<String>getArgument(1).contains("뒷면")
+                            ? "{\"printBack\":\"B\"}" : "{\"printFront\":\"A\"}");
                 });
         when(lookup.identify(any())).thenReturn(List.of());
         var service = new PillPhotoIdentificationService(files, ai, lookup, cleanup);
@@ -59,6 +60,8 @@ class TemporaryPhotoFlowTests {
         var result = service.identify(List.of(image(), image()));
 
         assertThat(result.extracted().printFront()).isEqualTo("A");
+        assertThat(result.extracted().printBack()).isEqualTo("B");
+        verify(ai, times(2)).createJsonFromImages(anyString(), anyString(), anyList(), anyInt(), anyString(), anyMap());
         assertThat(temporaryCount()).isZero();
         assertThat(root.resolve(FileStorage.DIR_PILL)).doesNotExist();
     }

@@ -11,11 +11,13 @@ import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
 import org.semiproject.pillbadeumserver.drug.service.DrugSyncService;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
 import org.semiproject.pillbadeumserver.image.service.PhotoCandidateLookup;
+import org.semiproject.pillbadeumserver.image.service.PillCatalog;
 import tools.jackson.databind.json.JsonMapper;
 
 class PhotoCandidateLookupTests {
   final PublicDataClient client = mock(PublicDataClient.class);
-  final PhotoCandidateLookup lookup = new PhotoCandidateLookup(client);
+  final PillCatalog catalog = mock(PillCatalog.class);
+  final PhotoCandidateLookup lookup = new PhotoCandidateLookup(client, catalog);
   final JsonMapper json = new JsonMapper();
 
   @Test
@@ -62,20 +64,20 @@ class PhotoCandidateLookupTests {
   }
 
   @Test
-  void imprintOnlyCannotStartCatalogQueryAndVisualFieldsAreOnlyRankingClues() {
-    var imprintOnly = new PillIdentification(null, null, "A", "B", "원형", "흰색", null, null, null);
-    assertThatThrownBy(() -> lookup.pill(imprintOnly)).isInstanceOf(IllegalArgumentException.class);
+  void imprintOnlyUsesCompleteCatalogWithoutNameOrMakerQuery() {
+    var imprintOnly = new PillIdentification("null", null, "DK", "10", "원형", "흰색", null, null, null);
+    var target = row("197400040", "인데놀정10mg(프로프라놀롤염산염)");
+    target.putAll(Map.of("PRINT_FRONT", "DK", "PRINT_BACK", "10", "DRUG_SHAPE", "원형", "COLOR_CLASS1", "하양"));
+    var unrelated = row("900001", "비슷한외형의다른약");
+    unrelated.putAll(Map.of("PRINT_FRONT", "AB", "PRINT_BACK", "40", "DRUG_SHAPE", "원형", "COLOR_CLASS1", "하양"));
+    when(catalog.rows()).thenReturn(List.of(json.valueToTree(unrelated), json.valueToTree(target)));
+    var result = lookup.pill(imprintOnly);
+    assertThat(result).singleElement().satisfies(candidate -> {
+      assertThat(candidate.itemSeq()).isEqualTo("197400040");
+      assertThat(candidate.printMatched()).isTrue();
+    });
     verifyNoInteractions(client);
-    when(client.get(anyString(), anyMap()))
-        .thenReturn(json.valueToTree(Map.of("items", List.of())));
-    assertThat(
-            lookup.pill(
-                new PillIdentification("합성약", "합성제약", "A", "B", "원형", "흰색", null, null, null)))
-        .isEmpty();
-    verify(client)
-        .get(
-            DrugSyncService.GRAIN_INFO_PATH,
-            Map.of("item_name", "합성약", "entp_name", "합성제약", "pageNo", 1, "numOfRows", 100));
+    verify(catalog).rows();
   }
 
   @Test

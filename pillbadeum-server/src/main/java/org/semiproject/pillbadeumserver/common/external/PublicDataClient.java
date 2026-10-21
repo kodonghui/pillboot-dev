@@ -4,6 +4,8 @@ import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -36,6 +38,8 @@ import java.util.concurrent.Semaphore;
  * */
 @Component
 public class PublicDataClient {
+
+    private static final Logger log = LoggerFactory.getLogger(PublicDataClient.class);
 
     public static final String API_NAME = "공공데이터포털";
 
@@ -165,6 +169,7 @@ public class PublicDataClient {
         JsonNode header = root.path("header");
         String resultCode = header.path("resultCode").asString("");
         if (!"00".equals(resultCode)) {
+            log.warn("[공공데이터 응답] resultCode={}", resultCode.matches("[0-9]{1,3}") ? resultCode : "unknown");
             throw ExternalApiException.failed(API_NAME, "공공데이터 응답이 성공이 아닙니다.", null);
         }
 

@@ -98,6 +98,10 @@ public-data:
   max-concurrent-calls: ${PUBLIC_DATA_MAX_CONCURRENT_CALLS:4}
   permit-timeout-ms: 1000
 
+pill-identification:
+  catalog-file: ${PILL_CATALOG_FILE:./.cache/pill-identification/catalog.json}
+  catalog-refresh-enabled: ${PILL_CATALOG_REFRESH_ENABLED:true}
+
 # 설명. 복약 알림 웹 푸시(VAPID). 키가 비어 있으면 서버는 뜨고 푸시 API만 503. 개인 키는 .env에만 둔다.
 web-push:
   vapid:

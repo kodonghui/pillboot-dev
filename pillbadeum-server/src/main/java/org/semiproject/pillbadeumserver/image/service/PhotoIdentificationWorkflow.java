@@ -96,7 +96,7 @@ public class PhotoIdentificationWorkflow {
       if (pill) {
         if (!vision.path("singlePill").asBoolean(false)) return empty(kind, "UNREADABLE");
         clues = clues(vision);
-        if (!present(clues.itemName()) && !present(clues.entpName()))
+        if (!PillSimilarity.hasCriteria(clues))
           return empty(kind, "UNREADABLE");
         PillIdentification input = clues;
         var result = await(executor.submit(() -> lookup.pillResult(input)), deadline, 40);
@@ -104,7 +104,7 @@ public class PhotoIdentificationWorkflow {
         groups.add(
             new PhotoCandidateData.Group(
                 1,
-                shortName(present(clues.itemName()) ? clues.itemName() : clues.entpName()),
+                shortName(present(clues.itemName()) ? clues.itemName() : present(clues.entpName()) ? clues.entpName() : "알약 식별 후보"),
                 result.status(),
                 candidates));
       } else {
@@ -204,7 +204,7 @@ public class PhotoIdentificationWorkflow {
 
   private static String value(JsonNode n, String key) {
     String s = n.path(key).asString("").strip();
-    return s.isEmpty() ? null : s;
+    return PillSimilarity.present(s) ? s : null;
   }
 
   private static boolean present(String s) {
