@@ -2,7 +2,9 @@ import axios from 'axios'
 import { useAuthStore } from '../store/auth.js'
 
 // 필받음 백엔드 개발 서버. 환경마다 주소가 달라지면 환경 변수로 바꾼다.
-const client = axios.create({ baseURL: 'http://localhost:8080' })
+// 백엔드 주소. 비워 두면 화면과 같은 주소로 보내고, 개발 서버에서는 vite.config.js 의 프록시가 localhost:8080 으로 넘긴다.
+// 화면과 백엔드 주소가 다른 곳에서는 VITE_API_BASE_URL 로 정한다.
+const client = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL ?? '' })
 
 // 저장된 토큰을 Bearer 헤더로 붙인다. 호출하는 쪽에서 헤더를 직접 넣었으면 그대로 둔다.
 client.interceptors.request.use((config) => {

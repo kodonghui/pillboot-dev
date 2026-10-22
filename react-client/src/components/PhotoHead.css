@@ -1,0 +1,29 @@
+.photo-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.photo-head__back {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.photo-head__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-10) var(--space-14);
+}
+
+.photo-head__text {
+  color: var(--label-neutral);
+}
+
+/* 목업 .lockline */
+.photo-head__lock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--label-alternative);
+}

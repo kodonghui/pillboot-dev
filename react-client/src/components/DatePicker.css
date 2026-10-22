@@ -1,0 +1,160 @@
+.date-picker {
+  position: relative;
+}
+
+/* 목업 .ifld: 왼쪽 달력 아이콘, 글자는 46px 에서 시작 */
+.date-picker__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.date-picker__toggle[aria-expanded='true'] {
+  border-color: var(--primary-normal);
+  box-shadow: 0 0 0 3px var(--primary-weak);
+}
+
+.date-picker__icon {
+  color: var(--label-alternative);
+}
+
+.date-picker__placeholder {
+  color: var(--label-assistive);
+}
+
+/* 목업 .dpick: 칸 바로 아래 360px 창. 그림자 0 18px 44px 는 토큰에 없어 shadow-xlarge 를 쓴다. */
+.date-picker__popup {
+  position: absolute;
+  top: calc(100% + var(--space-6));
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  width: 360px;
+  max-width: calc(100vw - var(--space-32));
+  padding: var(--space-16);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-xl);
+  background: var(--background-elevated);
+  box-shadow: var(--shadow-xlarge);
+}
+
+/* 좁은 화면에서는 날짜 칸이 카드 너비로 펴진다(기간 두 칸이 한 줄씩). 창을 칸 가운데에 두어 화면 밖으로 나가지 않게 한다. */
+@media (max-width: 720px) {
+  .date-picker__popup {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+.date-picker__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.date-picker__month {
+  font-variant-numeric: tabular-nums;
+}
+
+.date-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+/* 요일(목업 13px 600 → 라벨 14px) */
+.date-picker__dow {
+  padding: var(--space-4) 0;
+  color: var(--label-alternative);
+  text-align: center;
+}
+
+.date-picker__dow--sunday {
+  color: var(--label-status-negative);
+}
+
+.date-picker__empty {
+  height: 44px;
+}
+
+/* 날짜(목업 .dp-d 15px 600 → 본문 16px 600) */
+.date-picker__day {
+  display: grid;
+  place-items: center;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--label-normal);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.date-picker__day:hover {
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+/* 고를 수 없는 날: 흐린 글자에 취소선(목업 #9AA4AE · #C4CBD2 → label-assistive · line-normal) */
+.date-picker__day:disabled {
+  background: none;
+  color: var(--label-assistive);
+  font-weight: 400;
+  text-decoration: line-through;
+  text-decoration-color: var(--line-normal);
+  cursor: not-allowed;
+}
+
+.date-picker__day--start:disabled {
+  background: var(--background-alternative);
+  box-shadow: inset 0 0 0 2px var(--line-normal);
+  color: var(--label-alternative);
+  text-decoration: none;
+}
+
+/* 고른 날(목업에 없어 버튼 색을 쓴다) */
+.date-picker__day--selected,
+.date-picker__day--selected:hover {
+  background: var(--primary-normal);
+  color: var(--static-white);
+}
+
+/* 범례(목업 .dp-legend 13px → 캡션 14px) */
+.date-picker__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-14);
+  color: var(--label-alternative);
+}
+
+.date-picker__legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+/* 범례 색 칸(목업 14px · 모서리 4px → 가장 작은 모서리 토큰 6px) */
+.date-picker__swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-chip);
+  background: var(--primary-weak);
+}
+
+.date-picker__swatch--start {
+  background: var(--background-alternative);
+  box-shadow: inset 0 0 0 2px var(--line-normal);
+}
+
+.date-picker__hint {
+  color: var(--label-alternative);
+}

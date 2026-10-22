@@ -1,0 +1,10 @@
+/* 디자인 시스템 ProfileTag(.mt-ptag)의 모양은 그대로 두고, 색만 복용 달력 색(profileColors.css)으로 칠한다.
+   디자인 번들의 .mt-ptag--p2 · --p3 은 3색까지만 있다. */
+.mt-ptag.profile-tag {
+  background: var(--profile-color-weak);
+  color: var(--profile-color-ink);
+}
+
+.mt-ptag.profile-tag::before {
+  background: var(--profile-color);
+}

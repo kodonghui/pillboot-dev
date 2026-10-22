@@ -1,0 +1,19 @@
+/* 목업 .ibtn: 44px, 테두리 line-normal, 모서리 10px. 못 누를 때는 목업 날짜 고르기의 "이전 달"처럼 흐리게 한다. */
+.icon-button {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-md);
+  background: var(--background-elevated);
+  color: var(--label-neutral);
+  cursor: pointer;
+}
+
+.icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

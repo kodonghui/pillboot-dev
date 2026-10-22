@@ -1,0 +1,22 @@
+.chip-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.chip-group__legend {
+  margin-bottom: var(--space-8);
+  padding: 0;
+}
+
+.chip-group__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+/* 묶음 아래 도움말 · 오류 줄(목업 margin-top 8px) */
+.chip-group > .mt-field__help {
+  margin-top: var(--space-8);
+}

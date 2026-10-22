@@ -1,0 +1,179 @@
+.pill-photo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-28);
+}
+
+.pill-photo__neutral {
+  color: var(--label-neutral);
+}
+
+.pill-photo__muted {
+  color: var(--label-alternative);
+}
+
+.pill-photo__aside {
+  color: var(--label-alternative);
+  font-weight: 500;
+}
+
+.pill-photo__number {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 문장 속 링크(목업 a: 브랜드 진한 색 · 밑줄) */
+.pill-photo__link {
+  color: var(--primary-heavy);
+}
+
+.pill-photo__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* IMG-02 · 03 본문(목업 최대 760px) */
+.pill-photo__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  max-width: 760px;
+}
+
+.pill-photo__slots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-20);
+}
+
+/* 목업 .slot */
+.pill-photo__slot {
+  gap: var(--space-14);
+  padding: var(--space-20);
+}
+
+.pill-photo__slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.pill-photo__slot-photo {
+  height: 200px;
+}
+
+.pill-photo__slot-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.pill-photo__file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.pill-photo__file-name {
+  font-weight: 600;
+}
+
+.pill-photo__error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pill-photo__rejected {
+  padding-left: var(--space-24);
+}
+
+/* IMG-05: 왼쪽 내 사진과 단서 | 오른쪽 후보 */
+.pill-photo__columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-28);
+}
+
+.pill-photo__mine {
+  flex: 1 1 300px;
+  max-width: 360px;
+}
+
+.pill-photo__mine-photos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-10);
+}
+
+.pill-photo__figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin: 0;
+}
+
+.pill-photo__mine-photo {
+  height: 130px;
+}
+
+.pill-photo__mine-clues {
+  padding-top: var(--space-14);
+  border-top: 1px solid var(--line-neutral);
+}
+
+.pill-photo__start {
+  align-self: flex-start;
+}
+
+.pill-photo__candidates {
+  display: flex;
+  flex: 999 1 560px;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.pill-photo__count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-6) var(--space-12);
+}
+
+.pill-photo__count-title:focus {
+  outline: none;
+}
+
+.pill-photo__choices {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pill-photo__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+@media (max-width: 720px) {
+  .pill-photo__slots {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pill-photo__slot {
+    padding: var(--space-16);
+  }
+
+  .pill-photo__mine {
+    max-width: none;
+  }
+}

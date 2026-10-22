@@ -1,0 +1,132 @@
+/* 목업 NTF-02 머리: 날짜와 시각 제목 사이 12px */
+.doses-page__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.doses-page__neutral {
+  color: var(--label-neutral);
+}
+
+.doses-page__muted {
+  color: var(--label-alternative);
+}
+
+/* 시각과 "먹을 약 N개"를 글자 바닥에 맞춰 한 줄에 둔다. 목업 사이 18px은 토큰에 없어 16px. */
+.doses-page__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-16);
+  line-height: 1.2;
+}
+
+.doses-page__time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 사람별 카드와 달력 버튼(목업 880px 폭, 20px 간격) */
+.doses-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  max-width: 880px;
+}
+
+.doses-page__group {
+  gap: var(--space-8);
+}
+
+/* 목업 .grp-h 16px 600 */
+.doses-page__group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  font-weight: 600;
+}
+
+/* 목업 .rows: 약 줄 사이 선 */
+.doses-page__rows > li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  padding: var(--space-16) 0;
+  border-top: 1px solid var(--line-neutral);
+}
+
+.doses-page__rows > li:first-child {
+  border-top: 0;
+}
+
+/* 목업 .dn 18px 700. screen-item(18px 600)에 굵기만 올린다. */
+.doses-page__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+}
+
+/* 목업 .dl2: 1회 · 복용 때를 112px 칸으로 오른쪽에 둔다. */
+.doses-page__facts {
+  display: flex;
+  flex: none;
+  gap: var(--space-24);
+  margin: 0;
+}
+
+.doses-page__facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 112px;
+}
+
+.doses-page__facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.doses-page__facts .doses-page__none {
+  color: var(--label-alternative);
+  font-weight: 400;
+}
+
+.doses-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* 목업 NTF-02 빈 화면: 안쪽 40px, 왼쪽 정렬 */
+.doses-page__empty {
+  align-items: flex-start;
+  gap: var(--space-14);
+  max-width: 880px;
+  padding: var(--space-40);
+}
+
+.doses-page__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+.doses-page__empty .mt-btn {
+  margin-top: var(--space-6);
+}
+
+/* 좁은 화면: 1회 · 복용 때를 이름 아래 줄로 내린다. */
+@media (max-width: 720px) {
+  .doses-page__rows > li {
+    flex-wrap: wrap;
+  }
+
+  .doses-page__facts {
+    width: 100%;
+  }
+}

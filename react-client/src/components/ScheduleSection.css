@@ -1,0 +1,16 @@
+/* 목업 .sec: 요소 사이 14px. 안쪽 여백 24px 은 mt-card 기본값과 같다. */
+.schedule-section {
+  gap: var(--space-14);
+}
+
+/* 목업 .sec-h: 제목과 표시를 글자 바탕선에 맞춰 나란히 */
+.schedule-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-10);
+}
+
+.schedule-section__mark {
+  color: var(--label-alternative);
+}

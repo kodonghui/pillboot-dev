@@ -1,0 +1,34 @@
+.dose-times__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+/* 목업 .trow: 칸 이름 64px · 시각 220px 까지 · 빼기. 720px 이하에서는 56px · 남는 폭 · 빼기 */
+.dose-times__row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 220px) auto;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+@media (max-width: 720px) {
+  .dose-times__row {
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+  }
+}
+
+.dose-times__label {
+  color: var(--label-normal);
+}
+
+.dose-times__input {
+  font-variant-numeric: tabular-nums;
+}
+
+.dose-times__add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}

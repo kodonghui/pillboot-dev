@@ -1,0 +1,108 @@
+/* 머리: 제목 · 설명 왼쪽, 말로 일정 추가 구슬 오른쪽 */
+.calendar-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-20);
+}
+
+.calendar-page__title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.calendar-page__neutral {
+  color: var(--label-neutral);
+}
+
+.calendar-page__muted {
+  color: var(--label-alternative);
+}
+
+.calendar-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* 일정이 없는 달(목업 .note + .empty-ic 48px) */
+.calendar-page__empty {
+  align-items: center;
+}
+
+.calendar-page__empty-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+/* 달력과 오른쪽 일정 상세(목업 .cols · .content) */
+.calendar-page__cols {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-24);
+}
+
+.calendar-page__content {
+  display: flex;
+  flex: 999 1 560px;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+.calendar-page__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.calendar-page__month {
+  min-width: 140px;
+  text-align: center;
+}
+
+.calendar-page__month:focus {
+  outline: none;
+}
+
+.calendar-page__today {
+  margin-left: var(--space-8);
+}
+
+/* 불러오지 못함(목업 SCH-01 load-error: 가운데 정렬, 위아래 72px) */
+.calendar-page__error {
+  align-items: center;
+  padding: var(--space-72) var(--space-32);
+  text-align: center;
+}
+
+.calendar-page__error-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: var(--background-status-negative);
+  color: var(--label-status-negative);
+}
+
+.calendar-page__error-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.calendar-page__retry {
+  margin-top: var(--space-8);
+}

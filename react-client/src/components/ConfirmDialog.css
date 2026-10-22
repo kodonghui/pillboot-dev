@@ -19,3 +19,15 @@
 :root:has(.confirm-dialog[open]) {
   overflow: hidden;
 }
+
+/* 설명 아래 안내 블록이 있을 때(목업 PRF-01 삭제 확인: 설명과 안내 사이 14px) */
+.confirm-dialog__description {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-14);
+}
+
+/* 목업 마지막 프로필 삭제: 오류 줄 바로 아래에 버튼 줄을 붙인다(margin-top 0). */
+.confirm-dialog__actions--after-error {
+  margin-top: 0;
+}

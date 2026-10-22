@@ -1,0 +1,281 @@
+.drug-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-28);
+}
+
+.drug-search__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.drug-search__back {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.drug-search__who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--label-neutral);
+}
+
+.drug-search__who b {
+  color: var(--label-normal);
+}
+
+.drug-search__neutral {
+  color: var(--label-neutral);
+}
+
+.drug-search__muted {
+  color: var(--label-alternative);
+}
+
+.drug-search__number {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 검색 칸 + 검색 버튼(목업 최대 660px) */
+.drug-search__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-width: 660px;
+}
+
+.drug-search__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-12);
+}
+
+.drug-search__field {
+  flex: 1 1 360px;
+}
+
+/* 입력칸 높이(52px)에 맞춘다. */
+.drug-search__submit {
+  min-height: 52px;
+}
+
+/* 결과 없음(목업 MED-03 결과 없음) */
+.drug-search__none {
+  align-items: flex-start;
+  max-width: 660px;
+  padding: var(--space-32);
+}
+
+.drug-search__none-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: var(--fill-normal);
+  color: var(--label-neutral);
+}
+
+.drug-search__none-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.drug-search__example {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: var(--space-6);
+  padding: var(--space-16);
+  border: 1px solid var(--line-neutral);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+}
+
+.drug-search__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.drug-search__columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-24);
+}
+
+/* 목업 .cand 를 담는 panel(안쪽 8px) */
+.drug-search__list-card {
+  flex: 1 1 560px;
+  gap: 0;
+  min-width: 0;
+  padding: var(--space-8);
+}
+
+.drug-search__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  padding: var(--space-14) var(--space-16);
+  border-top: 1px solid var(--line-neutral);
+}
+
+li:first-child.drug-search__item {
+  border-top: 0;
+}
+
+.drug-search__item-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* 목업 .cname: 18px 700 */
+.drug-search__item-name {
+  font-weight: 700;
+}
+
+/* 이미 등록한 약(목업 .reg) */
+.drug-search__item--registered {
+  border-radius: var(--radius-md);
+  background: var(--background-alternative);
+  cursor: not-allowed;
+}
+
+.drug-search__item--registered .drug-search__item-name {
+  color: var(--label-alternative);
+  font-weight: 600;
+}
+
+.drug-search__registered {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--label-alternative);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* 고른 약(목업 .sel) */
+.drug-search__item--picked {
+  border-top-color: transparent;
+  border-radius: var(--radius-md);
+  background: var(--primary-weak);
+  box-shadow: inset 0 0 0 1px var(--primary-normal);
+}
+
+.drug-search__item--registered + .drug-search__item,
+.drug-search__item--picked + .drug-search__item {
+  border-top-color: transparent;
+}
+
+.drug-search__picked-badge {
+  background: var(--background-elevated);
+  color: var(--primary-on-weak);
+}
+
+.drug-search__more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-8) var(--space-4);
+}
+
+.drug-search__note {
+  margin: var(--space-6) var(--space-8) var(--space-4);
+  padding: var(--space-12) var(--space-8) var(--space-4);
+  border-top: 1px solid var(--line-neutral);
+  color: var(--label-neutral);
+}
+
+/* 오른쪽: 고르기 전 안내 */
+.drug-search__placeholder {
+  flex: 1 1 400px;
+  align-items: center;
+  gap: var(--space-14);
+  min-width: 0;
+  padding: var(--space-56) var(--space-32);
+  text-align: center;
+}
+
+.drug-search__placeholder-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+/* 오른쪽: 고른 약의 공식 정보 */
+.drug-search__picked {
+  flex: 1 1 400px;
+  gap: var(--space-20);
+  min-width: 0;
+  padding: var(--space-28);
+}
+
+.drug-search__picked-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+}
+
+.drug-search__picked-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.drug-search__results-title:focus,
+.drug-search__picked-title:focus {
+  outline: none;
+}
+
+.drug-search__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-14);
+  padding-top: var(--space-20);
+  border-top: 1px solid var(--line-neutral);
+}
+
+.drug-search__block-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* 목업 .kv: 이름 104px | 값 */
+.drug-search__kv {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: var(--space-12) var(--space-16);
+  margin: 0;
+}
+
+.drug-search__kv dt {
+  color: var(--label-alternative);
+}
+
+.drug-search__kv dd {
+  margin: 0;
+  color: var(--label-normal);
+}
+
+.drug-search__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+  padding-top: var(--space-4);
+}

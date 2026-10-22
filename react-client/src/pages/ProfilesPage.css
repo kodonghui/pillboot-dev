@@ -1,0 +1,114 @@
+.profiles-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+/* 제목 묶음(왼쪽)과 "프로필 추가"(오른쪽) */
+.profiles-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-20);
+}
+
+.profiles-page__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-width: 620px;
+}
+
+.profiles-page__lead {
+  color: var(--label-neutral);
+}
+
+/* 표 카드(목업 style="padding:0"). 디자인 번들의 좁은 화면 .mt-card 18px 이 --flush 를 덮어써서 0 으로 되돌린다. */
+.profiles-page__card {
+  padding: 0;
+}
+
+/* 목업 .tbl: 좁은 화면에서는 표만 가로로 밀어 본다.
+   position 을 주어야 화면 읽기 전용 글자(absolute)도 이 상자 안에서 잘려 페이지가 넓어지지 않는다. */
+.profiles-page__scroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+.profiles-page__table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.profiles-page__table thead th {
+  padding: var(--space-14) var(--space-16);
+  border-bottom: 1px solid var(--line-normal);
+  background: var(--background-alternative);
+  color: var(--label-alternative);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.profiles-page__table tbody th,
+.profiles-page__table td {
+  padding: var(--space-16);
+  border-top: 1px solid var(--line-neutral);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.profiles-page__table tbody tr:first-child th,
+.profiles-page__table tbody tr:first-child td {
+  border-top: 0;
+}
+
+/* 목업 17px 700. 타입 스케일에 17px이 없어 screen-item(18px)에 굵기만 올린다. */
+.profiles-page__name {
+  font-weight: 700;
+}
+
+.profiles-page__number {
+  font-variant-numeric: tabular-nums;
+}
+
+.profiles-page__color {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.profiles-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+
+/* 목업 "지금 관리 중": 배지 높이 32px, 오른쪽 6px */
+.profiles-page__now {
+  min-height: 32px;
+  margin-right: var(--space-6);
+}
+
+/* 목업 .del: 삭제는 글자를 위험 색으로 둔다. */
+.profiles-page__delete,
+.profiles-page__delete:hover {
+  color: var(--label-status-negative);
+}
+
+/* 화면에는 숨기고 화면 읽기에만 읽힌다(목업 .sr). */
+.profiles-page__hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.profiles-page__nowrap {
+  white-space: nowrap;
+}

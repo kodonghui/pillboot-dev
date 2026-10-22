@@ -1,0 +1,102 @@
+.photo-busy {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-28);
+  padding: var(--space-28);
+}
+
+.photo-busy__photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+.photo-busy__figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin: 0;
+}
+
+.photo-busy__photo {
+  width: 180px;
+  height: 135px;
+}
+
+.photo-busy__photo--sm {
+  width: 120px;
+  height: 120px;
+}
+
+.photo-busy__muted {
+  max-width: 180px;
+  color: var(--label-alternative);
+}
+
+.photo-busy__neutral {
+  color: var(--label-neutral);
+}
+
+.photo-busy__status {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: var(--space-14);
+  min-width: 0;
+}
+
+.photo-busy__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+.photo-busy__clock {
+  color: var(--label-status-info);
+}
+
+.photo-busy__how {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--line-neutral);
+}
+
+.photo-busy__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 목업의 6px 점 */
+.photo-busy__steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-10);
+}
+
+.photo-busy__steps li::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: var(--space-10);
+  border-radius: var(--radius-full);
+  background: var(--label-alternative);
+}
+
+.photo-busy__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* 좁은 화면에서는 목업 .panel 처럼 안쪽 여백을 줄인다(18px → 16px). */
+@media (max-width: 720px) {
+  .photo-busy {
+    padding: var(--space-16);
+  }
+}

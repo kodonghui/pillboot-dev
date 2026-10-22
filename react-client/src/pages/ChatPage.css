@@ -1,0 +1,90 @@
+.chat-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-28);
+}
+
+/* 대화방 목록과 오른쪽 대화방(목업 줄바꿈 flex, 24px) */
+.chat-page__cols {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-24);
+}
+
+/* 대화방을 고르기 전 안내(목업 CHT-01-01 .pane-r). padding 은 .chat-room 과 같은 까닭으로 0 이다. */
+.chat-intro {
+  flex: 999 1 560px;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.chat-intro__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-28);
+  min-height: 520px;
+  padding: var(--space-40) var(--space-40) var(--space-32);
+}
+
+.chat-intro__feature {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+.chat-intro__title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-width: 760px;
+}
+
+.chat-intro__neutral {
+  color: var(--label-neutral);
+}
+
+.chat-intro__muted {
+  color: var(--label-alternative);
+}
+
+.chat-intro__examples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.chat-intro__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-12);
+}
+
+/* 추천 질문(목업 .ex-q) */
+.chat-intro__example {
+  justify-content: flex-start;
+  min-height: 56px;
+  font-weight: 500;
+  text-align: left;
+  white-space: normal;
+}
+
+/* 목업 .foot: 위 20px · 아래 24px */
+.chat-intro__foot {
+  padding: var(--space-20) var(--space-28) var(--space-24);
+  border-top: 1px solid var(--line-neutral);
+}
+
+/* 좁은 화면(목업 720px 이하: 좌우 18px은 16px) */
+@media (max-width: 720px) {
+  .chat-intro__foot {
+    padding-right: var(--space-16);
+    padding-left: var(--space-16);
+  }
+}

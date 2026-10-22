@@ -1,0 +1,99 @@
+.photo-pick__neutral {
+  color: var(--label-neutral);
+}
+
+.photo-pick__muted {
+  color: var(--label-alternative);
+}
+
+/* 목업 .drop(IMG-01): 점선 칸 전체가 파일 입력의 label 이다. */
+.photo-drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-14);
+  min-height: 240px;
+  padding: var(--space-32) var(--space-24);
+  border: 2px dashed var(--line-normal);
+  border-radius: var(--radius-xl);
+  background: var(--background-elevated);
+  text-align: center;
+  cursor: pointer;
+}
+
+.photo-drop:focus-within {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: var(--space-2);
+}
+
+/* 목업 .drop.bad 의 바탕 #FFFBFA 는 토큰에 없어 테두리만 바꾼다. */
+.photo-drop--invalid {
+  border-color: var(--status-negative);
+}
+
+.photo-drop__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-xl);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+.photo-drop__facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-24);
+}
+
+.photo-drop__fact {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-8);
+}
+
+/* 목업 IMG-02 사진 1 · 2 칸 */
+.photo-drop--sm {
+  flex: 1;
+  gap: var(--space-12);
+  min-height: 200px;
+  padding: var(--space-24);
+  border-radius: var(--radius-lg);
+}
+
+.photo-drop--sm .photo-drop__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+}
+
+.photo-drop--sm .photo-drop__facts {
+  gap: var(--space-6) var(--space-20);
+}
+
+.photo-drop__title {
+  font-weight: 600;
+}
+
+/* 목업 .photo: 사진은 자르지 않고 칸 안에 맞춘다. 크기는 쓰는 화면이 정한다. */
+/* 칸을 상자 크기에 고정해야 사진 비율과 상관없이 잘리지 않고 다 보인다(contain). */
+.photo-preview {
+  display: grid;
+  flex: none;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line-neutral);
+  border-radius: var(--radius-lg);
+  background: var(--fill-normal);
+}
+
+.photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}

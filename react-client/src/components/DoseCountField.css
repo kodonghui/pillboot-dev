@@ -1,0 +1,16 @@
+/* 목업 .step: 버튼 · 88px 숫자 칸 · 버튼 · 단위, 사이 8px */
+.dose-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.dose-count__input {
+  width: 88px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.dose-count__unit {
+  color: var(--label-neutral);
+}

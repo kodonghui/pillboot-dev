@@ -18,3 +18,20 @@
   width: 24px;
   height: 24px;
 }
+
+/* "저장 중…"처럼 기다리는 동안 도는 아이콘(목업 .spin). 움직임 줄이기 설정이면 멈춘다. */
+.icon--spin {
+  animation: icon-spin 1s linear infinite;
+}
+
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon--spin {
+    animation: none;
+  }
+}
