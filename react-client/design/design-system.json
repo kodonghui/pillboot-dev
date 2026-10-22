@@ -17,9 +17,9 @@
     "sections": []
   },
   "lastChange": {
-    "by": "Claude",
-    "at": "2026-10-16T09:00:00Z",
-    "via": "Claude Code",
-    "note": "컴포넌트 6개 추가: TextField, Badge, Notice, Modal, Toast, PeriodBar (화면 설계서에서 쓰는 패턴)"
+    "by": "고동희",
+    "at": "2026-10-21T09:12:58Z",
+    "via": "Claude Cowork",
+    "note": "목업 v2 · 사이트맵 기준으로 라이트 토큰 · 모서리 · 글자 스케일 교체, 상태 · 프로필 · 포커스 토큰 추가, 컴포넌트 9개 갱신, AppHeader · ProfileTag 추가"
   }
 }

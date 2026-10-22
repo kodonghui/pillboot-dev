@@ -1,0 +1,28 @@
+<!-- @dsCard group="Containers" height=250 subtitle="기본 · 넓은 · 강조" -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>Card</title>
+<style>
+  body { margin: 0; padding: var(--space-16); background: var(--background-normal); font-family: var(--font-sans); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-16); align-items: start; }
+</style>
+</head>
+<body>
+<div class="grid">
+  <section class="mt-card">
+    <h2 class="mt-card__title">엄마의 할 일</h2>
+    <p class="mt-card__meta">관리할 사람을 바꾸면 그 사람 기준으로 바뀌어요.</p>
+  </section>
+  <section class="mt-card mt-card--emphasis">
+    <h2 class="mt-card__title">가입하고 바로 시작해요</h2>
+    <p class="mt-card__body">본인이나 가족의 프로필을 만들면 약을 등록할 수 있어요.</p>
+    <div class="mt-card__actions"><button class="mt-btn mt-btn--solid mt-btn--md" type="button">시작하기</button></div>
+  </section>
+  <section class="mt-card mt-card--interactive" tabindex="0">
+    <p class="mt-card__meta">○○제약</p>
+    <h2 class="mt-card__title">조코정20밀리그램</h2>
+    <p class="mt-card__body">17:00 · 1회 1정</p>
+  </section>
+</div>
+</body>
+</html>

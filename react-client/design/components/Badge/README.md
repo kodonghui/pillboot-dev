@@ -4,24 +4,23 @@
 
 ## 쓰는 법
 
-`<span class="mt-badge mt-badge--positive">해당 없음</span>`
+`<span class="mt-badge mt-badge--caution">확인 필요</span>`
 
-소비하는 쪽이 정하는 것: 문구, 상태에 맞는 변형. 누를 수 있는 선택지는 Badge가 아니라 Chip을 쓴다.
+소비하는 쪽이 정하는 것: 문구, 상태에 맞는 변형. 누를 수 있는 선택지는 Chip을 쓴다. 사람 이름은 Badge가 아니라 ProfileTag를 쓴다.
 
 ## 변형
 
-| 클래스 | 바탕 | 점 | 언제 |
-| --- | --- | --- | --- |
-| `mt-badge` | `fill-normal` | `interaction-inactive` | 중립 · 예정 · 꺼짐 |
-| `mt-badge--primary` | `primary-weak` | `primary-normal` | 선택됨 · 지금 보는 중 · 새로 담음 |
-| `mt-badge--positive` | `background-status-positive` | `status-positive` | 문제 없음 · 일치 |
-| `mt-badge--caution` | `background-status-cautionary` | `status-cautionary` | 확인 필요 · 후보 여러 개 |
-| `mt-badge--negative` | `background-status-negative` | `status-negative` | 금기 · 허가 취하 · 오류 |
-| `mt-badge--plain` | 그대로 | 없음 | 분류 표시(전문의약품, 처방전 사진) |
+| 클래스 | 면 / 글자 | 언제 (목업 예) |
+| --- | --- | --- |
+| `mt-badge` | `fill-normal` / `label-neutral` | 중립: "화면 예시", "기다리는 중", "일정 없음" |
+| `mt-badge--primary` · `--positive` | `primary-weak` / `primary-on-weak` | 완료 · 선택: "골랐어요", "일정 있음" |
+| `mt-badge--caution` | `background-status-cautionary` / `label-status-cautionary` | 주의: 병용 주의, 일부 확인 못 함 |
+| `mt-badge--negative` | `background-status-negative` / `label-status-negative` | 금기 · 오류 |
+| `mt-badge--info` | `background-status-info` / `label-status-info` | 진행 중 |
 
-- 글자는 `caption1` 600, 색은 `label-normal`(primary만 `primary-on-weak`). 모서리 `radius-full`.
+- 높이 28px, 좌우 10px, 14px 600, 모서리 `radius-full`. 아이콘을 앞에 넣을 수 있다(간격 6px).
 
 ## 지킬 것
 
-- 상태를 색과 점만으로 전하지 않는다. 문구가 뜻을 담는다.
+- 상태를 색만으로 전하지 않는다. 문구가 뜻을 담는다.
 - 한 줄에 배지를 세 개 넘게 붙이지 않는다.

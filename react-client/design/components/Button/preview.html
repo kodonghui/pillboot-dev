@@ -1,0 +1,27 @@
+<!-- @dsCard group="Actions" height=200 subtitle="solid · assistive · ghost · danger, 48 / 44px" -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>Button</title>
+<style>
+  body { margin: 0; padding: var(--space-16); background: var(--background-normal); font-family: var(--font-sans); }
+  .grid { display: flex; flex-direction: column; gap: var(--space-16); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-12); }
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="row">
+    <button class="mt-btn mt-btn--assistive" type="button">취소</button>
+    <button class="mt-btn mt-btn--solid" type="button">일정 저장</button>
+    <button class="mt-btn mt-btn--ghost" type="button">‹ 약 상세로</button>
+    <button class="mt-btn mt-btn--solid" type="button" disabled>약 찾기</button>
+  </div>
+  <div class="row">
+    <button class="mt-btn mt-btn--assistive mt-btn--md" type="button">약 보기</button>
+    <button class="mt-btn mt-btn--solid mt-btn--md" type="button">시작하기</button>
+    <button class="mt-btn mt-btn--danger-outlined mt-btn--md" type="button">약 삭제</button>
+    <button class="mt-btn mt-btn--danger mt-btn--md" type="button">삭제</button>
+  </div>
+</div>
+</body>
+</html>

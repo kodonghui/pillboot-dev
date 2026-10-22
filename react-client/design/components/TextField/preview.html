@@ -1,4 +1,4 @@
-<!-- @dsCard group="Forms" height=300 subtitle="기본 · 오류 · 확인됨 · 비활성" -->
+<!-- @dsCard group="Forms" height=300 subtitle="기본 · 오류 · 확인됨 · 읽기 전용" -->
 <!doctype html>
 <html lang="ko">
 <head><meta charset="utf-8"><title>TextField</title>
@@ -10,23 +10,23 @@
 <body>
 <div class="grid">
   <div class="mt-field">
-    <label class="mt-field__label" for="tf1">이메일<span class="mt-field__req">*</span></label>
-    <input class="mt-input" id="tf1" type="email" placeholder="example@email.com">
-    <p class="mt-field__help">로그인할 때 쓰는 이메일이에요.</p>
+    <label class="mt-field__label" for="tf1">이메일</label>
+    <input class="mt-input" id="tf1" type="email" placeholder="example@email.com" aria-describedby="tf1-h">
+    <p class="mt-field__help" id="tf1-h">로그인할 때 쓰는 이메일이에요.</p>
   </div>
   <div class="mt-field">
-    <label class="mt-field__label" for="tf2">비밀번호<span class="mt-field__req">*</span></label>
-    <input class="mt-input" id="tf2" type="password" value="abc123" aria-invalid="true" aria-describedby="tf2-e">
-    <p class="mt-field__help mt-field__help--error" id="tf2-e">영문 · 숫자 · 특수문자를 섞어 8자 이상으로 만들어 주세요.</p>
+    <label class="mt-field__label" for="tf2">이메일</label>
+    <input class="mt-input" id="tf2" type="email" value="hana@example.com" aria-invalid="true" aria-describedby="tf2-e">
+    <p class="mt-field__help mt-field__help--error" id="tf2-e">이미 가입한 이메일이에요.</p>
   </div>
   <div class="mt-field">
-    <label class="mt-field__label" for="tf3">닉네임</label>
-    <input class="mt-input" id="tf3" type="text" value="지민">
-    <p class="mt-field__help mt-field__help--ok">쓸 수 있는 닉네임이에요</p>
+    <label class="mt-field__label" for="tf3">종료일<span class="mt-field__req">(필수)</span></label>
+    <input class="mt-input" id="tf3" type="text" value="2026년 11월 12일(목)">
+    <p class="mt-field__help mt-field__help--ok">고른 기간 30일</p>
   </div>
   <div class="mt-field">
-    <label class="mt-field__label" for="tf4">약 이름</label>
-    <input class="mt-input" id="tf4" type="text" value="공식 정보는 고칠 수 없어요" disabled>
+    <label class="mt-field__label" for="tf4">약</label>
+    <input class="mt-input" id="tf4" type="text" value="조코정20밀리그램" readonly>
   </div>
 </div>
 </body>

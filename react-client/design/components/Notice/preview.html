@@ -1,4 +1,4 @@
-<!-- @dsCard group="Status" height=300 subtitle="기본 · primary · 주의 · 오류 · 성공" -->
+<!-- @dsCard group="Status" height=300 subtitle="기본 · 안내 · 주의 · 오류 · 완료" -->
 <!doctype html>
 <html lang="ko">
 <head><meta charset="utf-8"><title>Notice</title>
@@ -11,24 +11,24 @@
 <body>
 <div class="grid">
   <div class="mt-notice">
-    <svg class="mt-notice__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
-    <div class="mt-notice__body"><p class="mt-notice__title">대화는 30일 동안 보관해요</p><p class="mt-notice__text">30일이 지난 대화는 자동으로 지워져요.</p></div>
+    <svg class="mt-notice__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <p class="mt-notice__text">올린 사진은 약 등록이 끝나면 지워져요.</p>
   </div>
-  <div class="mt-notice mt-notice--primary">
-    <svg class="mt-notice__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>
-    <div class="mt-notice__body"><p class="mt-notice__title">올린 사진은 분석이 끝나면 바로 지워요</p><p class="mt-notice__text">찾은 약은 직접 확인한 뒤에만 저장돼요.</p></div>
+  <div class="mt-notice mt-notice--info">
+    <svg class="mt-notice__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <p class="mt-notice__text">필받음은 진단이나 처방을 대신하지 않아요. 약을 바꾸기 전에 의사 · 약사와 상담하세요.</p>
   </div>
   <div class="mt-notice mt-notice--caution" role="status">
-    <svg class="mt-notice__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>
-    <div class="mt-notice__body"><p class="mt-notice__title">사진 인식은 틀릴 수 있어요</p><p class="mt-notice__text">이름과 용량이 약봉투와 같은지 꼭 확인해 주세요.</p></div>
+    <svg class="mt-notice__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+    <p class="mt-notice__text"><b>복약 알림이 꺼져 있어요.</b> 켜면 복용 시간마다 크롬으로 알려 드려요.</p>
   </div>
   <div class="mt-notice mt-notice--negative" role="alert">
-    <svg class="mt-notice__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>
-    <div class="mt-notice__body"><p class="mt-notice__title">이 약은 허가가 취하됐어요</p><p class="mt-notice__text">계속 먹어도 되는지 의사나 약사에게 먼저 확인하세요.</p></div>
+    <svg class="mt-notice__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+    <div class="mt-notice__body"><p class="mt-notice__title">일정을 저장하지 못했어요</p><p class="mt-notice__text">약을 찾을 수 없어요. 약 목록에서 다시 골라 주세요.</p></div>
   </div>
   <div class="mt-notice mt-notice--positive" role="status">
     <svg class="mt-notice__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>
-    <div class="mt-notice__body"><p class="mt-notice__title">엄마의 약과 겹치지 않아요</p><p class="mt-notice__text">같은 약이 있으면 여기서 알려 드려요.</p></div>
+    <p class="mt-notice__text">김하나의 약 목록에 저장했어요.</p>
   </div>
 </div>
 </body>

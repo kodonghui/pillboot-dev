@@ -1,11 +1,13 @@
-필받음 화면은 Pillbox 토큰 위에서 만든다. Pillbox 는 Montage 를 바탕으로 필받음에 맞게 고친 디자인 시스템이다. 바탕은 무채색으로 조용하게 두고, 사용자가 눌러야 하는 곳에만 초록 primary 를 쓴다. 값은 `pillbadeum-tokens.json` 에 있는 토큰 이름으로만 고르고, 새 색·간격·모서리 값을 만들지 않는다.
+필받음 화면은 Pillbox 토큰 위에서 만든다. Pillbox 는 Montage 를 바탕으로 필받음 목업 v2(「필받음 목업 (작업용)」, 보드 101개)에 맞춰 고친 디자인 시스템이다. 회색 페이지 바탕 위에 흰 카드를 올리고, 사용자가 눌러야 하는 곳에만 초록 primary 를 쓴다. 가족마다 색(파랑 · 주황 · 보라)을 하나씩 정해 모든 화면에서 같은 사람은 같은 색으로 보인다. 값은 `tokens.json` 의 토큰 이름으로만 고르고, 새 색 · 간격 · 모서리 값을 만들지 않는다.
+
+> 기준: 라이트 테마 값은 2026년 10월 21일 목업 v2에서 옮겼다. 목업에 다크 화면이 없어 다크 테마 값은 이전 Pillbox 값을 그대로 두었고, 목업 기준으로 확인하지 않았다. 새로 더한 토큰(상태 테두리 · 글자, 프로필, 포커스)은 라이트 값만 있다.
 
 ## 원칙
 
-- **초록은 행동에만.** `primary-normal` 은 채워진 버튼, 선택된 탭, 링크에만 쓴다. 장식, 일러스트 배경, 넓은 면에는 쓰지 않는다. 넓은 강조 면이 필요하면 `primary-weak` 를 깔고 그 위 글자·아이콘은 `primary-on-weak` 로 쓴다.
-- **구분은 선이 먼저.** 평면 위 요소를 나눌 때는 `line-solid-normal` 1px 를 먼저 쓴다. 그림자는 카드가 실제로 떠 있을 때만 쓴다.
-- **반투명 토큰은 겹쳐 쓰지 않는다.** `line-normal`, `fill-normal` 같은 반투명 값은 겹치면 색이 누적된다. 선이 겹치는 자리에는 `line-solid-normal` 을 쓴다.
-- **테마는 토큰이 바꾼다.** 컴포넌트에 라이트/다크 분기를 직접 쓰지 않는다. 모든 색은 `var(--토큰이름)` 으로 참조한다.
+- **초록은 행동에만.** `primary-normal` 은 채워진 버튼, 지금 메뉴 밑줄, 오늘 날짜, 진행 표시에만 쓴다. 넓은 강조 면은 `primary-weak` 를 깔고 그 위 글자는 `primary-on-weak`.
+- **회색 바탕, 흰 카드, 선으로 구분.** 페이지는 `background-normal`(#F4F6F8), 카드 · 헤더 · 입력창은 `background-elevated`(흰색) + 1px `line-normal`. 그림자는 모달 · 드롭다운처럼 실제로 떠 있을 때만.
+- **사람은 색과 이름으로.** 프로필 색은 프로필 순서로 정하고(`profile-1` 본인부터), 태그 · 달력 막대 · 헤더 점에서 같은 색을 쓴다. 색만으로 사람을 구분하지 않고 이름을 늘 함께 쓴다.
+- **테마는 토큰이 바꾼다.** 컴포넌트에 색 값을 직접 쓰지 않고 `var(--토큰이름)` 으로 참조한다.
 
 ## 색
 
@@ -13,144 +15,152 @@
 
 | 자리 | 토큰 |
 | --- | --- |
-| 페이지 바탕 | `background-normal` |
-| 카드가 올라가는 한 단계 들어간 영역 | `background-alternative` |
-| 카드·시트·모달 | `background-elevated` |
-| 툴팁·스낵바 | `inverse-background` + 글자 `inverse-label`, 액션 `inverse-primary` |
-| 모달 뒤 막 | `material-dimmer` |
-
-다크 테마에서 `background-elevated` 는 `background-normal` 보다 밝다. 떠 있는 면을 그림자 대신 이 밝기 차이로 보여 준다.
+| 페이지 바탕 | `background-normal` #F4F6F8 |
+| 카드 · 헤더 · 입력창 · 모달 · 말풍선 | `background-elevated` #FFFFFF |
+| 카드 안에서 한 단계 들어간 영역(대화 메시지 영역, 달력 요일 줄, 근거 목록, 읽기 전용 입력) | `background-alternative` #F8FAFB |
+| 모달 · 음성 팝업 뒤 막 | `material-dimmer` |
 
 ### 글자
 
-- 본문과 제목은 `label-normal` 부터 쓴다. 가장 강한 제목만 `label-strong`.
-- 한 단계 약한 글자는 `label-neutral` (흰 바탕에서 9:1 이상).
-- `label-alternative` 는 캡션·메타데이터용이지만 흰 바탕 대비가 3.7:1 정도라 4.5:1 에 못 미친다. 12–14px 에서 꼭 읽혀야 하는 글자에는 `label-neutral` 을 쓴다.
-- `label-assistive` 는 플레이스홀더 전용이다. 읽어야 하는 글자에는 쓰지 않는다.
-- 비활성 글자는 `label-disable`, 비활성 컨트롤 바탕은 `interaction-disable`.
+| 토큰 | 값 | 쓰는 곳 | 흰 바탕 대비 |
+| --- | --- | --- | --- |
+| `label-normal` | #17212B | 본문과 제목 | 15:1 이상 |
+| `label-neutral` | #44505C | 부제, 폼 라벨, 메뉴 글자 | 8.2:1 |
+| `label-alternative` | #5E6A76 | 캡션 · 메타 · 도움말(14px) | 5.5:1 (회색 바탕 5.1:1) |
+| `label-assistive` | #6B7682 | 플레이스홀더 전용 | — |
+| `label-disable` | #55606B | 비활성 버튼 글자(`interaction-disable` #E3E7EB 위 5.2:1) | — |
+
+14px보다 작은 글자는 쓰지 않는다.
 
 ### Primary (초록)
 
 | 상태 | 채움 | 글자 |
 | --- | --- | --- |
-| 기본 | `primary-normal` | `static-white` |
-| hover | `primary-strong` | `static-white` |
-| press | `primary-heavy` | `static-white` |
-| 약한 면 | `primary-weak` | `primary-on-weak` |
-| 약한 면 hover/press | `primary-weak-strong` | `primary-on-weak` |
-| 경계선 | `line-primary-normal` | — |
+| 기본 | `primary-normal` #0B6B4F | `static-white` (6.5:1) |
+| hover | `primary-strong` #085A42 | `static-white` |
+| 약한 면 | `primary-weak` #E3F1EA | `primary-on-weak` #075B43 (7.0:1) |
+| 선택 테두리 | `line-primary-normal` | — |
 
-흰 글자는 모든 primary 채움 위에서 4.5:1 이상이다. 다만 다크 테마에서 `primary-normal` 을 `background-normal` 위 **글자**로 쓰면 3.6:1 이라, 다크에서 본문 크기 링크는 `primary-on-weak` 를 쓴다.
+링크 글자는 `primary-on-weak`.
 
 ### 상태
 
-`status-positive`, `status-cautionary`, `status-negative` 는 점, 아이콘, 테두리에 쓴다. 메시지 블록의 바탕은 같은 이름의 `background-status-*` 를 깐다. 라이트 테마에서 세 색 모두 흰 바탕 위 글자 대비가 4.5:1 미만이므로, 상태 문구 자체는 `label-normal` 로 쓰고 색은 아이콘에만 준다. 성공과 오류를 색만으로 구분하지 않는다. 항상 "저장했어요", "다시 입력해 주세요" 같은 문구나 아이콘을 함께 둔다.
+상태 블록 · 배지는 연한 면 + 테두리 + 진한 글자 세 토큰이 한 벌이다. 글자와 아이콘을 같은 진한 색으로 써서 모두 4.5:1을 넘는다.
 
-### 액센트
+| 상태 | 면 | 테두리 | 글자 · 아이콘 | 쓰는 곳 |
+| --- | --- | --- | --- | --- |
+| 안내 | `background-status-info` | `line-status-info` | `label-status-info` | 서비스 약속, 의료 면책 |
+| 주의 | `background-status-cautionary` | `line-status-cautionary` | `label-status-cautionary` | 알림 꺼짐, 병용 주의, 저장 안 됨 경고 |
+| 오류 · 금기 | `background-status-negative` | `line-status-negative` | `label-status-negative` | 입력 오류, 응급 안내, 병용 금기 |
+| 완료 | `background-status-positive` | `line-status-positive` | `primary-on-weak` | 저장 완료 |
 
-- `accent-bg-*` 는 배지·칩의 색면이다. 흰 글자를 올리게 되어 있지만 `accent-bg-violet` 을 뺀 나머지는 흰 글자 대비가 3:1 미만이다. 이 색면 위 글자는 `label2` 굵기로 두세 글자만 쓰고, 뜻은 배지 밖 문장에서도 전한다.
-- `accent-fg-*` 는 `background-normal` 위 글자·아이콘 색이다. 색면에는 쓰지 않는다. 라이트 테마에서 4.5:1 을 넘는 것은 `accent-fg-red`, `accent-fg-blue`, `accent-fg-violet`, `accent-fg-purple` 뿐이다. 나머지는 24px 이상 제목이나 아이콘에만 쓴다.
+- 위험 버튼 바탕은 `status-negative` #B42318(흰 글자 6.6:1). 일요일 · 공휴일 날짜 글자는 `label-status-negative`.
+- `status-cautionary`(원색 주황)는 점 · 아이콘에만 쓴다. 글자로 쓰지 않는다.
+- 성공과 오류를 색만으로 구분하지 않는다. 문구와 아이콘을 함께 둔다.
 
-### 연한 색면
+### 프로필(가족) 색
 
-여러 항목을 색으로 나눠 보여야 하지만 화면이 시끄러우면 안 되는 자리에 쓴다. 대표 쓰임은 복용 달력의 약별 기간 막대다.
+| 순서 | 점 | 태그 면 | 글자 | 달력 막대 면 / 테두리 |
+| --- | --- | --- | --- | --- |
+| 1 (본인) | `profile-1` #2F66C2 | `profile-1-weak` | `profile-1-ink` | `profile-1-bar` / `profile-1-bar-line` |
+| 2 | `profile-2` #DB7A1F | `profile-2-weak` | `profile-2-ink` | `profile-2-bar` / `profile-2-bar-line` |
+| 3 | `profile-3` #5B3A9E | `profile-3-weak` | `profile-3-ink` | `profile-3-bar` / `profile-3-bar-line` |
 
-| 토큰 | 라이트 / 다크 | 쓰는 곳 |
-| --- | --- | --- |
-| `primary-weak` | #e2f2eb / #173a2f | 첫 번째 항목 |
-| `accent-weak-blue` | #e5efff / #1a2b47 | 두 번째 항목 |
-| `accent-weak-violet` | #ece8fe / #2a2252 | 세 번째 항목 |
-| `accent-weak-orange` | #fff1e0 / #3d2a14 | 짧게 끝나는 항목. 예: 3일 처방 약 |
+- 태그 글자는 각 면 위에서 6.3:1 이상이다.
+- 목업 달력에는 세 번째 사람의 막대가 없어 `profile-3-bar` 는 1번과 같은 투명도로 맞췄다.
+- 이전 판의 "약마다 색"(`accent-weak-*`) 달력 막대는 목업과 달라 쓰지 않는다. `accent-*` 토큰은 남아 있지만 목업 화면에서 쓰는 곳이 없다.
 
-- 위에 올리는 글자는 항상 `label-normal` 이다. 라이트 · 다크 모두 12:1 이상이다.
-- 색면과 페이지 바탕의 대비는 1.1~1.3:1 로 낮다. 색만으로 항목을 구분하지 말고 막대 안에 약 이름을 함께 쓴다.
-- 색면 위에 `accent-fg-*` 나 `static-white` 글자를 올리지 않는다.
+### 포커스
 
-### 채움과 선
-
-- 보조 버튼과 칩의 채움은 `fill-normal`, hover 는 `fill-strong`. 스켈레톤과 슬라이더 트랙은 `fill-alternative`.
-- 기본 경계선은 `line-normal`, 한 단계 약하게는 `line-neutral`. 겹치는 자리는 `line-solid-normal`.
-- 꺼진 토글 트랙은 `interaction-inactive`.
+키보드 포커스는 3px `focus-ring`(#6FB39A) 외곽선을 요소 바깥 2px에 띄운다. **주의:** 흰 바탕 대비가 2.4:1로 비텍스트 기준 3:1에 못 미친다. 목업 값이라 그대로 두었고, 바꿀지 팀에서 정한다(`primary-normal` 2px로 바꾸면 6.5:1).
 
 ## 글자
 
-글꼴은 Pretendard 하나다 (`font-sans`). 굵기는 400, 500, 600, 700 네 가지만 쓴다.
+글꼴은 Pretendard 하나다(`font-sans`, 목업은 Pretendard Variable). 굵기 400 · 500 · 600 · 700.
 
-| 그룹 | 스타일 | 쓰는 곳 |
+화면은 **Screen 그룹**을 쓴다. 목업 v2의 크기 그대로다.
+
+| 스타일 | 크기 / 행간 / 굵기 | 쓰는 곳 |
 | --- | --- | --- |
-| Display | `display1` / `display2` / `display3` | 랜딩 히어로(화면당 하나), 섹션 대제목 |
-| Title | `title1` / `title2` / `title3` | 페이지 제목, 모달 제목 |
-| Heading | `heading1` / `heading2` | 섹션, 하위 섹션 제목 |
-| Headline | `headline1` / `headline2` | 카드·리스트 항목 제목 |
-| Body | `body1`, `body2` 와 `-reading` 변형 | 본문. 여러 문단이면 `-reading` |
-| Label | `label1` / `label1-reading` / `label2` | 버튼, 탭, 폼 라벨, 칩 |
-| Caption | `caption1` / `caption2` | 메타데이터, 배지 숫자 |
+| `screen-hero` | 40 / 1.3 / 700 | 시작 화면 큰 제목(좁은 화면 30) |
+| `screen-time` | 56 / 1 / 600 | 홈 · 이 시각 약의 시각 숫자(좁은 화면 44), tabular-nums |
+| `screen-title` | 30 / 1.35 / 700 | 페이지 제목 h1(좁은 화면 24) |
+| `screen-section` | 21 / 1.4 / 700 | 카드 · 섹션 제목, 모달 제목 |
+| `screen-item` | 18 / 1.45 / 600 | 항목 제목, 폼 섹션 제목 |
+| `screen-body` | 16 / 1.6 / 400 | 본문 · 부제 · 입력 |
+| `screen-button` | 16 / 1.2 / 600 | 버튼(작은 버튼 15) |
+| `screen-label` | 14 / 1.6 / 600 | 폼 라벨, 배지 |
+| `screen-caption` | 14 / 1.6 / 400 | 도움말 · 메타 · 캡션 |
 
-- 좁은 화면(`breakpoint-sm` 미만)에서는 `display2` 대신 `display3`, `title1` 대신 `title2` 를 쓴다.
-- 큰 글자일수록 자간이 음수로 좁아지고 작은 글자일수록 넓어진다. 스타일 클래스(`.title1` 등)를 그대로 쓰고 자간을 따로 덮어쓰지 않는다.
-- 숫자가 세로로 줄을 맞춰야 하는 표에는 `font-variant-numeric: tabular-nums` 를 준다.
+Display · Title · Heading 등 Montage 그룹은 남아 있지만 목업 화면에는 쓰지 않는다. 한국어는 `word-break: keep-all` 로 단어 단위로 줄을 바꾼다.
 
 ## 간격
 
-간격은 `space-*` 스케일 안에서만 고른다.
+`space-*` 스케일 안에서 고른다. 목업에서 자주 쓰는 값:
 
-- 아이콘과 글자 사이 `space-4`, 칩 안쪽 좌우 `space-8`, 리스트 항목 사이 `space-12`.
-- 카드 안쪽 여백은 `space-16`, 넓은 카드는 `space-20`.
-- 섹션 사이 `space-24`, 넓게는 `space-32`. 페이지 상하 여백 `space-40`.
-- `space-0_5`, `space-1`, `space-2` 는 선 두께나 미세 정렬용이다. 레이아웃 간격으로 쓰지 않는다.
+- 아이콘과 글자 `space-8`, 버튼 사이 `space-12`, 폼 섹션 사이 `space-20`.
+- 카드 안쪽 `space-24`(넓은 카드 · 모달 `space-28`), 화면 큰 덩어리 사이 `space-28`.
+- 페이지 상단 `space-40`, 하단 `space-72`, 본문 최대 폭 1280px · 좌우 48px(좁은 화면 16px). 폼은 최대 760px.
 
 ## 모서리
 
 | 토큰 | 값 | 쓰는 곳 |
 | --- | --- | --- |
-| `radius-chip` | 6px | 작은 칩 |
-| `radius-sm` | 8px | small 버튼, 칩, 인풋 |
-| `radius-md` | 10px | medium 버튼 |
-| `radius-lg` | 12px | large 버튼과 카드. 기본값 |
-| `radius-full` | 9999px | 아바타, 알약형 배지 |
-
-안쪽 요소의 모서리는 바깥 요소보다 작게 한다. `radius-lg` 카드 안의 버튼은 `radius-md` 이하.
+| `radius-chip` | 6px | 스켈레톤 줄 같은 아주 작은 요소 |
+| `radius-sm` | 8px | 달력 기간 막대 |
+| `radius-md` | 10px | 버튼 · 입력창 · 선택 버튼 · 메뉴 항목. 크기 공통 |
+| `radius-lg` | 12px | 카드 안 작은 상자: 안내 블록, 근거 목록, 사진 자리 |
+| `radius-xl` | 14px | 카드, 달력 틀 |
+| `radius-2xl` | 16px | 모달, 말풍선(꼬리 쪽 모서리 4px) |
+| `radius-3xl` | 20px | 음성 대화 팝업 |
+| `radius-full` | 9999px | 배지, 프로필 태그, 관리할 사람 버튼 |
 
 ## 그림자
 
-평면 위 구분은 `line-solid-normal` 이 먼저다. 그림자는 떠 있는 정도에 맞춰 한 단계만 고른다.
+평면 위 구분은 선이 먼저다. `shadow-medium` 드롭다운(설정 · 관리할 사람), `shadow-xlarge` 모달. 카드에는 그림자를 쓰지 않는다.
 
-- `shadow-xsmall` 살짝 떠 있는 입력창 · `shadow-small` 카드 hover · `shadow-medium` 드롭다운, 팝오버 · `shadow-large` 바텀시트 · `shadow-xlarge` 모달.
-- 다크 테마에서는 그림자가 잘 보이지 않는다. 다크에서 떠 있는 면은 `background-elevated` 로 구분한다.
+## 화면 구조 (사이트맵과 맞춤)
 
-## 레이아웃
+자세한 흐름은 「필받음 사이트맵 (최종)」에 있다. 시스템 쪽에서 지킬 것만 적는다.
 
-모바일 우선으로 짜고 `min-width` 로 올린다: `breakpoint-sm` 768px(태블릿 세로), `breakpoint-md` 992px(태블릿 가로), `breakpoint-lg` 1200px(데스크톱), `breakpoint-xl` 1600px(와이드).
+- **헤더(AppHeader).** 로그인 후 주 메뉴는 홈 · 약 목록 · 복용 달력 · 챗봇 · 설정 다섯 가지. 설정은 드롭다운(프로필 관리 · 알림). 오른쪽에 관리할 사람 ▾ · 닉네임 · 로그아웃. 관리할 사람 버튼은 홈 · 약 목록 · 약 등록 · 챗봇에서만 보이고, 약 등록 도중에는 막고, 그 밖의 화면에서는 숨긴다.
+- **메뉴 이름.** "캘린더"가 아니라 "복용 달력"이다.
+- **겹쳐 뜨는 것은 네 가지로 나눈다.** 확인창(Modal): 삭제 · 그만 먹기 · 로그아웃 · 알림 수신 동의. 드롭다운(`mt-hd__menu`): 설정 · 관리할 사람. 패널: 복용 달력 오른쪽 일정 상세. 큰 팝업: 음성 대화.
+- **뒤로 가기는 들어온 곳으로.** 화면 위쪽 왼쪽에 `mt-btn--ghost` 로 "‹ 약 상세로"처럼 돌아갈 곳 이름을 쓴다. 같은 양식을 여러 곳에서 열면(일정 추가 · 일정 수정) 뒤로 가기 · 취소 · 저장 모두 들어온 곳으로 돌아간다.
+- **폼 아래 버튼 줄**은 오른쪽 정렬, 취소 왼쪽 · 실행 오른쪽.
 
 ## 상태와 포커스
 
-- hover, press 는 같은 계열의 한 단계 진한 토큰으로 바꾼다 (`primary-normal` → `primary-strong` → `primary-heavy`, `fill-normal` → `fill-strong`).
-- 키보드 포커스는 2px `primary-normal` 외곽선을 요소 바깥 2px 에 띄운다. 흰 바탕에서 5.75:1, 다크 바탕에서 3.62:1 로 둘 다 3:1 이상이다.
-- 비활성은 바탕 `interaction-disable`, 글자 `label-disable`. 비활성 컨트롤에는 hover 를 주지 않는다.
+- hover 는 한 단계 진한 토큰으로 바꾼다(`primary-normal` → `primary-strong`, 흰 면 → `background-alternative`).
+- 비활성은 바탕 `interaction-disable`, 글자 `label-disable`. hover 를 주지 않는다.
+- 누르는 영역은 최소 44px.
 
 ## 컴포넌트
 
-아래 9가지가 있다. 클래스와 상태는 각 컴포넌트의 가이드에 있고, 스타일은 모두 `components/bundle.css` 에 있다.
+스타일은 모두 `components/bundle.css` 에 있다. 목업 클래스 이름과 짝을 맞춰 두었다.
 
-| 컴포넌트 | 클래스 | 쓰는 곳 |
-| --- | --- | --- |
-| Button | `mt-btn` | 실행 버튼. 위험한 행동은 `mt-btn--danger` |
-| Chip | `mt-chip` | 필터 · 하나 고르기 |
-| Card | `mt-card` | 내용 한 묶음 |
-| TextField | `mt-field` · `mt-input` | 폼의 글자 입력 |
-| Badge | `mt-badge` | 짧은 상태 표시 (누를 수 없음) |
-| Notice | `mt-notice` | 화면 안 안내 · 주의 · 오류 블록 |
-| Modal | `mt-dim` · `mt-modal` | 되돌리기 어려운 행동 확인 |
-| Toast | `mt-toast` | 끝난 일 잠깐 알림 |
-| PeriodBar | `mt-period` | 복용 달력의 기간 막대 |
+| 컴포넌트 | 클래스 | 목업 | 쓰는 곳 |
+| --- | --- | --- | --- |
+| AppHeader | `mt-hd` | `hd` | 모든 화면 위 |
+| Button | `mt-btn` | `btn` | 실행 버튼. solid · assistive · ghost · danger |
+| Chip | `mt-chip` | `opt` | 하나 · 여러 개 고르기 |
+| Card | `mt-card` | `panel` | 내용 한 묶음 |
+| TextField | `mt-field` · `mt-input` | `field` · `inp` | 글자 입력 |
+| Badge | `mt-badge` | `bdg` | 짧은 상태 표시 |
+| ProfileTag | `mt-ptag` | `ptag` | 누구의 약 · 일정인지 |
+| Notice | `mt-notice` | `note` | 화면 안 안내 · 주의 · 오류 블록 |
+| Modal | `mt-dim` · `mt-modal` | `scrim` · `dlg` | 확인창 |
+| PeriodBar | `mt-period` | `bar` | 복용 달력 일정 막대 |
+| Toast | `mt-toast` | 없음 | 목업에 쓰는 화면이 없다 |
 
-상태를 알리는 세 가지는 쓰임을 나눈다: 잠깐 알리고 사라질 때 Toast, 화면에 남겨 읽혀야 할 때 Notice, 사용자의 결정이 필요할 때 Modal.
+목업에는 있지만 아직 컴포넌트로 만들지 않은 것: 챗봇 말풍선 · 근거 목록, 음성 대화 팝업, 달력 틀, 홈 시각 슬롯, 오류 화면(403 · 404) 틀. 화면을 만들 때는 목업 보드의 마크업을 따른다.
 
 ## 로고와 아이콘
 
-이 시스템에는 로고와 아이콘 파일이 없다. 서비스 이름은 `title3` 이상의 Pretendard 700 으로 글자 그대로 쓴다. 아이콘 세트가 정해지기 전까지 아이콘은 글자 색 토큰(`label-normal`, `primary-on-weak` 등)을 따르는 단색 선 아이콘으로 쓰고, 이모지는 쓰지 않는다.
+로고 파일은 없다. 헤더 로고는 34px 초록 사각형(`radius` 10px) 안의 알약 선 아이콘 + "필받음" 20px 700 글자다. 아이콘은 24px 격자의 단색 선 아이콘(선 1.8)으로 글자 색을 따르고, 이모지는 쓰지 않는다.
 
 ## 문구
 
-- 버튼은 하는 일을 그대로 쓴다: "저장", "다시 시도", "로그인".
-- 오류는 무엇이 잘못됐고 어떻게 고치는지 쓴다: "비밀번호가 8자보다 짧아요".
+- 버튼은 하는 일을 그대로: "일정 저장", "다시 찍기", "약 상세로".
+- 오류는 무엇이 잘못됐고 어떻게 고치는지: "이미 가입한 이메일이에요".
+- 확인창 제목은 질문으로, 설명에 무엇이 남는지 적는다: "약은 약 목록에 남아요".

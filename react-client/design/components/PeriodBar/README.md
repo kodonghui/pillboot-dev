@@ -1,30 +1,30 @@
 # PeriodBar
 
-달력 한 주 줄 위에 약을 먹는 기간을 칸 너머로 이어 그리는 막대로, 복용 달력에 쓴다.
+복용 달력의 한 주 줄 위에 약을 먹는 기간을 칸 너머로 이어 그리는 막대로, 사람(프로필)마다 색이 다르다.
 
 ## 쓰는 법
 
-일곱 칸 그리드(`grid-template-columns: repeat(7, minmax(0, 1fr))`) 안에서 시작 요일부터 끝 요일까지 걸쳐 놓는다.
+일곱 칸 그리드 안에서 시작 요일부터 끝 요일까지 걸쳐 놓는다. 막대는 눌러서 일정 상세(SCH-05)를 여는 링크다.
 
 ```html
-<span class="mt-period mt-period--orange" style="grid-row: 2; grid-column: 5 / 8;">타이레놀정 · 3일</span>
+<a class="mt-period mt-period--p2" href="…" style="grid-row: 2; grid-column: 3 / 8;"><b>엄마</b>&nbsp;노바스크정 5밀리그램</a>
 ```
 
-소비하는 쪽이 정하는 것: 주 단위로 기간을 잘라 `grid-column` 계산(주를 넘으면 다음 주 줄에 이어서), 약마다 색 배정, 줄 순서(짧게 끝나는 약을 위로).
+소비하는 쪽이 정하는 것: 주 단위로 기간을 잘라 `grid-column` 계산, 주를 넘어 이어지면 `mt-period--cont-l`(앞 주에서 이어짐) · `mt-period--cont-r`(다음 주로 이어짐), 프로필 순서에 맞는 색, 줄 순서.
 
 ## 색
 
-| 클래스 | 토큰 | 언제 |
+| 클래스 | 면 / 테두리 / 글자 | 언제 |
 | --- | --- | --- |
-| `mt-period` | `primary-weak` | 첫 번째 약 |
-| `mt-period--blue` | `accent-weak-blue` | 두 번째 약 |
-| `mt-period--violet` | `accent-weak-violet` | 세 번째 약 |
-| `mt-period--orange` | `accent-weak-orange` | 3일처럼 짧게 끝나는 약, 글자 600 |
+| `mt-period--p1` | `profile-1-bar` / `profile-1-bar-line` / `profile-1-ink` | 첫 번째 프로필(본인) |
+| `mt-period--p2` | `profile-2-bar` / … / `profile-2-ink` | 두 번째 프로필 |
+| `mt-period--p3` | `profile-3-bar` / … / `profile-3-ink` | 세 번째 프로필 |
+| `mt-period--past` | 투명 면, 2px 점선 `profile-*`, 글자 `label-alternative` | 끝난 일정 |
 
-- 글자는 항상 `label-normal`, `caption1`. 막대 높이는 글자 한 줄, 모서리 `radius-chip`.
-- 넷보다 많으면 색을 다시 돌려 쓰되, 같은 주 줄에 같은 색이 붙어 나오지 않게 한다.
+- 높이 최소 44px(누르는 영역), 14px, 사람 이름은 `<b>`, 모서리 `radius-sm`.
+- 프로필 색은 ProfileTag · 헤더 "관리할 사람" 점과 같은 순서로 맞춘다.
 
 ## 지킬 것
 
-- 색면과 바탕 대비가 낮으므로 막대 안에 약 이름을 꼭 쓴다. 색만으로 약을 구분하지 않는다.
-- 막대가 좁아 이름이 잘리면 말줄임(…)으로 줄이고, 날짜를 누르면 그날 목록에서 전체 이름을 보여 준다.
+- 색만으로 사람을 구분하지 않는다. 막대 안에 사람 이름과 약 이름을 함께 쓴다.
+- 이전 판의 "약마다 색"(`--blue` · `--violet` · `--orange`)은 목업과 달라 없앴다.
