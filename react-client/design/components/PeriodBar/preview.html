@@ -1,0 +1,20 @@
+<!-- @dsCard group="Data display" height=180 subtitle="복용 달력의 약별 기간 막대" -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>PeriodBar</title>
+<style>
+  body { margin: 0; padding: var(--space-16); background: var(--background-normal); font-family: var(--font-sans); }
+  .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 3px; padding: 6px 0 10px; border-top: 1px solid var(--line-solid-normal); }
+  .d { grid-row: 1; padding: 0 8px; font-size: 0.8125rem; font-weight: 600; color: var(--label-normal); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="week" aria-label="10월 11일부터 17일까지">
+  <span class="d" style="grid-column: 1; color: var(--accent-fg-red);">11</span><span class="d" style="grid-column: 2;">12</span><span class="d" style="grid-column: 3;">13</span><span class="d" style="grid-column: 4;">14</span><span class="d" style="grid-column: 5;">15</span><span class="d" style="grid-column: 6;">16</span><span class="d" style="grid-column: 7;">17</span>
+  <span class="mt-period mt-period--orange" style="grid-row: 2; grid-column: 5 / 8;">타이레놀정 · 3일</span>
+  <span class="mt-period mt-period--blue" style="grid-row: 3; grid-column: 5 / 8;">노바스크정</span>
+  <span class="mt-period mt-period--violet" style="grid-row: 4; grid-column: 5 / 8;">리피토정</span>
+  <span class="mt-period" style="grid-row: 5; grid-column: 1 / 8;">글루코파지정</span>
+</div>
+</body>
+</html>

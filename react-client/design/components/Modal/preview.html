@@ -1,0 +1,21 @@
+<!-- @dsCard group="Containers" height=380 subtitle="확인 모달 · 위험한 행동" -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>Modal</title>
+<style>
+  body { margin: 0; min-height: 380px; background: var(--background-alternative); font-family: var(--font-sans); }
+</style>
+</head>
+<body>
+<div class="mt-dim">
+  <div class="mt-modal" role="alertdialog" aria-modal="true" aria-labelledby="m-title" aria-describedby="m-text">
+    <h2 class="mt-modal__title" id="m-title">노바스크정5밀리그램을 삭제할까요?</h2>
+    <p class="mt-modal__text" id="m-text">복용 달력 표시와 알림도 함께 사라지고, 되돌릴 수 없어요.</p>
+    <div class="mt-modal__actions">
+      <button class="mt-btn mt-btn--assistive mt-btn--lg" type="button">취소</button>
+      <button class="mt-btn mt-btn--danger mt-btn--lg" type="button">삭제</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

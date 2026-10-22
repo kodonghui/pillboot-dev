@@ -1,0 +1,33 @@
+<!-- @dsCard group="Forms" height=300 subtitle="기본 · 오류 · 확인됨 · 비활성" -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>TextField</title>
+<style>
+  body { margin: 0; padding: var(--space-16); background: var(--background-normal); font-family: var(--font-sans); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-16); }
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="mt-field">
+    <label class="mt-field__label" for="tf1">이메일<span class="mt-field__req">*</span></label>
+    <input class="mt-input" id="tf1" type="email" placeholder="example@email.com">
+    <p class="mt-field__help">로그인할 때 쓰는 이메일이에요.</p>
+  </div>
+  <div class="mt-field">
+    <label class="mt-field__label" for="tf2">비밀번호<span class="mt-field__req">*</span></label>
+    <input class="mt-input" id="tf2" type="password" value="abc123" aria-invalid="true" aria-describedby="tf2-e">
+    <p class="mt-field__help mt-field__help--error" id="tf2-e">영문 · 숫자 · 특수문자를 섞어 8자 이상으로 만들어 주세요.</p>
+  </div>
+  <div class="mt-field">
+    <label class="mt-field__label" for="tf3">닉네임</label>
+    <input class="mt-input" id="tf3" type="text" value="지민">
+    <p class="mt-field__help mt-field__help--ok">쓸 수 있는 닉네임이에요</p>
+  </div>
+  <div class="mt-field">
+    <label class="mt-field__label" for="tf4">약 이름</label>
+    <input class="mt-input" id="tf4" type="text" value="공식 정보는 고칠 수 없어요" disabled>
+  </div>
+</div>
+</body>
+</html>
