@@ -1,0 +1,20 @@
+.icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon--s {
+  width: 18px;
+  height: 18px;
+}
+
+.icon--l {
+  width: 24px;
+  height: 24px;
+}

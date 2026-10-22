@@ -1,0 +1,65 @@
+.settings-menu {
+  position: relative;
+  display: flex;
+}
+
+/* 디자인 시스템은 .mt-hd__nav a 에만 메뉴 모양을 주므로 버튼에 같은 모양을 준다(목업 .navb). */
+.settings-menu__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 44px;
+  padding: 0 var(--space-14);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--label-neutral);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.settings-menu__toggle:hover {
+  color: var(--label-normal);
+}
+
+.settings-menu__toggle[aria-current='page'] {
+  border-bottom-color: var(--primary-normal);
+  color: var(--label-normal);
+  font-weight: 700;
+}
+
+.settings-menu__panel {
+  top: calc(100% + var(--space-6));
+  left: 0;
+}
+
+/* 드롭다운이 주 메뉴 안에 있어 .mt-hd__nav a 의 밑줄이 따라오지 않게 한다. */
+.settings-menu__panel a {
+  border-bottom: 0;
+}
+
+.settings-menu__now {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-left: auto;
+  color: var(--primary-on-weak);
+  font-weight: 700;
+}
+
+/* 좁은 화면에서 디자인 시스템은 주 메뉴를 가로 스크롤(overflow-x: auto)로 바꾼다.
+   드롭다운이 그 영역에 잘리지 않도록 헤더를 기준으로 띄운다. */
+@media (max-width: 720px) {
+  .mt-hd {
+    position: relative;
+  }
+
+  .settings-menu {
+    position: static;
+  }
+
+  .settings-menu__panel {
+    right: var(--space-16);
+    left: auto;
+  }
+}

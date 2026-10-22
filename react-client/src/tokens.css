@@ -1,0 +1,403 @@
+/* 자동 생성 파일: 직접 고치지 않는다. design/pillbadeum-tokens.json 을 고친 뒤 npm run tokens 로 다시 만든다. */
+
+:root {
+  --primary-normal: #0B6B4F;
+  --primary-strong: #085A42;
+  --primary-heavy: #075B43;
+  --primary-weak: #E3F1EA;
+  --primary-weak-strong: #d3eadf;
+  --primary-on-weak: #075B43;
+  --label-normal: #17212B;
+  --label-strong: #000000;
+  --label-neutral: #44505C;
+  --label-alternative: #5E6A76;
+  --label-assistive: #6B7682;
+  --label-disable: #55606B;
+  --background-normal: #F4F6F8;
+  --background-alternative: #F8FAFB;
+  --background-elevated: #FFFFFF;
+  --line-normal: #D3DAE1;
+  --line-neutral: #E6EAEE;
+  --line-solid-normal: #D3DAE1;
+  --line-primary-normal: #0B6B4F;
+  --fill-normal: #EEF1F4;
+  --fill-strong: #70737c29;
+  --fill-alternative: #70737c0d;
+  --interaction-inactive: #989ba2;
+  --interaction-disable: #E3E7EB;
+  --status-positive: #0B6B4F;
+  --status-cautionary: #ff9200;
+  --status-negative: #B42318;
+  --background-status-positive: #E3F1EA;
+  --background-status-cautionary: #FFF4DF;
+  --background-status-negative: #FDEEEC;
+  --inverse-background: #1b1c1e;
+  --inverse-label: #f7f7f8;
+  --inverse-primary: #5cc9a4;
+  --material-dimmer: #17212B7A;
+  --focus-ring: #6FB39A;
+  --line-status-positive: #B5D9C7;
+  --line-status-cautionary: #EBC27E;
+  --line-status-negative: #F1C4BE;
+  --label-status-cautionary: #7A4300;
+  --label-status-negative: #9A1C13;
+  --background-status-info: #E8F0FB;
+  --line-status-info: #BFD3F0;
+  --label-status-info: #1D4F91;
+  --profile-1: #2F66C2;
+  --profile-1-weak: #E4ECFA;
+  --profile-1-ink: #1D4787;
+  --profile-1-bar: #2F66C221;
+  --profile-1-bar-line: #2F66C238;
+  --profile-2: #DB7A1F;
+  --profile-2-weak: #FCEBD8;
+  --profile-2-ink: #8A4205;
+  --profile-2-bar: #DB7A1F24;
+  --profile-2-bar-line: #DB7A1F42;
+  --profile-3: #5B3A9E;
+  --profile-3-weak: #ECE5F7;
+  --profile-3-ink: #4A2C86;
+  --profile-3-bar: #5B3A9E21;
+  --profile-3-bar-line: #5B3A9E38;
+  --static-white: #ffffff;
+  --static-black: #000000;
+  --accent-bg-redOrange: #ff5e00;
+  --accent-bg-lime: #58cf04;
+  --accent-bg-cyan: #00bdde;
+  --accent-bg-lightBlue: #00aeff;
+  --accent-bg-violet: #6541f2;
+  --accent-bg-purple: #cb59ff;
+  --accent-bg-pink: #f553da;
+  --accent-weak-orange: #fff1e0;
+  --accent-weak-blue: #e5efff;
+  --accent-weak-violet: #ece8fe;
+  --accent-fg-red: #e52222;
+  --accent-fg-redOrange: #f55a00;
+  --accent-fg-orange: #d17600;
+  --accent-fg-lime: #429e00;
+  --accent-fg-green: #009632;
+  --accent-fg-cyan: #0098b2;
+  --accent-fg-lightBlue: #008dcf;
+  --accent-fg-blue: #005eeb;
+  --accent-fg-violet: #5b37ed;
+  --accent-fg-purple: #ad36e3;
+  --accent-fg-pink: #e846cd;
+  --font-sans: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --space-0: 0px;
+  --space-0_5: 0.5px;
+  --space-1: 1px;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-56: 56px;
+  --space-64: 64px;
+  --space-72: 72px;
+  --space-80: 80px;
+  --radius-chip: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+  --radius-full: 9999px;
+  --shadow-xsmall: 0px 1px 2px -1px #1717171a;
+  --shadow-small: 0px 2px 4px -2px #1717170f, 0px 4px 6px -1px #1717170f;
+  --shadow-medium: 0px 4px 6px -2px #17171712, 0px 10px 15px -3px #17171712;
+  --shadow-large: 0px 6px 10px -4px #17171714, 0px 16px 24px -6px #17171714;
+  --shadow-xlarge: 0px 24px 60px #17212B47;
+  --breakpoint-xs: 0px;
+  --breakpoint-sm: 768px;
+  --breakpoint-md: 992px;
+  --breakpoint-lg: 1200px;
+  --breakpoint-xl: 1600px;
+}
+
+[data-theme="dark"] {
+  --primary-normal: #158363;
+  --primary-strong: #127555;
+  --primary-heavy: #0f6849;
+  --primary-weak: #173a2f;
+  --primary-weak-strong: #1d4739;
+  --primary-on-weak: #5cc9a4;
+  --label-normal: #f4f7f5;
+  --label-strong: #ffffff;
+  --label-neutral: #c2c4c8e0;
+  --label-alternative: #aeb0b69c;
+  --label-assistive: #aeb0b647;
+  --label-disable: #989ba229;
+  --background-normal: #1b1c1e;
+  --background-alternative: #0f0f10;
+  --background-elevated: #212225;
+  --line-normal: #70737c52;
+  --line-neutral: #70737c47;
+  --line-solid-normal: #37383c;
+  --line-primary-normal: #15836352;
+  --fill-normal: #70737c38;
+  --fill-strong: #70737c47;
+  --fill-alternative: #70737c1f;
+  --interaction-inactive: #5a5c63;
+  --interaction-disable: #2e2f33;
+  --status-positive: #1ed45a;
+  --status-cautionary: #ffa938;
+  --status-negative: #ff6363;
+  --background-status-positive: #1ed45a14;
+  --background-status-cautionary: #ffa93814;
+  --background-status-negative: #ff636314;
+  --inverse-background: #ffffff;
+  --inverse-label: #171719;
+  --inverse-primary: #0d7457;
+  --material-dimmer: #171719bd;
+  --static-white: #ffffff;
+  --static-black: #000000;
+  --accent-bg-redOrange: #ff7b2e;
+  --accent-bg-lime: #6be016;
+  --accent-bg-cyan: #28d0ed;
+  --accent-bg-lightBlue: #3dc2ff;
+  --accent-bg-violet: #7d5ef7;
+  --accent-bg-purple: #d478ff;
+  --accent-bg-pink: #fa73e3;
+  --accent-weak-orange: #3d2a14;
+  --accent-weak-blue: #1a2b47;
+  --accent-weak-violet: #2a2252;
+  --accent-fg-red: #ff6363;
+  --accent-fg-redOrange: #ff7b2e;
+  --accent-fg-orange: #ff9200;
+  --accent-fg-lime: #58cf04;
+  --accent-fg-green: #1ed45a;
+  --accent-fg-cyan: #00bdde;
+  --accent-fg-lightBlue: #00aeff;
+  --accent-fg-blue: #4f95ff;
+  --accent-fg-violet: #9e86fc;
+  --accent-fg-purple: #d478ff;
+  --accent-fg-pink: #fa73e3;
+}
+
+.screen-hero {
+  font-family: var(--font-sans);
+  font-size: 40px;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  font-weight: 700;
+}
+
+.screen-time {
+  font-family: var(--font-sans);
+  font-size: 56px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+.screen-title {
+  font-family: var(--font-sans);
+  font-size: 30px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+
+.screen-section {
+  font-family: var(--font-sans);
+  font-size: 21px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.screen-item {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.screen-body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+.screen-button {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.screen-label {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 600;
+}
+
+.screen-caption {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+.display1 {
+  font-family: var(--font-sans);
+  font-size: 3.5rem;
+  line-height: 4.5rem;
+  letter-spacing: -0.0319em;
+  font-weight: 700;
+}
+
+.display2 {
+  font-family: var(--font-sans);
+  font-size: 2.5rem;
+  line-height: 3.25rem;
+  letter-spacing: -0.0282em;
+  font-weight: 700;
+}
+
+.display3 {
+  font-family: var(--font-sans);
+  font-size: 2.25rem;
+  line-height: 3rem;
+  letter-spacing: -0.027em;
+  font-weight: 700;
+}
+
+.title1 {
+  font-family: var(--font-sans);
+  font-size: 2rem;
+  line-height: 2.75rem;
+  letter-spacing: -0.0253em;
+  font-weight: 700;
+}
+
+.title2 {
+  font-family: var(--font-sans);
+  font-size: 1.75rem;
+  line-height: 2.375rem;
+  letter-spacing: -0.0236em;
+  font-weight: 700;
+}
+
+.title3 {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  letter-spacing: -0.023em;
+  font-weight: 700;
+}
+
+.heading1 {
+  font-family: var(--font-sans);
+  font-size: 1.375rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.0194em;
+  font-weight: 600;
+}
+
+.heading2 {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  letter-spacing: -0.012em;
+  font-weight: 600;
+}
+
+.headline1 {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  line-height: 1.625rem;
+  letter-spacing: -0.002em;
+  font-weight: 600;
+}
+
+.headline2 {
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.5rem;
+  letter-spacing: 0em;
+  font-weight: 600;
+}
+
+.body1 {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5rem;
+  letter-spacing: 0.0057em;
+  font-weight: 400;
+}
+
+.body1-reading {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.625rem;
+  letter-spacing: 0.0057em;
+  font-weight: 400;
+}
+
+.body2 {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+  letter-spacing: 0.0096em;
+  font-weight: 400;
+}
+
+.body2-reading {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
+  letter-spacing: 0.0096em;
+  font-weight: 400;
+}
+
+.label1 {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  letter-spacing: 0.0145em;
+  font-weight: 600;
+}
+
+.label1-reading {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  letter-spacing: 0.0145em;
+  font-weight: 400;
+}
+
+.label2 {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  letter-spacing: 0.0194em;
+  font-weight: 600;
+}
+
+.caption1 {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.0252em;
+  font-weight: 400;
+}
+
+.caption2 {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  letter-spacing: 0.0311em;
+  font-weight: 400;
+}

@@ -1,0 +1,21 @@
+/* 브라우저 <dialog> 기본 모양을 지우고 .mt-dim 막이 화면 전체를 덮게 한다. */
+.confirm-dialog {
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+}
+
+.confirm-dialog:not([open]) {
+  display: none;
+}
+
+.confirm-dialog::backdrop {
+  background: transparent;
+}
+
+:root:has(.confirm-dialog[open]) {
+  overflow: hidden;
+}

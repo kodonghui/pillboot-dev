@@ -1,0 +1,83 @@
+.terms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.terms__all {
+  padding: var(--space-2) var(--space-16);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+  font-weight: 700;
+}
+
+.terms__check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+  min-height: 44px;
+  padding: var(--space-10) 0;
+  cursor: pointer;
+}
+
+.terms__check input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  accent-color: var(--primary-normal);
+}
+
+.terms__item {
+  padding: var(--space-6) 0;
+  border-top: 1px solid var(--line-neutral);
+}
+
+.terms__item:first-child {
+  border-top: 0;
+}
+
+.terms__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.terms__row .terms__check {
+  flex: 1;
+  min-width: 0;
+}
+
+.terms__row .terms__check input {
+  margin-top: 3px;
+}
+
+.terms__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+  font-weight: 600;
+}
+
+/* 체크 상자(22px)와 간격(space-12)만큼 들여 글자 줄에 맞춘다. */
+.terms__content,
+.terms__hint {
+  padding: 0 0 var(--space-8) calc(22px + var(--space-12));
+}
+
+.terms__content {
+  color: var(--label-neutral);
+}
+
+.terms__hint {
+  color: var(--label-alternative);
+}
+
+.terms__next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}

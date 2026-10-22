@@ -1,0 +1,27 @@
+.session-expired {
+  align-items: flex-start;
+}
+
+.session-expired__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-xl);
+  background: var(--background-status-cautionary);
+  color: var(--label-status-cautionary);
+}
+
+.session-expired__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.session-expired__description {
+  color: var(--label-neutral);
+}
+
+.session-expired__note {
+  color: var(--label-alternative);
+}

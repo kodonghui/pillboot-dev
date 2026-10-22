@@ -1,0 +1,4 @@
+/* 아이콘을 문구 첫 줄 가운데에 맞춘다(목업 .err svg). */
+.mt-field__help--error .icon {
+  margin-top: var(--space-2);
+}
