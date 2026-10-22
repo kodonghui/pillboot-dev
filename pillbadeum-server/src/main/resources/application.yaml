@@ -68,7 +68,7 @@ app:
 jwt:
   secret: ${JWT_SECRET:}
   # 1시간 (밀리초)
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:36000000}
 
 photo:
   # 처방전 OCR 대기와 OpenAI 응답 한도임. 낱알·채팅은 기존 30초임.
