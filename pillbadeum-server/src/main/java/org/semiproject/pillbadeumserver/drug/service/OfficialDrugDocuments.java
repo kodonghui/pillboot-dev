@@ -58,7 +58,8 @@ public class OfficialDrugDocuments {
             byte[] bytes = response.body();
             if (bytes.length > MAX_BYTES) return DrugGuideService.OMITTED_SECTION;
             try (var pdf = Loader.loadPDF(bytes)) {
-                String text = new PDFTextStripper().getText(pdf).strip();
+                // 일부 공식 PDF는 단어 사이 공백을 NUL로 추출함. 수치·부등호는 그대로 보존함.
+                String text = new PDFTextStripper().getText(pdf).replace('\0', ' ').strip();
                 if (text.isBlank()) throw ExternalApiException.failed(API, "공식 원문의 글자를 확인하지 못했습니다.", null);
                 return text;
             }
