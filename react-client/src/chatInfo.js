@@ -64,7 +64,7 @@ export function sourceGroups(sources) {
 }
 
 // 답변 본문의 서식. 서버 답변 지침이 형식을 정하지 않아 모델이 마크다운 일부를 섞어 쓴다.
-// 문단 · 줄바꿈 · 글머리 목록(- * + •) · 번호 목록(1. · 1)) · **굵게** 만 읽고, 나머지 기호는 글자 그대로 둔다.
+// 문단 · 줄바꿈 · 글머리 목록(- * + •) · 번호 목록(1. · 1)) · **굵게** · 표를 읽고, 나머지는 글자로 둔다.
 // HTML 로 바꾸지 않고 글자 조각으로만 나눈다. 화면은 조각을 React 글자로 넣으므로 본문에 든 태그는 실행되지 않는다.
 const bulletLine = /^(\s*)[-*+•]\s+(\S.*)$/
 const numberLine = /^(\s*)(\d{1,3})[.)]\s+(\S.*)$/
@@ -81,6 +81,14 @@ function listLine(line) {
   return null
 }
 
+// 제목과 구분선이 확인된 표만 해석함. 이스케이프한 \|는 셀 안의 글자로 유지함.
+function tableCells(line) {
+  const value = line.trim()
+  if (!/(?<!\\)\|/.test(value)) return null
+  return value.replace(/^\|/, '').replace(/(?<!\\)\|$/, '').split(/(?<!\\)\|/)
+    .map((cell) => cell.trim().replace(/\\\|/g, '|'))
+}
+
 // 답변 본문을 문단과 목록으로 나눈다. 빈 줄은 문단 · 목록을 끝내고, 더 들여 쓴 항목은 앞 항목 아래 목록이 된다.
 // 목록 항목보다 들여 쓴 일반 줄은 그 항목에 이어 쓴다. 번호 목록은 첫 항목의 번호(start)부터 센다.
 // block: { kind: 'paragraph', lines } · { kind: 'list', ordered, start, indent, items: [{ lines, lists }] }
@@ -89,8 +97,27 @@ export function answerBlocks(body) {
   let paragraph = null
   // 지금 이어 쓰는 목록들. 뒤로 갈수록 더 들여 쓴 아래 목록이다.
   let open = []
-  for (const line of body.split(/\r?\n/)) {
+  const lines = body.split(/\r?\n/)
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
     if (line.trim() === '') {
+      paragraph = null
+      open = []
+      continue
+    }
+    const header = tableCells(line)
+    const divider = index + 1 < lines.length ? tableCells(lines[index + 1]) : null
+    if (header && divider?.length === header.length && divider.every((cell) => /^:?-{3,}:?$/.test(cell))) {
+      const rows = []
+      index += 1
+      while (index + 1 < lines.length) {
+        const cells = tableCells(lines[index + 1])
+        if (!cells || cells.length !== header.length) break
+        rows.push(cells)
+        index += 1
+      }
+      blocks.push({ kind: 'table', header, rows, align: divider.map((cell) =>
+        cell.endsWith(':') ? (cell.startsWith(':') ? 'center' : 'right') : 'left') })
       paragraph = null
       open = []
       continue

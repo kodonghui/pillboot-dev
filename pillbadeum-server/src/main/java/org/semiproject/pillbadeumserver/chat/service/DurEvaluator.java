@@ -104,16 +104,21 @@ public class DurEvaluator {
                 List.copyOf(warnings.values()), message), List.copyOf(provenance));
     }
 
-    /** CHAT-008: 판정·본문 경고와 카드 표시를 분리한다. 발견 경고는 숨기지 않고 일반 안내의 반복 카드만 줄인다. */
+    /** 단순 기록 확인·서식 요청에는 정상 조회 안내를 반복하지 않음. 경고·미확인은 질문과 무관하게 유지함. */
+    public boolean needsExplanation(AnswerInput input, DurNotice notice) {
+        if ("NO_DRUG".equals(notice.lookup())) return false;
+        if (!"ALL".equals(notice.lookup()) || !"NONE".equals(notice.result()) || !notice.items().isEmpty()) return true;
+        String question = input.question().replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
+        return List.of("병용", "상호작용", "금기", "부작용", "안전", "위험", "주의사항", "용량", "임신", "임부",
+                "같이", "함께", "먹어도", "복용해도", "괜찮", "알레르기", "과량", "과다", "몇알", "몇정", "분할", "중단")
+                .stream().anyMatch(question::contains);
+    }
+
+    /** CHAT-008: 발견 경고·미확인은 유지하고 정상 조회의 불필요한 반복 카드만 줄임. */
     public DurNotice cardNotice(AnswerInput input, DurNotice notice) {
         if ("FOUND".equals(notice.result())) return notice;
         if (input.firstAnswer()) return null;
-        String question = input.question().replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
-        boolean medicationQuestion = List.of("약", "복용", "복약", "먹", "병용", "금기", "부작용", "성분", "용량", "임신", "임부")
-                .stream().anyMatch(question::contains)
-                || input.medications().stream().map(m -> m.name().replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT))
-                .filter(name -> !name.isBlank()).anyMatch(question::contains);
-        return medicationQuestion ? notice : null;
+        return needsExplanation(input, notice) ? notice : null;
     }
 
     /** 출생연도의 가능한 만 나이 범위 전체가 조건 밖일 때만 NO를 반환한다. 복합 문구를 추측하지 않는다. */

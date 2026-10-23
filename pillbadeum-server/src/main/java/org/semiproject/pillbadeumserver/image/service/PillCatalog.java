@@ -60,6 +60,12 @@ public class PillCatalog implements AutoCloseable {
         return current.rows();
     }
 
+    /** 검색 사진의 선택적 보강은 카탈로그 준비를 기다리거나 검색 자체를 실패시키지 않음. */
+    public List<JsonNode> cachedRows() {
+        Snapshot current = snapshot;
+        return current == null ? List.of() : current.rows();
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     public void onReady() { if (snapshot == null || snapshot.loadedAt().plus(MAX_AGE).isBefore(Instant.now())) refreshInBackground(); }
 

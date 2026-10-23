@@ -70,6 +70,34 @@ class ExternalClientTests {
     }
 
     @Test
+    void publicDataUsesHttp11WithoutRequestingAnHttp2Upgrade() {
+        AtomicReference<String> upgrade = new AtomicReference<>();
+        AtomicReference<String> protocol = new AtomicReference<>();
+        server.createContext("/protocol", exchange -> {
+            upgrade.set(exchange.getRequestHeaders().getFirst("Upgrade"));
+            protocol.set(exchange.getProtocol());
+            respond(exchange, 200, "{\"header\":{\"resultCode\":\"00\"},\"body\":{\"totalCount\":0,\"items\":[]}}");
+        });
+        assertThat(PublicDataClient.totalCount(publicData().get("/protocol", Map.of()))).isZero();
+        assertThat(protocol.get()).isEqualTo("HTTP/1.1");
+        assertThat(upgrade.get()).isNull();
+    }
+
+    @Test
+    void publicDataDoesNotFollowRedirectsWithGatewayCredentials() {
+        AtomicInteger redirected = new AtomicInteger();
+        server.createContext("/redirect", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/unexpected");
+            exchange.sendResponseHeaders(302, -1); exchange.close();
+        });
+        server.createContext("/unexpected", exchange -> {
+            redirected.incrementAndGet(); respond(exchange, 200, "{}");
+        });
+        assertThrows(ExternalApiException.class, () -> publicData().get("/redirect", Map.of()));
+        assertThat(redirected.get()).isZero();
+    }
+
+    @Test
     void publicDataRetriesOnceAndEncodesParameterValues() {
         AtomicInteger calls = new AtomicInteger();
         AtomicReference<String> query = new AtomicReference<>();
@@ -294,6 +322,44 @@ class ExternalClientTests {
                 2000, 1000, 1000, 60000, 1, 20, new java.math.BigDecimal("0.10"), 85_000);
         assertThat(client.isEnabled()).isFalse();
         assertThrows(AiUnavailableException.class, () -> client.createText("규칙", MESSAGES, 100));
+    }
+
+    @Test
+    void chatDefaultsToHighWhileSummaryAndPillKeepTheCommonMaxEffort() {
+        var requests = new CopyOnWriteArrayList<tools.jackson.databind.JsonNode>();
+        server.createContext("/responses", exchange -> {
+            requests.add(JSON.readTree(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+            respond(exchange, 200, textResponse("{}"));
+        });
+        var client = new OpenAiClient(JSON, "local-test-key", baseUrl, "chat", "decision", "pill", "embedding", "max",
+                2000, 1000, 1000, 60000, 1, 20, new java.math.BigDecimal("0.10"), 85_000);
+        client.createTextResult("대화 답변", MESSAGES, 1600);
+        client.createText("대화 요약", MESSAGES, 1600);
+        client.createJsonFromImages("규칙", "사진", List.of("data:image/png;base64,AA=="), 1600, "photo_pill_clues", SCHEMA);
+        assertThat(requests).hasSize(3);
+        assertThat(requests.get(0).path("reasoning").path("effort").asString()).isEqualTo("high");
+        assertThat(requests.get(1).path("reasoning").path("effort").asString()).isEqualTo("max");
+        assertThat(requests.get(2).path("reasoning").path("effort").asString()).isEqualTo("max");
+        assertThat(requests).allSatisfy(request -> assertThat(request.has("max_output_tokens")).isFalse());
+    }
+
+    @Test
+    void chatEffortCanBeOverriddenOrOmittedWithoutChangingOtherCalls() {
+        var requests = new CopyOnWriteArrayList<tools.jackson.databind.JsonNode>();
+        server.createContext("/responses", exchange -> {
+            requests.add(JSON.readTree(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+            respond(exchange, 200, textResponse("답변"));
+        });
+        var client = new OpenAiClient(JSON, "local-test-key", baseUrl, "chat", "decision", "pill", "embedding", "max",
+                2000, 1000, 1000, 60000, 1, 20, new java.math.BigDecimal("0.10"), 85_000);
+        ReflectionTestUtils.setField(client, "chatReasoningEffort", "medium");
+        client.createTextResult("대화 답변", MESSAGES, 1600);
+        ReflectionTestUtils.setField(client, "chatReasoningEffort", "");
+        client.createTextResult("대화 답변", MESSAGES, 1600);
+        client.createText("대화 요약", MESSAGES, 1600);
+        assertThat(requests.get(0).path("reasoning").path("effort").asString()).isEqualTo("medium");
+        assertThat(requests.get(1).has("reasoning")).isFalse();
+        assertThat(requests.get(2).path("reasoning").path("effort").asString()).isEqualTo("max");
     }
 
     @Test

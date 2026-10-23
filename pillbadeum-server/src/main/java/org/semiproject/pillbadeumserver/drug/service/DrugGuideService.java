@@ -71,13 +71,15 @@ public class DrugGuideService {
     private final PublicDataClient publicDataClient;
     private final DrugRepository drugRepository;
     private final DurWarningRepository durWarningRepository;
+    private final OfficialDrugDocuments documents;
 
     public DrugGuideService(PublicDataClient publicDataClient,
                             DrugRepository drugRepository,
-                            DurWarningRepository durWarningRepository) {
+                            DurWarningRepository durWarningRepository, OfficialDrugDocuments documents) {
         this.publicDataClient = publicDataClient;
         this.drugRepository = drugRepository;
         this.durWarningRepository = durWarningRepository;
+        this.documents = documents;
     }
 
     /* 목차. 1. 근거 출처 조회 */
@@ -134,6 +136,11 @@ public class DrugGuideService {
         List<DrugGuideResponse.Section> sections = new ArrayList<>();
         for (Field field : fields) {
             String text = clean(item.path(field.apiName()).asString(""));
+            if (text.isEmpty() && field.apiName().endsWith("_DOC_DATA")) {
+                String kind = field.apiName().substring(0, 2);
+                if (!item.path(kind + "_DOC_ID").asString("").isBlank())
+                    text = documents.read(itemSeq, kind).replaceAll("\\s+", " ").strip();
+            }
             if (!text.isEmpty()) {
                 sections.add(new DrugGuideResponse.Section(field.key(), field.title(),
                         text.length() <= MAX_SECTION_LENGTH ? text : OMITTED_SECTION));

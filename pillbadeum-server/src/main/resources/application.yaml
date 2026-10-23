@@ -87,6 +87,8 @@ openai:
     embedding: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
   # 설명. 모델이 지원하는 값만 쓴다. 추론 기능이 없는 모델이면 비워 둔다.
   reasoning-effort: ${OPENAI_REASONING_EFFORT:}
+  # 대화 답변 전용임. 요약·일정·낱알에는 위 공통 설정을 사용함.
+  chat-reasoning-effort: ${OPENAI_CHAT_REASONING_EFFORT:high}
   prescription-reasoning-effort: ${OPENAI_PRESCRIPTION_REASONING_EFFORT:max}
   connect-timeout-ms: 2000
   short-read-timeout-ms: 10000

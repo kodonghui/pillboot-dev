@@ -23,6 +23,10 @@ configurations {
 }
 
 dependencies {
+    // 허가 API에 본문이 없을 때 식약처 공식 PDF의 텍스트만 읽음. AI 판독·추측은 사용하지 않음.
+    implementation('org.apache.pdfbox:pdfbox:3.0.8') {
+        exclude group: 'commons-logging', module: 'commons-logging'
+    }
     // REST API
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 

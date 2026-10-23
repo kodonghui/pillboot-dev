@@ -102,6 +102,7 @@ class AnswerExternalTests {
         assertThat(queries).anyMatch(query -> query.contains("itemSeq=" + CODE))
                 .anyMatch(query -> query.contains("item_seq=" + CODE)).allMatch(query -> !query.contains("itemName"));
         assertThat(sent.get().path("model").asString()).isEqualTo("chat-only");
+        assertThat(sent.get().path("reasoning").path("effort").asString()).isEqualTo("high");
         assertThat(sent.get().path("store").asBoolean()).isFalse();
         assertThat(sent.get().has("max_output_tokens")).isFalse();
         assertThat(sent.get().has("previous_response_id") || sent.get().has("tools")).isFalse();

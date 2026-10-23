@@ -261,12 +261,23 @@ class AnswerMySqlTests {
     }
 
     @Test
-    void repeatedGeneralGuidanceOmitsTheCardButRetainsDurContextAndBodyWarning() throws Exception {
+    void repeatedGeneralGuidanceRetainsAFailedDurCheckAndBodyWarning() throws Exception {
         pair(sessionId, 1, "legacy-user", "legacy-answer");
         var result = body(send(sessionId, "알림 설정은 어디에 있어?", 200));
-        assertThat(result.path("answer").path("durNotice").isNull()).isTrue();
+        assertThat(result.path("answer").path("durNotice").path("lookup").asString()).isEqualTo("FAILED");
         assertThat(background(requests.getFirst()).path("dur").path("lookup").asString()).isEqualTo("FAILED");
         assertThat(result.path("answer").path("content").asString()).contains("DUR 확인:", "금기가 없다는 뜻은 아니니");
+    }
+
+    @Test
+    void anOrdinaryRepeatOmitsOnlyAnAllCheckedNoWarningDurFooter() throws Exception {
+        pair(sessionId, 1, "legacy-user", "legacy-answer");
+        durZero(drugCode);
+        var result = body(send(sessionId, "등록 약 이름만 알려줘", 200));
+        assertThat(result.path("answer").path("durNotice").isNull()).isTrue();
+        assertThat(background(requests.getFirst()).path("dur").path("lookup").asString()).isEqualTo("ALL");
+        assertThat(background(requests.getFirst()).path("dur").path("result").asString()).isEqualTo("NONE");
+        assertThat(result.path("answer").path("content").asString()).doesNotContain("DUR 확인:");
     }
 
     @Test

@@ -67,10 +67,36 @@ class DrugSyncFallbackTests {
   @Test
   void nameSearchUsesPermitRowsWithTwentyItemCapAndDoesNotWriteCache() {
     when(client.get(eq(DrugSyncService.PERMIT_INFO_PATH), anyMap())).thenReturn(json.valueToTree(Map.of("items", List.of(row()), "totalCount", 1)));
-    var search = new DrugSearchService(client, mock(MyDrugRepository.class), mock(ProfileAccessChecker.class));
+    var search = new DrugSearchService(client, mock(MyDrugRepository.class), mock(ProfileAccessChecker.class),
+        mock(org.semiproject.pillbadeumserver.image.service.PillCatalog.class));
     assertThat(search.search("합성시럽", PageRequest.of(0, 100)).getContent()).singleElement()
         .satisfies(value -> assertThat(value.itemSeq()).isEqualTo("900001"));
     verify(client).get(DrugSyncService.PERMIT_INFO_PATH, Map.of("item_name", "합성시럽", "pageNo", 1, "numOfRows", 20));
+    verifyNoInteractions(drugs);
+  }
+
+  @Test
+  void searchImagesUseExactCodesAndKeepProviderPhotosAndRegisteredFlagsWithoutMoreHttp() {
+    var catalog = mock(org.semiproject.pillbadeumserver.image.service.PillCatalog.class);
+    var mine = mock(MyDrugRepository.class);
+    var first = new LinkedHashMap<>(row());
+    var second = new LinkedHashMap<>(row()); second.put("ITEM_SEQ", "900002"); second.put("ITEM_IMAGE", "https://official.test/original.jpg");
+    var third = new LinkedHashMap<>(row()); third.put("ITEM_SEQ", "900003");
+    when(client.get(eq(DrugSyncService.PERMIT_INFO_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(first, second, third), "totalCount", 3)));
+    when(catalog.cachedRows()).thenReturn(List.of(
+        json.valueToTree(Map.of("ITEM_SEQ", "900001", "ITEM_IMAGE", "https://official.test/matched.jpg")),
+        json.valueToTree(Map.of("ITEM_SEQ", "900002", "ITEM_IMAGE", "https://official.test/other.jpg")),
+        json.valueToTree(Map.of("ITEM_SEQ", "999999", "ITEM_NAME", "합성시럽", "ITEM_IMAGE", "https://official.test/wrong.jpg"))));
+    when(mine.findItemSeqsByProfileId(7L)).thenReturn(List.of("900001"));
+    var search = new DrugSearchService(client, mine, mock(ProfileAccessChecker.class), catalog);
+    var page = search.searchForProfile(7L, "합성시럽", PageRequest.of(0, 20));
+    assertThat(page.getTotalElements()).isEqualTo(3);
+    assertThat(page.getContent()).extracting(value -> value.imageUrl())
+        .containsExactly("https://official.test/matched.jpg", "https://official.test/original.jpg", null);
+    assertThat(page.getContent()).extracting(value -> value.registered()).containsExactly(true, false, false);
+    verify(client, times(1)).get(anyString(), anyMap());
+    verify(catalog, never()).rows();
     verifyNoInteractions(drugs);
   }
 

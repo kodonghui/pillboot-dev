@@ -49,7 +49,10 @@ public class OpenAiClient {
     private final String visionModel;
     private final String embeddingModel;
     private final String reasoningEffort;
-    // 처방전만 모델·effort를 바꿈. Responses 출력 토큰 수는 별도로 제한하지 않음.
+    // 대화 답변만 high를 기본으로 사용하며 요약·일정·낱알의 기존 공통 설정은 유지한다.
+    @Value("${openai.chat-reasoning-effort:high}")
+    private String chatReasoningEffort = "high";
+    // 처방전 전용 모델·effort임. Responses 출력 토큰 수는 별도로 제한하지 않음.
     @Value("${openai.model.prescription:}")
     private String prescriptionModel;
     @Value("${openai.prescription-reasoning-effort:}")
@@ -105,12 +108,18 @@ public class OpenAiClient {
 
     /* 목차. 1. 글로 된 답을 한 번에 받기 */
     public String createText(String instructions, List<AiMessage> messages, int maxOutputTokens) {
-        return createTextResult(instructions, messages, maxOutputTokens).text();
+        return createTextResult(instructions, messages, maxOutputTokens, reasoningEffort).text();
     }
 
     /** CHAT-007: 본문과 보조 ID를 받는다. 이전 응답 연결 없이 매번 DB에서 만든 input을 보낸다. */
     public AiTextResult createTextResult(String instructions, List<AiMessage> messages, int maxOutputTokens) {
+        return createTextResult(instructions, messages, maxOutputTokens, chatReasoningEffort);
+    }
+
+    private AiTextResult createTextResult(String instructions, List<AiMessage> messages, int maxOutputTokens, String effort) {
         Map<String, Object> body = requestBody(chatModel, instructions, toInput(messages), maxOutputTokens);
+        if (effort == null || effort.isBlank()) body.remove("reasoning");
+        else body.put("reasoning", Map.of("effort", effort));
         JsonNode response = post(longClient, "/responses", body, chatModel, false);
         String id = response.path("id").isString() ? response.path("id").asString("") : "";
         return new AiTextResult(outputText(response), id.isBlank() || id.length() > 255 ? null : id);
