@@ -38,10 +38,11 @@ class DrugInputValidationTests {
     private final MyDrugRepository myDrugRepository = mock(MyDrugRepository.class);
     private final ProfileAccessChecker profileAccessChecker = mock(ProfileAccessChecker.class);
 
-    private final DrugSearchService searchService = new DrugSearchService(publicDataClient, myDrugRepository, profileAccessChecker);
+    private final DrugSearchService searchService = new DrugSearchService(publicDataClient, myDrugRepository, profileAccessChecker,
+            mock(org.semiproject.pillbadeumserver.image.service.PillCatalog.class));
     private final DrugSyncService syncService = new DrugSyncService(publicDataClient, drugRepository);
     private final DrugGuideService guideService = new DrugGuideService(publicDataClient, drugRepository,
-            mock(DurWarningRepository.class));
+            mock(DurWarningRepository.class), mock(org.semiproject.pillbadeumserver.drug.service.OfficialDrugDocuments.class));
 
     /* 목차. 1. 이름 검색: 2~50자 */
     @Test

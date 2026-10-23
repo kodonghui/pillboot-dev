@@ -22,8 +22,27 @@ class DrugGuideSectionTests {
   final PublicDataClient client = mock(PublicDataClient.class);
   final DrugRepository drugs = mock(DrugRepository.class);
   final DurWarningRepository durWarnings = mock(DurWarningRepository.class);
-  final DrugGuideService service = new DrugGuideService(client, drugs, durWarnings);
+  final org.semiproject.pillbadeumserver.drug.service.OfficialDrugDocuments documents = mock(org.semiproject.pillbadeumserver.drug.service.OfficialDrugDocuments.class);
+  final DrugGuideService service = new DrugGuideService(client, drugs, durWarnings, documents);
   final JsonMapper json = new JsonMapper();
+
+  @Test
+  void permitPdfFillsMissingTextAndKeepsExistingSectionsAndSource() {
+    var drug = DrugWebTests.drug();
+    when(drugs.findById(drug.getItemSeq())).thenReturn(Optional.of(drug));
+    when(durWarnings.findAllByDrug_ItemSeqOrderByDurWarningIdAsc(drug.getItemSeq())).thenReturn(List.of());
+    when(client.get(eq(DrugGuideService.EASY_DRUG_PATH), anyMap())).thenReturn(json.valueToTree(Map.of("items", List.of())));
+    when(client.get(eq(DrugGuideService.PERMIT_DETAIL_PATH), anyMap())).thenReturn(json.valueToTree(Map.of("items", List.of(Map.of(
+        "ITEM_SEQ", drug.getItemSeq(), "ITEM_NAME", drug.getName(), "EE_DOC_ID", "official PDF",
+        "UD_DOC_DATA", "기존 사용법", "STORAGE_METHOD", "기존 보관법")))));
+    when(documents.read(drug.getItemSeq(), "EE")).thenReturn("공식 PDF 효능 A < 5 / B > 10");
+    var guide = service.getGuide(drug.getItemSeq());
+    assertThat(guide.sections()).extracting(DrugGuideResponse.Section::key).containsExactly("EFFICACY", "USAGE", "STORAGE");
+    assertThat(guide.sections().getFirst().content()).isEqualTo("공식 PDF 효능 A < 5 / B > 10");
+    assertThat(guide.sourceName()).isEqualTo(DrugGuideService.PERMIT_SOURCE);
+    org.mockito.Mockito.verify(documents, org.mockito.Mockito.times(1)).read(drug.getItemSeq(), "EE");
+    org.mockito.Mockito.verifyNoMoreInteractions(documents);
+  }
 
   @Test
   void longOfficialPrecautionIsShownAsOmittedInsteadOfDisappearing() {
