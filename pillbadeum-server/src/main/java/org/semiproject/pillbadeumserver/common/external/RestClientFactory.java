@@ -1,6 +1,8 @@
 package org.semiproject.pillbadeumserver.common.external;
 
 import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.DefaultUriBuilderFactory;
 
@@ -27,11 +29,27 @@ public final class RestClientFactory {
     }
 
     public static RestClient.Builder builder(String baseUrl, Duration connectTimeout, Duration readTimeout) {
-
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(connectTimeout).build());
         requestFactory.setReadTimeout(readTimeout);
+        return builder(baseUrl, requestFactory);
+    }
 
+    /** 공공데이터 게이트웨이와의 호환성을 위해 URLConnection의 HTTP/1.1 경로만 사용함. */
+    public static RestClient.Builder publicDataBuilder(String baseUrl, Duration connectTimeout, Duration readTimeout) {
+        var requestFactory = new SimpleClientHttpRequestFactory() {
+            @Override protected void prepareConnection(java.net.HttpURLConnection connection, String method)
+                    throws java.io.IOException {
+                super.prepareConnection(connection, method);
+                connection.setInstanceFollowRedirects(false);
+            }
+        };
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
+        return builder(baseUrl, requestFactory);
+    }
+
+    private static RestClient.Builder builder(String baseUrl, ClientHttpRequestFactory requestFactory) {
         DefaultUriBuilderFactory uriBuilderFactory = new DefaultUriBuilderFactory(baseUrl);
         uriBuilderFactory.setEncodingMode(DefaultUriBuilderFactory.EncodingMode.VALUES_ONLY);
 

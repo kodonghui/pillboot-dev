@@ -65,7 +65,8 @@ public class PublicDataClient {
         }
         this.permits = new Semaphore(maxConcurrentCalls, true);
         this.permitTimeoutMs = permitTimeoutMs;
-        this.restClient = RestClientFactory.builder(baseUrl,
+        // JdkClient 경로의 반복 시간 초과를 피하도록 공공데이터에만 URLConnection을 사용함.
+        this.restClient = RestClientFactory.publicDataBuilder(baseUrl,
                 Duration.ofMillis(connectTimeoutMs), Duration.ofMillis(readTimeoutMs)).build();
     }
 

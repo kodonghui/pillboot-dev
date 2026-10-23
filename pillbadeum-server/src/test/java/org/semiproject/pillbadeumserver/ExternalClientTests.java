@@ -70,6 +70,34 @@ class ExternalClientTests {
     }
 
     @Test
+    void publicDataUsesHttp11WithoutRequestingAnHttp2Upgrade() {
+        AtomicReference<String> upgrade = new AtomicReference<>();
+        AtomicReference<String> protocol = new AtomicReference<>();
+        server.createContext("/protocol", exchange -> {
+            upgrade.set(exchange.getRequestHeaders().getFirst("Upgrade"));
+            protocol.set(exchange.getProtocol());
+            respond(exchange, 200, "{\"header\":{\"resultCode\":\"00\"},\"body\":{\"totalCount\":0,\"items\":[]}}");
+        });
+        assertThat(PublicDataClient.totalCount(publicData().get("/protocol", Map.of()))).isZero();
+        assertThat(protocol.get()).isEqualTo("HTTP/1.1");
+        assertThat(upgrade.get()).isNull();
+    }
+
+    @Test
+    void publicDataDoesNotFollowRedirectsWithGatewayCredentials() {
+        AtomicInteger redirected = new AtomicInteger();
+        server.createContext("/redirect", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/unexpected");
+            exchange.sendResponseHeaders(302, -1); exchange.close();
+        });
+        server.createContext("/unexpected", exchange -> {
+            redirected.incrementAndGet(); respond(exchange, 200, "{}");
+        });
+        assertThrows(ExternalApiException.class, () -> publicData().get("/redirect", Map.of()));
+        assertThat(redirected.get()).isZero();
+    }
+
+    @Test
     void publicDataRetriesOnceAndEncodesParameterValues() {
         AtomicInteger calls = new AtomicInteger();
         AtomicReference<String> query = new AtomicReference<>();
