@@ -297,6 +297,44 @@ class ExternalClientTests {
     }
 
     @Test
+    void chatDefaultsToHighWhileSummaryAndPillKeepTheCommonMaxEffort() {
+        var requests = new CopyOnWriteArrayList<tools.jackson.databind.JsonNode>();
+        server.createContext("/responses", exchange -> {
+            requests.add(JSON.readTree(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+            respond(exchange, 200, textResponse("{}"));
+        });
+        var client = new OpenAiClient(JSON, "local-test-key", baseUrl, "chat", "decision", "pill", "embedding", "max",
+                2000, 1000, 1000, 60000, 1, 20, new java.math.BigDecimal("0.10"), 85_000);
+        client.createTextResult("대화 답변", MESSAGES, 1600);
+        client.createText("대화 요약", MESSAGES, 1600);
+        client.createJsonFromImages("규칙", "사진", List.of("data:image/png;base64,AA=="), 1600, "photo_pill_clues", SCHEMA);
+        assertThat(requests).hasSize(3);
+        assertThat(requests.get(0).path("reasoning").path("effort").asString()).isEqualTo("high");
+        assertThat(requests.get(1).path("reasoning").path("effort").asString()).isEqualTo("max");
+        assertThat(requests.get(2).path("reasoning").path("effort").asString()).isEqualTo("max");
+        assertThat(requests).allSatisfy(request -> assertThat(request.has("max_output_tokens")).isFalse());
+    }
+
+    @Test
+    void chatEffortCanBeOverriddenOrOmittedWithoutChangingOtherCalls() {
+        var requests = new CopyOnWriteArrayList<tools.jackson.databind.JsonNode>();
+        server.createContext("/responses", exchange -> {
+            requests.add(JSON.readTree(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+            respond(exchange, 200, textResponse("답변"));
+        });
+        var client = new OpenAiClient(JSON, "local-test-key", baseUrl, "chat", "decision", "pill", "embedding", "max",
+                2000, 1000, 1000, 60000, 1, 20, new java.math.BigDecimal("0.10"), 85_000);
+        ReflectionTestUtils.setField(client, "chatReasoningEffort", "medium");
+        client.createTextResult("대화 답변", MESSAGES, 1600);
+        ReflectionTestUtils.setField(client, "chatReasoningEffort", "");
+        client.createTextResult("대화 답변", MESSAGES, 1600);
+        client.createText("대화 요약", MESSAGES, 1600);
+        assertThat(requests.get(0).path("reasoning").path("effort").asString()).isEqualTo("medium");
+        assertThat(requests.get(1).has("reasoning")).isFalse();
+        assertThat(requests.get(2).path("reasoning").path("effort").asString()).isEqualTo("max");
+    }
+
+    @Test
     void visionEffortIsIndependentFromChatAndKeepsStructuredOutput() {
         var requests = new CopyOnWriteArrayList<tools.jackson.databind.JsonNode>();
         server.createContext("/responses", exchange -> {
