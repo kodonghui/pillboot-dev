@@ -78,7 +78,7 @@ class RegistrationDurMySqlTests {
         when(sync.getOrSync(code)).thenReturn(drugs.findById(code).orElseThrow());
         var completed = cacheFinished;
         doAnswer(invocation -> { try { return invocation.callRealMethod(); } finally { completed.countDown(); } }).when(cache).refresh(anyList(), any());
-        when(lookup.collectItems(anyList(), anySet(), any())).thenAnswer(invocation ->
+        when(lookup.collectForPrefetch(anyList(), anySet(), any())).thenAnswer(invocation ->
                 List.of(new DurLookup(code, DurLookup.Type.AGE, false, List.of(), LocalDate.now(TimeZoneConfig.ZONE))));
     }
     @AfterEach void clean() {
@@ -92,7 +92,7 @@ class RegistrationDurMySqlTests {
     }
     @Test void lookupStartsAfterCommitAndRegistrationReturnsWhileProviderIsStillWaiting() throws Exception {
         var started = new CountDownLatch(1);
-        when(lookup.collectItems(anyList(), anySet(), any())).thenAnswer(invocation -> {
+        when(lookup.collectForPrefetch(anyList(), anySet(), any())).thenAnswer(invocation -> {
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profile)).isEqualTo(1);
             started.countDown();
             assertThat(release.await(3, TimeUnit.SECONDS)).isTrue();
@@ -112,7 +112,7 @@ class RegistrationDurMySqlTests {
             verifyNoInteractions(lookup);
             status.setRollbackOnly();
         });
-        verify(lookup, after(150).never()).collectItems(anyList(), anySet(), any());
+        verify(lookup, after(150).never()).collectForPrefetch(anyList(), anySet(), any());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profile)).isZero();
     }
     @Test void registrationKeepsCalendarDatesInThePhysicalDatabase() throws Exception {
@@ -139,7 +139,7 @@ class RegistrationDurMySqlTests {
         assertThat(jdbc.queryForObject("SELECT content FROM dur_warning WHERE item_seq=?", String.class, code)).isEqualTo("previous-cache");
     }
     @Test void legacySearchRegistrationAlsoStartsPrefetchAfterRepositoryCommit() throws Exception {
-        when(lookup.collectItems(anyList(), anySet(), any())).thenAnswer(invocation -> {
+        when(lookup.collectForPrefetch(anyList(), anySet(), any())).thenAnswer(invocation -> {
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profile)).isEqualTo(1);
             return List.of(new DurLookup(code, DurLookup.Type.AGE, false, List.of(), LocalDate.now(TimeZoneConfig.ZONE)));
         });
@@ -158,7 +158,7 @@ class RegistrationDurMySqlTests {
         assertThrows(BusinessException.class, () -> photoRegistration.register(profile,
                 new PillDrugRegistrationRequest(code, DrugSource.SEARCH, 1, null, day, day,
                         List.of(LocalTime.of(7, 0)))));
-        verify(lookup, after(150).never()).collectItems(anyList(), anySet(), any());
+        verify(lookup, after(150).never()).collectForPrefetch(anyList(), anySet(), any());
     }
     @Test void legacyRegistrationCannotBypassPillResultValidation() {
         var day = LocalDate.now(TimeZoneConfig.ZONE);
@@ -169,7 +169,7 @@ class RegistrationDurMySqlTests {
             assertThat(rejected.getErrorCode()).isEqualTo(org.semiproject.pillbadeumserver.common.exception.ErrorCode.INVALID_INPUT);
         }
         verify(sync, never()).getOrSync(anyString());
-        verify(lookup, after(150).never()).collectItems(anyList(), anySet(), any());
+        verify(lookup, after(150).never()).collectForPrefetch(anyList(), anySet(), any());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profile)).isZero();
     }
     @Test void concurrentRegistrationsKeepOneRowAndUseTheSameConflictContract() throws Exception {
@@ -199,7 +199,7 @@ class RegistrationDurMySqlTests {
         }
         assertThat(cacheFinished.await(3, TimeUnit.SECONDS)).isTrue();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profile)).isEqualTo(1);
-        verify(lookup, times(1)).collectItems(anyList(), anySet(), any());
+        verify(lookup, times(1)).collectForPrefetch(anyList(), anySet(), any());
     }
     private List<MyDrugCreateRequest.Item> items() {
         var day = LocalDate.now(TimeZoneConfig.ZONE);

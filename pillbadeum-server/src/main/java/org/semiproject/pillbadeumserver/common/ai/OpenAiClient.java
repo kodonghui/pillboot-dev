@@ -25,9 +25,9 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 
-/** OpenAI Decisions/Responses/Embedding 클라이언트. 분류/임베딩 10초, 낱알/답변/요약 30초, 처방전 60초.
- * 임베딩과 이미지 판독은 일시 오류를 0.5초 뒤 1회 재시도하며, 다른 생성 요청은 자동 재시도하지 않는다.
- * 여러 호출을 합친 요청 전체 90초 제한은 담당 서비스에서 별도로 적용해야 한다.
+/** OpenAI Decisions/Responses/Embedding 클라이언트. 분류/임베딩10초, 답변/요약60초(요약은 자체 마감30초), 처방전60초, 낱알85초임.
+ * 이미지 판독은 연결 장애·429·일시5xx만0.5초 뒤1회 재시도하며 시간 초과는 재호출하지 않음.
+ * 여러 외부 작업을 합친 전체 마감은 담당 서비스에서 적용함.
  */
 @Component
 public class OpenAiClient {
@@ -38,6 +38,7 @@ public class OpenAiClient {
     private final RestClient shortClient;
     private final RestClient longClient;
     private final RestClient prescriptionClient;
+    private final RestClient pillClient;
     private final Semaphore permits;
     private final long permitTimeoutMs;
     private final ObjectMapper objectMapper;
@@ -48,13 +49,11 @@ public class OpenAiClient {
     private final String visionModel;
     private final String embeddingModel;
     private final String reasoningEffort;
-    // 처방전만 모델·effort·출력 예산을 바꿈. 낱알·채팅은 기존 설정을 사용함.
+    // 처방전만 모델·effort를 바꿈. Responses 출력 토큰 수는 별도로 제한하지 않음.
     @Value("${openai.model.prescription:}")
     private String prescriptionModel;
     @Value("${openai.prescription-reasoning-effort:}")
     private String prescriptionReasoningEffort;
-    @Value("${openai.prescription-max-output-tokens:0}")
-    private int prescriptionMaxOutputTokens;
     private final BigDecimal decisionInputUsdPerMillion;
 
     public OpenAiClient(ObjectMapper objectMapper,
@@ -67,11 +66,12 @@ public class OpenAiClient {
                         @Value("${openai.reasoning-effort}") String reasoningEffort,
                         @Value("${openai.connect-timeout-ms}") long connectTimeoutMs,
                         @Value("${openai.short-read-timeout-ms}") long shortReadTimeoutMs,
-                        @Value("${openai.long-read-timeout-ms}") long longReadTimeoutMs,
+                        @Value("${openai.answer-read-timeout-ms}") long answerReadTimeoutMs,
                         @Value("${photo.prescription-ocr-timeout-ms:60000}") long prescriptionReadTimeoutMs,
                         @Value("${openai.max-concurrent-calls:4}") int maxConcurrentCalls,
-                        @Value("${openai.permit-timeout-ms:1000}") long permitTimeoutMs,
-                        @Value("${openai.decision-input-usd-per-million:0.10}") BigDecimal decisionInputUsdPerMillion) {
+                        @Value("${openai.permit-timeout-ms:10000}") long permitTimeoutMs,
+                        @Value("${openai.decision-input-usd-per-million:0.10}") BigDecimal decisionInputUsdPerMillion,
+                        @Value("${photo.pill-timeout-ms:85000}") long pillTimeoutMs) {
 
         this.objectMapper = objectMapper;
         this.enabled = apiKey != null && !apiKey.isBlank();
@@ -85,14 +85,15 @@ public class OpenAiClient {
         }
         this.decisionInputUsdPerMillion = decisionInputUsdPerMillion;
 
-        if (maxConcurrentCalls < 1 || permitTimeoutMs < 1 || prescriptionReadTimeoutMs < 1) {
+        if (maxConcurrentCalls < 1 || permitTimeoutMs < 1 || prescriptionReadTimeoutMs < 1 || pillTimeoutMs < 1) {
             throw new IllegalArgumentException("OpenAI 동시 호출 수와 대기 시간은 양수여야 합니다.");
         }
         this.permits = new Semaphore(maxConcurrentCalls);
         this.permitTimeoutMs = permitTimeoutMs;
         this.shortClient = client(baseUrl, apiKey, connectTimeoutMs, shortReadTimeoutMs);
-        this.longClient = client(baseUrl, apiKey, connectTimeoutMs, longReadTimeoutMs);
+        this.longClient = client(baseUrl, apiKey, connectTimeoutMs, answerReadTimeoutMs);
         this.prescriptionClient = client(baseUrl, apiKey, connectTimeoutMs, prescriptionReadTimeoutMs);
+        this.pillClient = client(baseUrl, apiKey, connectTimeoutMs, pillTimeoutMs);
 
         log.info("[OpenAiClient] API 키 설정 여부={} (모델/권한/연결 성공은 실제 호출 때 확인)", enabled);
     }
@@ -176,13 +177,12 @@ public class OpenAiClient {
                 ? prescriptionModel : visionModel;
         String effort = prescription && prescriptionReasoningEffort != null && !prescriptionReasoningEffort.isBlank()
                 ? prescriptionReasoningEffort : reasoningEffort;
-        Map<String, Object> body = requestBody(model, instructions, input,
-                prescription && prescriptionMaxOutputTokens > 0 ? prescriptionMaxOutputTokens : maxOutputTokens);
+        Map<String, Object> body = requestBody(model, instructions, input, maxOutputTokens);
         if (effort != null && !effort.isBlank())
             body.put("reasoning", Map.of("effort", effort));
         body.put("text", jsonSchemaFormat(schemaName, schema));
 
-        return parseJson(outputText(post(prescription ? prescriptionClient : longClient, "/responses", body, model, true)));
+        return parseJson(outputText(post(prescription ? prescriptionClient : pillClient, "/responses", body, model, true, false)));
     }
 
     /** 벡터와 같은 모델명을 Qdrant payload·모델별 컬렉션에 기록할 때 사용한다. */
@@ -237,6 +237,10 @@ public class OpenAiClient {
 
     /* 키 확인 -> 호출 제한 -> 요청/예외 변환 -> 사용량 기록. 원문/프롬프트/키는 기록하지 않는다. */
     private JsonNode post(RestClient client, String uri, Map<String, Object> body, String model, boolean retry) {
+        return post(client, uri, body, model, retry, true);
+    }
+
+    private JsonNode post(RestClient client, String uri, Map<String, Object> body, String model, boolean retry, boolean retryTimeouts) {
         checkEnabled();
         if (model == null || model.isBlank()) {
             throw new AiUnavailableException("해당 AI 작업의 모델이 설정되지 않았습니다.");
@@ -252,7 +256,8 @@ public class OpenAiClient {
                 })
                 .body(String.class);
         String responseBody = ExternalApiCaller.withPermit(API_NAME, permits, permitTimeoutMs,
-                () -> retry ? ExternalApiCaller.callWithRetry(API_NAME, request) : ExternalApiCaller.call(API_NAME, request));
+                () -> !retry ? ExternalApiCaller.call(API_NAME, request) : retryTimeouts
+                        ? ExternalApiCaller.callWithRetry(API_NAME, request) : ExternalApiCaller.callWithQuickRetry(API_NAME, request));
         JsonNode response = parseJson(responseBody);
         if (!response.isObject()) {
             throw ExternalApiException.failed(API_NAME, "AI 응답이 올바르지 않습니다.", null);
@@ -278,6 +283,7 @@ public class OpenAiClient {
     /* 설명. Responses API 요청 본문
      *  - store : false 로 Responses 응답 객체 저장을 비활성화한다. 제공자의 모든 보관 정책을 제어하는 값은 아니다.
      *  - reasoning.effort : 값이 있을 때만 보낸다. 추론 기능이 없는 모델에 보내면 오류가 난다.
+     *  - maxOutputTokens 인자는 기존 호출부 호환용이며 max_output_tokens는 전송하지 않음.
      * */
     private Map<String, Object> requestBody(String model, String instructions, Object input, int maxOutputTokens) {
 
@@ -287,7 +293,7 @@ public class OpenAiClient {
             body.put("instructions", instructions);
         }
         body.put("input", input);
-        body.put("max_output_tokens", maxOutputTokens);
+        // 사용자가 임의 생성 상한 제거를 선택함. 제공자의 모델·컨텍스트 한도는 별도임.
         body.put("store", false);
         if (reasoningEffort != null && !reasoningEffort.isBlank()) {
             body.put("reasoning", Map.of("effort", reasoningEffort));

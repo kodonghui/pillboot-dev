@@ -2,7 +2,7 @@ import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { errorOf } from '../api/client.js'
-import { registerDrugs, searchDrugs } from '../api/drugs.js'
+import { getDrug, registerDrugs, searchDrugs } from '../api/drugs.js'
 import DrugThumb from '../components/DrugThumb.jsx'
 import FieldError from '../components/FieldError.jsx'
 import GuideFailed from '../components/GuideFailed.jsx'
@@ -13,8 +13,9 @@ import ProfileDot from '../components/ProfileDot.jsx'
 import { useDrugGuide } from '../components/useDrugGuide.js'
 import { useManagedProfile } from '../components/useManagedProfile.js'
 import { guideProvider, guideSections } from '../drugInfo.js'
-import { paths } from '../paths.js'
-import { monthDayTime } from '../text.js'
+import { paths, prescriptionResultLink } from '../paths.js'
+import { usePrescriptionDraft } from '../store/prescriptionDraft.js'
+import { ieyoAfter, monthDayTime } from '../text.js'
 import './DrugSearchPage.css'
 
 // 서버 검색 규칙: 앞뒤 공백을 뺀 2~50자, 한 번에 최대 20개
@@ -31,12 +32,24 @@ function shorterQuery(query) {
 // MED-03 약 이름 검색. 검색어는 주소 쿼리(?q=)에 두어 새로고침 · 뒤로 가기에도 남는다.
 // 후보를 고르면 약 정보를 서버에 맞춘 뒤(GET /api/drugs/{itemSeq}) 공식 정보를 보여 주고,
 // 저장은 복약 일정 없이 고른 약만 보낸다(POST .../drugs 의 items 방식, source SEARCH).
+// 처방전 결과에서 이름 고쳐 검색으로 오면(?pick=읽은 순서, prescriptionSearchLink) 여기서는 저장하지 않고,
+// 고른 약을 처방전 임시 상태의 그 이름 자리에 넣은 뒤 찾은 약 확인(IMG-04)으로 돌아간다.
 function DrugSearchPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const query = (searchParams.get('q') ?? '').trim()
+  const pickParam = searchParams.get('pick')
+  const photoParam = searchParams.get('photo')
+  const pickMode = pickParam !== null
   const { status, profile, color, retry: retryProfiles } = useManagedProfile()
   const profileId = profile?.profileId
+  const draft = usePrescriptionDraft((state) => state.draft)
+  const pickDraft = usePrescriptionDraft((state) => state.pick)
+  // 고른 약이 들어갈 읽은 이름. 새로고침으로 임시 상태가 없거나 다른 결과면 없다.
+  const group =
+    pickMode && draft && draft.profileId === profileId && draft.photoId === photoParam
+      ? draft.result.drugs.find((drug) => String(drug.readNo) === pickParam)
+      : null
   const fieldId = useId()
   const resultsId = useId()
   const chosenId = useId()
@@ -53,6 +66,8 @@ function DrugSearchPage() {
   const [chosen, setChosen] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
+  // 처방전 검색 모드에서 고르는 중인 약 { key, itemSeq } · 약 정보를 받지 못함 { key, failed }
+  const [taking, setTaking] = useState(null)
 
   // 뒤로 · 앞으로 가기로 검색어가 바뀌면 입력칸도 따라간다.
   if (query !== shownQuery) {
@@ -61,10 +76,10 @@ function DrugSearchPage() {
   }
 
   const key = `${profileId}|${query}|${attempt}`
-  const searching = Boolean(profileId) && query.length >= minLength
+  const searching = Boolean(profileId) && query.length >= minLength && (!pickMode || Boolean(group))
 
   useEffect(() => {
-    if (!profileId || query.length < minLength) return
+    if (!searching) return
     let active = true
     searchDrugs({ name: query, profileId, page: 1, size: pageSize })
       .then((data) => active && setResult({ key, items: data.content, page: 1, last: data.last }))
@@ -72,11 +87,12 @@ function DrugSearchPage() {
     return () => {
       active = false
     }
-  }, [profileId, query, attempt, key])
+  }, [searching, profileId, query, attempt, key])
 
   const current = searching && result?.key === key ? result : null
   const loading = searching && !current
-  const pick = chosen?.key === key ? current?.items?.find((item) => item.itemSeq === chosen.itemSeq) : null
+  const pick = !pickMode && chosen?.key === key ? current?.items?.find((item) => item.itemSeq === chosen.itemSeq) : null
+  const taken = taking?.key === key ? taking : null
   const { guide, failed: guideFailed, retry: retryGuide } = useDrugGuide(pick?.itemSeq, { sync: true })
 
   if (status === 'none') return <Navigate to={paths.profileNew} replace />
@@ -96,6 +112,8 @@ function DrugSearchPage() {
     )
   }
   if (!profile) return null
+  // 처방전 검색 모드인데 임시 상태가 없으면(새로고침 등) 찾은 약 확인으로 돌아가 후보를 다시 불러오게 한다.
+  if (pickMode && !group) return <Navigate to={prescriptionResultLink(photoParam)} replace />
 
   const name = profile.profileName
 
@@ -111,7 +129,25 @@ function DrugSearchPage() {
     setSaveError(null)
     // 같은 검색어로 다시 누르면 주소는 그대로 두고 다시 검색한다.
     if (next === query) setAttempt((count) => count + 1)
-    else setSearchParams({ q: next })
+    else if (pickMode) {
+      // 처방전 검색 모드는 고른 약이 들어갈 자리(pick · photo)를 두고 주소를 바꿔 넣어, 뒤로 가기가 찾은 약 확인으로 바로 간다.
+      const params = new URLSearchParams(searchParams)
+      params.set('q', next)
+      setSearchParams(params, { replace: true })
+    } else setSearchParams({ q: next })
+  }
+
+  // 처방전 검색 모드: 고른 약의 성분을 약 정보(GET /api/drugs/{itemSeq} 의 material)에서 받아 찾은 약 확인의 이 이름 자리에 넣고 돌아간다.
+  // 여기서는 저장하지 않는다(찾은 약 확인에서 다른 약과 함께 저장).
+  const take = async (item) => {
+    setTaking({ key, itemSeq: item.itemSeq })
+    try {
+      const info = await getDrug(item.itemSeq)
+      pickDraft(group.readNo, { source: 'SEARCH', itemSeq: item.itemSeq, name: item.name, maker: item.maker, material: info.material })
+      navigate(prescriptionResultLink(photoParam), { replace: true })
+    } catch {
+      setTaking({ key, failed: true })
+    }
   }
 
   const loadMore = async () => {
@@ -177,9 +213,9 @@ function DrugSearchPage() {
   return (
     <div className="drug-search">
       <div className="drug-search__head">
-        <Link className="mt-btn mt-btn--ghost drug-search__back" to={paths.drugNew}>
+        <Link className="mt-btn mt-btn--ghost drug-search__back" to={pickMode ? prescriptionResultLink(photoParam) : paths.drugNew}>
           <Icon name="chevronLeft" size="s" />
-          등록 방법으로
+          {pickMode ? '찾은 약 확인으로' : '등록 방법으로'}
         </Link>
         <h1 className="screen-title">이름으로 검색</h1>
         <p className="screen-body drug-search__who">
@@ -187,7 +223,21 @@ function DrugSearchPage() {
           <span>
             <b>{name}</b>의 약 목록에 넣어요
           </span>
+          {pickMode && (
+            <span className="screen-caption drug-search__lock">
+              <Icon name="lockSmall" size="s" />
+              등록이 끝날 때까지 관리할 사람을 바꿀 수 없어요
+            </span>
+          )}
         </p>
+        {pickMode && (
+          <div className="drug-search__from">
+            <Notice variant="info">
+              <b>처방전에서 읽은 이름을 고쳐 검색해 주세요.</b> 읽은 이름은 <b>{group.readName}</b>
+              {ieyoAfter(group.readName)}. 여기서 고른 약은 찾은 약 확인 화면의 이 이름 자리에 들어가고, 이미 고른 다른 약은 그대로예요.
+            </Notice>
+          </div>
+        )}
       </div>
 
       <section className="drug-search__form" aria-label="약 이름 검색">
@@ -241,6 +291,11 @@ function DrugSearchPage() {
           검색하지 못했어요. 잠시 후 다시 검색해 주세요.
         </Notice>
       )}
+      {taken?.failed && (
+        <Notice variant="negative" role="alert">
+          고른 약의 정보를 불러오지 못했어요. 잠시 후 다시 골라 주세요.
+        </Notice>
+      )}
 
       {items?.length === 0 && (
         <section className="mt-card drug-search__none" role="status" aria-labelledby={resultsId}>
@@ -275,6 +330,40 @@ function DrugSearchPage() {
                 {items.map((item) => {
                   const picked = item.itemSeq === pick?.itemSeq
                   const classes = ['drug-search__item', item.registered && 'drug-search__item--registered', picked && 'drug-search__item--picked']
+                  const label = `${item.maker ? `${item.maker} ` : ''}${item.name}`
+                  let action = (
+                    <button className="mt-btn mt-btn--assistive mt-btn--md" type="button" aria-label={`${label} 고르기`} onClick={() => choose(item)}>
+                      고르기
+                    </button>
+                  )
+                  if (item.registered) {
+                    action = (
+                      <span className="screen-caption drug-search__registered">
+                        <Icon name="check" size="s" />
+                        이미 등록한 약이에요
+                      </span>
+                    )
+                  } else if (pickMode) {
+                    action = (
+                      <button
+                        className="mt-btn mt-btn--assistive mt-btn--sm"
+                        type="button"
+                        disabled={Boolean(taken?.itemSeq)}
+                        aria-label={`${label} 고르고 찾은 약 확인으로 돌아가기`}
+                        onClick={() => take(item)}
+                      >
+                        {taken?.itemSeq === item.itemSeq && <Icon name="loader" size="s" className="icon--spin" />}
+                        이 약으로 고르기
+                      </button>
+                    )
+                  } else if (picked) {
+                    action = (
+                      <span className="mt-badge drug-search__picked-badge">
+                        <Icon name="check" size="s" />
+                        고른 약
+                      </span>
+                    )
+                  }
                   return (
                     <li
                       key={item.itemSeq}
@@ -287,28 +376,7 @@ function DrugSearchPage() {
                         <p className="screen-item drug-search__item-name">{item.name}</p>
                         {item.maker && <p className="screen-caption drug-search__muted">{item.maker}</p>}
                       </div>
-                      {item.registered && (
-                        <span className="screen-caption drug-search__registered">
-                          <Icon name="check" size="s" />
-                          이미 등록한 약이에요
-                        </span>
-                      )}
-                      {!item.registered && picked && (
-                        <span className="mt-badge drug-search__picked-badge">
-                          <Icon name="check" size="s" />
-                          고른 약
-                        </span>
-                      )}
-                      {!item.registered && !picked && (
-                        <button
-                          className="mt-btn mt-btn--assistive mt-btn--md"
-                          type="button"
-                          aria-label={`${item.maker ? `${item.maker} ` : ''}${item.name} 고르기`}
-                          onClick={() => choose(item)}
-                        >
-                          고르기
-                        </button>
-                      )}
+                      {action}
                     </li>
                   )
                 })}
@@ -405,8 +473,17 @@ function DrugSearchPage() {
                 <span className="drug-search__placeholder-icon">
                   <Icon name="book" size="l" />
                 </span>
-                <p className="screen-item">후보를 고르면 공식 정보를 보여 드려요</p>
-                <p className="screen-body drug-search__neutral">효능, 사용법, 주의사항과 출처를 확인한 뒤 저장할 수 있어요.</p>
+                {pickMode ? (
+                  <>
+                    <p className="screen-item">고른 약은 찾은 약 확인으로 가져가요</p>
+                    <p className="screen-body drug-search__neutral">여기서는 저장하지 않아요. 찾은 약 확인 화면에서 다른 약과 함께 한 번에 저장해요.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="screen-item">후보를 고르면 공식 정보를 보여 드려요</p>
+                    <p className="screen-body drug-search__neutral">효능, 사용법, 주의사항과 출처를 확인한 뒤 저장할 수 있어요.</p>
+                  </>
+                )}
               </aside>
             )}
           </div>

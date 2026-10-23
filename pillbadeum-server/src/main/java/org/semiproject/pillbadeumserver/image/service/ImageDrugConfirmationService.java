@@ -52,7 +52,7 @@ public class ImageDrugConfirmationService {
         },
         profileId);
     boolean hasNew = codes.stream().anyMatch(c -> !existing.containsKey(c));
-    if (!pill && request.source() != DrugSource.SEARCH && hasNew) {
+    if (!pill && request.photoId() != null && hasNew) {
       var photo = photos.owned(request.photoId(), true);
       ImageKeywordRegistrationService.checkFresh(photo);
       if (!Objects.equals(photo.profileId(), profileId)
@@ -68,14 +68,31 @@ public class ImageDrugConfirmationService {
                 .add(rs.getInt("read_no"));
           }, photo.id());
       var candidates = candidateCards.keySet();
-      if (codes.stream().anyMatch(c -> !existing.containsKey(c) && !candidates.contains(c)))
+      if (codes.stream().anyMatch(c -> request.sourceOf(c) != DrugSource.SEARCH
+          && !existing.containsKey(c) && !candidates.contains(c)))
         throw invalid("사진 후보에 없는 약은 저장할 수 없습니다.");
       // 서로 다른 코드여도 한 카드의 대안 후보를 여러 약으로 확정할 수 없음.
       // 같은 품목이 여러 카드에 겹치는 처방전은 일대일 배정이 가능한지 확인함.
       var assignment = new HashMap<Integer, String>();
+      // 보완 검색에서 지정한 자리는 사진 대안과 겹치지 않게 먼저 예약함.
       for (String code : codes) {
-        if (!candidates.contains(code)) continue; // 기존 약의 skipped 호환 동작임.
-        if (!assignCard(code, candidateCards, assignment, new HashSet<>()))
+        Integer readNo = request.readNoOf(code);
+        if (readNo == null) continue;
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM ocr_candidate WHERE photo_id=? AND read_no=?", Integer.class, photo.id(), readNo);
+        if (count == null || count == 0 || request.sourceOf(code) != DrugSource.SEARCH
+            && !candidateCards.getOrDefault(code, Set.of()).contains(readNo))
+          throw invalid("처방전의 약 순서와 후보를 확인해 주세요.");
+        assignment.put(readNo, code);
+      }
+      for (String code : codes) {
+        if (request.sourceOf(code) == DrugSource.SEARCH || !candidates.contains(code)) continue;
+        if (request.readNoOf(code) != null) continue;
+        // 명시한 슬롯은 다른 대안 후보에 재배정하지 않음.
+        var available = new LinkedHashMap<String, Set<Integer>>();
+        candidateCards.forEach((c, values) -> available.put(c, values.stream()
+            .filter(slot -> codes.stream().noneMatch(selected -> Objects.equals(request.readNoOf(selected), slot)))
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new))));
+        if (!assignCard(code, available, assignment, new HashSet<>()))
           throw invalid("약마다 후보를 하나만 선택해 주세요.");
       }
     }
@@ -100,7 +117,7 @@ public class ImageDrugConfirmationService {
                     Statement.RETURN_GENERATED_KEYS);
             s.setLong(1, profileId);
             s.setString(2, code);
-            s.setString(3, request.source().name());
+            s.setString(3, request.sourceOf(code).name());
             s.setObject(4, now);
             s.setObject(5, now);
             return s;

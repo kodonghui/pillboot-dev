@@ -105,7 +105,8 @@ public class AnswerGenerator {
         } else {
             var messages = messages(input, medications, evidence, dur.notice());
             deadline.check();
-            AiTextResult generated = deadline.within(Duration.ofSeconds(30)).await(executor.submit(() -> {
+            // effort max의 긴 정리 답변이 30초를 넘어 60초까지 기다림(CHK-42). 전체 85초 마감이 먼저 오면 그때 끊음.
+            AiTextResult generated = deadline.within(Duration.ofSeconds(60)).await(executor.submit(() -> {
                 deadline.check();
                 return openAi.createTextResult(RULES, messages, 1600);
             }));

@@ -67,7 +67,7 @@ public class Drug {
     @Column(name = "form", length = 10, nullable = false)
     private String form;                // 제형 (정제, 연질캡슐, 경질캡슐 등)
 
-    @Column(name = "material", length = 30, nullable = false)
+    @Column(name = "material", columnDefinition = "TEXT", nullable = false)
     private String material;            // 성분명 (예: 암로디핀베실산염)
 
     @Column(name = "synced_at", nullable = false)
@@ -138,7 +138,7 @@ public class Drug {
         this.lineFront = lineFront;
         this.lineBack = lineBack;
         this.form = form;
-        this.material = material;
+        this.material = DrugIngredient.forStorage(material);
         this.syncedAt = Objects.requireNonNull(syncedAt, "syncedAt");
     }
 

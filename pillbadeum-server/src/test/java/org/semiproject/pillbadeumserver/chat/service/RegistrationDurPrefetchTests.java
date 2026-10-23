@@ -30,14 +30,14 @@ class RegistrationDurPrefetchTests {
         executor.setTaskTerminationTimeout(2000);
         prefetch = new RegistrationDurPrefetch(lookup, cache, executor);
         release = new CountDownLatch(1);
-        when(lookup.collectItems(anyList(), anySet(), any())).thenReturn(List.of());
+        when(lookup.collectForPrefetch(anyList(), anySet(), any())).thenReturn(List.of());
     }
     @AfterEach void close() { release.countDown(); executor.close(); }
 
     @Test void duplicateInFlightEventsShareOneLookupAndReturnBeforeItFinishes() throws Exception {
         var started = new CountDownLatch(1);
         var finished = new CountDownLatch(1);
-        when(lookup.collectItems(anyList(), anySet(), any())).thenAnswer(invocation -> {
+        when(lookup.collectForPrefetch(anyList(), anySet(), any())).thenAnswer(invocation -> {
             started.countDown();
             assertThat(release.await(3, TimeUnit.SECONDS)).isTrue();
             return List.of();
@@ -49,7 +49,7 @@ class RegistrationDurPrefetchTests {
         assertThat(finished.getCount()).isEqualTo(1);
         release.countDown();
         assertThat(finished.await(2, TimeUnit.SECONDS)).isTrue();
-        verify(lookup, times(1)).collectItems(eq(List.of("A")), eq(java.util.EnumSet.allOf(DurLookup.Type.class)), any());
+        verify(lookup, times(1)).collectForPrefetch(eq(List.of("A")), eq(java.util.EnumSet.allOf(DurLookup.Type.class)), any());
     }
     @Test void rejectedSubmissionDoesNotEscapeAndReleasesTheInFlightClaim() {
         var rejecting = mock(AsyncTaskExecutor.class);
@@ -61,9 +61,9 @@ class RegistrationDurPrefetchTests {
         verifyNoInteractions(lookup, cache);
     }
     @Test void lookupFailureDoesNotInvokeCacheOrEscapeToRegistration() {
-        when(lookup.collectItems(anyList(), anySet(), any())).thenThrow(new IllegalStateException("synthetic"));
+        when(lookup.collectForPrefetch(anyList(), anySet(), any())).thenThrow(new IllegalStateException("synthetic"));
         assertDoesNotThrow(() -> prefetch.registered(new DrugRegistered(List.of("A"))));
-        verify(lookup, timeout(2000)).collectItems(anyList(), anySet(), any());
+        verify(lookup, timeout(2000)).collectForPrefetch(anyList(), anySet(), any());
         executor.close();
         verifyNoInteractions(cache);
     }
@@ -75,5 +75,23 @@ class RegistrationDurPrefetchTests {
     @Test void emptyRegistrationDoesNotScheduleWork() {
         prefetch.registered(new DrugRegistered(List.of()));
         verifyNoInteractions(lookup, cache);
+    }
+
+    @Test void distinctRegistrationsDoNotStartAnotherBackgroundBatchWhileOneIsRunning() {
+        var queued = new java.util.ArrayList<Runnable>();
+        var controlled = mock(AsyncTaskExecutor.class);
+        doAnswer(call -> { queued.add(call.getArgument(0)); return null; })
+                .when(controlled).execute(any(Runnable.class));
+        var service = new RegistrationDurPrefetch(lookup, cache, controlled);
+        service.registered(new DrugRegistered(List.of("A")));
+        service.registered(new DrugRegistered(List.of("B")));
+        assertThat(queued).hasSize(1);
+        queued.removeFirst().run();
+
+        // A later registration may prefetch again after the first batch releases its permit.
+        service.registered(new DrugRegistered(List.of("B")));
+        assertThat(queued).hasSize(1);
+        queued.removeFirst().run();
+        verify(lookup, times(2)).collectForPrefetch(anyList(), anySet(), any());
     }
 }

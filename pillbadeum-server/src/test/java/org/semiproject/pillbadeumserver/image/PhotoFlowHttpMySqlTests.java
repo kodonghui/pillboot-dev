@@ -108,6 +108,117 @@ class PhotoFlowHttpMySqlTests {
     return "http://127.0.0.1:" + provider.getAddress().getPort();
   }
 
+  @Test
+  void mixedPrescriptionSelectionCommitsEachOriginAndCleansPhotoAfterCommit() throws Exception {
+    var photo = mixedPhoto();
+    long id = photo.path("photoId").asLong();
+    var result = json("POST", "/api/profiles/" + profileId + "/drugs", mixedBody(id, code2), token, 201);
+    assertThat(result.path("saved")).hasSize(2);
+    assertThat(jdbc.queryForObject("SELECT source FROM my_drug WHERE profile_id=? AND item_seq=?", String.class, profileId, code1)).isEqualTo("PRESCRIPTION_PHOTO");
+    assertThat(jdbc.queryForObject("SELECT source FROM my_drug WHERE profile_id=? AND item_seq=?", String.class, profileId, code2)).isEqualTo("SEARCH");
+    assertNoPhotos();
+    var repeated = json("POST", "/api/profiles/" + profileId + "/drugs", mixedBody(id, code2), token, 200);
+    assertThat(repeated.path("skipped")).hasSize(2);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profileId)).isEqualTo(2);
+  }
+
+  @Test
+  void failedSupplementalSearchLeavesNoMedicationAndPreservesPhoto() throws Exception {
+    var photo = mixedPhoto(); long id = photo.path("photoId").asLong();
+    json("POST", "/api/profiles/" + profileId + "/drugs", mixedBody(id, code2 + "99"), token, 404);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profileId)).isZero();
+    json("GET", "/api/photos/" + id + "/candidates", null, token, 200);
+    json("DELETE", "/api/photos/" + id, null, token, 204);
+  }
+
+  @Test
+  void correctedSearchCannotPretendToBeAPhotoCandidateOrReplaceTheSameSlot() throws Exception {
+    var photo = mixedPhoto(); long id = photo.path("photoId").asLong();
+    var forged = Map.of("source", "PRESCRIPTION_PHOTO", "photoId", id, "items", List.of(
+        Map.of("itemSeq", code1, "readNo", 1), Map.of("itemSeq", code2, "source", "PRESCRIPTION_PHOTO", "readNo", 2)));
+    json("POST", "/api/profiles/" + profileId + "/drugs", forged, token, 400);
+    var sameSlot = Map.of("source", "PRESCRIPTION_PHOTO", "photoId", id, "items", List.of(
+        Map.of("itemSeq", code1, "readNo", 1), Map.of("itemSeq", code2, "source", "SEARCH", "readNo", 1)));
+    json("POST", "/api/profiles/" + profileId + "/drugs", sameSlot, token, 400);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profileId)).isZero();
+    json("DELETE", "/api/photos/" + id, null, token, 204);
+  }
+
+  @Test
+  void allNotFoundPrescriptionCanSaveCorrectedSearchWithoutAPhoto() throws Exception {
+    vision = prescription("없음");
+    var photo = identify("PRESCRIPTION", token, 200, "image");
+    assertThat(photo.path("photoId").isNull()).isTrue();
+    var row = new LinkedHashMap<String, Object>(officialRows.getFirst()); row.put("MAIN_ITEM_INGR", "한글성분");
+    officialRows = List.of(row);
+    var body = Map.of("source", "PRESCRIPTION_PHOTO", "items", List.of(Map.of("itemSeq", code1, "source", "SEARCH", "readNo", 1)));
+    json("POST", "/api/profiles/" + profileId + "/drugs", body, token, 201);
+    assertThat(jdbc.queryForObject("SELECT source FROM my_drug WHERE profile_id=?", String.class, profileId)).isEqualTo("SEARCH");
+    assertNoPhotos();
+  }
+
+  @Test
+  void koreanIngredientLongerThanOneHundredCharactersSurvivesCandidateReloadAndRegistration() throws Exception {
+    String ingredient = "아세트아미노펜, 카페인무수물, 복합한글성분, ".repeat(16).strip();
+    assertThat(ingredient.length()).isGreaterThan(100);
+    var row = new LinkedHashMap<String, Object>(officialRows.getFirst());
+    row.put("MAIN_ITEM_INGR", ingredient); row.put("ITEM_INGR_NAME", "English alternative");
+    officialRows = List.of(row);
+    var photo = identify("PRESCRIPTION", token, 200, "image"); long id = photo.path("photoId").asLong();
+    assertThat(photo.path("drugs").get(0).path("candidates").get(0).path("ingredientName").asString()).isEqualTo(ingredient);
+    assertThat(json("GET", "/api/photos/" + id + "/candidates", null, token, 200)
+        .path("drugs").get(0).path("candidates").get(0).path("ingredientName").asString()).isEqualTo(ingredient);
+    json("POST", "/api/profiles/" + profileId + "/drugs", Map.of("source", "PRESCRIPTION_PHOTO", "photoId", id,
+        "items", List.of(Map.of("itemSeq", code1))), token, 201);
+    assertThat(jdbc.queryForObject("SELECT material FROM drug WHERE item_seq=?", String.class, code1)).isEqualTo(ingredient);
+  }
+
+  @Test
+  void futureBirthYearIsRejectedForBothProfileCreationAndUpdate() throws Exception {
+    var body = Map.of("profileName", "미래프로필", "relationshipType", "SELF", "profileBirthYear", LocalDate.now(TimeZoneConfig.ZONE).getYear() + 1,
+        "profileGender", "FEMALE", "profilePregnant", false);
+    int before = jdbc.queryForObject("SELECT COUNT(*) FROM profile WHERE member_id=?", Integer.class, memberId);
+    int originalYear = jdbc.queryForObject("SELECT profile_birth_year FROM profile WHERE profile_id=?", Integer.class, profileId);
+    json("POST", "/api/profiles", body, token, 400);
+    json("PUT", "/api/profiles/" + profileId, body, token, 400);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM profile WHERE member_id=?", Integer.class, memberId)).isEqualTo(before);
+    assertThat(jdbc.queryForObject("SELECT profile_birth_year FROM profile WHERE profile_id=?", Integer.class, profileId)).isEqualTo(originalYear);
+    var currentYear = new LinkedHashMap<String, Object>(body);
+    currentYear.put("profileBirthYear", LocalDate.now(TimeZoneConfig.ZONE).getYear());
+    assertThat(json("POST", "/api/profiles", currentYear, token, 201).path("profileBirthYear").asInt())
+        .isEqualTo(currentYear.get("profileBirthYear"));
+  }
+
+  @Test
+  void pillOcrCanFinishAfterThirtySecondsAndExpiredBudgetDoesNotRetry() throws Exception {
+    vision = pill(null, "A", "B"); visionDelayMs = 31_000;
+    var response = upload("PILL", token, png(), Duration.ofSeconds(90), "front", "back");
+    assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+    assertThat(visionRequests).hasSize(1);
+    long id = JSON.readTree(response.body()).path("photoId").asLong();
+    json("DELETE", "/api/photos/" + id, null, token, 204);
+    long original = (long)ReflectionTestUtils.getField(workflow, "pillTimeoutMs");
+    try {
+      ReflectionTestUtils.setField(workflow, "pillTimeoutMs", 300L); visionDelayMs = 2000; visionRequests.clear();
+      identify("PILL", token, 503, "front", "back");
+      assertThat(visionRequests).hasSize(1); assertNoPhotos();
+    } finally { ReflectionTestUtils.setField(workflow, "pillTimeoutMs", original); }
+  }
+
+  private JsonNode mixedPhoto() throws Exception {
+    var first = officialRows.getFirst(); var second = new LinkedHashMap<String, Object>(officialRows.get(1));
+    second.put("MAIN_ITEM_INGR", "검색성분");
+    officialRows = List.of(first); vision = prescription("합성약정", "없음");
+    var photo = identify("PRESCRIPTION", token, 200, "image");
+    officialRows = List.of(first, second); return photo;
+  }
+
+  private Map<String, Object> mixedBody(long photoId, String searchedCode) {
+    return Map.of("source", "PRESCRIPTION_PHOTO", "photoId", photoId, "items", List.of(
+        Map.of("itemSeq", code1, "source", "PRESCRIPTION_PHOTO", "readNo", 1),
+        Map.of("itemSeq", searchedCode, "source", "SEARCH", "readNo", 2)));
+  }
+
   @BeforeEach
   void fixtures() throws Exception {
     try (var c = dataSource.getConnection()) {

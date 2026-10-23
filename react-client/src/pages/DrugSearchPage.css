@@ -17,6 +17,7 @@
 
 .drug-search__who {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-8);
   color: var(--label-neutral);
@@ -24,6 +25,18 @@
 
 .drug-search__who b {
   color: var(--label-normal);
+}
+
+/* 처방전 검색 모드: 목업 .lockline · 안내(최대 660px) */
+.drug-search__lock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--label-alternative);
+}
+
+.drug-search__from {
+  max-width: 660px;
 }
 
 .drug-search__neutral {

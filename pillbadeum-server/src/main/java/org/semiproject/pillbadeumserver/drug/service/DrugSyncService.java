@@ -34,8 +34,8 @@ public class DrugSyncService {
 
     // 성분명(material)을 얻는 허가정보 목록 API. 팀 활용신청 주소와 다르면 이 상수만 바꾼다.
     public static final String PERMIT_INFO_PATH = "/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08";
-    // 성분명 후보 필드 (앞에서부터 찾는다, 대소문자 무시). 목록 API 는 ITEM_INGR_NAME(영문)을 준다.
-    public static final List<String> PERMIT_MATERIAL_FIELDS = List.of("ITEM_INGR_NAME", "MAIN_ITEM_INGR");
+    // 한글 성분을 우선하며 없으면 영문 필드를 사용함. 대소문자는 구분하지 않음.
+    public static final List<String> PERMIT_MATERIAL_FIELDS = List.of("MAIN_ITEM_INGR", "ITEM_INGR_NAME");
     // 같은 이름의 약(용량 · 제조사 다름)이 여러 건 나올 수 있어 넉넉히 받는다.
     private static final int PERMIT_SEARCH_ROWS = 100;
 
@@ -49,7 +49,6 @@ public class DrugSyncService {
     private static final int LEN_COLOR = 50;
     private static final int LEN_LINE = 10;
     private static final int LEN_FORM = 10;
-    private static final int LEN_MATERIAL = 30;
 
     private final PublicDataClient publicDataClient;
     private final DrugRepository drugRepository;
@@ -176,22 +175,7 @@ public class DrugSyncService {
      *  [코드] 를 지우고 '아세트아미노펜, 카페인무수물' 로 바꾼다.
      * */
     private static String materialOf(JsonNode item) {
-
-        for (String field : PERMIT_MATERIAL_FIELDS) {
-            String raw = textIgnoreCase(item, field);
-            if (raw == null) {
-                continue;
-            }
-            String cleaned = Arrays.stream(raw.split("\\|"))
-                    .map(part -> part.replaceAll("\\[[^\\]]*]", "").strip())
-                    .filter(part -> !part.isEmpty())
-                    .distinct()
-                    .collect(Collectors.joining(", "));
-            if (!cleaned.isEmpty()) {
-                return cleaned;
-            }
-        }
-        return null;
+        return org.semiproject.pillbadeumserver.drug.domain.DrugIngredient.fromOfficial(item);
     }
 
     /* 설명. 필드 이름 대소문자가 API 버전마다 달라서 대소문자를 무시하고 찾는다. */
@@ -216,7 +200,7 @@ public class DrugSyncService {
      *  DRUG_SHAPE → shape, COLOR_CLASS1 → color (뒷면 색 COLOR_CLASS2 는 저장할 컬럼 없음)
      *  LINE_FRONT/BACK → line_front/back
      *  FORM_CODE_NAME(예: 필름코팅정, 경질캡슐제)을 정제 / 연질캡슐 / 경질캡슐 / 기타 로 묶은 값 → form   ※ 가정 (T3)
-     *  허가정보 MAIN_ITEM_INGR(없으면 ITEM_INGR_NAME), 성분 코드 제거 → material (성분명, 30자 초과는 자름)
+     *  허가정보 MAIN_ITEM_INGR(없으면 ITEM_INGR_NAME), 성분 코드 제거 → material (TEXT에 성분명 전체 보존)
      *  ----------------------------------------------------------------------------------
      *  NOT NULL 컬럼에 넣을 값이 없으면 저장할 수 없으므로 '식별할 수 없는 약' 으로 보고 404
      * */
@@ -245,7 +229,7 @@ public class DrugSyncService {
                     cut(text(item, "LINE_FRONT"), LEN_LINE),
                     cut(text(item, "LINE_BACK"), LEN_LINE),
                     cut(toForm(formCodeName), LEN_FORM),
-                    cut(material, LEN_MATERIAL));
+                    org.semiproject.pillbadeumserver.drug.domain.DrugIngredient.forStorage(material));
             Values v = !permitOnly ? raw : new Values(raw.name, raw.maker, raw.etcOtc,
                     known(raw.className), raw.imageUrl, raw.printFront, raw.printBack, known(raw.shape),
                     known(raw.color), raw.lineFront, raw.lineBack, known(raw.form), known(raw.material));

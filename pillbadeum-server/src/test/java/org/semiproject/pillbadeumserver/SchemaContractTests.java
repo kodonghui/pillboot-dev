@@ -61,7 +61,7 @@ class SchemaContractTests {
             assertColumn(connection, "my_drug", "custom_name", "varchar", 100L, "YES", null);
             assertColumn(connection, "consent", "terms_title", "varchar", 30L, "NO", null);
             assertColumn(connection, "drug", "etc_otc", "varchar", 10L, "NO", null);
-            assertColumn(connection, "drug", "material", "varchar", 30L, "NO", null);
+            assertColumn(connection, "drug", "material", "text", 65535L, "NO", null);
             assertColumn(connection, "photo", "kind", "varchar", 30L, "NO", null);
             assertColumn(connection, "photo", "front_photo_id", "bigint", null, "YES", null);
             assertColumn(connection, "ocr_candidate", "item_seq", "varchar", 100L, "YES", null);

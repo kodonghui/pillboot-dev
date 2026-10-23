@@ -56,7 +56,7 @@ public class PublicDataClient {
                             @Value("${public-data.connect-timeout-ms}") long connectTimeoutMs,
                             @Value("${public-data.read-timeout-ms}") long readTimeoutMs,
                             @Value("${public-data.max-concurrent-calls:4}") int maxConcurrentCalls,
-                            @Value("${public-data.permit-timeout-ms:1000}") long permitTimeoutMs) {
+                            @Value("${public-data.permit-timeout-ms:10000}") long permitTimeoutMs) {
 
         this.objectMapper = objectMapper;
         this.serviceKey = serviceKey;

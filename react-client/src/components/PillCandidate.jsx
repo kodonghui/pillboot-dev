@@ -1,10 +1,11 @@
 import { useId } from 'react'
 import { matchRows } from '../pillInfo.js'
+import DrugIngredient from './DrugIngredient.jsx'
 import DrugThumb from './DrugThumb.jsx'
 import Icon from './Icon.jsx'
 import './PillCandidate.css'
 
-// 알약 후보 한 개(목업 IMG-05 .cand): 공식 사진 · 이름 · 일치 개수 · 제조사와 "내 사진 | 공식 정보 | 결과" 비교 표.
+// 알약 후보 한 개(목업 IMG-05 .cand): 공식 사진 · 이름 · 일치 개수 · 성분 · 제조사와 "내 사진 | 공식 정보 | 결과" 비교 표.
 // 고를 수 있으면 카드 전체가 라디오의 label 이다. preview: 고를 수 없는 미리보기(후보가 많을 때)
 // 라디오 이름은 약 이름만 읽고, 일치 개수와 비교 표는 설명으로 읽는다.
 function PillCandidate({ candidate, clues, name, checked, onChange, preview }) {
@@ -26,6 +27,7 @@ function PillCandidate({ candidate, clues, name, checked, onChange, preview }) {
             일치 {matches}개
           </span>
         </span>
+        <DrugIngredient value={candidate.ingredientName} />
         {candidate.maker && <span className="screen-caption pill-candidate__muted">{candidate.maker}</span>}
         {registered && (
           <span className="screen-caption pill-candidate__registered">

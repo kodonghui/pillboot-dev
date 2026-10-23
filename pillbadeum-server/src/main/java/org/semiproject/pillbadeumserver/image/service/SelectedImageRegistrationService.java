@@ -41,20 +41,40 @@ public class SelectedImageRegistrationService {
     boolean search = request.source() == DrugSource.SEARCH;
     boolean clues = request.source() == DrugSource.PILL_CLUES;
     boolean pill = clues || request.source() == DrugSource.PILL_PHOTO;
-    if (search || clues ? request.photoId() != null : request.photoId() == null || request.photoId() < 1)
-      throw invalid("등록 경로와 사진을 확인해 주세요.");
     if ((!pill && request.identificationId() != null)
         || (clues && request.identificationId() == null))
       throw invalid("식별 결과의 등록 출처와 ID를 확인해 주세요.");
     if (pill && request.items().size() != 1) throw invalid("알약 후보는 한 개만 선택해 주세요.");
     var codes = new LinkedHashSet<String>();
+    var origins = new HashMap<String, DrugSource>();
+    var slots = new HashSet<Integer>();
     for (var item : request.items()) {
       if (item == null || item.itemSeq() == null || !item.itemSeq().strip().matches("[0-9]{1,100}"))
         throw invalid("품목기준코드를 확인해 주세요.");
-      codes.add(item.itemSeq().strip());
+      String code = item.itemSeq().strip();
+      DrugSource origin = item.source() == null ? request.source() : item.source();
+      if (origin != request.source()
+          && !(request.source() == DrugSource.PRESCRIPTION_PHOTO && origin == DrugSource.SEARCH))
+        throw invalid("약별 등록 출처를 확인해 주세요.");
+      if (item.readNo() != null && (item.readNo() < 1 || item.readNo() > 10 || pill))
+        throw invalid("처방전의 약 순서를 확인해 주세요.");
+      if (request.source() == DrugSource.PRESCRIPTION_PHOTO && origin == DrugSource.SEARCH
+          && request.photoId() != null && item.readNo() == null)
+        throw invalid("보완 검색한 약의 처방전 순서를 함께 보내 주세요.");
+      if (origins.containsKey(code) && origins.get(code) != origin)
+        throw invalid("같은 약의 등록 출처를 하나로 선택해 주세요.");
+      if (item.readNo() != null && !slots.add(item.readNo()))
+        throw invalid("약마다 후보를 하나만 선택해 주세요.");
+      origins.put(code, origin);
+      codes.add(code);
     }
+    boolean hasPhotoItem = origins.containsValue(DrugSource.PRESCRIPTION_PHOTO) || request.source() == DrugSource.PILL_PHOTO;
+    if ((search || clues) && request.photoId() != null
+        || hasPhotoItem && (request.photoId() == null || request.photoId() < 1)
+        || request.photoId() != null && request.photoId() < 1)
+      throw invalid("등록 경로와 사진을 확인해 주세요.");
     // 사진 후보는 식별 시 이미 공식 캐시에 들어간 값이다. 이름 검색 확인만 TX 밖에서 조회한다.
-    if (search) for (String code : codes) drugs.getOrSync(code);
+    for (String code : codes) if (request.sourceOf(code) == DrugSource.SEARCH) drugs.getOrSync(code);
     PhotoDrugSelectionRequest.Result result;
     try {
       result = confirmation.confirm(profileId, request, List.copyOf(codes));

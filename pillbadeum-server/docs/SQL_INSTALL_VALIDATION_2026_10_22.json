@@ -1,0 +1,113 @@
+{
+  "recordedAt": "2026-10-22T20:26:26.012802+09:00",
+  "database": "isolated MySQL8.4.11, no user DB access",
+  "sqlCount": 12,
+  "freshTables": 18,
+  "freshColumns": 146,
+  "ingredientLength": 100,
+  "oldSource": "e9f8b57fda159d16c576265bdddcfbca7c03c584",
+  "checks": {
+    "new01AloneHasFullSchema": true,
+    "new01MatchesOld01PlusAllPatches": true,
+    "new02NeedsNoNameReplacement": true,
+    "upgradingOldSeedPreservesAllOriginalRows": true,
+    "new01ReplayPreservesData": true,
+    "upgradeReplayPreservesConfirmedChoice": true,
+    "sql11AloneWidensOld30WithoutDataChange": true,
+    "patches03To11Unchanged": true
+  },
+  "seedTables": {
+    "chat_message": {
+      "count": 180,
+      "sha256": "ade8e65c50de03f673323d2e554b9a628b37275991e14d5c095afa4123ab8977"
+    },
+    "chat_session": {
+      "count": 45,
+      "sha256": "e46ead8cd31a039f9455020355ae17e9e42d2761fb0274a616e96008570b7b4d"
+    },
+    "chat_summary": {
+      "count": 45,
+      "sha256": "3a4d3f83d9336b7130958088383b82f4e3a1aa2f4a246e22d9fa059016a7dbee"
+    },
+    "consent": {
+      "count": 4,
+      "sha256": "fb8ad584b1ad83aa1d1f0ca34119a490515eab10aeea5bbb585a93dd45350ef2"
+    },
+    "consent_history": {
+      "count": 3,
+      "sha256": "4c183edb9ce42f1d2700108478103a299ccd1beeda050e86722c933eb411e878"
+    },
+    "drug": {
+      "count": 2,
+      "sha256": "86969c85b22d5255534752934b4b76898e7da99c5b1c75c3865892414a5bd7fe"
+    },
+    "dur_interaction": {
+      "count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "dur_warning": {
+      "count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "member": {
+      "count": 5,
+      "sha256": "735a0333a8296946522daf0c2d572a96706f03c0093e1678fe2b9bbf3a683ffd"
+    },
+    "my_drug": {
+      "count": 30,
+      "sha256": "090ee80fa1166b24a83ffdf1d72cc0f68fdb856e74fb9a2d59f7375ffb6c3578"
+    },
+    "notification_dispatch": {
+      "count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "notification_setting": {
+      "count": 2,
+      "sha256": "6e6cc7ec301bf41766818de56c11f1ebaf29cbdfa0f740d17e1139304c279ad5"
+    },
+    "ocr_candidate": {
+      "count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "photo": {
+      "count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "pill_identification_session": {
+      "count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "profile": {
+      "count": 15,
+      "sha256": "95f19e19a8a3101cf703fefe10350534dbc95ba2deeb1fdece422ad3e4cb11ef"
+    },
+    "push_subscription": {
+      "count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "vector_cleanup": {
+      "count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "schemaSha256": "6cdaedbdc99378bbfd49e008ef4c4694b7b248008c4c923ede8931dedee1dceb",
+  "powerShell": {
+    "version": "7.6.7",
+    "runtime": "Linux, native QA adapter to dedicated Docker MySQL; not Windows binary validation",
+    "fresh": true,
+    "optionalSeed": true,
+    "oldDatabaseUpgrade": true,
+    "conflictingOptionsRejectedBeforeSql": true
+  },
+  "regression": {
+    "tests": 730,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": 84,
+    "build": "test bootJar BUILD SUCCESSFUL in 3m4s"
+  },
+  "userDatabaseChanged": false,
+  "teamDevelop": "f59386e84dc854988bfc4b37229f1f05fecb312e",
+  "teamSqlFileCount": 11
+}

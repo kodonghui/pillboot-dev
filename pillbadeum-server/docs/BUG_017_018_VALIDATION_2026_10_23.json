@@ -1,0 +1,112 @@
+{
+  "recordedAt": "2026-10-23T10:48:16.990136+09:00",
+  "frontendCommit": "0dd9e7cd1303eb279de25a668af974119561344b",
+  "backendBaseCommit": "83b0fcf0fed452d54c8988b824d1fcc5829b96f5",
+  "change": "Two @Schema names separate medication fields from candidate selection; wire JSON and SQL unchanged",
+  "frontend": {
+    "browser": "Chromium/Playwright",
+    "passed": 16,
+    "failed": 0,
+    "widths": [
+      390,
+      1365
+    ],
+    "api": "synthetic HTTP response interception",
+    "lint": "passed",
+    "build": "passed",
+    "existingBuildWarnings": [
+      "bundle over500kB"
+    ]
+  },
+  "httpMysql": {
+    "checks": [
+      {
+        "case": "zero",
+        "http": 200,
+        "total": 0,
+        "returned": 0,
+        "selectionAllowed": false
+      },
+      {
+        "case": "one",
+        "http": 200,
+        "total": 1,
+        "returned": 1,
+        "selectionAllowed": true
+      },
+      {
+        "case": "five",
+        "http": 200,
+        "total": 5,
+        "returned": 5,
+        "selectionAllowed": true
+      },
+      {
+        "case": "many",
+        "http": 200,
+        "total": 12,
+        "returned": 5,
+        "selectionAllowed": false
+      },
+      {
+        "case": "many-store-rejected",
+        "http": 409,
+        "code": "IDENTIFICATION_NOT_SELECTABLE"
+      },
+      {
+        "case": "refine-new-id-old-replaced",
+        "http": 200,
+        "lifecycle": "REPLACED"
+      },
+      {
+        "case": "old-id-store-rejected",
+        "http": 409,
+        "code": "IDENTIFICATION_REPLACED"
+      }
+    ],
+    "passed": 7,
+    "failed": 0,
+    "database": "isolated MySQL8.4.11",
+    "catalog": "18 synthetic records; real providers not called",
+    "backend_code": "c1adeb4 (same runtime as 83b0fcf)"
+  },
+  "serverTests": [
+    {
+      "suite": "org.semiproject.pillbadeumserver.image.PhotoFlowHttpMySqlTests",
+      "tests": 49,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "org.semiproject.pillbadeumserver.ApplicationMergeTests",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "bootJar": "passed",
+  "swagger": {
+    "teamOperations": 47,
+    "privateOperations": 47,
+    "beforeRefs": {
+      "drugs": "#/components/schemas/Item",
+      "items": "#/components/schemas/Item"
+    },
+    "afterRefs": {
+      "drugs": "#/components/schemas/MyDrugCreateItem",
+      "items": "#/components/schemas/PhotoDrugSelectionItem"
+    },
+    "regressionBefore": "1 assertion failed because both references were Item",
+    "teamSha256": "8a12b8297897c46048b25f80cd21000fa5077f267e501ab68d9abd041d0e870b",
+    "privateSha256": "9b6367917670247cb4a636342cbecdfc1937013027045ff1a446bf7322f56268"
+  },
+  "earlyVerificationFailures": [
+    "Missing javac; downloaded official Temurin21 into temporary workspace",
+    "Incorrect MYSQL_TEST_USERNAME and non-test catalog caused infrastructure/guard failures; corrected to MYSQL_TEST_USER and newly created pill_test on disposable MySQL"
+  ],
+  "userDatabaseChanged": false,
+  "paidProviderCalls": 0,
+  "teamPushed": false
+}

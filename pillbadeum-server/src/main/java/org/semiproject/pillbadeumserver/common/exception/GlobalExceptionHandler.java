@@ -20,6 +20,8 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
+import java.util.Map;
+
 /* 설명. 모든 컨트롤러에서 발생한 예외를 한곳에서 가로채 ErrorResponse 로 바꿔 주는 전역 예외 처리기
  *  ----------------------------------------------------------------------------------
  *  처리 순서
@@ -45,7 +47,7 @@ public class GlobalExceptionHandler {
 
         // 외부 응답과 예외 메시지에는 키·프롬프트·건강정보가 섞일 수 있으므로 기록하지 않는다.
         if (e instanceof ExternalApiException external) {
-            log.warn("[외부 API 실패] api={} code={} causeType={}", external.getApiName(), errorCode.getCode(),
+            log.warn("[외부 API 실패] api={} code={} reason={} causeType={}", external.getApiName(), errorCode.getCode(), external.getFailureReason(),
                     e.getCause() != null ? e.getCause().getClass().getSimpleName() : "-");
         } else {
             log.info("[업무 요청 실패] code={}", errorCode.getCode());
@@ -80,29 +82,38 @@ public class GlobalExceptionHandler {
         return toResponse(ErrorCode.INVALID_INPUT, "입력값을 확인해주세요.");
     }
 
+    // 사전 중복 조회를 동시에 통과해도 409로 맞출 UNIQUE 이름(MySQL 8은 '표.키' 형식)과 안내 문구.
+    private static final Map<String, String> DUPLICATE_MESSAGES = Map.of(
+            "my_drug.uk_my_drug_profile_item", "이미 이 프로필에 등록된 약입니다.",
+            "member.email", "이미 가입된 이메일입니다.");
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataConflict(DataIntegrityViolationException e) {
-        if (isConcurrentDrugDuplicate(e)) {
-            // 사전 중복 조회를 동시에 통과해도 DB의 복합 UNIQUE 충돌은 기존 등록 409 계약으로 맞춘다.
+        String duplicate = concurrentDuplicateMessage(e);
+        if (duplicate != null) {
+            // 사전 중복 조회를 동시에 통과해도 DB UNIQUE 충돌은 기존 409 계약(등록 중복·가입 이메일 중복)으로 맞춘다.
             log.info("[업무 요청 실패] code={}", ErrorCode.DUPLICATE.getCode());
-            return toResponse(ErrorCode.DUPLICATE, "이미 이 프로필에 등록된 약입니다.");
+            return toResponse(ErrorCode.DUPLICATE, duplicate);
         }
         // 그 밖의 UNIQUE·NOT NULL·FK는 같은 사용자 오류라고 단정하지 않는다.
         log.error("[DB 제약 오류] type={} location={}", e.getClass().getSimpleName(), safeLocation(e));
         return toResponse(ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.getDescription());
     }
 
-    private boolean isConcurrentDrugDuplicate(Throwable error) {
+    /** 알려진 UNIQUE의 MySQL 중복(1062)이면 안내 문구, 아니면 null. 키 이름만 오는 이전 형식도 받는다. */
+    private String concurrentDuplicateMessage(Throwable error) {
         for (int depth = 0; error != null && depth < 10; depth++, error = error.getCause()) {
             if (error instanceof org.hibernate.exception.ConstraintViolationException constraint) {
                 String name = constraint.getConstraintName();
-                if (name == null) return false;
-                name = name.replace("`", "");
-                return (name.equals("uk_my_drug_profile_item") || name.equals("my_drug.uk_my_drug_profile_item"))
-                        && constraint.getSQLException().getErrorCode() == 1062;
+                if (name == null || constraint.getSQLException().getErrorCode() != 1062) return null;
+                String key = name.replace("`", "");
+                return DUPLICATE_MESSAGES.entrySet().stream()
+                        .filter(entry -> entry.getKey().equals(key) || entry.getKey().endsWith("." + key))
+                        .map(Map.Entry::getValue)
+                        .findFirst().orElse(null);
             }
         }
-        return false;
+        return null;
     }
 
     @ExceptionHandler(AuthenticationException.class)

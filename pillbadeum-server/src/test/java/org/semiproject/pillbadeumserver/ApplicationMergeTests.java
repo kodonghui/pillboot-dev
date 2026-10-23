@@ -36,4 +36,22 @@ class ApplicationMergeTests {
                 "/api/profiles/{profileId}/drugs/{myDrugId}/schedule");
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
     }
+
+    @Test
+    void swaggerKeepsMedicationDetailsAndCandidateSelectionAsDifferentItems() throws Exception {
+        var docs = new tools.jackson.databind.json.JsonMapper().readTree(
+                mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+                        .andReturn().getResponse().getContentAsString());
+        var schemas = docs.path("components").path("schemas");
+        var request = schemas.path("MyDrugCreateRequest").path("properties");
+        var drugsRef = request.path("drugs").path("items").path("$ref").asString();
+        var choicesRef = request.path("items").path("items").path("$ref").asString();
+        assertThat(drugsRef).isNotBlank().isNotEqualTo(choicesRef);
+        assertThat(choicesRef).isNotBlank();
+        var drugs = schemas.path(drugsRef.substring(drugsRef.lastIndexOf('/') + 1)).path("properties");
+        var choices = schemas.path(choicesRef.substring(choicesRef.lastIndexOf('/') + 1)).path("properties");
+        assertThat(drugs.has("itemSeq") && drugs.has("dosePerTime") && drugs.has("startDate")).isTrue();
+        assertThat(choices.has("itemSeq") && choices.has("source") && choices.has("readNo")).isTrue();
+        assertThat(choices.has("dosePerTime")).isFalse();
+    }
 }

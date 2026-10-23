@@ -49,6 +49,14 @@ class PrescriptionDrugLookupTests {
         "합성정0.5mg | 합성정500마이크로그램 | true",
         "합성정0.5mg | 합성정500mg | false",
         "합성정1g | 합성정1000밀리그램 | true",
+        "타이레놀정500mg | 타이레놀정500밀리그람(아세트아미노펜) | true",
+        "타이레놀정500밀리그램 | 타이레놀정500밀리그람(아세트아미노펜) | true",
+        "타이레놀정500밀리그람 | 타이레놀정500밀리그램 | true",
+        "타이레놀정500mg | 타이레놀정160밀리그람 | false",
+        "합성정0.5그람 | 합성정500mg | true",
+        "합성정500마이크로그람 | 합성정0.5밀리그람 | true",
+        "합성액5밀리그람/5mL | 합성액5mg/5mL | true",
+        "합성액5밀리그람/5mL | 합성액1mg/mL | false",
         "합성정0.25mg | 합성정0.5mg | false",
         "합성정60mg | 합성정30밀리그램 | false",
         "합성정60mg | 다른정60밀리그램 | false",
@@ -84,6 +92,36 @@ class PrescriptionDrugLookupTests {
         when(client.get(anyString(), anyMap())).thenThrow(failure);
         assertThatThrownBy(() -> lookup.find("합성정60mg", null)).isSameAs(failure);
         verify(client, times(1)).get(anyString(), anyMap());
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "합성정60mg... | 합성정60밀리그램(성분)",
+        "합성정60mg… | 합성정60밀리그램(성분)",
+        "합성정60mg(성분... | 합성정60밀리그램(성분)",
+        "합성정60mg(성분 | 합성정60밀리그램(성분)",
+        "합성정0.5mg... | 합성정500마이크로그램",
+        "합성정0.25/1000mg… | 합성정0.25mg/1000mg",
+        "합성서방정60mg... | 합성서방정60밀리그램"
+    })
+    void clippedDescriptionDoesNotDiscardAnOtherwiseExactProduct(String input, String candidate) {
+        when(client.get(anyString(), anyMap())).thenReturn(rows(List.of(candidate, "다른정60mg", "합성정30mg", "합성캡슐60mg")));
+        assertThat(lookup.find(input, null)).singleElement()
+                .satisfies(row -> assertThat(row.path("ITEM_NAME").asString()).isEqualTo(candidate));
+        verify(client).get(anyString(), argThat(params -> !params.get("item_name").toString().contains("...")));
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"합성정60...", "합성정0.5m…", "합성서방...", "합성정5mg/..."})
+    void incompleteStrengthOrDosageFormRequiresNameSupplementInsteadOfGuessing(String input) {
+        assertThat(lookup.find(input, null)).isEmpty();
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void clippedNameWithoutStrengthKeepsAllExactProductStrengthOptions() {
+        when(client.get(anyString(), anyMap())).thenReturn(rows(List.of("합성정30mg", "합성정60mg", "다른정60mg", "합성서방정60mg")));
+        assertThat(lookup.find("합성정...", null)).hasSize(2);
     }
 
     @Test

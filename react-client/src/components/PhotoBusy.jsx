@@ -4,6 +4,7 @@ import { PhotoPreview } from './PhotoPick.jsx'
 import './PhotoBusy.css'
 
 // 사진으로 약을 찾는 동안(IMG-03). 올린 사진과 찾는 순서를 보여 주고, 같은 화면에서 기다리게 한다.
+// 서버는 판독 · 공공데이터 조회를 합쳐 85초까지 기다리므로 화면에서 시간을 끊거나 사진을 다시 보내지 않는다.
 // photos: [{ file, caption }] · steps: 찾는 순서 문장 · size: 없음(처방전 사진 1장) · sm(알약 사진 2장)
 function PhotoBusy({ photos, steps, size }) {
   const titleId = useId()
@@ -23,12 +24,10 @@ function PhotoBusy({ photos, steps, size }) {
           <div className="photo-busy__title">
             <Icon name="clock" size="l" className="photo-busy__clock" />
             <h2 className="screen-section" id={titleId}>
-              약을 찾고 있어요
+              사진을 확인하고 있어요
             </h2>
           </div>
-          <p className="screen-body photo-busy__neutral">
-            약을 찾고 있어요. 사진에 따라 시간이 더 걸릴 수 있으니 이 화면에서 기다려 주세요.
-          </p>
+          <p className="screen-body photo-busy__neutral">잠시만 기다려 주세요. 사진에 따라 시간이 더 걸릴 수 있어요.</p>
           <div className="photo-busy__how">
             <p className="screen-label photo-busy__neutral">이렇게 찾아요</p>
             <ul className="photo-busy__steps">

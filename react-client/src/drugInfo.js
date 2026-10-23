@@ -21,3 +21,9 @@ export function guideSections(guide) {
 
 // 공식 정보 제공 기관(목업 고정 문구)
 export const guideProvider = '식품의약품안전처 공공데이터'
+
+// 성분 이름(후보 ingredientName · 약 정보 material). 서버는 모르는 값을 '미확인'으로 채우기도 하므로 빈 값과 같이 본다.
+export function ingredientOf(value) {
+  const name = value?.trim()
+  return name && name !== '미확인' ? name : null
+}

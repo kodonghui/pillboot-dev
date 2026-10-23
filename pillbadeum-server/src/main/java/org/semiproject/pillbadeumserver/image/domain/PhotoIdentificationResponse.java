@@ -41,7 +41,21 @@ public record PhotoIdentificationResponse(
       String printFront, String printBack, String shape, String color,
       @JsonInclude(JsonInclude.Include.NON_NULL) String orientation,
       @JsonInclude(JsonInclude.Include.NON_NULL) Integer evidenceRank,
-      @JsonInclude(JsonInclude.Include.NON_NULL) List<PillMatchDetail> matchDetails) {
+      @JsonInclude(JsonInclude.Include.NON_NULL) List<PillMatchDetail> matchDetails,
+      String ingredientName) {
+    public Candidate(String itemSeq, String name, String maker, String etcOtc, String imageUrl,
+        Boolean cancelled, boolean alreadyRegistered, Boolean printMatched,
+        String printFront, String printBack, String shape, String color,
+        String orientation, Integer evidenceRank, List<PillMatchDetail> matchDetails) {
+      this(itemSeq, name, maker, etcOtc, imageUrl, cancelled, alreadyRegistered, printMatched,
+          printFront, printBack, shape, color, orientation, evidenceRank, matchDetails, null);
+    }
+    public Candidate(String itemSeq, String name, String maker, String etcOtc, String imageUrl,
+        Boolean cancelled, boolean alreadyRegistered, Boolean printMatched,
+        String printFront, String printBack, String shape, String color, String ingredientName) {
+      this(itemSeq, name, maker, etcOtc, imageUrl, cancelled, alreadyRegistered, printMatched,
+          printFront, printBack, shape, color, null, null, null, ingredientName);
+    }
     public Candidate(String itemSeq, String name, String maker, String etcOtc, String imageUrl,
         Boolean cancelled, boolean alreadyRegistered, Boolean printMatched,
         String printFront, String printBack, String shape, String color) {

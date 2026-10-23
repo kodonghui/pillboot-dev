@@ -10,7 +10,21 @@ public record PhotoDrugSelectionRequest(DrugSource source, Long photoId, List<It
   public PhotoDrugSelectionRequest(DrugSource source, Long photoId, List<Item> items) {
     this(source, photoId, items, null);
   }
-  public record Item(String itemSeq) {}
+  /** 보완 검색은 SEARCH, 원래 사진 후보는 PRESCRIPTION_PHOTO임. 생략 시 기존 요청 출처를 사용함. */
+  @Schema(name = "PhotoDrugSelectionItem")
+  public record Item(String itemSeq, DrugSource source, Integer readNo) {
+    public Item(String itemSeq) { this(itemSeq, null, null); }
+  }
+
+  public DrugSource sourceOf(String code) {
+    return items.stream().filter(i -> i.itemSeq().strip().equals(code)).findFirst()
+        .map(i -> i.source() == null ? source : i.source()).orElse(source);
+  }
+
+  public Integer readNoOf(String code) {
+    return items.stream().filter(i -> i.itemSeq().strip().equals(code)).findFirst()
+        .map(Item::readNo).orElse(null);
+  }
 
   public record Saved(long myDrugId, String itemSeq, String name) {}
 

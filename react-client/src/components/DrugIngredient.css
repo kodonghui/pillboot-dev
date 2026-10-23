@@ -1,0 +1,10 @@
+/* 목업 .ingr · .ingr-na */
+.drug-ingredient {
+  color: var(--label-neutral);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.drug-ingredient--none {
+  color: var(--label-alternative);
+}

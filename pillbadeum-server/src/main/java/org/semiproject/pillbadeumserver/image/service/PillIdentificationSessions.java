@@ -295,7 +295,7 @@ public class PillIdentificationSessions {
   private static PhotoIdentificationResponse.Candidate view(PhotoCandidateData c, Set<String> registered) {
     return new PhotoIdentificationResponse.Candidate(c.itemSeq(), c.name(), c.maker(), c.etcOtc(),
         c.imageUrl(), c.cancelled(), registered.contains(c.itemSeq()), c.printMatched(),
-        c.printFront(), c.printBack(), c.shape(), c.color(), c.orientation(), c.evidenceRank(), c.matchDetails());
+        c.printFront(), c.printBack(), c.shape(), c.color(), c.orientation(), c.evidenceRank(), c.matchDetails(), c.material());
   }
   private static boolean selectable(String status, int total, List<PhotoIdentificationResponse.Candidate> candidates) {
     return "OK".equals(status) && total > 0 && total <= 5 && candidates.stream().anyMatch(c -> !c.alreadyRegistered());

@@ -205,7 +205,7 @@ class QuestionClassifierTests {
     private QuestionClassifier classifier(String key, String decisionModel, long shortTimeout) {
         return new QuestionClassifier(new OpenAiClient(JSON, key, baseUrl,
                 "chat-unused", decisionModel, "vision-unused", "embedding-unused", "high",
-                2000, shortTimeout, 2000, 60000, 1, 50, new java.math.BigDecimal("0.10")));
+                2000, shortTimeout, 2000, 60000, 1, 50, new java.math.BigDecimal("0.10"), 85_000));
     }
 
     private void stub(int status, String body) {

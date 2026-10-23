@@ -111,7 +111,7 @@ public class ImageKeywordRegistrationService {
         c.lineFront(),
         c.lineBack(),
         c.form(),
-        c.material(),
+        org.semiproject.pillbadeumserver.drug.domain.DrugIngredient.forStorage(c.material()),
         LocalDateTime.now(TimeZoneConfig.ZONE), source, c.cancelled());
   }
 
@@ -176,7 +176,7 @@ public class ImageKeywordRegistrationService {
     var values =
         jdbc.queryForList(
             "SELECT"
-                + " c.*,d.name,d.maker,d.etc_otc,d.image_url,d.print_front,d.print_back,d.shape,d.color,d.cancelled"
+                + " c.*,d.name,d.maker,d.etc_otc,d.image_url,d.print_front,d.print_back,d.shape,d.color,d.material,d.cancelled"
                 + " FROM ocr_candidate c LEFT JOIN drug d ON d.item_seq=c.item_seq WHERE"
                 + " c.photo_id=? ORDER BY read_no,candidate_rank",
             p.id());
@@ -205,7 +205,7 @@ public class ImageKeywordRegistrationService {
                   (String) value.get("print_front"),
                   (String) value.get("print_back"),
                   (String) value.get("shape"),
-                  (String) value.get("color")));
+                  (String) value.get("color"), (String) value.get("material")));
       }
       String lookup = (String) first.get("lookup_status");
       if (candidates.isEmpty() && "OK".equals(lookup))

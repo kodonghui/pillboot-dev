@@ -8,7 +8,9 @@ import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
 import org.semiproject.pillbadeumserver.drug.domain.Drug;
 import org.semiproject.pillbadeumserver.drug.domain.DrugRepository;
+import org.semiproject.pillbadeumserver.drug.domain.DrugSource;
 import org.semiproject.pillbadeumserver.drug.domain.DurWarningRepository;
+import org.semiproject.pillbadeumserver.drug.domain.MyDrug;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.service.DrugGuideService;
 import org.semiproject.pillbadeumserver.drug.service.DrugSearchService;
@@ -95,6 +97,16 @@ class DrugInputValidationTests {
 
         assertThatThrownBy(() -> guideService.getGuide("999999999")).isInstanceOf(NotFoundException.class);
         verifyNoInteractions(publicDataClient);
+    }
+
+    /* 목차. 4. 1회 복용량: 요청 검증이 없는 예전 경로로 들어와도 엔티티가 팀 명세 1~10을 지킴 */
+    @Test
+    void dosePerTimeAboveTenIsRejectedEvenWithoutRequestValidation() {
+        Drug drug = DrugWebTests.drug();
+        assertInvalidInput(() -> MyDrug.create(1L, drug, DrugSource.SEARCH, 11, null, null, null, null));
+        MyDrug saved = MyDrug.create(1L, drug, DrugSource.SEARCH, 10, null, null, null, null);
+        assertInvalidInput(() -> saved.changeDoseInfo(11, null, null, null, null));
+        assertThat(saved.getDosePerTime()).isEqualTo(10);
     }
 
     private static void assertInvalidInput(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {

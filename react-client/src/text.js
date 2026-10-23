@@ -38,6 +38,13 @@ export function iAfter(word) {
   return final === 0 ? '가' : '이'
 }
 
+// 서술격 조사 "이에요/예요". 받침이 있으면 "이에요"다.
+export function ieyoAfter(word) {
+  const final = finalConsonant(word)
+  if (final === null) return '(이)에요'
+  return final === 0 ? '예요' : '이에요'
+}
+
 const weekdayNames = ['일', '월', '화', '수', '목', '금', '토']
 
 function weekdayName(date) {

@@ -48,7 +48,7 @@ class PillIdentificationHttpTests {
                 .thenAnswer(call -> json.readTree(call.<String>getArgument(1).contains("사진2")
                         ? "{\"printBack\":\"10\",\"shape\":\"원형\",\"colorClass1\":\"흰색\"}"
                         : "{\"printFront\":\"DK\",\"shape\":\"원형\",\"colorClass1\":\"흰색\"}"));
-        var photo = new PillPhotoIdentificationService(files, ai, service, mock(TemporaryPhotoCleanupService.class));
+        var photo = new PillPhotoIdentificationService(files, ai, service, mock(TemporaryPhotoCleanupService.class), new org.springframework.core.task.SimpleAsyncTaskExecutor(), 85_000);
         http = MockMvcBuilders.standaloneSetup(new PillIdentificationController(service, mock(PillDrugRegistrationService.class),
                 photo, mock(TemporaryPhotoUploadService.class), mock(PillIdentificationSessions.class),
                 mock(PhotoCandidateLookup.class), mock(PhotoIdentificationWorkflow.class)))

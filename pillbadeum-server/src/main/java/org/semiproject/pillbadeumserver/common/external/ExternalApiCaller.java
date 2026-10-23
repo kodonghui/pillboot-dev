@@ -50,11 +50,22 @@ public final class ExternalApiCaller {
 
     /** 공공데이터 GET과 임베딩에만 사용한다. 응답 해석/업무 검증은 이 호출 바깥에서 수행한다. */
     public static <T> T callWithRetry(String apiName, Supplier<T> request) {
+        return callWithRetry(apiName, request, true);
+    }
+
+    /** OCR은 응답을 오래 기다린 뒤 같은 요청을 자동으로 다시 보내지 않음. */
+    public static <T> T callWithQuickRetry(String apiName, Supplier<T> request) {
+        return callWithRetry(apiName, request, false);
+    }
+
+    private static <T> T callWithRetry(String apiName, Supplier<T> request, boolean retryTimeouts) {
         return call(apiName, () -> {
             try {
                 return request.get();
             } catch (ResourceAccessException | RestClientResponseException e) {
-                if (!isTransient(e)) {
+                boolean timeout = isTimeout(e) || e instanceof RestClientResponseException response
+                        && (response.getStatusCode().value() == 408 || response.getStatusCode().value() == 504);
+                if (!isTransient(e) || !retryTimeouts && timeout) {
                     throw e;
                 }
                 log.info("[외부 API] api={} retry=1 type={}", apiName, e.getClass().getSimpleName());
@@ -80,7 +91,7 @@ public final class ExternalApiCaller {
         }
         if (!acquired) {
             log.warn("[외부 API] api={} phase=permit result=busy", apiName);
-            throw ExternalApiException.failed(apiName, "외부 서비스 요청이 많습니다. 잠시 후 다시 시도해주세요.", null);
+            throw ExternalApiException.busy(apiName);
         }
         try {
             return request.get();

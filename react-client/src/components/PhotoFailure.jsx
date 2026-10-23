@@ -4,8 +4,8 @@ import './PhotoFailure.css'
 
 // 사진으로 약을 찾지 못한 화면(IMG-06). 상태 배지 · 제목 · 설명, 읽은 이름 · 단서 상자(children), 다음 행동 버튼(actions).
 // icon: 아이콘 이름 · plain: 서버 · 조회 장애 · 만료처럼 사용자가 고칠 수 없는 경우의 회색 아이콘 칸
-// note: 패널 아래 안내 { variant, icon, text }
-function PhotoFailure({ icon = 'alertCircle', plain, badge, title, text, children, actions, note }) {
+// note: 패널 아래 안내 { variant, icon, text } · caption: 패널 아래 회색 한 줄(목업 .muted)
+function PhotoFailure({ icon = 'alertCircle', plain, badge, title, text, children, actions, note, caption }) {
   const titleId = useId()
 
   return (
@@ -30,6 +30,7 @@ function PhotoFailure({ icon = 'alertCircle', plain, badge, title, text, childre
           <p className="mt-notice__text">{note.text}</p>
         </div>
       )}
+      {caption && <p className="screen-caption photo-failure__muted">{caption}</p>}
     </div>
   )
 }

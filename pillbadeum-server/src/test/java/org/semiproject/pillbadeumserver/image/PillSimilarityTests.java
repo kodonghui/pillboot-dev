@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.*;
 import static org.semiproject.pillbadeumserver.image.domain.PillIdentification.ObservationState.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
 import org.semiproject.pillbadeumserver.image.service.PillSimilarity;
@@ -12,6 +14,26 @@ import tools.jackson.databind.json.JsonMapper;
 
 class PillSimilarityTests {
   final JsonMapper json = new JsonMapper();
+
+  @ParameterizedTest
+  @CsvSource(delimiter = '|', value = {
+      "pentagon|light green|오각형|연두", "pentagonal|연두색|오각형|연두",
+      "hexagonal|yellow|육각형|노랑", "square|teal|사각형|청록",
+      "triangle|navy blue|삼각형|남색", "diamond|maroon|마름모형|자주",
+      "octagon|transparent|팔각형|투명", "semicircular|white|반원형|하양",
+      "rectangular|white|장방형|하양", "긴 타원형|흰색|장방형|하양"
+  })
+  void visualVocabularyAliasesFindTheExactOfficialPillWithoutWeakeningItsImprint(
+      String shape, String color, String officialShape, String officialColor) {
+    var target = (tools.jackson.databind.node.ObjectNode) row("1", "A", "B");
+    target.put("DRUG_SHAPE", officialShape); target.put("COLOR_CLASS1", officialColor);
+    var c = new PillIdentification(null, null, "A", "B", shape, color, null, null, null);
+    assertThat(PillSimilarity.missingFields(c, List.of(target))).isEmpty();
+    assertThat(PillSimilarity.rank(c, List.of(target))).singleElement()
+        .satisfies(m -> assertThat(m.exactImprints()).isEqualTo(2));
+    var wrong = new PillIdentification(null, null, "X", "B", shape, color, null, null, null);
+    assertThat(PillSimilarity.rank(wrong, List.of(target))).isEmpty();
+  }
 
   @Test
   void shapeAndColorNeverStandInForAReadableImprint() {

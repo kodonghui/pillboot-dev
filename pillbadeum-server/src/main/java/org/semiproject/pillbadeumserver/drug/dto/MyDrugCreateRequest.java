@@ -3,6 +3,7 @@ package org.semiproject.pillbadeumserver.drug.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -78,6 +79,7 @@ public record MyDrugCreateRequest(
     public static final int MAX_TIMING_LENGTH = 20;     // 복용 시점 최대 글자 수 (팀 명세 · 일정 수정과 같음)
 
     /* 설명. 저장할 약 하나와 그 복용정보 */
+    @Schema(name = "MyDrugCreateItem")
     public record Item(
 
             @NotBlank(message = "품목기준코드(itemSeq)를 입력해주세요.")

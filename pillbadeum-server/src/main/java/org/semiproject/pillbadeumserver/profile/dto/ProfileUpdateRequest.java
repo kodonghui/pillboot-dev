@@ -4,6 +4,12 @@ package org.semiproject.pillbadeumserver.profile.dto;
 import jakarta.validation.constraints.*;
 
 public class ProfileUpdateRequest {
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @AssertTrue(message = "출생연도는 올해보다 클 수 없습니다.")
+    public boolean isValidBirthYear() {
+        return org.semiproject.pillbadeumserver.profile.domain.Profile.validBirthYear(profileBirthYear);
+    }
     @NotBlank(message = "프로필의 이름을 작성해주세요.")
     @Size(max = 10, message = "프로필 이름은 10자 이하로 작성해주세요.")
     private String profileName; // 프로필 이름

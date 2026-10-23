@@ -14,6 +14,10 @@
 
 ## HTTP 연결
 
+- 낱알 OCR·후보 작업은 정식/호환 경로 모두 전체85초 마감을 공유함. OCR read timeout·HTTP408/504 뒤 자동 재호출하지 않음. 파일 업로드·DB·프록시 시간을 포함한 절대 응답 시간 보장은 아님.
+- 낱알 후보의 ingredientName은 공식 성분명 전체임. 새 DB는 최신01, 기존 DB는 SQL12로 material을 TEXT로 확장함. 과거 잘린 값의 자동 복원은 별도 작업임. 단서 비교·동률 정책과 후보 수 제한은 유지함.
+- OCR의 shape·color1·color2는 공식 목록의 한글 값 또는 null임. hexagonal·light green 등의 알려진 이전 영문 표현도 공식 값으로 정규화함. 읽지 못한 항목을 추정해 채우거나 각인 혼동 문자를 치환하지 않음.
+
 상세 응답은 기존 사진 응답 외피에 contractVersion=1·identificationId·origin·registrationSource·expiresAt·reason·후보 수·선택 가능 여부·missingFields·nextActions를 추가함. X-Pill-Identification-Version: 1 헤더를 제공함. JWT와 프로필 소유권 확인이 필요함.
 
 | 동작 | 요청 | 응답 |
@@ -46,7 +50,7 @@ POST /api/profiles/{profileId}/drugs에 다음 items 계약으로 한 후보만 
 
 - 같은 결과 ID·같은 품목은 첫 HTTP 상태와 saved/skipped 영수증을 재전송함. 다른 품목 재전송은409임. 저장 후 약을 삭제해도 재전송으로 재생성하지 않음.
 - PHOTO의 photoId만 보내던 기존 items 요청은 v1 결과가 있을 때만 연결함. drugs 방식·옛 보조 등록 API로 PILL_PHOTO/PILL_CLUES를 우회 저장할 수 없음. SEARCH·처방전·MANUAL 기존 계약은 유지함.
-- 추가 SQL은 10_PILL_IDENTIFICATION_SESSION.sql임. 01·03~09 적용 뒤 대상 DB에 명시적으로 실행함. 기존 테이블 컬럼은 변경하지 않으며 PILL_CLUES는 기존 source VARCHAR(30)에 들어감.
+- 새 설치용 최신01은 낱알 결과 구조까지 포함함. 기존01·03~09만 적용한 DB는 10_PILL_IDENTIFICATION_SESSION.sql을 대상 DB에 명시적으로 실행함. PILL_CLUES는 기존 source VARCHAR(30)에 들어감.
 - CLUES/실패 사진 결과는 생성 후30분, 사진 성공은 사진 업로드 후30분을 넘지 않음. snapshot은 구조화 단서·최대5개 공식 후보/근거·목록 SHA만64KiB 이하로 보관함. 사진 bytes·모델 원문은 보관하지 않음.
 - 취소·대체·소비 시 snapshot을 비우며 기존 사진 정리 주기에 만료 행 정리를 연결함. 새 스케줄러를 만들지 않음. 프로필/회원 삭제는 FK로 정리함.
 - 프런트는 회원·프로필별 sessionStorage에 identificationId만 기억하고 GET으로 복원함. 미제출 편집 값은 보관하지 않음. 로그아웃·프로필 전환·취소 시 참조를 정리함.

@@ -4,6 +4,10 @@ import jakarta.persistence.*;
 import org.semiproject.pillbadeumserver.member.domain.Member;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
+import org.semiproject.pillbadeumserver.common.exception.BusinessException;
+import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 
 @Entity
 @Table(name = "profile")
@@ -56,6 +60,7 @@ public class Profile {
         this.member = member;
         this.profileName = profileName;
         this.relationshipType = relationshipType;
+        checkBirthYear(profileBirthYear);
         this.profileBirthYear = profileBirthYear;
         this.profileGender = profileGender;
         this.profileHeight = profileHeight;
@@ -72,6 +77,7 @@ public class Profile {
     public void updateProfile(String profileName, String relationshipType, int profileBirthYear,
                               String profileGender, Integer profileHeight,
                               Integer profileWeight, boolean profilePregnant) {
+        checkBirthYear(profileBirthYear);
         this.profileName = profileName;
         this.relationshipType = relationshipType;
         this.profileBirthYear = profileBirthYear;
@@ -80,6 +86,16 @@ public class Profile {
         this.profileWeight = profileWeight;
         this.profilePregnant = profilePregnant;
         this.updatedAt = LocalDateTime.now();
+    }
+
+    /** PROF-001/003: 한국 날짜의 올해까지 허용하며 기존 저장값을 일괄 변경하지 않음. */
+    public static boolean validBirthYear(Integer year) {
+        return year == null || year <= LocalDate.now(TimeZoneConfig.ZONE).getYear();
+    }
+
+    private static void checkBirthYear(int year) {
+        if (!validBirthYear(year)) throw new BusinessException(ErrorCode.INVALID_INPUT,
+                "출생연도는 올해보다 클 수 없습니다.");
     }
 
     public Long getProfileId() {

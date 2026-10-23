@@ -1,0 +1,65 @@
+{
+  "result": "passed",
+  "gradle": {
+    "suites": 86,
+    "tests": 759,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 2
+  },
+  "passedTests": 757,
+  "bootJar": "passed",
+  "skippedCases": [
+    {
+      "class": "org.semiproject.pillbadeumserver.image.service.TemporaryPhotoCleanupServiceTests",
+      "name": "rejectsTemporaryDirectoryRedirectedToAnotherFolder()"
+    },
+    {
+      "class": "org.semiproject.pillbadeumserver.image.service.TemporaryPhotoCleanupServiceTests",
+      "name": "doesNotDeleteSymbolicLinksOrTheirTargets()"
+    }
+  ],
+  "mysql": {
+    "version": "8.0.46",
+    "dedicatedDatabase": "pill_test"
+  },
+  "qdrant": {
+    "version": "1.19.2",
+    "runtime": "native Windows with short disposable storage path"
+  },
+  "frontend": {
+    "lint": "passed",
+    "build": "passed",
+    "existingChunkSizeWarning": true,
+    "browserSignup": "passed",
+    "includedInSubBackendSnapshot": false
+  },
+  "sql": {
+    "passed": true,
+    "caseCount": 5,
+    "cases": [
+      "latest_01_structure_and_initially_empty_policies",
+      "varchar_100_to_text_preserves_rows_and_legacy_11_does_not_shrink",
+      "base_policies_are_required_without_sample_accounts_or_automatic_consent",
+      "reapplying_base_policies_preserves_existing_policy_content_and_ids",
+      "optional_sample_data_does_not_duplicate_base_policies"
+    ],
+    "port": 55978,
+    "userDatabaseTouched": false,
+    "finalState": "fresh schema with no policies for UI failure-state verification"
+  },
+  "browser": {
+    "browserVerified": true,
+    "emptyPoliciesBlocked": true,
+    "requiredOnlyEnablesNext": true,
+    "signupAndAutomaticLoginReached": "/profiles/new",
+    "createdMembers": 1,
+    "consentHistoryRows": 2,
+    "sampleAccountsInserted": 0,
+    "paidCalls": 0,
+    "userDatabaseTouched": false
+  },
+  "actualOpenAiCalls": 0,
+  "actualPublicDataCalls": 0,
+  "userDatabaseTouched": false
+}

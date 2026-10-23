@@ -87,6 +87,59 @@ class PillCatalogTests {
     }
 
     @Test
+    void repeatedRefreshFailuresWaitLongerInsteadOfDownloadingEveryMinute() throws Exception {
+        var failSecondPage = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        when(client.get(anyString(), anyMap(), any(Duration.class))).thenAnswer(call -> {
+            calls.incrementAndGet();
+            Map<String, Object> query = call.getArgument(1);
+            int page = (int)query.get("pageNo");
+            if (page == 2 && failSecondPage.get()) throw ExternalApiException.failed("공공데이터", "", null);
+            var rows = new ArrayList<JsonNode>();
+            for (int i = (page - 1) * 100; i < Math.min(page * 100, 101); i++) rows.add(row(String.valueOf(100000 + i), "약" + i, "P" + i, "10"));
+            return json.valueToTree(Map.of("pageNo", page, "numOfRows", 100, "totalCount", 101, "items", rows));
+        });
+        try (var catalog = new PillCatalog(client, json, directory.resolve("retry.json").toString(), true, 4)) {
+            assertThatThrownBy(catalog::rows).isInstanceOf(BusinessException.class);
+            assertThat(waitForRetryAfter(catalog)).isBetween(Duration.ofSeconds(50), Duration.ofMinutes(1));
+            assertThat(calls.get()).isEqualTo(2);
+            assertThatThrownBy(catalog::rows).isInstanceOf(BusinessException.class); // 기다리는 동안은 다시 받지 않음
+            assertThat(calls.get()).isEqualTo(2);
+            org.springframework.test.util.ReflectionTestUtils.setField(catalog, "retryAfter", java.time.Instant.EPOCH);
+            assertThatThrownBy(catalog::rows).isInstanceOf(BusinessException.class);
+            assertThat(waitForRetryAfter(catalog)).isBetween(Duration.ofSeconds(110), Duration.ofMinutes(2));
+            failSecondPage.set(false);
+            org.springframework.test.util.ReflectionTestUtils.setField(catalog, "retryAfter", java.time.Instant.EPOCH);
+            assertThatThrownBy(catalog::rows).isInstanceOf(BusinessException.class);
+            long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            List<JsonNode> loaded = null;
+            while (loaded == null && System.nanoTime() < end) {
+                try { loaded = catalog.rows(); } catch (BusinessException preparing) { Thread.sleep(10); }
+            }
+            assertThat(loaded).hasSize(101);
+            assertThat(org.springframework.test.util.ReflectionTestUtils.getField(catalog, "failures")).isEqualTo(0);
+        }
+    }
+
+    @Test
+    void retryDelayDoublesFromOneMinuteUpToTheRegularSixHourRefresh() {
+        assertThat(List.of(1, 2, 3, 9, 10, 50).stream().map(failures -> (Duration) org.springframework.test.util.ReflectionTestUtils
+                .invokeMethod(PillCatalog.class, "retryDelay", failures)).toList())
+                .containsExactly(Duration.ofMinutes(1), Duration.ofMinutes(2), Duration.ofMinutes(4),
+                        Duration.ofMinutes(256), Duration.ofHours(6), Duration.ofHours(6));
+    }
+
+    private static Duration waitForRetryAfter(PillCatalog catalog) throws InterruptedException {
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < end) {
+            var retryAfter = (java.time.Instant) org.springframework.test.util.ReflectionTestUtils.getField(catalog, "retryAfter");
+            if (retryAfter.isAfter(java.time.Instant.now().plusSeconds(1))) return Duration.between(java.time.Instant.now(), retryAfter);
+            Thread.sleep(10);
+        }
+        throw new AssertionError("refresh did not fail in time");
+    }
+
+    @Test
     void requestDoesNotWaitOnCatalogDownloadLock() throws Exception {
         CountDownLatch started = new CountDownLatch(1), release = new CountDownLatch(1);
         when(client.get(anyString(), anyMap(), any(Duration.class))).thenAnswer(call -> {

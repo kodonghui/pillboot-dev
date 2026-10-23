@@ -28,11 +28,18 @@ public class PillPhotoIdentificationService {
     private final OpenAiClient openAiClient;
     private final PillDrugIdentificationService identificationService;
     private final TemporaryPhotoCleanupService cleanup;
+    private final org.springframework.core.task.AsyncTaskExecutor executor;
+    private final long timeoutMs;
 
     public PillPhotoIdentificationService(FileStorage fileStorage,
                                           OpenAiClient openAiClient,
                                           PillDrugIdentificationService identificationService,
-                                          TemporaryPhotoCleanupService cleanup) {
+                                          TemporaryPhotoCleanupService cleanup,
+                                          @org.springframework.beans.factory.annotation.Qualifier("applicationTaskExecutor") org.springframework.core.task.AsyncTaskExecutor executor,
+                                          @org.springframework.beans.factory.annotation.Value("${photo.pill-timeout-ms:85000}") long timeoutMs) {
+        if (timeoutMs < 1) throw new IllegalArgumentException("낱알 처리 시간은 양수여야 합니다.");
+        this.executor = executor;
+        this.timeoutMs = timeoutMs;
         this.fileStorage = fileStorage;
         this.openAiClient = openAiClient;
         this.identificationService = identificationService;
@@ -47,6 +54,8 @@ public class PillPhotoIdentificationService {
         if (images == null || images.isEmpty() || images.size() > MAX_PHOTOS) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "알약 사진을 최소 1장, 최대 2장까지 올려 주세요.");
         }
+        identificationService.requireCatalogReady();
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(timeoutMs);
 
         List<String> savedNames = new ArrayList<>();
         boolean completed = false;
@@ -66,7 +75,9 @@ public class PillPhotoIdentificationService {
             PillIdentification back = null;
             for (int i = 0; i < dataUrls.size(); i++) {
                 boolean isBack = dataUrls.size() == 2 ? i == 1 : onlyBack;
-                PillIdentification side = toIdentification(readImage(dataUrls.get(i), isBack, dataUrls.size() == 1));
+                String dataUrl = dataUrls.get(i);
+                PillIdentification side = toIdentification(PhotoIdentificationWorkflow.await(
+                        executor.submit(() -> readImage(dataUrl, isBack, dataUrls.size() == 1)), deadline, timeoutMs));
                 if (isBack) back = side;
                 else front = side;
             }
@@ -76,7 +87,8 @@ public class PillPhotoIdentificationService {
                         "알약 정보를 읽지 못했습니다. 알약 앞면이 선명하게 보이도록 다시 촬영해 주세요.");
             }
 
-            List<PillIdentificationCandidate> candidates = identificationService.identify(extracted);
+            List<PillIdentificationCandidate> candidates = PhotoIdentificationWorkflow.await(
+                    executor.submit(() -> identificationService.identify(extracted)), deadline, timeoutMs);
             completed = true;
             return new PillPhotoIdentificationResponse(extracted, candidates);
         } finally {

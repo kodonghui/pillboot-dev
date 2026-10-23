@@ -46,6 +46,10 @@
   color: var(--label-neutral);
 }
 
+.photo-failure__muted {
+  color: var(--label-alternative);
+}
+
 .photo-failure__box {
   display: flex;
   flex-direction: column;

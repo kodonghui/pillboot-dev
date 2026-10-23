@@ -52,6 +52,7 @@ public class MyDrug {
             List.of(LocalTime.of(7, 0), LocalTime.of(11, 0), LocalTime.of(17, 0));
 
     public static final int MAX_DOSE_TIMES = 3;   // 하루 최대 복용 횟수
+    public static final int MAX_DOSE_PER_TIME = 10;   // 1회 최대 개수 (팀 명세. 요청 검증이 없는 예전 경로도 막는다)
     public static final int MAX_TIMING_LENGTH = 50;
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
@@ -174,6 +175,9 @@ public class MyDrug {
 
         if (dosePerTime < 1) {
             throw invalid("1회 복용량은 1개 이상이어야 합니다.");
+        }
+        if (dosePerTime > MAX_DOSE_PER_TIME) {
+            throw invalid("1회 개수는 1부터 " + MAX_DOSE_PER_TIME + "까지 숫자로 넣어 주세요.");
         }
         boolean noSchedule = startDate == null && endDate == null && doseTimes == null;
         if (!noSchedule && (startDate == null || endDate == null || doseTimes == null)) {

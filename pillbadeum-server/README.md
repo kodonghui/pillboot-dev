@@ -58,21 +58,14 @@ Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 
 ### 신규 DB: 설치된 MySQL / Workbench
 
-관리자 연결에서 `sql/00_PILLBADEUM_DB_CREAT.sql` 실행 후 pilldb를 선택하고
-원본 `sql/01_PILLBADEUM_DB_SCRIPT.sql`, 필요하면 02 샘플, `sql/03_MEDICATION_UPDATE.sql` → `sql/04_MY_DRUG_COMPOSITE_UNIQUE.sql` → `sql/05_PHOTO_CANDIDATE_LINKS.sql`을 같은 연결에서 순서대로 실행함.
+처음 설치는 서버 폴더에서 아래 명령 한 번으로 준비함. 00이 개발 DB/계정,01이 최신18개 테이블·146개 컬럼,13이 가입 약관을 준비함. 성분명은TEXT이며 구조 패치03~12는 신규 설치에 필요하지 않음.
 
 ```powershell
 .\scripts\setup-local-db.ps1
 ```
 
-클라이언트를 못 찾으면 `-MySqlClient 'C:\...\mysql.exe'`를 지정합니다.
-스키마는 사용자가 제공한 **ERD Cloud 기준 MySQL 14개 테이블·114개 컬럼**입니다.
-01은 원본 14개 테이블 구조이며, 03이 복약지도 변경을 더하고, 04·05 적용까지 마치면 16개 테이블·127개 컬럼으로 맞춤.
-테이블명은 소문자로 통일하고 `photo.kind`는 `VARCHAR(30)`으로 반영했습니다.
-`chat_session.snap_pregnant`의 자료형은 `BOOLEAN`으로 맞췄으며 기존 NULL 허용은 유지합니다.
-`drug.etc_otc`는 UNIQUE를 제거하고 `NOT NULL`과 `chk_drug_type CHECK (etc_otc IN ('ETC', 'OTC'))`를 적용했습니다.
-일정만 삭제하고 약은 유지하도록 `my_drug.start_date/end_date/dose_times`는 NULL을 허용하며 세 값을 함께 채우거나 비우도록 CHECK를 적용했습니다.
-기존 00~02는 GitHub 원본을 유지하고 복약지도 변경은 [통합 SQL](sql/03_MEDICATION_UPDATE.sql) 하나로 적용합니다. 기존 원본 DB와 예전 변경을 일부 적용한 DB 모두 03 전체를 실행하고 마지막 READY를 확인합니다. 적용된 항목은 건너뜁니다. 자세한 순서는 [SQL 안내](sql/README.md)를 참고하세요.
+기존 DB는 `.\scripts\setup-local-db.ps1 -UpgradeExisting`으로 누락된03~12와13을 적용함. 00~11까지 적용한 DB는12→13만 실행해도 됨. 최신01은 기존 컬럼을 업그레이드하는 파일이 아님. 클라이언트를 못 찾으면 `-MySqlClient 'C:\...\mysql.exe'`를 지정함. [신규/기존 DB별 안내](sql/README.md)에 파일 역할과 READY 확인을 정리함.
+
 일정 API·삭제 동작은 [복약 일정 안내](docs/MEDICATION_SCHEDULE.md)를 참고하세요.
 실시간 음성 대화 테스트는 [GPT-Live 안내](docs/MEDICATION_LIVE.md)를 참고하세요. local 실행 후 `/dev/medication-live`에서 시작합니다.
 프론트 전달 기준은 [복약지도 연결 계약](docs/MEDICATION_FRONTEND_HANDOFF.md), 실행 방법과 확인 결과는 [백엔드 검증 기록](docs/MEDICATION_VERIFICATION.md)에 정리했습니다. 복약 완료 체크·실제 복용 기록은 구현 범위에서 제외합니다.
@@ -86,10 +79,7 @@ Qdrant는 별도이며 MySQL `vector_point` 테이블은 만들지 않습니다.
 
 ```text
 docker compose up -d --wait
-docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/01_PILLBADEUM_DB_SCRIPT.sql"
-docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/03_MEDICATION_UPDATE.sql"
-docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/04_MY_DRUG_COMPOSITE_UNIQUE.sql"
-docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/05_PHOTO_CANDIDATE_LINKS.sql"
+docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/01_PILLBADEUM_DB_SCRIPT.sql; source /sql/13_BASE_CONSENT.sql;"
 ```
 
 데이터는 named volume에 보존합니다. `.env` 변경만으로 기존 volume의 계정 비밀번호가 바뀌지 않습니다.
@@ -102,7 +92,7 @@ docker compose exec mysql mysql -u pill -p pilldb -e "source /sql/05_PHOTO_CANDI
 
 ### 선택: 샘플 데이터
 
-빈 개발 DB에서만 `02_PILLBADEUM_TEST_DATA.sql`을 한 번 실행합니다.
+01·13을 적용한 빈 개발 DB에서만 `02_PILLBADEUM_TEST_DATA.sql`을 한 번 실행합니다. 가입 약관은13에 있으며02를 생략해도 가입할 수 있습니다.
 준비 스크립트는 `-IncludeTestData`를 지원합니다.
 사진·후보·DUR은 초기 데이터가 없어도 됩니다.
 샘플 약은 기존과 같이 ETC·OTC 각 1개입니다. 같은 분류의 약을 여러 개 저장할 수 있으며 ETC/OTC 이외의 분류는 CHECK로 거절합니다.
@@ -139,7 +129,7 @@ Refresh Token은 학원 보안 자료의 선택 확장 부록에 있습니다. �
 
 ## 4. 선택: Qdrant
 
-기존 사용자 추가 연결 설정을 유지합니다. 기본 off이며 컬렉션 CRUD/검색 기능은 아직 구현하지 않았습니다.
+기본 off입니다. 아래처럼 각자 Qdrant를 실행한 뒤 개인 .env에서 켭니다. 정상 채팅의 질문·답변·요약을 임베딩해 저장하고 과거 요약을 검색합니다. 다른 사람의 볼륨을 복사하지 않습니다.
 
 ```text
 docker compose -f compose.qdrant.yaml up -d
@@ -157,10 +147,10 @@ MySQL이 원본이며 Qdrant 장애 시 최근 대화/요약으로 답하는 fal
 - JPA `ddl-auto: none`, `open-in-view: false`, SQL 자동 실행 off를 유지합니다.
 - JVM·Jackson·JDBC·Compose·로그의 한국 시간 설정을 유지합니다. JSON 오프셋은 DTO에서 표현합니다.
 - common으로 통합하고 업무 패키지 6개를 보존합니다. 오류 응답은 `{code,message}`, 정상 응답은 업무 DTO입니다.
-- 외부 호출은 연결 2초, 공공데이터 5초, 분류/임베딩 10초, 비전/답변/요약 30초입니다.
+- 외부 호출은 연결2초, 공공데이터10초(PUBLIC_DATA_READ_TIMEOUT_MS로 조정), 분류·임베딩·구조화 응답10초, 요약 자체 마감·음성 합성30초, 대화 답변 생성·처방전 판독60초, 낱알 판독85초입니다. 등록 후DUR 선조회는 한 작업·최대2호출로 제한하며 foreground용 자리를 남깁니다.
 - 공공데이터·임베딩만 일시 오류를 500ms 뒤 1회 재시도합니다. 생성 요청은 자동 재시도하지 않습니다.
-- 외부 동시 호출 기본 4개/대기 1초는 이 작업의 조정 가능한 기본값이며 서비스 보장치가 아닙니다.
-- 여러 작업을 합친 전체 90초 제한은 담당 서비스의 남은 deadline 계산으로 구현해야 합니다.
+- 외부 동시 호출 기본4개/대기10초는 조정 가능한 기본값이며 서비스 보장치가 아닙니다. 대기 초과는503 EXTERNAL_API_FAILED와 재시도 안내를 반환합니다.
+- 사진 식별·대화의 외부 작업 전체 마감은85초이며 업로드·DB·프록시를 포함한 절대 응답 시간 보장은 아닙니다.
 - 백그라운드 처리는 수업처럼 Boot의 applicationTaskExecutor를 재사용할 수 있습니다. 커밋 이후 호출합니다.
 - 사진 member별/채팅 session별 중복 방지는 해당 서비스에서 구현합니다. 제거한 URI별 공통 락을 대신 쓰지 않습니다.
 - FileStorage는 기본 확장자·헤더 검사와 파일 IO 도구입니다. 실제 내용 검사/2048px/JPEG85/EXIF 제거는 아직 없습니다.

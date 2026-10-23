@@ -71,7 +71,9 @@ jwt:
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:36000000}
 
 photo:
-  # 처방전 OCR 대기와 OpenAI 응답 한도임. 낱알·채팅은 기존 30초임.
+  # 정식/호환 낱알 경로의 OCR·후보 대기가 공유하는 85초 예산임.
+  pill-timeout-ms: ${PILL_TIMEOUT_MS:85000}
+  # 처방전 OCR 대기 한도임. 낱알85초·채팅60초와 별도로 적용함.
   prescription-ocr-timeout-ms: ${PRESCRIPTION_OCR_TIMEOUT_MS:60000}
 
 openai:
@@ -86,13 +88,16 @@ openai:
   # 설명. 모델이 지원하는 값만 쓴다. 추론 기능이 없는 모델이면 비워 둔다.
   reasoning-effort: ${OPENAI_REASONING_EFFORT:}
   prescription-reasoning-effort: ${OPENAI_PRESCRIPTION_REASONING_EFFORT:max}
-  prescription-max-output-tokens: ${OPENAI_PRESCRIPTION_MAX_OUTPUT_TOKENS:8192}
   connect-timeout-ms: 2000
   short-read-timeout-ms: 10000
+  # 음성(TTS) 읽기 한도임.
   long-read-timeout-ms: 30000
+  # 대화 답변·요약 생성 읽기 한도임. effort max의 긴 정리 답변이 30초를 넘어 60초로 둠(CHK-42).
+  # 대화 답변은 전체 85초 마감, 요약은 자체 30초 마감 안에서만 기다림.
+  answer-read-timeout-ms: 60000
   # 개발용 기본 상한. 실제 외부 API 한도와 팀 부하에 맞춰 조정합니다.
   max-concurrent-calls: ${OPENAI_MAX_CONCURRENT_CALLS:4}
-  permit-timeout-ms: 1000
+  permit-timeout-ms: ${OPENAI_PERMIT_TIMEOUT_MS:10000}
   # Decisions 입력 100만 토큰당 USD. 2026-10-19 공식 기본 단가이며 실제 청구액이 아닌 로그 추정용입니다.
   decision-input-usd-per-million: ${OPENAI_DECISION_INPUT_USD_PER_MILLION:0.10}
 
@@ -101,9 +106,9 @@ public-data:
   # 설명. 공공데이터포털 마이페이지의 '일반 인증키(Decoding)' 값
   service-key: ${PUBLIC_DATA_SERVICE_KEY:}
   connect-timeout-ms: 2000
-  read-timeout-ms: 5000
+  read-timeout-ms: ${PUBLIC_DATA_READ_TIMEOUT_MS:10000}
   max-concurrent-calls: ${PUBLIC_DATA_MAX_CONCURRENT_CALLS:4}
-  permit-timeout-ms: 1000
+  permit-timeout-ms: ${PUBLIC_DATA_PERMIT_TIMEOUT_MS:10000}
 
 pill-identification:
   enabled: ${PILL_IDENTIFICATION_ENABLED:true}

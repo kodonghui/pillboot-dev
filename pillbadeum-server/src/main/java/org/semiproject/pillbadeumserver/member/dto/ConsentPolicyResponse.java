@@ -63,4 +63,3 @@ public class ConsentPolicyResponse {
         this.required = required;
     }
 }
-

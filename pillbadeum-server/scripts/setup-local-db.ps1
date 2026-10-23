@@ -5,21 +5,28 @@ param(
     [int]$MysqlPort = 3306,
     [string]$AdminUser = 'root',
     [string]$MySqlClient,
-    [switch]$IncludeTestData
+    [switch]$IncludeTestData,
+    [switch]$UpgradeExisting
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$sqlFiles = @('00_PILLBADEUM_DB_CREAT.sql', '01_PILLBADEUM_DB_SCRIPT.sql')
+if ($UpgradeExisting -and $IncludeTestData) {
+    throw 'Sample data is only for a fresh empty database. Do not combine -UpgradeExisting with -IncludeTestData.'
+}
+$sqlFiles = @('00_PILLBADEUM_DB_CREAT.sql')
+if ($UpgradeExisting) {
+    # Existing databases keep their data; apply only the versioned changes.
+    $sqlFiles += @('03_MEDICATION_UPDATE.sql', '04_MY_DRUG_COMPOSITE_UNIQUE.sql',
+        '05_PHOTO_CANDIDATE_LINKS.sql', '06_DRUG_CACHE_METADATA.sql', '07_DOSE_CONFIRMATION.sql',
+        '08_CHAT_DUR_SNAPSHOT.sql', '09_VECTOR_CLEANUP.sql', '10_PILL_IDENTIFICATION_SESSION.sql',
+        '11_DRUG_INGREDIENT_LENGTH.sql', '12_DRUG_INGREDIENT_TEXT.sql')
+} else {
+    # New databases start with the current TEXT schema and required signup policies.
+    $sqlFiles += '01_PILLBADEUM_DB_SCRIPT.sql'
+}
+$sqlFiles += '13_BASE_CONSENT.sql'
 if ($IncludeTestData) { $sqlFiles += '02_PILLBADEUM_TEST_DATA.sql' }
-$sqlFiles += '03_MEDICATION_UPDATE.sql'
-$sqlFiles += '04_MY_DRUG_COMPOSITE_UNIQUE.sql'
-$sqlFiles += '05_PHOTO_CANDIDATE_LINKS.sql'
-$sqlFiles += '06_DRUG_CACHE_METADATA.sql'
-$sqlFiles += '07_DOSE_CONFIRMATION.sql'
-$sqlFiles += '08_CHAT_DUR_SNAPSHOT.sql'
-$sqlFiles += '09_VECTOR_CLEANUP.sql'
-$sqlFiles += '10_PILL_IDENTIFICATION_SESSION.sql'
 $sqlPaths = $sqlFiles | ForEach-Object { Join-Path $projectRoot "sql/$_" }
 foreach ($sqlPath in $sqlPaths) {
     if (-not (Test-Path -LiteralPath $sqlPath -PathType Leaf)) {
@@ -62,6 +69,15 @@ if ($MySqlClient) {
 $sqlText = ($sqlPaths | ForEach-Object {
     [System.IO.File]::ReadAllText($_, [System.Text.Encoding]::UTF8)
 }) -join "`n"
+$sqlText += @'
+
+SELECT IF(
+    (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE())=18
+    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE())=146
+    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
+         AND table_name='drug' AND column_name='material' AND data_type='text' AND is_nullable='NO')=1,
+    'READY','BLOCKED') AS current_schema_status;
+'@
 Write-Host "Preparing pilldb on ${MysqlHost}:${MysqlPort}."
 Write-Host "Enter the MySQL password for '$AdminUser' at the prompt. The script does not store it."
 
@@ -73,17 +89,16 @@ if ($LASTEXITCODE -ne 0) {
     throw "Database setup failed (mysql exit code $LASTEXITCODE). Check the error above."
 }
 if ($setupOutput -contains 'BLOCKED') {
-    throw 'Medication SQL was BLOCKED. Check the precheck output and sql/README.md before retrying.'
+    throw 'Schema is BLOCKED. For an existing database use -UpgradeExisting; check the output and sql/README.md.'
 }
 
 Write-Host ''
-Write-Host 'Database/account/schema setup completed. Existing data and passwords were preserved.'
-Write-Host '03_MEDICATION_UPDATE.sql applies medication changes and skips changes already applied. Check that its final status is READY.'
-Write-Host '04_MY_DRUG_COMPOSITE_UNIQUE.sql adds pair uniqueness. Its final my_drug_unique_status must also be READY.'
-Write-Host '05_PHOTO_CANDIDATE_LINKS.sql connects candidate codes and front/back photos. Its final photo_links_status must be READY.'
-Write-Host '06-09 add metadata, dose confirmation, DUR snapshots and durable vector cleanup. Each final status must be READY.'
-Write-Host '10 adds expiring pill identification results. Existing drug, photo and source columns stay compatible.'
-Write-Host 'Use an empty development database for the ERD Cloud schema. For existing databases, read sql/README.md first.'
+Write-Host 'Current schema is ready: 18 tables, 146 columns, drug.material TEXT; signup policies ready.'
+if ($UpgradeExisting) {
+    Write-Host 'Applied changes 03-12 and signup policies 13. No sample accounts or drugs were inserted.'
+} else {
+    Write-Host 'Created the current schema using 00, 01 and signup policies 13. Changes 03-12 are not needed for a new database.'
+}
 Write-Host 'Copy .env.example to .env if needed, then fill DB_USERNAME, DB_PASSWORD and JWT_SECRET.'
 Write-Host 'Run .\gradlew.bat bootRun from the project directory.'
 Write-Host 'Sample data is optional; use -IncludeTestData only on a fresh empty development database.'

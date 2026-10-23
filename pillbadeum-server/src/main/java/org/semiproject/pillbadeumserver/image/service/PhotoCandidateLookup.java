@@ -128,8 +128,7 @@ public class PhotoCandidateLookup {
         || type == null)
       throw ExternalApiException.failed("공공데이터", "후보의 품목코드·이름·제약사·전문/일반 구분을 확인하지 못했습니다.", null);
     Boolean cancelled = org.semiproject.pillbadeumserver.drug.domain.DrugCancellation.parse(row);
-    String material = first(row, "ITEM_INGR_NAME", "MAIN_ITEM_INGR");
-    if (material != null) material = material.replaceAll("\\[[^\\]]*]", "").replace('|', ',');
+    String material = org.semiproject.pillbadeumserver.drug.domain.DrugIngredient.fromOfficial(row);
     return new PhotoCandidateData(
         code,
         cut(name, 50),
@@ -144,7 +143,7 @@ public class PhotoCandidateLookup {
         cut(text(row, "LINE_FRONT"), 10),
         cut(text(row, "LINE_BACK"), 10),
         known(first(row, "FORM_CODE_NAME", "CHART"), 10),
-        known(material, 30),
+        material == null ? "미확인" : material,
         matched,
         cancelled);
   }

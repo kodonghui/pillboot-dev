@@ -77,7 +77,7 @@ class AnswerExternalTests {
         executor.setVirtualThreads(true);
         var publicData = new PublicDataClient(json, base, "private-public-key", 1000, 300, 4, 20);
         var openAi = new OpenAiClient(json, "private-ai-key", base, "chat-only", "decision-only", "vision-only", "embedding-only",
-                "", 1000, 300, 500, 60000, 4, 20, new BigDecimal("0.10"));
+                "", 1000, 300, 500, 60000, 4, 20, new BigDecimal("0.10"), 85_000);
         generator = new AnswerGenerator(openAi, new OfficialDrugEvidence(publicData, executor, 4),
                 new DurLookupService(publicData, executor, 4), new DurEvaluator(), sources, json, executor);
         easyBody.set(success(List.of(Map.of("itemSeq", CODE, "efcyQesitm", "<p>" + PRIVATE + "</p>",
@@ -103,7 +103,7 @@ class AnswerExternalTests {
                 .anyMatch(query -> query.contains("item_seq=" + CODE)).allMatch(query -> !query.contains("itemName"));
         assertThat(sent.get().path("model").asString()).isEqualTo("chat-only");
         assertThat(sent.get().path("store").asBoolean()).isFalse();
-        assertThat(sent.get().path("max_output_tokens").asInt()).isEqualTo(1600);
+        assertThat(sent.get().has("max_output_tokens")).isFalse();
         assertThat(sent.get().has("previous_response_id") || sent.get().has("tools")).isFalse();
         assertThat(sent.get().path("instructions").asString()).contains("진단·처방·용량 변경·복용 중단", "UNKNOWN", "FAILED·PARTIAL");
         assertThat(sent.get().path("input").toString()).contains(PRIVATE, "synthetic permit facts").doesNotContain("<DOC>", "<p>");

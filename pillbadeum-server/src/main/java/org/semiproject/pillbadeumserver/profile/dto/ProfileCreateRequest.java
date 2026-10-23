@@ -4,6 +4,12 @@ import jakarta.validation.constraints.*;
 
 public class ProfileCreateRequest {
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @AssertTrue(message = "출생연도는 올해보다 클 수 없습니다.")
+    public boolean isValidBirthYear() {
+        return org.semiproject.pillbadeumserver.profile.domain.Profile.validBirthYear(profileBirthYear);
+    }
+
     // 입력 받아야 할 것 : 프로필 이름, 관계, 출생연도, 성별, 임신 여부, 키, 몸무게
 
     @NotBlank(message = "프로필의 이름을 작성해주세요.")

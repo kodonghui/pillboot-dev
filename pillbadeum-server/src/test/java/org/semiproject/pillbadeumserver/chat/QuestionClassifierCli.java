@@ -36,7 +36,7 @@ public final class QuestionClassifierCli {
         String model = setting(local, "OPENAI_DECISION_MODEL", "");
         BigDecimal rate = new BigDecimal(setting(local, "OPENAI_DECISION_INPUT_USD_PER_MILLION", "0.10"));
         var openAi = new OpenAiClient(new ObjectMapper(), key, "https://api.openai.com/v1",
-                "", model, "", "", "", 2000, 10000, 30000, 60000, 4, 1000, rate);
+                "", model, "", "", "", 2000, 10000, 60000, 60000, 4, 1000, rate, 85_000);
         System.out.print("분류할 질문 한 줄을 입력하세요: ");
         System.out.flush();
         String question = new BufferedReader(new java.io.InputStreamReader(System.in, StandardCharsets.UTF_8)).readLine();

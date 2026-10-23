@@ -78,14 +78,6 @@
   font-weight: 600;
 }
 
-/* IMG-06 상자 안 읽은 이름 */
-.prescription-photo__names {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  font-weight: 600;
-}
-
 /* IMG-04 요약 줄 */
 .prescription-photo__top {
   display: flex;
@@ -146,6 +138,11 @@
   margin-top: var(--space-10);
 }
 
+/* 이름 검색으로 고른 약 한 칸(목업 .cands margin-top:0) */
+.prescription-photo__grid--flush {
+  margin-top: 0;
+}
+
 /* 목업 .cand */
 .prescription-photo__cand {
   display: flex;
@@ -170,6 +167,29 @@
 .prescription-photo__cand--checked {
   border-color: var(--primary-normal);
   background: var(--primary-weak);
+}
+
+.prescription-photo__cand--static {
+  cursor: default;
+}
+
+/* 목업 .srcpick: 이름 검색으로 고른 약의 체크 표시 */
+.prescription-photo__src-pick {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--primary-normal);
+  color: var(--static-white);
+}
+
+.prescription-photo__src-pick .icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.6;
 }
 
 .prescription-photo__cand--registered {
@@ -241,8 +261,8 @@
   margin-top: var(--space-10);
 }
 
-/* 후보를 못 찾은 이름 */
-.prescription-photo__unknown {
+/* 후보를 못 찾은 이름 · 이름 검색으로 채운 이름의 오른쪽(목업 .grp-r 세로 쌓기) */
+.prescription-photo__side {
   display: flex;
   flex: 999 1 520px;
   flex-direction: column;

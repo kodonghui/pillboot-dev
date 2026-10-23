@@ -1,0 +1,94 @@
+{
+  "recordedAt": "2026-10-22T19:43:41.496218+09:00",
+  "teamDevelop": "f59386e84dc854988bfc4b37229f1f05fecb312e",
+  "branch": "feature/common-001-qa",
+  "tests": {
+    "tests": 730,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "suites": 84,
+  "build": "test bootJar BUILD SUCCESSFUL (3m13s)",
+  "testDatabase": "isolated MySQL8.4.11, UTF-8, +09:00",
+  "vectorDatabase": "isolated Qdrant1.19.2 real gRPC",
+  "externalProviders": "loopback synthetic HTTP only",
+  "paidProviderCalls": 0,
+  "livePublicDataCalls": 0,
+  "userDatabaseChanged": false,
+  "teamPushed": false,
+  "importantSuites": [
+    {
+      "name": "org.semiproject.pillbadeumserver.ExternalClientTests",
+      "tests": 25,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.semiproject.pillbadeumserver.SchemaContractTests",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.semiproject.pillbadeumserver.chat.DurExternalTests",
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.semiproject.pillbadeumserver.drug.DrugGuideSectionTests",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.semiproject.pillbadeumserver.drug.DrugIngredientTests",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.semiproject.pillbadeumserver.image.PhotoFlowHttpMySqlTests",
+      "tests": 49,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.semiproject.pillbadeumserver.image.PillCatalogTests",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.semiproject.pillbadeumserver.image.PrescriptionDrugLookupTests",
+      "tests": 35,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.semiproject.pillbadeumserver.image.service.TemporaryPhotoFlowTests",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.semiproject.pillbadeumserver.member.SignupDuplicateMySqlTests",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "sql11Sha256": "fa92746fc9dce0c7e338e0954f286025989762c9b2c86118eaca29d03ec3f9b1",
+  "bootJarSha256": "71cdf25cd1f0ffe12cfdfd5b2083ffc01f6dd5f1756242dcc137777f65bb31f9"
+}

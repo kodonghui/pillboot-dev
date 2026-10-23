@@ -37,6 +37,7 @@ public class PillCatalog implements AutoCloseable {
     private final ExecutorService worker = Executors.newSingleThreadExecutor(Thread.ofVirtual().name("pill-catalog-").factory());
     private CompletableFuture<Void> refreshing;
     private Instant retryAfter = Instant.EPOCH;
+    private int failures;
     private volatile Snapshot snapshot;
 
     public PillCatalog(PublicDataClient client, ObjectMapper json,
@@ -68,12 +69,18 @@ public class PillCatalog implements AutoCloseable {
     private synchronized void refreshInBackground() {
         if (!refreshEnabled || Instant.now().isBefore(retryAfter) || (refreshing != null && !refreshing.isDone())) return;
         refreshing = CompletableFuture.runAsync(() -> {
-            try { refresh(); }
+            try { refresh(); synchronized (this) { failures = 0; } }
             catch (RuntimeException error) {
-                synchronized (this) { retryAfter = Instant.now().plusSeconds(60); }
+                synchronized (this) { retryAfter = Instant.now().plus(retryDelay(++failures)); }
                 log.warn("[pill catalog] refresh=failed type={} cacheRetained={}", error.getClass().getSimpleName(), snapshot != null);
             }
         }, worker);
+    }
+
+    /** 연속 실패는 1·2·4분씩 늘리고 정상 갱신 주기인 6시간을 상한으로 사용함. */
+    static Duration retryDelay(int failures) {
+        long minutes = 1L << Math.min(Math.max(failures, 1) - 1, 9);
+        return Duration.ofMinutes(Math.min(minutes, MAX_AGE.toMinutes()));
     }
 
     /** CLI and background worker use this method; a snapshot is replaced only after every page passes validation. */

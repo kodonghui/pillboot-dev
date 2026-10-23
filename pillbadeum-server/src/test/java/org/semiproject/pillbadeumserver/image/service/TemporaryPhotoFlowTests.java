@@ -54,7 +54,7 @@ class TemporaryPhotoFlowTests {
                             ? "{\"printBack\":\"B\"}" : "{\"printFront\":\"A\"}");
                 });
         when(lookup.identify(any())).thenReturn(List.of());
-        var service = new PillPhotoIdentificationService(files, ai, lookup, cleanup);
+        var service = new PillPhotoIdentificationService(files, ai, lookup, cleanup, new org.springframework.core.task.SimpleAsyncTaskExecutor(), 85_000);
 
         var result = service.identify(List.of(image(), image()));
 
@@ -66,12 +66,41 @@ class TemporaryPhotoFlowTests {
     }
 
     @Test
+    void emptyCatalogFailsBeforeSavingImagesOrCallingTheModel() {
+        var lookup = mock(PillDrugIdentificationService.class);
+        doThrow(new org.semiproject.pillbadeumserver.common.exception.BusinessException(
+                org.semiproject.pillbadeumserver.common.exception.ErrorCode.PILL_CATALOG_PREPARING, "준비 중"))
+                .when(lookup).requireCatalogReady();
+        try (var executor = new org.springframework.core.task.SimpleAsyncTaskExecutor()) {
+            var service = new PillPhotoIdentificationService(files, ai, lookup, cleanup, executor, 85_000);
+            assertThatThrownBy(() -> service.identify(List.of(image(), image())))
+                    .isInstanceOf(org.semiproject.pillbadeumserver.common.exception.BusinessException.class);
+            verifyNoInteractions(ai);
+            assertThat(temporaryCount()).isZero();
+        }
+    }
+
+    @Test
+    void bothSidesShareOneBudgetAndTimedOutPhotosAreRemoved() throws Exception {
+        var lookup = mock(PillDrugIdentificationService.class);
+        when(ai.createJsonFromImages(anyString(), anyString(), anyList(), anyInt(), anyString(), anyMap()))
+                .thenAnswer(call -> { Thread.sleep(150); return json.readTree("{\"printFront\":\"A\"}"); });
+        try (var executor = new org.springframework.core.task.SimpleAsyncTaskExecutor()) {
+            var service = new PillPhotoIdentificationService(files, ai, lookup, cleanup, executor, 230);
+            assertThatThrownBy(() -> service.identify(List.of(image(), image())))
+                    .isInstanceOf(org.semiproject.pillbadeumserver.common.exception.ExternalApiException.class);
+            verify(lookup, never()).identify(any());
+            assertThat(temporaryCount()).isZero();
+        }
+    }
+
+    @Test
     void completedIdentificationWaitsForCallerCommitAndRollbackPreservesFiles() throws Exception {
         when(ai.createJsonFromImages(anyString(), anyString(), anyList(), anyInt(), anyString(), anyMap()))
                 .thenReturn(json.readTree("{\"printFront\":\"A\"}"));
         var lookup = mock(PillDrugIdentificationService.class);
         when(lookup.identify(any())).thenReturn(List.of());
-        var service = new PillPhotoIdentificationService(files, ai, lookup, cleanup);
+        var service = new PillPhotoIdentificationService(files, ai, lookup, cleanup, new org.springframework.core.task.SimpleAsyncTaskExecutor(), 85_000);
         var manager = new TemporaryPhotoCleanupServiceTests.TestTransactions(() -> assertThat(temporaryCount()).isEqualTo(2));
 
         new TransactionTemplate(manager).executeWithoutResult(status -> {
@@ -91,7 +120,7 @@ class TemporaryPhotoFlowTests {
     void modelFailureCleansBothPillImagesWithoutReplacingTheOriginalError() {
         var failure = new IllegalStateException("upstream unavailable");
         when(ai.createJsonFromImages(anyString(), anyString(), anyList(), anyInt(), anyString(), anyMap())).thenThrow(failure);
-        var service = new PillPhotoIdentificationService(files, ai, mock(PillDrugIdentificationService.class), cleanup);
+        var service = new PillPhotoIdentificationService(files, ai, mock(PillDrugIdentificationService.class), cleanup, new org.springframework.core.task.SimpleAsyncTaskExecutor(), 85_000);
 
         assertThatThrownBy(() -> service.identify(List.of(image(), image()))).isSameAs(failure);
         assertThat(temporaryCount()).isZero();

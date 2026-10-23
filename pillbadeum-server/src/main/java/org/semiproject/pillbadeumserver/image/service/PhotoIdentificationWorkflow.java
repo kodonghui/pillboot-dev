@@ -28,6 +28,7 @@ public class PhotoIdentificationWorkflow {
   private final int batchSize;
   private final long prescriptionOcrTimeoutMs;
   private final PillIdentificationSessions sessions;
+  private final long pillTimeoutMs;
 
   public PhotoIdentificationWorkflow(
       FileStorage files,
@@ -39,7 +40,10 @@ public class PhotoIdentificationWorkflow {
       PhotoLifecycleService lifecycle,
       @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor,
       @Value("${public-data.max-concurrent-calls:4}") int maxConcurrentCalls,
-      @Value("${photo.prescription-ocr-timeout-ms:60000}") long prescriptionOcrTimeoutMs, PillIdentificationSessions sessions) {
+      @Value("${photo.prescription-ocr-timeout-ms:60000}") long prescriptionOcrTimeoutMs, PillIdentificationSessions sessions,
+      @Value("${photo.pill-timeout-ms:85000}") long pillTimeoutMs) {
+    if (pillTimeoutMs < 1) throw new IllegalArgumentException("낱알 처리 시간은 양수여야 합니다.");
+    this.pillTimeoutMs = pillTimeoutMs;
     this.sessions = sessions;
     this.files = files;
     this.preparation = preparation;
@@ -66,7 +70,7 @@ public class PhotoIdentificationWorkflow {
     if (kind == null || images == null || images.size() != (pill ? 2 : 1))
       throw invalid(pill ? "앞면과 뒷면 사진이 모두 필요해요." : "처방전·약봉투는 1장만 올려 주세요.");
     if (pill) { sessions.preflight(profileId, previousIdentificationId); lookup.requirePillCatalog(); } // 유료 사진 판독과 사진 저장 전에 확인한다.
-    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(pill ? 40 : 85);
+    long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(pill ? pillTimeoutMs : 85_000);
     List<String> names = new ArrayList<>();
     List<Long> ids = List.of();
     boolean ready = false;
@@ -91,7 +95,7 @@ public class PhotoIdentificationWorkflow {
                           pill ? "photo_pill_clues" : "photo_prescription_names",
                           schema(pill))),
               deadline,
-              pill ? 30_000 : prescriptionOcrTimeoutMs);
+              pill ? pillTimeoutMs : prescriptionOcrTimeoutMs);
       if (vision == null
           || !vision.isObject()
           || !vision.path(pill ? "singlePill" : "readable").isBoolean())
@@ -102,7 +106,7 @@ public class PhotoIdentificationWorkflow {
         clues = vision.path("singlePill").asBoolean(false) ? PillOcrRules.read(vision)
             : new PillIdentification(null, null, null, null, null, null, null, null, null);
         PillIdentification input = clues;
-        var result = await(executor.submit(() -> lookup.pillResult(input)), deadline, 40_000);
+        var result = await(executor.submit(() -> lookup.pillResult(input)), deadline, pillTimeoutMs);
         if (System.nanoTime() >= deadline || Thread.currentThread().isInterrupted())
           throw ExternalApiException.timeout("사진 식별", null);
         if ("OK".equals(result.status())) {
@@ -233,7 +237,7 @@ public class PhotoIdentificationWorkflow {
         false);
   }
 
-  private static <T> T await(Future<T> task, long deadline, long timeoutMs) {
+  static <T> T await(Future<T> task, long deadline, long timeoutMs) {
     try {
       return task.get(
           Math.max(1, Math.min(deadline - System.nanoTime(), TimeUnit.MILLISECONDS.toNanos(timeoutMs))),

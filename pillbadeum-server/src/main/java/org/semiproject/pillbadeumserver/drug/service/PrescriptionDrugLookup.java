@@ -11,9 +11,9 @@ import tools.jackson.databind.JsonNode;
 public final class PrescriptionDrugLookup {
     private static final String NUMBER = "[0-9]+(?:\\.[0-9]+)?";
     private static final Pattern MASS = Pattern.compile("(" + NUMBER + "(?:[/+]" + NUMBER + ")*)"
-            + "(마이크로그램|밀리그램|그램|mcg|μg|ug|mg|g)(?![a-z])", Pattern.CASE_INSENSITIVE);
+            + "(마이크로그램|마이크로그람|밀리그램|밀리그람|그램|그람|mcg|μg|ug|mg|g)(?![a-z])", Pattern.CASE_INSENSITIVE);
     private static final Pattern ADMINISTRATION = Pattern.compile("/" + NUMBER + "(?:정|캡슐|캅셀|포|개)$");
-    private static final Pattern COMPLEX = Pattern.compile("(?:%|퍼센트|mEq|IU|국제단위|단위|/(?:" + NUMBER + ")?(?:mL|L|그램|g))", Pattern.CASE_INSENSITIVE);
+    private static final Pattern COMPLEX = Pattern.compile("(?:%|퍼센트|mEq|IU|국제단위|단위|/(?:" + NUMBER + ")?(?:mL|L|그램|그람|g))", Pattern.CASE_INSENSITIVE);
     private static final Pattern FORM = Pattern.compile("(캡슐|캅셀|정|시럽|과립|액|산)$");
     private final PublicDataClient client;
 
@@ -38,17 +38,28 @@ public final class PrescriptionDrugLookup {
     private static final class Clue {
         final String clean, base, form;
         final List<BigDecimal> strengths;
-        final boolean complex;
+        final boolean complex, truncated, queryable;
 
         Clue(String name) {
-            clean = clean(name);
+            String original = clean(name);
+            String withoutEllipsis = original.replaceFirst("\\.{2,}$", "");
+            int open = withoutEllipsis.lastIndexOf('(');
+            boolean openDescription = open >= 0 && withoutEllipsis.indexOf(')', open) < 0;
+            truncated = !original.equals(withoutEllipsis) || openDescription;
+            clean = openDescription ? withoutEllipsis.substring(0, open) : withoutEllipsis;
             strengths = strengths(clean);
             complex = COMPLEX.matcher(clean).find();
             base = base(clean);
             form = form(base);
+            // 잘린 함량·제형은 추측하지 않음. 온전한 제품명 또는 질량 단위까지 읽힌 경우만 조회함.
+            var mass = MASS.matcher(clean);
+            boolean completeMass = false;
+            while (mass.find()) completeMass = mass.end() == clean.length();
+            queryable = !truncated || completeMass || FORM.matcher(clean).find();
         }
 
         List<String> queries() {
+            if (!queryable) return List.of();
             var result = new LinkedHashSet<String>();
             if (!clean.isBlank()) result.add(clean);
             result.add(swapUnits(clean));
@@ -65,8 +76,8 @@ public final class PrescriptionDrugLookup {
                 String expected = canonicalUnits(clean), actual = canonicalUnits(candidate);
                 return actual.equals(expected) || actual.startsWith(expected + "(");
             }
-            if (!strengths.isEmpty()) {
-                if (COMPLEX.matcher(candidate).find() || !strengths.equals(strengths(candidate))) return false;
+            if (!strengths.isEmpty() || truncated) {
+                if (!strengths.isEmpty() && (COMPLEX.matcher(candidate).find() || !strengths.equals(strengths(candidate)))) return false;
                 // 넓은 이름 조회의 결과라도 다른 제품을 채택하지 않음. 괄호의 성분 설명은 제품명과 구분함.
                 if (!base(candidate).equals(base)) return false;
             }
@@ -105,8 +116,8 @@ public final class PrescriptionDrugLookup {
         while (match.find()) {
             String unit = match.group(2).toLowerCase(Locale.ROOT);
             BigDecimal factor = switch (unit) {
-                case "g", "그램" -> new BigDecimal("1000000");
-                case "mg", "밀리그램" -> new BigDecimal("1000");
+                case "g", "그램", "그람" -> new BigDecimal("1000000");
+                case "mg", "밀리그램", "밀리그람" -> new BigDecimal("1000");
                 default -> BigDecimal.ONE;
             };
             for (String number : match.group(1).split("[/+]"))
@@ -119,17 +130,18 @@ public final class PrescriptionDrugLookup {
         var match = MASS.matcher(value);
         return match.replaceAll(m -> m.group(1) + switch (m.group(2).toLowerCase(Locale.ROOT)) {
             case "mg" -> "밀리그램";
-            case "밀리그램" -> "mg";
+            case "밀리그램", "밀리그람" -> "mg";
             case "g" -> "그램";
-            case "그램" -> "g";
-            case "마이크로그램" -> "mcg";
+            case "그램", "그람" -> "g";
+            case "마이크로그램", "마이크로그람" -> "mcg";
             default -> "마이크로그램";
         });
     }
 
     private static String canonicalUnits(String value) {
-        return value.replace("마이크로그램", "mcg").replace("밀리그램", "mg")
-                .replace("그램", "g").toUpperCase(Locale.ROOT);
+        return value.replace("마이크로그램", "mcg").replace("마이크로그람", "mcg")
+                .replace("밀리그램", "mg").replace("밀리그람", "mg")
+                .replace("그램", "g").replace("그람", "g").toUpperCase(Locale.ROOT);
     }
 
     private static String text(JsonNode row, String field) {

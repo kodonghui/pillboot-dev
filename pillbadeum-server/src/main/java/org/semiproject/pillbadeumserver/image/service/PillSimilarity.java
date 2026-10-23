@@ -118,14 +118,24 @@ public final class PillSimilarity {
     return switch (word(value)) {
       case "원형", "둥근형", "ROUND", "CIRCLE" -> "ROUND";
       case "타원형", "타원", "OVAL", "ELLIPSE" -> "OVAL";
-      case "장방형", "직사각형", "OBLONG", "RECTANGLE" -> "OBLONG";
+      case "장방형", "직사각형", "긴타원형", "OBLONG", "RECTANGLE", "RECTANGULAR" -> "OBLONG";
+      case "반원형", "반원", "SEMICIRCLE", "SEMICIRCULAR" -> "SEMICIRCLE";
+      case "삼각형", "TRIANGLE", "TRIANGULAR" -> "TRIANGLE";
+      case "사각형", "정사각형", "SQUARE" -> "SQUARE";
+      case "마름모형", "마름모", "DIAMOND", "RHOMBUS" -> "DIAMOND";
+      case "오각형", "PENTAGON", "PENTAGONAL" -> "PENTAGON";
+      case "육각형", "HEXAGON", "HEXAGONAL" -> "HEXAGON";
+      case "팔각형", "OCTAGON", "OCTAGONAL" -> "OCTAGON";
+      case "기타", "OTHER" -> "OTHER";
       default -> word(value);
     };
   }
 
   private static Set<String> colors(String... values) {
     var result = new LinkedHashSet<String>();
-    for (String value : values) if (present(value)) for (String part : value.split("[,/|·\\s]+")) {
+    for (String value : values) if (present(value)) for (String part : value
+        .replaceAll("(?i)light\\s+green", "LIGHTGREEN")
+        .replaceAll("(?i)(?:navy|dark)\\s+blue", "NAVYBLUE").split("[,/|·\\s]+")) {
       String color = switch (word(part)) {
         case "하양", "하얀색", "흰색", "백색", "WHITE" -> "WHITE";
         case "노랑", "노란색", "황색", "YELLOW" -> "YELLOW";
@@ -134,6 +144,11 @@ public final class PillSimilarity {
         case "주황", "주황색", "ORANGE" -> "ORANGE";
         case "빨강", "빨간색", "적색", "RED" -> "RED";
         case "초록", "초록색", "녹색", "GREEN" -> "GREEN";
+        case "연두", "연두색", "LIGHTGREEN" -> "LIGHTGREEN";
+        case "청록", "청록색", "TEAL", "TURQUOISE" -> "TEAL";
+        case "남색", "NAVY", "NAVYBLUE", "DARKBLUE" -> "NAVY";
+        case "자주", "자주색", "MAROON", "MAGENTA" -> "MAROON";
+        case "투명", "TRANSPARENT", "CLEAR" -> "TRANSPARENT";
         case "갈색", "BROWN" -> "BROWN";
         case "검정", "검정색", "검은색", "흑색", "BLACK" -> "BLACK";
         case "보라", "보라색", "PURPLE" -> "PURPLE";
