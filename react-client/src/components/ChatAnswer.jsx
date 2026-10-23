@@ -279,10 +279,31 @@ function AnswerList({ list }) {
   )
 }
 
-// 근거를 뗀 답변 본문. 문단 · 목록 · 줄바꿈 · 굵게를 React 요소로만 그리고 HTML 로 넣지 않는다.
+function AnswerTable({ table }) {
+  return (
+    <div className="chat-answer__table-wrap" role="region" aria-label="답변 표" tabIndex={0}>
+      <table className="screen-body chat-answer__table">
+        <thead>
+          <tr>{table.header.map((cell, index) => (
+            <th scope="col" key={index} style={{ textAlign: table.align[index] }}><Inline text={cell} /></th>
+          ))}</tr>
+        </thead>
+        <tbody>{table.rows.map((row, rowIndex) => (
+          <tr key={rowIndex}>{row.map((cell, index) => (
+            <td key={index} style={{ textAlign: table.align[index] }}><Inline text={cell} /></td>
+          ))}</tr>
+        ))}</tbody>
+      </table>
+    </div>
+  )
+}
+
+// 근거를 뗀 답변 본문. 표·문단·목록도 React 글자로만 표시하며 HTML을 실행하지 않음.
 function AnswerBody({ body }) {
   return answerBlocks(body).map((block, index) =>
-    block.kind === 'list' ? (
+    block.kind === 'table' ? (
+      <AnswerTable key={index} table={block} />
+    ) : block.kind === 'list' ? (
       <AnswerList key={index} list={block} />
     ) : (
       <p className="screen-body chat-answer__text" key={index}>

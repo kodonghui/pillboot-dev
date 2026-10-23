@@ -3,6 +3,37 @@
   overflow-wrap: anywhere;
 }
 
+/* 긴 표만 가로로 이동하며 바깥 채팅 화면은 넓히지 않음. */
+.chat-answer {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.chat-answer__table-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.chat-answer__table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--label-normal);
+}
+
+.chat-answer__table th,
+.chat-answer__table td {
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--line-normal);
+  vertical-align: top;
+  overflow-wrap: break-word;
+}
+
+.chat-answer__table th {
+  background: var(--background-alternative);
+  font-weight: 700;
+}
+
 /* 답변의 글머리 · 번호 목록(알림 화면 번호 목록과 같은 들여쓰기 · 간격) */
 .chat-answer__list {
   display: flex;

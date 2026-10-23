@@ -149,7 +149,8 @@
 .chat-msg--answer {
   align-self: flex-start;
   align-items: flex-start;
-  max-width: 700px;
+  max-width: min(700px, 100%);
+  min-width: 0;
 }
 
 /* 내 질문(목업 .bub-u: 좌우 18px은 16px, 꼬리 쪽 모서리 4px은 토큰에 없어 6px) */
