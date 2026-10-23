@@ -22,9 +22,35 @@
   white-space: nowrap;
 }
 
+/* 출생연도 목록: 브라우저 기본 select 에 상세 관계 칸(SelectMenu)과 같은 너비 · 아래 화살표를 둔다. */
+.profile-form__select {
+  position: relative;
+  max-width: 320px;
+}
+
+/* 오른쪽 48px = 안쪽 여백 16px + 화살표 20px + 사이 12px(SelectMenu 와 같다) */
 .profile-form__year {
-  max-width: 200px;
+  padding-right: var(--space-48);
+  appearance: none;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+/* 고르기 전 안내 글자는 SelectMenu 안내 글자 색. 펼친 목록의 연도는 본래 글자 색으로 두고, 안내 줄(disabled)은 브라우저 흐린 색을 쓴다. */
+.profile-form__year--empty {
+  color: var(--label-alternative);
+}
+
+.profile-form__year option:enabled {
+  color: var(--label-normal);
+}
+
+.profile-form__select-icon {
+  position: absolute;
+  top: 50%;
+  right: var(--space-16);
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 /* 입력칸 + 단위 글자(년 · cm · kg) */

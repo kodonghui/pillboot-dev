@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
 import { askQuestion, getChatMessages, retryQuestion } from '../api/chat.js'
 import { errorOf } from '../api/client.js'
@@ -18,6 +18,8 @@ const checkEvery = 5_000
 const answerWindow = 95_000
 // 보낸 뒤 이 시간까지 저장 여부를 알 수 없으면 저절로 확인하지 않고 "대화 상태 다시 확인"을 보여 준다.
 const checkLimit = 120_000
+// 메시지 영역의 맨 아래에서 이만큼(px) 안이면 맨 아래를 보고 있는 것으로 본다.
+const nearBottom = 40
 
 // 대화 상태 확인(목업 CHT-02-11) 단계별 문구
 const checkViews = {
@@ -72,6 +74,12 @@ function toTurns(messages) {
 
 function lastTurnNo(messages) {
   return messages.at(-1)?.turnNo ?? 0
+}
+
+// 메시지 영역을 맨 아래로 내린다. smooth: 부드럽게(동작 줄이기 설정이면 바로)
+function scrollToEnd(box, smooth) {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  box.scrollTo({ top: box.scrollHeight, behavior: smooth && !reduce ? 'smooth' : 'auto' })
 }
 
 // 내 질문 말풍선. temp: 저장되지 않은 질문(무관 · 위험 안내, 목업 .bub-u.tmp)
@@ -186,15 +194,14 @@ function CheckState({ check, onRecheck }) {
 // 연결이 끊기거나 90초가 지나면 저장 여부를 대화 기록으로 확인한다. 관리할 사람이 이 방의 사람과 다르면 대화방 목록으로 간다.
 // question: 추천 질문으로 연 새 방에서 한 번만 보낼 질문 · onChange: 제목 · 순서가 바뀌었을 수 있어 목록을 다시 받는다
 // onMissing: 대화방이 없거나(chatNotFound) 권한이 없을 때(forbidden) 오류 화면으로 바꾼다
-function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, onChange, onMissing }) {
+// onReady: 불러오기가 끝났다(대화 · 불러오지 못함 안내). 대화방 높이가 정해져 ChatPage 가 페이지를 대화방 자리로 내린다
+function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, onChange, onMissing, onReady }) {
   const titleId = useId()
   const [attempt, setAttempt] = useState(0)
   const [loadFailed, setLoadFailed] = useState(-1)
   const [room, setRoom] = useState(null)
   const [draft, setDraft] = useState('')
   const [notSaved, setNotSaved] = useState(false)
-  // 막힌 질문을 입력창에 돌려놓았다(목업 "질문을 고쳐서 다시 보낼 수 있어요.")
-  const [blocked, setBlocked] = useState(false)
   // 답을 기다리는 질문. { kind: 'ask', content, at, slow } · { kind: 'retry', messageId }
   const [pending, setPending] = useState(null)
   // 저장되지 않은 질문과 안내. afterTurn: 보낼 때의 마지막 턴(그 뒤에 보인다)
@@ -207,7 +214,9 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   const aliveRef = useRef(false)
   const timersRef = useRef({ slow: 0, check: 0 })
   const msgsRef = useRef(null)
-  // 이전 대화를 앞에 붙이기 전 첫 턴의 화면 위치. 붙인 뒤 같은 자리로 스크롤한다.
+  // 메시지 영역 스크롤. follow: 맨 아래를 보고 있음(처음에는 맨 아래부터 보여 준다) · top: 마지막 위치 · shown: 처음 맨 아래로 내렸음
+  const scrollRef = useRef({ follow: true, top: 0, shown: false })
+  // 이전 대화를 앞에 붙이기 전 첫 턴의 메시지 영역 안 위치. 붙인 뒤 같은 자리로 스크롤한다.
   const anchorRef = useRef(null)
 
   useEffect(() => {
@@ -220,13 +229,55 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
     }
   }, [])
 
+  // 질문 전이라 가운데 안내만 있음
+  const empty = room !== null && room.messages.length === 0 && notes.length === 0 && !pending && !check
+
+  // 대화가 바뀐 뒤. 이전 대화를 앞에 붙였으면 보던 턴을 같은 자리에 두고, 아니면 맨 아래를 보고 있던 경우에만 맨 아래로 내린다.
+  // 처음에는 바로, 그 뒤 새 질문 · 답변은 부드럽게 내린다. 위로 올려 읽는 중이면 그대로 둔다. 질문 전 안내는 위부터 보여 준다.
   useLayoutEffect(() => {
+    const box = msgsRef.current
+    if (!box) return
     const anchor = anchorRef.current
-    if (!anchor) return
     anchorRef.current = null
-    const node = msgsRef.current?.querySelector(`[data-turn="${anchor.turnNo}"]`)
-    if (node) window.scrollBy(0, node.getBoundingClientRect().top - anchor.top)
-  }, [room])
+    const node = anchor && box.querySelector(`[data-turn="${anchor.turnNo}"]`)
+    if (node) {
+      box.scrollTop += node.getBoundingClientRect().top - box.getBoundingClientRect().top - anchor.offset
+      return
+    }
+    const state = scrollRef.current
+    if (empty || !state.follow) return
+    scrollToEnd(box, state.shown)
+    if (!state.shown) {
+      state.shown = true
+      // 글꼴을 받아 줄바꿈이 달라져도 맨 아래에서 시작한다.
+      document.fonts.ready.then(() => {
+        if (state.follow) scrollToEnd(box, false)
+      })
+    }
+  }, [room, pending, notes, check, empty])
+
+  // 메시지 영역 크기가 바뀌어도(입력창 안내 줄 · 화면 크기) 맨 아래를 보고 있었으면 맨 아래에 둔다.
+  const watchMsgs = useCallback((box) => {
+    msgsRef.current = box
+    const observer = new ResizeObserver(() => {
+      const state = scrollRef.current
+      if (state.shown && state.follow) scrollToEnd(box, true)
+    })
+    observer.observe(box)
+    return () => {
+      observer.disconnect()
+      msgsRef.current = null
+    }
+  }, [])
+
+  // 위로 올리면 따라 내려가지 않고, 맨 아래 가까이 돌아오면 다시 따라 내려간다. 내려가는 중(부드러운 스크롤)에는 그대로 둔다.
+  const onMsgsScroll = (event) => {
+    const box = event.currentTarget
+    const state = scrollRef.current
+    if (box.scrollHeight - box.scrollTop - box.clientHeight <= nearBottom) state.follow = true
+    else if (box.scrollTop < state.top) state.follow = false
+    state.top = box.scrollTop
+  }
 
   // 대화방이 없거나(404) 권한이 없으면(403) 오류 화면으로 바꾼다. 401 은 client 가 로그인 만료로 처리한다.
   const leaveIfGone = (error) => {
@@ -311,7 +362,6 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
     const { at, ms: sentAt } = sendTime()
     setPending({ kind: 'ask', content: text, at, slow: false })
     setNotSaved(false)
-    setBlocked(false)
     clearTimeout(timersRef.current.slow)
     timersRef.current.slow = setTimeout(
       () => setPending((current) => (current?.kind === 'ask' ? { ...current, slow: true } : current)),
@@ -323,9 +373,9 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
         clearTimeout(timersRef.current.slow)
         setPending(null)
         if (result.result === 'BLOCKED') {
+          // 막힌 질문은 저장되지 않아 안내와 함께 이 화면에만 남긴다. 입력창에는 돌려놓지 않는다.
+          // 비어 있으면 바로 새 질문을 쓸 수 있고, 기다리는 동안 새로 쓴 질문은 그대로 둔다.
           setNotes((list) => [...list, { key: sentAt, afterTurn: baseTurn, content: text, at, notice: result.notice }])
-          restoreDraft(text)
-          setBlocked(true)
           return
         }
         setRoom((current) => ({
@@ -402,8 +452,11 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
     getChatMessages(sessionId, firstTurn)
       .then((data) => {
         if (!aliveRef.current) return
-        const node = msgsRef.current?.querySelector(`[data-turn="${firstTurn}"]`)
-        anchorRef.current = node ? { turnNo: firstTurn, top: node.getBoundingClientRect().top } : null
+        const box = msgsRef.current
+        const node = box?.querySelector(`[data-turn="${firstTurn}"]`)
+        anchorRef.current = node
+          ? { turnNo: firstTurn, offset: node.getBoundingClientRect().top - box.getBoundingClientRect().top }
+          : null
         setRoom((current) => ({
           ...current,
           messages: mergeMessages(current.messages, data.messages.map(toMessage)),
@@ -419,6 +472,7 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   // 처음 불러오기. 추천 질문으로 연 새 방이면 불러온 뒤 그 질문을 한 번만 보낸다.
   const onLoaded = useEffectEvent((data) => {
     setRoom(withLatest(null, data))
+    onReady()
     if (question) {
       onQuestionTaken()
       ask(question, lastTurnNo(data.messages))
@@ -426,7 +480,9 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   })
 
   const onLoadFailed = useEffectEvent((error) => {
-    if (!leaveIfGone(error)) setLoadFailed(attempt)
+    if (leaveIfGone(error)) return
+    setLoadFailed(attempt)
+    onReady()
   })
 
   useEffect(() => {
@@ -481,13 +537,11 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   const elsewhere =
     !pending && !check && Boolean(last?.question) && !last.answer && room.retryMessageId !== last.question.messageId
   const busy = Boolean(pending) || Boolean(check) || refreshing || elsewhere
-  const empty = room.messages.length === 0 && notes.length === 0 && !pending && !check
 
   let hint = null
   if (pending || elsewhere) hint = '답변이 끝나면 보낼 수 있어요. 쓰고 있는 질문은 그대로 남아요.'
   else if (check) hint = '대화 상태를 확인하는 동안에는 보낼 수 없어요.'
   else if (room.retryMessageId) hint = '「다시 보내기」는 위의 저장된 질문을 다시 보내요. 입력창의 질문과는 따로예요.'
-  else if (blocked) hint = '질문을 고쳐서 다시 보낼 수 있어요.'
 
   const recheck = () => {
     setCheck({ ...check, busy: true })
@@ -608,7 +662,14 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
             : `첫 질문을 보내면 그때의 ${name} 프로필을 기준으로 답해요.`}
         </p>
       </div>
-      <div className={empty ? 'chat-room__msgs chat-room__msgs--center' : 'chat-room__msgs'} ref={msgsRef}>
+      <div
+        className={empty ? 'chat-room__msgs chat-room__msgs--center' : 'chat-room__msgs'}
+        ref={watchMsgs}
+        role="region"
+        aria-label="대화 내용"
+        tabIndex={0}
+        onScroll={onMsgsScroll}
+      >
         {empty && room.drugCount > 0 && (
           <div className="chat-room__intro">
             <span className="chat-room__feature">

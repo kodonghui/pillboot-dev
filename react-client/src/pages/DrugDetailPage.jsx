@@ -31,20 +31,24 @@ function DrugDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteFailed, setDeleteFailed] = useState(false)
 
-  const key = `${profileId}|${myDrugId}|${attempt}`
+  // 어느 사람의 어느 약(target)을 몇 번째로(attempt) 불러온 결과인지 함께 적어 둔다.
+  const target = `${profileId}|${myDrugId}`
+  const key = `${target}|${attempt}`
 
   useEffect(() => {
     if (!profileId || !Number.isInteger(myDrugId)) return
     let active = true
     getMyDrug(profileId, myDrugId)
-      .then((drug) => active && setLoaded({ key, drug }))
-      .catch((error) => active && setLoaded({ key, status: errorOf(error).status ?? 0 }))
+      .then((drug) => active && setLoaded({ key, target, drug }))
+      .catch((error) => active && setLoaded({ key, target, status: errorOf(error).status ?? 0 }))
     return () => {
       active = false
     }
-  }, [profileId, myDrugId, key])
+  }, [profileId, myDrugId, key, target])
 
   const current = loaded?.key === key ? loaded : null
+  // 다시 불러오는 중: 같은 약의 앞선 실패 안내를 그대로 두고 버튼만 잠근다(목업 CHT-01-03 다시 시도하는 중).
+  const retrying = !current && loaded?.target === target && !loaded.drug
   const drug = current?.drug ?? null
   const itemSeq = drug?.drug?.itemSeq
   const { guide, failed: guideFailed, retry: retryGuide } = useDrugGuide(itemSeq)
@@ -67,14 +71,21 @@ function DrugDetailPage() {
   }
   if (!Number.isInteger(myDrugId) || current?.status === 404) return <ErrorScreen kind="notFound" />
   if (current?.status === 403) return <ErrorScreen kind="forbidden" />
-  if (current && !drug) {
+  // 약 한 건을 불러오지 못함. 다시 불러오기는 이 요청만 다시 보낸다(공식 정보는 약을 받은 뒤에 따로 불러온다).
+  if ((current && !drug) || retrying) {
     return (
       <Notice
         variant="negative"
         role="alert"
         action={
-          <button className="mt-btn mt-btn--assistive mt-btn--md" type="button" onClick={() => setAttempt((count) => count + 1)}>
-            다시 시도
+          <button
+            className="mt-btn mt-btn--assistive mt-btn--md"
+            type="button"
+            disabled={retrying}
+            onClick={() => setAttempt((count) => count + 1)}
+          >
+            <Icon name={retrying ? 'loader' : 'refresh'} size="s" className={retrying ? 'icon--spin' : undefined} />
+            {retrying ? '다시 불러오는 중…' : '다시 불러오기'}
           </button>
         }
       >

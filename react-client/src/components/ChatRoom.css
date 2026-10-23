@@ -1,10 +1,18 @@
 /* CHT-02 대화방(목업 .pane-r): 머리 · 메시지 · 입력창을 사이 없이 세로로 잇는다.
-   padding: 디자인 번들의 좁은 화면 .mt-card 18px 이 --flush 를 덮어써서 좁은 화면에서도 0 으로 둔다(목업 0). */
+   padding: 디자인 번들의 좁은 화면 .mt-card 18px 이 --flush 를 덮어써서 좁은 화면에서도 0 으로 둔다(목업 0).
+   높이: 목업은 대화만큼 길어지지만, 화면 높이에서 위아래 24px 을 뺀 만큼으로 두고 메시지 영역만 안에서 스크롤해
+   머리(제목 · 약 등록)와 입력창이 화면에 남게 한다. 대화방을 열면 ChatPage 가 대화방 위가 화면 위 24px(scroll-margin)에 오도록
+   페이지를 내린다. 그 자리가 페이지 끝이라 아래도 24px 이다.
+   화면이 아주 낮아도 머리 · 메시지 최소 높이 · 입력창이 다 들어가는 만큼은 둔다(min-height). 그러면 대화방이 화면보다 길어져
+   아래 진단 안내는 화면 밖에 남고(페이지를 더 내리면 보임), 입력창까지 나가면 ChatPage 가 입력창 아래가 화면 아래 24px 에 오도록 더 내린다. */
 .chat-room {
   flex: 999 1 560px;
   gap: 0;
   min-width: 0;
+  height: calc(100svh - var(--space-24) * 2);
+  min-height: min-content;
   padding: 0;
+  scroll-margin-block: var(--space-24);
 }
 
 .chat-room__muted {
@@ -22,6 +30,7 @@
 /* 목업 .rhead(위아래 22px은 토큰에 없어 20px) */
 .chat-room__head {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: var(--space-10);
   padding: var(--space-20) var(--space-28);
@@ -40,20 +49,41 @@
   flex: none;
 }
 
-/* 메시지 영역(목업 .msgs) */
+/* 메시지 영역(목업 .msgs). 머리와 입력창 사이를 채우고 안에서 스크롤한다(목업 최소 440px 대신 120px).
+   position: 말풍선의 숨김 글(.visually-hidden)이 이 상자 안에 머물러 페이지를 늘리지 않게 한다.
+   이전 대화를 앞에 붙일 때 읽던 자리는 ChatRoom 이 맞추므로 브라우저의 스크롤 고정(overflow-anchor)은 끈다.
+   overscroll-behavior: 대화 맨 위 · 맨 아래에서 더 굴리거나 끌어도 페이지가 따라 움직여 입력창이 화면 밖으로 밀리지 않게 한다.
+   위쪽 메뉴는 대화방 머리 · 입력창 · 목록 위에서 올리면 다시 보인다. */
 .chat-room__msgs {
   display: flex;
-  flex: 1 1 auto;
+  position: relative;
+  flex: 1 1 0;
   flex-direction: column;
   gap: var(--space-24);
-  min-height: 440px;
+  min-height: 120px;
   padding: var(--space-28);
+  overflow-y: auto;
+  overflow-anchor: none;
+  overscroll-behavior-y: contain;
   background: var(--background-alternative);
 }
 
+/* 대화 내용은 Tab 으로 가서 키보드로 스크롤한다. 테두리는 대화방 가장자리에 잘리지 않게 안쪽에 그린다. */
+.chat-room__msgs:focus-visible {
+  outline-offset: calc(var(--space-4) * -1);
+}
+
+/* 가운데 안내는 위아래 auto 여백으로 가운데 둔다. 메시지 영역보다 크면 여백이 0 이 되어 위부터 보인다(스크롤로 끝까지). */
 .chat-room__msgs--center {
   align-items: center;
-  justify-content: center;
+}
+
+.chat-room__msgs--center > :first-child {
+  margin-top: auto;
+}
+
+.chat-room__msgs--center > :last-child {
+  margin-bottom: auto;
 }
 
 /* 한 턴(질문 · 답변 · 안내). 턴 사이와 같은 24px로 띄운다. */
@@ -279,6 +309,7 @@
 /* 입력창 영역(목업 .composer: 위 20px · 아래 24px) */
 .chat-room__composer {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: var(--space-14);
   padding: var(--space-20) var(--space-28) var(--space-24);
