@@ -50,19 +50,35 @@ class DurEvaluatorTests {
     }
 
     @Test
-    void cardPolicyKeepsWarningsAndDrugQuestionsButOmitsRepeatedGeneralGuidance() {
+    void cardPolicyKeepsWarningsAndSafetyQuestionsWithoutRepeatingSuccessfulRecordChecks() {
         var noDrug = new AnswerInput(1990, "MALE", false, "알림 설정은 어디에 있어?", List.of(), List.of(), false);
         var empty = evaluator.evaluate(noDrug, List.of()).notice();
         assertThat(evaluator.cardNotice(noDrug, empty)).isNull();
-        var question = new AnswerInput(1990, "MALE", false, "약은 언제 먹어?", List.of(), List.of(), false);
-        assertThat(evaluator.cardNotice(question, empty)).isSameAs(empty);
+        var question = new AnswerInput(1990, "MALE", false, "같이 먹어도 돼?", List.of(drug("A")), List.of(), false);
+        var complete = evaluator.evaluate(question, complete(question)).notice();
+        assertThat(evaluator.cardNotice(question, complete)).isSameAs(complete);
         var warning = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("ALL", "FOUND", 1, List.of(), List.of(), "warning");
         assertThat(evaluator.cardNotice(noDrug, warning)).isSameAs(warning);
         var first = new AnswerInput(1990, "MALE", false, "약은 언제 먹어?", List.of(), List.of(), true);
         assertThat(evaluator.cardNotice(first, empty)).isNull();
         assertThat(evaluator.cardNotice(first, warning)).isSameAs(warning);
         var named = new AnswerInput(1990, "MALE", false, "drug-A는?", List.of(drug("A")), List.of(), false);
-        assertThat(evaluator.cardNotice(named, empty)).isSameAs(empty);
+        assertThat(evaluator.cardNotice(named, complete)).isNull();
+        var failed = evaluator.evaluate(named, List.of()).notice();
+        assertThat(evaluator.needsExplanation(named, failed)).isTrue();
+        assertThat(evaluator.cardNotice(named, failed)).isSameAs(failed);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"등록 약 이름만 알려줘,false", "복약 기록을 표로 정리해줘,false",
+            "반복되는 주의 문구를 줄이고 한 문장으로 말해줘,false", "오늘 등록한 복용 시각만 알려줘,false",
+            "같이 먹어도 돼,true", "부작용이 있어,true", "임신 중 복용해도 괜찮아,true", "주의사항을 알려줘,true"})
+    void successfulNoWarningLookupOnlyAddsAnExplanationForSafetyQuestions(String question, boolean expected) {
+        var input = new AnswerInput(1990, "MALE", false, question, List.of(drug("A")), List.of(), false);
+        var notice = evaluator.evaluate(input, complete(input)).notice();
+        assertThat(evaluator.needsExplanation(input, notice)).isEqualTo(expected);
+        assertThat(notice.lookup()).isEqualTo("ALL");
+        assertThat(notice.result()).isEqualTo("NONE");
     }
 
     @Test
