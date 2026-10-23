@@ -37,6 +37,114 @@ export function splitAnswer(content) {
   return { body: content.slice(0, index).trim(), sources }
 }
 
+// 근거를 공식 자료와 내가 입력한 복용 기록(USER_INPUT)으로 나눈다. 두 쪽 날짜는 뜻이 달라 섞지 않고,
+// 순서도 서버가 붙인 순서 그대로 두며 날짜로 다시 정렬하지 않는다.
+// 공식 자료는 품목코드(없으면 약 이름)가 같은 것끼리 한 약으로 묶는다.
+// official: [{ key, drugName, sources }] · mine: USER_INPUT 근거 배열
+export function sourceGroups(sources) {
+  const official = []
+  const drugs = new Map()
+  const mine = []
+  for (const source of sources) {
+    if (source.source === 'USER_INPUT') {
+      mine.push(source)
+      continue
+    }
+    const seq = typeof source.itemSeq === 'string' ? source.itemSeq.trim() : ''
+    const key = seq ? `seq:${seq}` : `name:${source.drugName.trim()}`
+    let drug = drugs.get(key)
+    if (!drug) {
+      drug = { key, drugName: source.drugName, sources: [] }
+      drugs.set(key, drug)
+      official.push(drug)
+    }
+    drug.sources.push(source)
+  }
+  return { official, mine }
+}
+
+// 답변 본문의 서식. 서버 답변 지침이 형식을 정하지 않아 모델이 마크다운 일부를 섞어 쓴다.
+// 문단 · 줄바꿈 · 글머리 목록(- * + •) · 번호 목록(1. · 1)) · **굵게** 만 읽고, 나머지 기호는 글자 그대로 둔다.
+// HTML 로 바꾸지 않고 글자 조각으로만 나눈다. 화면은 조각을 React 글자로 넣으므로 본문에 든 태그는 실행되지 않는다.
+const bulletLine = /^(\s*)[-*+•]\s+(\S.*)$/
+const numberLine = /^(\s*)(\d{1,3})[.)]\s+(\S.*)$/
+const boldText = /\*\*(\S(?:.*?\S)?)\*\*/g
+
+// 줄 앞 빈칸 너비(탭은 4칸)
+const indentOf = (space) => space.replace(/\t/g, '    ').length
+
+function listLine(line) {
+  const bullet = bulletLine.exec(line)
+  if (bullet) return { indent: indentOf(bullet[1]), ordered: false, start: 1, text: bullet[2].trim() }
+  const number = numberLine.exec(line)
+  if (number) return { indent: indentOf(number[1]), ordered: true, start: Number(number[2]), text: number[3].trim() }
+  return null
+}
+
+// 답변 본문을 문단과 목록으로 나눈다. 빈 줄은 문단 · 목록을 끝내고, 더 들여 쓴 항목은 앞 항목 아래 목록이 된다.
+// 목록 항목보다 들여 쓴 일반 줄은 그 항목에 이어 쓴다. 번호 목록은 첫 항목의 번호(start)부터 센다.
+// block: { kind: 'paragraph', lines } · { kind: 'list', ordered, start, indent, items: [{ lines, lists }] }
+export function answerBlocks(body) {
+  const blocks = []
+  let paragraph = null
+  // 지금 이어 쓰는 목록들. 뒤로 갈수록 더 들여 쓴 아래 목록이다.
+  let open = []
+  for (const line of body.split(/\r?\n/)) {
+    if (line.trim() === '') {
+      paragraph = null
+      open = []
+      continue
+    }
+    const item = listLine(line)
+    if (item) {
+      paragraph = null
+      while (open.length > 0 && item.indent < open.at(-1).indent) open.pop()
+      let list = open.at(-1)
+      if (!list || item.indent > list.indent || list.ordered !== item.ordered) {
+        const fresh = { kind: 'list', ordered: item.ordered, start: item.start, indent: item.indent, items: [] }
+        if (list && item.indent > list.indent) {
+          list.items.at(-1).lists.push(fresh)
+        } else {
+          // 같은 깊이에서 글머리 ↔ 번호가 바뀌면 옆에 새 목록을 둔다.
+          if (list) open.pop()
+          const parent = open.at(-1)
+          if (parent) parent.items.at(-1).lists.push(fresh)
+          else blocks.push(fresh)
+        }
+        open.push(fresh)
+        list = fresh
+      }
+      list.items.push({ lines: [item.text], lists: [] })
+      continue
+    }
+    const indent = indentOf(/^\s*/.exec(line)[0])
+    while (open.length > 0 && indent <= open.at(-1).indent) open.pop()
+    if (open.length > 0) {
+      open.at(-1).items.at(-1).lines.push(line.trim())
+      continue
+    }
+    if (!paragraph) {
+      paragraph = { kind: 'paragraph', lines: [] }
+      blocks.push(paragraph)
+    }
+    paragraph.lines.push(line.trim())
+  }
+  return blocks
+}
+
+// 한 줄을 **굵게** 와 나머지 글자로 나눈다. 짝이 없거나 안쪽이 빈칸으로 시작 · 끝나는 ** 는 글자 그대로 둔다.
+export function boldParts(text) {
+  const parts = []
+  let last = 0
+  for (const match of text.matchAll(boldText)) {
+    if (match.index > last) parts.push({ text: text.slice(last, match.index), bold: false })
+    parts.push({ text: match[1], bold: true })
+    last = match.index + match[0].length
+  }
+  if (last < text.length) parts.push({ text: text.slice(last), bold: false })
+  return parts
+}
+
 // 금기 정보 종류(DurLookup.Type). tone 은 카드 색이다(목업 노인주의만 주의, 나머지는 위험).
 export const durTypes = {
   INTERACTION: {

@@ -19,11 +19,17 @@
   min-width: 0;
 }
 
-/* 안내 · 오류는 왼쪽, 글자 수는 오른쪽(목업 .cnt) */
+/* 안내 · 오류는 왼쪽, 글자 수는 오른쪽(목업 .cnt). 좁은 화면에서 안내 · 오류가 200px 보다 좁아지면
+   글자 수를 다음 줄로 내려 안내 · 오류가 입력칸 폭을 다 쓰게 한다(세로로 길게 쌓여 입력창이 커지지 않게). */
 .chat-composer__meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: var(--space-12);
+  gap: var(--space-6) var(--space-12);
+}
+
+.chat-composer__meta > :not(.chat-composer__count) {
+  flex: 1 1 200px;
 }
 
 .chat-composer__count {

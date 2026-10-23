@@ -5,9 +5,11 @@ import FieldError from './FieldError.jsx'
 import Icon from './Icon.jsx'
 import Notice from './Notice.jsx'
 import SelectMenu from './SelectMenu.jsx'
+import { todayKst } from '../dates.js'
 import { familyRelations, genderLabels, relationLabels } from '../profileInfo.js'
 import './ProfileForm.css'
 
+// 출생연도 범위는 OpenAPI 에 없고 서버는 올해(한국 시간)보다 큰 해만 막아, 목업 문구대로 1900년부터 올해까지 고른다.
 const firstYear = 1900
 // 키 · 몸무게는 서버에서 int32 정수다.
 const intMax = 2147483647
@@ -20,18 +22,26 @@ const pregnancyOptions = [
 const relationOptions = familyRelations.map((value) => ({ value, label: relationLabels[value] }))
 const bodySizeHelp = '키 · 몸무게는 입력한다면 0보다 큰 정수로 적어 주세요.'
 
+// 출생연도 선택지('2026' … '1900'). 최근 해가 위로 온다.
+function yearOptions() {
+  const thisYear = Number(todayKst().slice(0, 4))
+  return Array.from({ length: thisYear - firstYear + 1 }, (_, index) => String(thisYear - index))
+}
+
 // 만들기는 아무것도 골라 두지 않는다(목업 PRF-02-01 · 1). 본인 프로필이 이미 있으면 "가족"을 골라 둔다.
-function valuesOf(profile, selfTaken) {
+// 수정할 프로필의 출생연도가 선택지 밖이면(서버에 직접 넣은 값 등) 고르지 않은 채로 열어 다시 고르게 한다.
+function valuesOf(profile, selfTaken, years) {
   if (!profile) {
     const kind = selfTaken ? 'family' : null
     return { kind, relation: null, name: '', birthYear: '', gender: null, pregnant: null, height: '', weight: '' }
   }
   const self = profile.relationshipType === 'SELF'
+  const birthYear = String(profile.profileBirthYear)
   return {
     kind: self ? 'self' : 'family',
     relation: self ? null : profile.relationshipType,
     name: profile.profileName,
-    birthYear: String(profile.profileBirthYear),
+    birthYear: years.includes(birthYear) ? birthYear : '',
     gender: profile.profileGender,
     pregnant: profile.profilePregnant,
     height: profile.profileHeight == null ? '' : String(profile.profileHeight),
@@ -44,18 +54,13 @@ const isOptionalCount = (value) => {
   return text === '' || (/^\d+$/.test(text) && Number(text) > 0 && Number(text) <= intMax)
 }
 
-function check(values, thisYear) {
-  const year = values.birthYear.trim()
-  let birthYear = null
-  if (!year) birthYear = '출생연도를 입력해 주세요.'
-  else if (!/^\d{4}$/.test(year) || Number(year) < firstYear || Number(year) > thisYear) {
-    birthYear = `${firstYear}년부터 ${thisYear}년까지 입력해 주세요.`
-  }
+// 출생연도는 선택지에서만 고르므로 골랐는지만 본다.
+function check(values) {
   return {
     kind: values.kind ? null : '관계를 선택해 주세요.',
     relation: values.kind === 'family' && !values.relation ? '상세 관계를 골라 주세요.' : null,
     name: values.name.trim() ? null : '이름을 입력해 주세요.',
-    birthYear,
+    birthYear: values.birthYear ? null : '출생연도를 골라 주세요.',
     gender: values.gender ? null : '성별을 선택해 주세요.',
     pregnant: values.pregnant === null ? '임신 여부를 선택해 주세요.' : null,
     height: !isOptionalCount(values.height),
@@ -68,7 +73,7 @@ function requestOf(values) {
   return {
     profileName: values.name.trim(),
     relationshipType: values.kind === 'self' ? 'SELF' : values.relation,
-    profileBirthYear: Number(values.birthYear.trim()),
+    profileBirthYear: Number(values.birthYear),
     profileGender: values.gender,
     profileHeight: values.height.trim() ? Number(values.height.trim()) : null,
     profileWeight: values.weight.trim() ? Number(values.weight.trim()) : null,
@@ -82,7 +87,8 @@ function requestOf(values) {
 // onSubmit(request) 가 실패하면 입력을 지우지 않고 저장 실패 안내를 보여 준다.
 function ProfileForm({ titleId, profile, selfTaken, cancelTo, onSubmit, children }) {
   const fieldId = useId()
-  const [values, setValues] = useState(() => valuesOf(profile, selfTaken))
+  const years = yearOptions()
+  const [values, setValues] = useState(() => valuesOf(profile, selfTaken, years))
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -107,7 +113,7 @@ function ProfileForm({ titleId, profile, selfTaken, cancelTo, onSubmit, children
 
   const submit = async (event) => {
     event.preventDefault()
-    const nextErrors = check(values, new Date().getFullYear())
+    const nextErrors = check(values)
     setErrors(nextErrors)
     setFailed(false)
     const invalid = [
@@ -209,21 +215,27 @@ function ProfileForm({ titleId, profile, selfTaken, cancelTo, onSubmit, children
         <label className="mt-field__label" htmlFor={`${fieldId}-year`}>
           출생연도<span className="mt-field__req">(필수)</span>
         </label>
-        <div className="profile-form__unit">
-          <input
+        {/* 브라우저 기본 목록이라 휴대폰은 OS 선택 화면으로 열리고, 키보드는 화살표 · 숫자 입력으로 고른다. */}
+        <div className="profile-form__select">
+          <select
             ref={yearRef}
-            className="mt-input profile-form__year"
+            className={values.birthYear ? 'mt-input profile-form__year' : 'mt-input profile-form__year profile-form__year--empty'}
             id={`${fieldId}-year`}
-            type="text"
-            inputMode="numeric"
-            maxLength={4}
-            placeholder="예: 1960"
             value={values.birthYear}
             onChange={change('birthYear')}
             aria-invalid={errors.birthYear ? true : undefined}
             aria-describedby={describe(errorId('birthYear'))}
-          />
-          <span className="profile-form__unit-label">년</span>
+          >
+            <option value="" disabled>
+              출생연도를 골라 주세요
+            </option>
+            {years.map((year) => (
+              <option key={year} value={year}>
+                {year}년
+              </option>
+            ))}
+          </select>
+          <Icon name="chevronDown" className="profile-form__select-icon" />
         </div>
         {errors.birthYear && <FieldError id={errorId('birthYear')}>{errors.birthYear}</FieldError>}
       </div>

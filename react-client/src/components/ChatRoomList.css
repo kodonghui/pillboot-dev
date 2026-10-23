@@ -107,6 +107,24 @@
   font-weight: 700;
 }
 
+/* 대화방 · 시작 안내와 나란히 놓이면(목록 320px + 사이 24px + 오른쪽 560px, ChatPage.css chat-cols) 목록은 오른쪽 높이에 맞추고
+   대화방 목록만 안에서 스크롤한다. contain: 목록 길이가 줄 높이를 늘리지 않게 한다.
+   스크롤 상자에 안쪽 여백을 두고 같은 만큼 밖으로 넓혀 포커스 테두리(index.css 3px + 2px)가 잘리지 않게 한다. */
+@container chat-cols (min-width: 904px) {
+  .chat-list {
+    contain: size;
+  }
+
+  .chat-list__nav {
+    flex: 1 1 0;
+    min-height: 0;
+    margin: calc(var(--space-6) * -1);
+    padding: var(--space-6);
+    overflow-y: auto;
+    scroll-padding-block: var(--space-6);
+  }
+}
+
 @media (max-width: 720px) {
   .chat-list {
     max-width: none;

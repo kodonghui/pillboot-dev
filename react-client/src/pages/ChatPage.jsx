@@ -18,6 +18,19 @@ function toSessionId(param) {
   return /^[1-9]\d{0,14}$/.test(param) ? Number(param) : null
 }
 
+// 대화방을 보여 줄 페이지 스크롤 위치. 대화방 위를 화면 위 24px(ChatRoom.css scroll-margin)에 둔다.
+// 화면이 아주 낮아 그러면 입력창이 화면 아래로 나가면, 입력창 아래가 화면 아래 24px 에 오도록 더 내린다.
+// 화면에 맞으면 대화방 아래도 24px 이고 그 자리가 페이지 끝이다(ChatPage.css).
+function roomSpot(card) {
+  const style = getComputedStyle(card)
+  const top = window.scrollY + card.getBoundingClientRect().top - parseFloat(style.scrollMarginTop)
+  const composer = card.querySelector('.chat-composer')
+  const reach = composer
+    ? window.scrollY + composer.getBoundingClientRect().bottom + parseFloat(style.scrollMarginBottom) - window.innerHeight
+    : top
+  return Math.min(Math.max(top, reach), document.documentElement.scrollHeight - window.innerHeight)
+}
+
 // 대화방을 고르기 전 오른쪽 안내와 추천 질문(목업 CHT-01-01). drugCount: 아직 모르면 null
 function ChatIntro({ name, drugCount, locked, onAsk }) {
   const titleId = useId()
@@ -84,7 +97,20 @@ function ChatPage() {
   const [queued, setQueued] = useState(null)
   // 없는 대화방 · 권한 없음. { sessionId, kind }
   const [missing, setMissing] = useState(null)
+  // 불러오기가 끝난 대화방(대화방 높이가 정해짐). { sessionId } · 불러올 때마다 새 값
+  const [loadedRoom, setLoadedRoom] = useState(null)
   const aliveRef = useRef(false)
+  const colsRef = useRef(null)
+  // 마지막으로 페이지를 내려 보여 준 불러오기(loadedRoom)
+  const shownRef = useRef(null)
+
+  // 프로필을 받기 전(profileId 없음)에도 읽으므로, 받은 목록이 없으면 그 사람의 목록도 없다.
+  const sessions = rooms !== null && rooms.profileId === profileId ? rooms.sessions : null
+  const result = listResult !== null && listResult.profileId === profileId ? listResult : null
+  const listFailed = Boolean(result?.failed)
+  const listLoading = result?.key !== listKey
+  // 목록을 받았거나 받지 못했고, 새로 받는 중도 아님(목록 길이가 정해짐)
+  const listReady = (sessions !== null || listFailed) && !listLoading
 
   useEffect(() => {
     aliveRef.current = true
@@ -92,6 +118,46 @@ function ChatPage() {
       aliveRef.current = false
     }
   }, [])
+
+  // 대화방을 열면 대화방이 화면을 채우도록(위아래 24px, ChatRoom.css) 페이지를 대화방 자리(roomSpot)로 내린다.
+  // 대화방을 다 불러온 뒤에 내린다. 불러오는 동안은 머리 · 입력창이 없어 화면이 낮으면 대화방 높이가 달라진다.
+  // 좁은 화면에서는 목록이 대화방 위에 있어 목록 길이가 바뀌면 대화방이 밀리므로, 목록도 다 받은 뒤에 내린다.
+  // 불러올 때마다 한 번만 내린다. 동작 줄이기 설정이면 바로 옮긴다.
+  useEffect(() => {
+    const card = colsRef.current?.querySelector('.chat-room')
+    if (!card || !listReady || loadedRoom?.sessionId !== sessionId || shownRef.current === loadedRoom) return
+    shownRef.current = loadedRoom
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: roomSpot(card), behavior: reduce ? 'auto' : 'smooth' })
+  }, [sessionId, listReady, loadedRoom])
+
+  // 대화방 자리에 있는 채로 창 너비가 바뀌면(휴대폰 · 태블릿을 돌림, 창이 좁아져 목록이 대화방 위로 감) 다시 맞춘다.
+  // 크기가 바뀌기 전에 자리에 있었는지는 스크롤할 때마다 적어 둔다. 사용자가 위로 올려 둔 채면 그대로 둔다.
+  // 높이만 바뀌면(화면 키보드 · 주소 표시줄) 입력칸을 가리지 않게 건드리지 않는다. 화면에 맞는 대화방은 그 자리가 페이지 끝이라 저절로 맞는다.
+  useEffect(() => {
+    if (sessionId === null) return
+    const card = () => colsRef.current?.querySelector('.chat-room')
+    const inPlace = () => {
+      const node = card()
+      return Boolean(node) && Math.abs(window.scrollY - roomSpot(node)) <= 1
+    }
+    let fitted = inPlace()
+    let width = window.innerWidth
+    const onScroll = () => {
+      fitted = inPlace()
+    }
+    const onResize = () => {
+      if (window.innerWidth === width) return
+      width = window.innerWidth
+      if (fitted && !inPlace()) window.scrollTo({ top: roomSpot(card()) })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [sessionId])
 
   // 새 대화방을 준비하고 연다. question 이 있으면 방을 연 뒤 한 번만 보낸다(목업 CHT-01-01 추천 질문).
   const startRoom = (question) => {
@@ -104,7 +170,8 @@ function ChatPage() {
         if (useAuthStore.getState().profileId !== owner) return
         if (question) setQueued({ sessionId: session.sessionId, question })
         setListKey((key) => key + 1)
-        navigate(generatePath(paths.chatRoom, { sessionId: String(session.sessionId) }))
+        // 페이지를 맨 위로 되돌리지 않는다. 대화방 위치로는 아래 효과가 내린다.
+        navigate(generatePath(paths.chatRoom, { sessionId: String(session.sessionId) }), { preventScrollReset: true })
       })
       .catch(() => {
         if (!aliveRef.current) return
@@ -163,17 +230,13 @@ function ChatPage() {
   if (!profile) return null
 
   const name = profile.profileName
-  const sessions = rooms?.profileId === profileId ? rooms.sessions : null
-  const result = listResult?.profileId === profileId ? listResult : null
-  const listFailed = Boolean(result?.failed)
-  const listLoading = result?.key !== listKey
   const preparing = prepare?.profileId === profileId && !prepare.failed
   const prepareFailed = prepare?.profileId === profileId && prepare.failed
 
   return (
-    <div className="chat-page">
+    <div className={sessionId === null ? 'chat-page' : 'chat-page chat-page--room'}>
       <h1 className="screen-title">챗봇</h1>
-      <div className="chat-page__cols">
+      <div className="chat-page__cols" ref={colsRef}>
         <ChatRoomList
           name={name}
           color={color}
@@ -204,6 +267,7 @@ function ChatPage() {
             onQuestionTaken={() => setQueued(null)}
             onChange={() => setListKey((key) => key + 1)}
             onMissing={(kind) => setMissing({ sessionId, kind })}
+            onReady={() => setLoadedRoom({ sessionId })}
           />
         )}
       </div>

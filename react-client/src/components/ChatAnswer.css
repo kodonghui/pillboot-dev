@@ -1,7 +1,32 @@
-/* 답변 본문. 서버가 저장한 줄바꿈을 그대로 보여 준다. */
+/* 답변 본문(문단 · 목록). 서버가 저장한 줄바꿈은 줄마다 <br> 로 넣는다. */
 .chat-answer__text {
-  white-space: pre-line;
   overflow-wrap: anywhere;
+}
+
+/* 답변의 글머리 · 번호 목록(알림 화면 번호 목록과 같은 들여쓰기 · 간격) */
+.chat-answer__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-left: var(--space-20);
+  list-style: disc;
+}
+
+.chat-answer__list--ordered {
+  list-style: decimal;
+}
+
+.chat-answer__list li {
+  padding-left: var(--space-4);
+}
+
+/* 항목 아래 목록 */
+.chat-answer__list .chat-answer__list {
+  margin-top: var(--space-4);
+}
+
+.chat-answer__list .chat-answer__list:not(.chat-answer__list--ordered) {
+  list-style: circle;
 }
 
 .chat-answer__muted {
@@ -70,6 +95,29 @@
   margin-top: var(--space-2);
 }
 
+/* 펼친 근거: 공식 자료와 내가 입력한 복용 기록을 따로 둔다. */
+.chat-answer__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.chat-answer__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.chat-answer__group-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.chat-answer__group-title {
+  color: var(--label-neutral);
+}
+
 /* 근거 목록(목업 .evl · .evr) */
 .chat-answer__sources {
   display: flex;
@@ -117,6 +165,50 @@
   flex-wrap: wrap;
   gap: var(--space-4) var(--space-14);
   color: var(--label-alternative);
+}
+
+/* 공식 자료 약 하나의 출처 줄: 출처 · 자료 갱신일(또는 확인 불가).
+   좁아서 줄이 넘치면 넘친 부분을 들여 써서 다른 출처 줄과 헷갈리지 않게 한다. */
+.chat-answer__facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  color: var(--label-alternative);
+}
+
+.chat-answer__fact {
+  padding-left: var(--space-16);
+  text-indent: calc(-1 * var(--space-16));
+}
+
+.chat-answer__fact dt,
+.chat-answer__fact dd {
+  display: inline;
+  margin: 0;
+}
+
+/* 출처 뒤 빈칸 한 칸과 합쳐 14px 정도 띄운다. */
+.chat-answer__fact dt {
+  margin-right: var(--space-10);
+  color: var(--label-neutral);
+}
+
+.chat-answer__fact .mt-badge {
+  text-indent: 0;
+}
+
+/* 「자료 갱신일 2026.09.30」은 한 덩어리로 줄을 바꾼다. */
+.chat-answer__date {
+  white-space: nowrap;
+}
+
+/* 내가 입력한 복용 기록 한 줄: 약 이름 · 변경일 */
+.chat-answer__source--mine {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-4) var(--space-14);
 }
 
 .chat-answer__cancelled {

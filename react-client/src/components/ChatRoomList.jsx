@@ -72,13 +72,15 @@ function ChatRoomList({
             대화방 목록을 새로 고치지 못했어요. 지금 보이는 목록은 전에 불러온 내용이에요.
           </Notice>
         )}
-        <nav aria-label="대화방 목록">
+        <nav className="chat-list__nav" aria-label="대화방 목록">
           <ul className="chat-list__rooms">
             {sessions.map((session) => (
               <li key={session.sessionId}>
+                {/* 방을 바꿔도 페이지를 맨 위로 되돌리지 않는다. 대화방 위치로는 ChatPage 가 내린다. */}
                 <Link
                   className="chat-list__room"
                   to={generatePath(paths.chatRoom, { sessionId: String(session.sessionId) })}
+                  preventScrollReset
                   aria-current={session.sessionId === currentId ? 'page' : undefined}
                 >
                   <span className="chat-list__title">{session.title ?? '새 대화'}</span>

@@ -43,10 +43,15 @@ export function prescriptionResultLink(photoId) {
   return `${paths.prescriptionPhoto}?${new URLSearchParams(photoId ? { photo: photoId } : { names: '1' })}`
 }
 
+// 말줄임표(… ⋯ ‥ 또는 마침표 두 개 이상). 처방전에 이름이 잘려 인쇄되어 있으면 사진에서 읽은 이름(readName)에 그대로 들어 있다.
+const ellipsis = /[…⋯‥]|\.{2,}/
+
 // 처방전 결과에서 이름 고쳐 검색(MED-03). 읽은 이름을 검색어(q)로 넣고, 고른 약이 들어갈 자리(pick: readNo)와
-// 돌아갈 결과의 사진 번호(photo)를 넘긴다.
+// 돌아갈 결과의 사진 번호(photo)를 넘긴다. 말줄임표가 든 검색어로는 약 이름 검색에서 찾지 못하므로,
+// 읽은 이름에 말줄임표가 있으면 말줄임표로 끊긴 첫 조각만 넣고 잘린 부분은 채우지 않는다.
 export function prescriptionSearchLink(group, photoId) {
-  const query = { q: group.readName, pick: group.readNo }
+  const q = group.readName.split(ellipsis).map((part) => part.trim()).find((part) => part !== '') ?? ''
+  const query = { q, pick: group.readNo }
   if (photoId) query.photo = photoId
   return `${paths.drugSearch}?${new URLSearchParams(query)}`
 }

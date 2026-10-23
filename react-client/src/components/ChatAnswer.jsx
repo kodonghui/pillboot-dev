@@ -1,7 +1,7 @@
 import { Fragment, useId, useState } from 'react'
-import { durTypes, messageTime, sourceLabels } from '../chatInfo.js'
+import { answerBlocks, boldParts, durTypes, messageTime, sourceGroups, sourceLabels } from '../chatInfo.js'
 import { isDate } from '../dates.js'
-import { dotDate, iAfter } from '../text.js'
+import { dotDate } from '../text.js'
 import Icon from './Icon.jsx'
 import './ChatAnswer.css'
 
@@ -104,51 +104,33 @@ function DurNotice({ notice }) {
   )
 }
 
-// 근거 한 줄. 공식 정보(e약은요 · 의약품 허가정보 · DUR)와 내가 입력한 복용 정보를 나눠 보여 준다.
-function SourceRow({ source, profileName }) {
-  if (source.source === 'USER_INPUT') {
-    return (
-      <li className="chat-answer__source">
-        <div className="chat-answer__source-head">
-          <span className="mt-badge mt-badge--primary">내가 입력한 정보</span>
-          <span className="chat-answer__source-name">{source.drugName} 복용 정보</span>
-        </div>
-        <p className="screen-caption chat-answer__source-meta">
-          <span>
-            출처 {profileName}
-            {iAfter(profileName)} 등록한 복용 정보
-          </span>
-          <span>변경일 {dateText(source.updatedAt)}</span>
-        </p>
-      </li>
-    )
-  }
-  if (!source.ok) {
-    return (
-      <li className="chat-answer__source chat-answer__source--missing">
-        <div className="chat-answer__source-head">
-          <span className="mt-badge mt-badge--caution">확인 불가</span>
-          <span className="chat-answer__source-name">{source.drugName}</span>
-        </div>
-        <p className="screen-caption chat-answer__source-meta">
-          <span>출처 {sourceLabels[source.source]}</span>
-          <span>이 정보는 확인하지 못했어요.</span>
-        </p>
-      </li>
-    )
-  }
+// 공식 자료의 약 하나(목업 CHT-02-03 · 14). 같은 약의 출처(e약은요 · 의약품 허가정보 · DUR)를 한 묶음에 줄로 적는다.
+// 확인한 출처는 자료 갱신일을, 확인하지 못한 출처는 「확인 불가」를 쓴다. 확인하지 못한 근거의 날짜는 조회한 날이라 갱신일로 쓰지 않는다.
+// 자료 없음과 조회 실패는 꼬리표에서 나뉘지 않아 둘 다 「확인 불가」다. 허가 취하는 약에 대한 것이라 약 이름 옆에 둔다.
+function OfficialDrug({ drug }) {
+  const missing = drug.sources.every((source) => source.ok !== true)
+  const cancelled = drug.sources.some((source) => source.cancelled === true)
   return (
-    <li className="chat-answer__source">
+    <li className={`chat-answer__source${missing ? ' chat-answer__source--missing' : ''}`}>
       <div className="chat-answer__source-head">
-        <span className="mt-badge mt-badge--info">공식 정보</span>
-        <span className="chat-answer__source-name">{source.drugName}</span>
-        {source.cancelled && <span className="mt-badge mt-badge--negative">허가 취하</span>}
+        <span className="chat-answer__source-name">{drug.drugName}</span>
+        {cancelled && <span className="mt-badge mt-badge--negative">허가 취하</span>}
       </div>
-      <p className="screen-caption chat-answer__source-meta">
-        <span>출처 {sourceLabels[source.source]}</span>
-        <span>자료 갱신일 {dateText(source.updatedAt)}</span>
-      </p>
-      {source.cancelled && (
+      <dl className="screen-caption chat-answer__facts">
+        {drug.sources.map((source, index) => (
+          <div className="chat-answer__fact" key={index}>
+            <dt>{sourceLabels[source.source]}</dt>{' '}
+            <dd>
+              {source.ok === true ? (
+                <span className="chat-answer__date">자료 갱신일 {dateText(source.updatedAt)}</span>
+              ) : (
+                <span className="mt-badge mt-badge--caution">확인 불가</span>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {cancelled && (
         <p className="screen-caption chat-answer__cancelled">
           허가가 취하된 약으로 확인됐어요. 계속 드셔도 되는지 의사·약사와 상담해 주세요.
         </p>
@@ -157,7 +139,42 @@ function SourceRow({ source, profileName }) {
   )
 }
 
+// 공식 자료 영역. 약은 서버가 붙인 순서대로 둔다.
+function OfficialSources({ drugs }) {
+  return (
+    <div className="chat-answer__group">
+      <h3 className="screen-label chat-answer__group-title">공식 자료</h3>
+      <ul className="chat-answer__sources">
+        {drugs.map((drug) => (
+          <OfficialDrug key={drug.key} drug={drug} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// 내가 입력한 복용 기록 영역. 약 목록에 등록한 정보라 공식 자료와 따로 두고, 그 정보의 변경일만 적는다.
+function MySources({ sources, profileName }) {
+  return (
+    <div className="chat-answer__group">
+      <div className="chat-answer__group-head">
+        <h3 className="screen-label chat-answer__group-title">내가 입력한 복용 기록</h3>
+        <p className="screen-caption chat-answer__muted">{profileName}의 약 목록에 등록한 내용이에요.</p>
+      </div>
+      <ul className="chat-answer__sources">
+        {sources.map((source, index) => (
+          <li className="chat-answer__source chat-answer__source--mine" key={index}>
+            <span className="chat-answer__source-name">{source.drugName}</span>
+            <span className="screen-caption chat-answer__source-meta">변경일 {dateText(source.updatedAt)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 // 답변 근거(목업 CHT-02-03). 이 답변을 만들 때 저장된 근거만 펼치고, 지금 약 정보를 새로 불러오지 않는다.
+// 펼치면 공식 자료와 내가 입력한 복용 기록을 나눠 보여 준다.
 function Evidence({ sources, profileName }) {
   const [open, setOpen] = useState(false)
   const listId = useId()
@@ -175,25 +192,31 @@ function Evidence({ sources, profileName }) {
   if (sources.length === 0) {
     return <p className="screen-caption chat-answer__muted">이 답변에는 함께 저장된 근거가 없어요.</p>
   }
-  // 공식 정보를 하나도 확인하지 못한 답변(목업 CHT-02-13): 근거 보기 없이 펼쳐 두고 공식 정보는 한 줄로 묶는다.
+  const { official, mine } = sourceGroups(sources)
+  const officialSources = official.flatMap((drug) => drug.sources)
+  // 공식 자료를 하나도 확인하지 못한 답변(목업 CHT-02-13): 근거 보기 없이 펼쳐 두고 공식 자료는 한 줄로 묶는다.
   // 꼬리표에는 확인하지 못한 까닭이 없어 목업의 「자료 없음」 · 「조회 실패」 문구는 쓰지 않는다.
-  const official = sources.filter((source) => source.source !== 'USER_INPUT')
-  if (official.length > 0 && official.every((source) => !source.ok)) {
+  // 허가 취하가 확인된 근거가 있으면 한 줄로 묶지 않고 약별 목록으로 보여 준다.
+  if (
+    officialSources.length > 0 &&
+    officialSources.every((source) => source.ok !== true && source.cancelled !== true)
+  ) {
     return (
       <div className="chat-answer__evidence">
-        <ul className="chat-answer__sources">
-          <li className="chat-answer__source chat-answer__source--missing">
-            <div className="chat-answer__source-head">
-              <span className="mt-badge mt-badge--caution">공식 정보</span>
-              <span className="chat-answer__source-name">공식 정보를 확인하지 못했어요.</span>
-            </div>
-          </li>
-          {sources
-            .filter((source) => source.source === 'USER_INPUT')
-            .map((source, index) => (
-              <SourceRow key={index} source={source} profileName={profileName} />
-            ))}
-        </ul>
+        <div className="chat-answer__groups">
+          <div className="chat-answer__group">
+            <h3 className="screen-label chat-answer__group-title">공식 자료</h3>
+            <ul className="chat-answer__sources">
+              <li className="chat-answer__source chat-answer__source--missing">
+                <div className="chat-answer__source-head">
+                  <span className="mt-badge mt-badge--caution">확인 불가</span>
+                  <span className="chat-answer__source-name">공식 자료를 확인하지 못했어요.</span>
+                </div>
+              </li>
+            </ul>
+          </div>
+          {mine.length > 0 && <MySources sources={mine} profileName={profileName} />}
+        </div>
       </div>
     )
   }
@@ -210,17 +233,66 @@ function Evidence({ sources, profileName }) {
         <Icon name={open ? 'chevronUp' : 'chevronDown'} size="s" />
       </button>
       {open && (
-        <ul className="chat-answer__sources" id={listId}>
-          {sources.map((source, index) => (
-            <SourceRow key={index} source={source} profileName={profileName} />
-          ))}
-        </ul>
+        <div className="chat-answer__groups" id={listId}>
+          {official.length > 0 && <OfficialSources drugs={official} />}
+          {mine.length > 0 && <MySources sources={mine} profileName={profileName} />}
+        </div>
       )}
     </div>
   )
 }
 
-// 필받음의 답변 말풍선(목업 CHT-02). 서버가 저장한 본문을 그대로 보여 주고, 금기 정보 카드와 근거를 붙인다.
+// 본문 한 줄. **굵게** 만 <b> 로 바꾸고 나머지는 글자 그대로 넣는다.
+function Inline({ text }) {
+  return boldParts(text).map((part, index) =>
+    part.bold ? <b key={index}>{part.text}</b> : <Fragment key={index}>{part.text}</Fragment>,
+  )
+}
+
+// 문단 · 목록 항목의 여러 줄. 서버가 저장한 줄바꿈대로 줄을 바꾼다.
+function Lines({ lines }) {
+  return lines.map((line, index) => (
+    <Fragment key={index}>
+      {index > 0 && <br />}
+      <Inline text={line} />
+    </Fragment>
+  ))
+}
+
+// 글머리 · 번호 목록. 항목 아래 목록도 같은 모양으로 한 번 더 들여 쓴다.
+function AnswerList({ list }) {
+  const Tag = list.ordered ? 'ol' : 'ul'
+  return (
+    <Tag
+      className={`screen-body chat-answer__text chat-answer__list${list.ordered ? ' chat-answer__list--ordered' : ''}`}
+      start={list.ordered && list.start !== 1 ? list.start : undefined}
+    >
+      {list.items.map((item, index) => (
+        <li key={index}>
+          <Lines lines={item.lines} />
+          {item.lists.map((child, childIndex) => (
+            <AnswerList key={childIndex} list={child} />
+          ))}
+        </li>
+      ))}
+    </Tag>
+  )
+}
+
+// 근거를 뗀 답변 본문. 문단 · 목록 · 줄바꿈 · 굵게를 React 요소로만 그리고 HTML 로 넣지 않는다.
+function AnswerBody({ body }) {
+  return answerBlocks(body).map((block, index) =>
+    block.kind === 'list' ? (
+      <AnswerList key={index} list={block} />
+    ) : (
+      <p className="screen-body chat-answer__text" key={index}>
+        <Lines lines={block.lines} />
+      </p>
+    ),
+  )
+}
+
+// 필받음의 답변 말풍선(목업 CHT-02). 서버가 저장한 본문을 문단 · 목록 · 굵게로 보여 주고, 금기 정보 카드와 근거를 붙인다.
 // message.answer: chatInfo.js splitAnswer 로 나눈 본문과 근거
 function ChatAnswer({ message, profileName }) {
   const { body, sources } = message.answer
@@ -229,11 +301,7 @@ function ChatAnswer({ message, profileName }) {
     <div className="chat-msg chat-msg--answer">
       <p className="visually-hidden">필받음의 답변</p>
       <div className="chat-msg__answer chat-answer">
-        {body.split(/\n\s*\n/).map((paragraph, index) => (
-          <p className="screen-body chat-answer__text" key={index}>
-            {paragraph}
-          </p>
-        ))}
+        <AnswerBody body={body} />
         {message.durNotice && <DurNotice notice={message.durNotice} />}
         <Evidence sources={sources} profileName={profileName} />
       </div>
