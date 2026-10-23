@@ -1,0 +1,106 @@
+.profile-switcher {
+  position: relative;
+  display: flex;
+}
+
+/* 목업 .pbtn[aria-expanded="true"] */
+.profile-switcher__toggle[aria-expanded='true'] {
+  border-color: var(--label-alternative);
+  background: var(--background-alternative);
+}
+
+/* 디자인 시스템 mt-hd__menu 위에 목업 .pmenu 의 너비 · 자리만 더한다. */
+.profile-switcher__panel {
+  top: calc(100% + var(--space-10));
+  right: 0;
+  width: 320px;
+  gap: var(--space-8);
+}
+
+.profile-switcher__title {
+  padding: var(--space-4) var(--space-12) 0;
+}
+
+.profile-switcher__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* 목업 .pm-i */
+.profile-switcher__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  width: 100%;
+  min-height: 52px;
+  padding: 0 var(--space-12);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-switcher__item:hover {
+  background: var(--background-alternative);
+}
+
+.profile-switcher__item[aria-pressed='true'] {
+  background: var(--primary-weak);
+}
+
+.profile-switcher__name {
+  font-weight: 700;
+}
+
+.profile-switcher__relation {
+  color: var(--label-alternative);
+}
+
+.profile-switcher__now {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-left: auto;
+  color: var(--primary-on-weak);
+  font-weight: 700;
+}
+
+.profile-switcher__help {
+  padding: 0 var(--space-12) var(--space-4);
+  color: var(--label-alternative);
+}
+
+.profile-switcher__footer {
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--line-neutral);
+}
+
+/* 목업 .pm-ft 의 ghost 버튼. 디자인 시스템 .mt-hd__menu a 가 메뉴 줄 모양을 덮어쓰지 않게 한다. */
+.profile-switcher .profile-switcher__manage {
+  justify-content: flex-start;
+  width: 100%;
+  color: var(--primary-on-weak);
+}
+
+.profile-switcher .profile-switcher__manage:hover {
+  color: var(--primary-strong);
+}
+
+/* 좁은 화면에서는 오른쪽 묶음이 줄을 바꾸므로, 창을 헤더 기준 좌우 16px 안에 띄운다(설정 메뉴와 같은 방식). */
+@media (max-width: 720px) {
+  .mt-hd {
+    position: relative;
+  }
+
+  .profile-switcher {
+    position: static;
+  }
+
+  .profile-switcher__panel {
+    right: var(--space-16);
+    left: var(--space-16);
+    width: auto;
+  }
+}

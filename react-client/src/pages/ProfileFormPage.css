@@ -1,0 +1,44 @@
+/* PRF-02 · PRF-03 화면 틀: 본문 너비 최대 760px, 위 제목 묶음과 양식 사이 24px */
+.profile-form-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  max-width: 760px;
+}
+
+/* "프로필 관리로" + 제목 */
+.profile-form-page__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 첫 프로필: 제목 + 설명 */
+.profile-form-page__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.profile-form-page__lead {
+  color: var(--label-neutral);
+}
+
+/* 목업 "프로필 관리로": 왼쪽 여백 없는 ghost 버튼 */
+.profile-form-page__back {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.profile-form-page__title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.profile-form-page__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-10);
+}

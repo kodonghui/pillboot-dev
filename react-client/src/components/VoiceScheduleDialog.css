@@ -1,0 +1,341 @@
+/* 브라우저 <dialog> 기본 모양을 지우고 .mt-dim 막이 화면 전체를 덮게 한다(ConfirmDialog 와 같음).
+   대화 창이 화면보다 길어지면 막 안에서 스크롤한다. */
+.voice-dialog {
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  overflow-y: auto;
+  border: 0;
+}
+
+.voice-dialog:not([open]) {
+  display: none;
+}
+
+.voice-dialog::backdrop {
+  background: transparent;
+}
+
+:root:has(.voice-dialog[open]) {
+  overflow: hidden;
+}
+
+/* 목업 .vd: 최대 560px, 모서리 20px. 그림자 0 30px 80px 은 토큰에 없어 가장 큰 shadow-xlarge 를 쓴다. */
+.voice-dialog__box {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  overflow: hidden;
+  border-radius: var(--radius-3xl);
+  background: var(--background-elevated);
+  box-shadow: var(--shadow-xlarge);
+  color: var(--label-normal);
+}
+
+/* 머리(목업 .vd-hd: 18 18 16 22 → 간격 스케일 16 16 16 20) */
+.voice-dialog__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-14);
+  padding: var(--space-16) var(--space-16) var(--space-16) var(--space-20);
+  border-bottom: 1px solid var(--line-neutral);
+}
+
+.voice-dialog__heading {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.voice-dialog__title {
+  font-weight: 700;
+}
+
+/* 상태 줄(목업 .vd-s): 앞에 8px 점, 색은 상태별 */
+.voice-dialog__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.voice-dialog__status::before {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  content: '';
+}
+
+.voice-dialog__status--primary {
+  color: var(--primary-on-weak);
+}
+
+.voice-dialog__status--caution {
+  color: var(--label-status-cautionary);
+}
+
+.voice-dialog__status--negative {
+  color: var(--label-status-negative);
+}
+
+.voice-dialog__status--idle {
+  color: var(--label-alternative);
+}
+
+/* 남은 시간(목업 .timer 15px 600 → 본문 16px 600) */
+.voice-dialog__timer {
+  color: var(--label-neutral);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.voice-dialog__timer--over {
+  color: var(--label-status-negative);
+}
+
+/* 대화(목업 .vd-body: 18 22 22 → 16 20 20) */
+.voice-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  min-height: 260px;
+  padding: var(--space-16) var(--space-20) var(--space-20);
+  background: var(--background-alternative);
+}
+
+/* 목업 .vd-cap 13px 600 → 라벨 14px */
+.voice-dialog__caption {
+  align-self: center;
+  margin-bottom: var(--space-4);
+  color: var(--label-alternative);
+}
+
+.voice-dialog__message {
+  max-width: 84%;
+  padding: var(--space-10) var(--space-14);
+  border-radius: var(--radius-2xl);
+  overflow-wrap: anywhere;
+}
+
+.voice-dialog__message--ai {
+  align-self: flex-start;
+  border: 1px solid var(--line-neutral);
+  border-top-left-radius: var(--radius-chip);
+  background: var(--background-elevated);
+}
+
+.voice-dialog__message--mine {
+  align-self: flex-end;
+  border-top-right-radius: var(--radius-chip);
+  background: var(--primary-normal);
+  color: var(--static-white);
+}
+
+/* 아직 말하는 중인 내 말(목업 .msg-live) */
+.voice-dialog__message--speaking {
+  border: 1px dashed var(--primary-normal);
+  background: var(--background-elevated);
+  color: var(--label-neutral);
+}
+
+.voice-dialog__dots {
+  display: inline-flex;
+  gap: var(--space-4);
+  margin-left: var(--space-6);
+  vertical-align: middle;
+}
+
+.voice-dialog__dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--primary-normal);
+  animation: voice-dialog-dot 1.2s ease-in-out infinite;
+}
+
+.voice-dialog__dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.voice-dialog__dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes voice-dialog-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* 시간 초과 알림(목업 .sys 14px 700) */
+.voice-dialog__system {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+  padding: var(--space-6) var(--space-14);
+  border: 1px solid var(--line-status-negative);
+  border-radius: var(--radius-full);
+  background: var(--background-status-negative);
+  color: var(--label-status-negative);
+  font-weight: 700;
+}
+
+/* 저장한 일정 카드(목업 .draft: 저장됨은 초록 선) */
+.voice-dialog__card {
+  align-self: stretch;
+  margin-top: var(--space-2);
+  overflow: hidden;
+  border: 1px solid var(--line-status-positive);
+  border-radius: var(--radius-xl);
+  background: var(--background-elevated);
+}
+
+.voice-dialog__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-10) var(--space-14);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+  font-weight: 700;
+}
+
+.voice-dialog__card dl {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--space-2) var(--space-14) var(--space-6);
+}
+
+/* 줄(목업 15px → 본문 16px) */
+.voice-dialog__card dl > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-12);
+  padding: var(--space-8) 0;
+  border-top: 1px solid var(--line-neutral);
+  font-weight: 600;
+}
+
+.voice-dialog__card dl > div:first-child {
+  border-top: 0;
+}
+
+.voice-dialog__card dt {
+  color: var(--label-alternative);
+}
+
+.voice-dialog__card dd {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin: 0;
+}
+
+.voice-dialog__number {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 시작하지 못했거나 끊김(목업 .vd-body 가운데 정렬: 28 28 26 → 28 28 24) */
+.voice-dialog__body--failure {
+  align-items: center;
+  gap: var(--space-12);
+  min-height: 0;
+  padding: var(--space-28) var(--space-28) var(--space-24);
+  text-align: center;
+}
+
+.voice-dialog__failure-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--background-status-negative);
+  color: var(--label-status-negative);
+}
+
+.voice-dialog__failure-icon--caution {
+  background: var(--background-status-cautionary);
+  color: var(--label-status-cautionary);
+}
+
+/* 목업 .err-t 19px 700 → 18px 700 */
+.voice-dialog__failure-title {
+  font-weight: 700;
+}
+
+.voice-dialog__neutral {
+  color: var(--label-neutral);
+}
+
+.voice-dialog__muted {
+  color: var(--label-alternative);
+}
+
+/* 마이크 허용 순서(목업 .steps: 15px → 본문 16px, 번호 원 24px · 13px → 라벨 14px) */
+.voice-dialog__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+  text-align: left;
+}
+
+.voice-dialog__steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-10);
+}
+
+.voice-dialog__step-number {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-full);
+  background: var(--background-elevated);
+  color: var(--label-neutral);
+  font-weight: 700;
+}
+
+/* 아래 줄(목업 .vd-ft: 14 22 18 → 14 20 16) */
+.voice-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  padding: var(--space-14) var(--space-20) var(--space-16);
+  border-top: 1px solid var(--line-neutral);
+}
+
+.voice-dialog__hint {
+  flex: 1 1 220px;
+  color: var(--label-alternative);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-dialog__dots span {
+    animation: none;
+  }
+}

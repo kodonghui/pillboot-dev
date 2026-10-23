@@ -1,0 +1,114 @@
+/* CHT-01 왼쪽 대화방 목록(목업 .pane-l: 안쪽 20px, 너비 340px까지) */
+.chat-list {
+  flex: 1 1 320px;
+  max-width: 340px;
+  padding: var(--space-20);
+}
+
+.chat-list__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.chat-list__label {
+  color: var(--label-neutral);
+}
+
+.chat-list__muted {
+  color: var(--label-alternative);
+}
+
+/* 돌고 있는 아이콘과 문구(목업 CHT-01-02 · CHT-02-01) */
+.chat-list__busy {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  font-weight: 600;
+}
+
+/* 불러오는 중(목업 .ld · .ld-row · .skel) */
+.chat-list__loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-14);
+  padding: var(--space-14);
+}
+
+.chat-list__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-6) 0;
+}
+
+.chat-list__bar {
+  display: block;
+  height: 14px;
+  border-radius: var(--radius-chip);
+  background: var(--line-neutral);
+}
+
+/* 처음 불러오기 실패(목업 .note-dg 세로 12px) */
+.chat-list__failed {
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.chat-list__failed-text {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-10);
+}
+
+.chat-list__action {
+  align-self: flex-start;
+}
+
+/* 대화방(목업 .room) */
+.chat-list__rooms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.chat-list__room {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-12) var(--space-14);
+  border-radius: var(--radius-md);
+  color: var(--label-normal);
+  text-decoration: none;
+}
+
+.chat-list__room:hover {
+  background: var(--background-alternative);
+  color: var(--label-normal);
+}
+
+.chat-list__room[aria-current='page'] {
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+/* 제목은 두 줄까지 */
+.chat-list__title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-weight: 600;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.chat-list__room[aria-current='page'] .chat-list__title {
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .chat-list {
+    max-width: none;
+  }
+}

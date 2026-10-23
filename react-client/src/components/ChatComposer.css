@@ -1,0 +1,40 @@
+/* 목업 .composer 안: 입력칸 · 보내기 한 줄(12px)과 아래 안내(14px) */
+.chat-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-14);
+}
+
+.chat-composer__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+}
+
+.chat-composer__field {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+/* 안내 · 오류는 왼쪽, 글자 수는 오른쪽(목업 .cnt) */
+.chat-composer__meta {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+}
+
+.chat-composer__count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 입력칸 높이(52px)에 맞춘다. */
+.chat-composer__send {
+  flex: none;
+  min-height: 52px;
+}

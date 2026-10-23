@@ -1,0 +1,65 @@
+/* 목업 .steps. 단계 글자 15px 는 맞는 타입 클래스가 없어 본문(screen-body 16px)을 그대로 쓴다. */
+.signup-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.signup-steps li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  color: var(--label-alternative);
+  font-weight: 500;
+}
+
+.signup-steps li + li::before {
+  content: '';
+  width: 40px;
+  height: 1px;
+  background: var(--line-normal);
+}
+
+.signup-steps__number {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-full);
+  background: var(--background-elevated);
+  color: var(--label-alternative);
+  font-weight: 700;
+}
+
+.signup-steps li[aria-current='step'] {
+  color: var(--label-normal);
+  font-weight: 700;
+}
+
+.signup-steps li[aria-current='step'] .signup-steps__number {
+  border-color: var(--primary-normal);
+  background: var(--primary-normal);
+  color: var(--static-white);
+}
+
+.signup-steps__done {
+  color: var(--label-neutral);
+}
+
+.signup-steps .signup-steps__done .signup-steps__number {
+  border-color: var(--primary-weak);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+/* 화면에는 숨기고 화면 읽기에만 읽힌다(목업 .sr). */
+.signup-steps__hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

@@ -1,0 +1,96 @@
+.drug-register {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-28);
+}
+
+/* 뒤로 + 제목 + 누구의 약 목록인지 */
+.drug-register__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.drug-register__back {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.drug-register__who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--label-neutral);
+}
+
+.drug-register__who b {
+  color: var(--label-normal);
+}
+
+.drug-register__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  max-width: 760px;
+}
+
+.drug-register__label {
+  color: var(--label-neutral);
+}
+
+/* 고르는 줄을 담는 카드(목업 style="padding:0"). 디자인 번들의 좁은 화면 .mt-card 18px 이 --flush 를 덮어써서 0 으로 되돌린다. */
+.drug-register__card {
+  padding: 0;
+}
+
+/* 목업 .pick: 한 줄 높이 104px, 위 줄 사이 선 */
+.drug-register__pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-20);
+  min-height: 104px;
+  padding: var(--space-20) var(--space-24);
+  border-top: 1px solid var(--line-neutral);
+  color: var(--label-normal);
+  text-decoration: none;
+}
+
+li:first-child > .drug-register__pick {
+  border-top: 0;
+}
+
+.drug-register__pick:hover {
+  background: var(--background-alternative);
+}
+
+.drug-register__pick-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-xl);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+.drug-register__pick-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* 목업 .pick-t: 18px 700 */
+.drug-register__pick-title {
+  font-weight: 700;
+}
+
+.drug-register__pick-note {
+  color: var(--label-neutral);
+}
+
+.drug-register__go {
+  color: var(--label-alternative);
+}

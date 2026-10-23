@@ -1,0 +1,36 @@
+/* 목업 .cl: 항목 88px | 값 */
+.pill-clues {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-10) var(--space-12);
+  margin: 0;
+}
+
+.pill-clues dt {
+  color: var(--label-alternative);
+}
+
+.pill-clues dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0;
+  font-weight: 600;
+}
+
+/* 목업 IMG-05 왼쪽: 사진 1 · 사진 2 · 두 면 공통 */
+.pill-clues__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.pill-clues__face {
+  color: var(--label-neutral);
+}
+
+.pill-clues__face:not(:first-child) {
+  margin-top: var(--space-4);
+}

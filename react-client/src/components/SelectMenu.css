@@ -1,0 +1,63 @@
+.select-menu {
+  position: relative;
+  max-width: 320px;
+}
+
+.select-menu__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  text-align: left;
+  cursor: pointer;
+}
+
+.select-menu__toggle[aria-expanded='true'] {
+  border-color: var(--primary-normal);
+  box-shadow: 0 0 0 3px var(--primary-weak);
+}
+
+.select-menu__placeholder {
+  color: var(--label-alternative);
+}
+
+/* 목업 .lbx 의 그림자는 헤더 드롭다운(mt-hd__menu)과 같은 값이라 같은 토큰을 쓴다. */
+.select-menu__list {
+  position: absolute;
+  top: calc(100% + var(--space-6));
+  right: 0;
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-8);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-lg);
+  background: var(--background-elevated);
+  box-shadow: var(--shadow-medium);
+}
+
+.select-menu__option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-12);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.select-menu__option:hover {
+  background: var(--background-alternative);
+}
+
+.select-menu__option[aria-pressed='true'] {
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+  font-weight: 700;
+}

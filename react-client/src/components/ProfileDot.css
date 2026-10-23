@@ -1,0 +1,9 @@
+/* 색은 profile-color--번호(profileColors.css)가 정한다. */
+.profile-dot {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--profile-color);
+}

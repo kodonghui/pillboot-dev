@@ -1,0 +1,61 @@
+/* 목업 .auth 의 위 64px · 아래 96px = 본문 틀 여백(40 · 72) + space-24. 좁은 화면 32 · 48 = 24 · 48 + space-8 · 0 */
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-24) 0;
+}
+
+.auth-card {
+  gap: var(--space-28);
+  width: 100%;
+  max-width: 560px;
+}
+
+.auth-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-28);
+}
+
+.auth-card__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+}
+
+.auth-card__actions {
+  display: flex;
+  gap: var(--space-12);
+}
+
+.auth-card__back {
+  min-width: 120px;
+}
+
+.auth-card__primary {
+  flex: 1;
+}
+
+/* 카드 아래 "아직 계정이 없나요? 회원가입" 같은 다른 길 */
+.auth-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding-top: var(--space-20);
+  border-top: 1px solid var(--line-neutral);
+  color: var(--label-neutral);
+}
+
+/* 입력 오류 문구 안의 링크(목업 "로그인하기") */
+.auth-card__link {
+  color: var(--primary-on-weak);
+}
+
+@media (max-width: 720px) {
+  .auth-page {
+    padding: var(--space-8) 0 0;
+  }
+}

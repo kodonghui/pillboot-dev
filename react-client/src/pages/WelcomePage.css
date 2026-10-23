@@ -1,0 +1,147 @@
+/* 목업 Main.dc.html. 위 여백 72px = 본문 틀 40px + space-32 */
+.welcome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-72);
+  padding-top: var(--space-32);
+}
+
+.welcome__hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-56);
+}
+
+.welcome__intro {
+  display: flex;
+  flex: 1 1 520px;
+  flex-direction: column;
+  gap: var(--space-24);
+  max-width: 640px;
+}
+
+/* 목업 18px 보통 굵기 문단. Screen 그룹에 맞는 스타일이 없어 screen-item(18px)의 굵기만 400으로 둔다. */
+.welcome__lead {
+  color: var(--label-neutral);
+  font-weight: 400;
+}
+
+.welcome__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.welcome__muted {
+  color: var(--label-alternative);
+}
+
+.welcome__sub {
+  color: var(--label-neutral);
+}
+
+.welcome__preview {
+  flex: 1 1 420px;
+  gap: var(--space-20);
+  max-width: 520px;
+  margin: 0;
+}
+
+.welcome__preview-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.welcome__preview-label {
+  color: var(--label-neutral);
+}
+
+.welcome__preview-time {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-16);
+}
+
+.welcome__preview-time .screen-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.welcome__preview-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-12) 0;
+  border-top: 1px solid var(--line-neutral);
+}
+
+.welcome__preview-row:first-child {
+  border-top: 0;
+}
+
+.welcome__preview-drug {
+  flex: 1;
+}
+
+.welcome__features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-28);
+}
+
+.welcome__feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-32);
+}
+
+.welcome__feature {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-14);
+  padding-top: var(--space-24);
+  border-top: 1px solid var(--line-normal);
+}
+
+.welcome__feature-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+.welcome__closing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+}
+
+.welcome__cta {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-20);
+  padding: var(--space-28) var(--space-32);
+}
+
+.welcome__cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 목업에는 좁은 화면 규칙이 없어, 세 칸 기능 소개만 한 줄에 하나씩 쌓는다. */
+@media (max-width: 720px) {
+  .welcome__feature-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

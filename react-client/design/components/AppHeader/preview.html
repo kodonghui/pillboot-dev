@@ -1,0 +1,39 @@
+<!-- @dsCard group="Navigation" height=230 subtitle="로그인 후 · 로그인 전, 설정 드롭다운" -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>AppHeader</title>
+<style>
+  body { margin: 0; background: var(--background-normal); font-family: var(--font-sans); }
+  .stack { display: flex; flex-direction: column; gap: var(--space-16); padding-bottom: 110px; }
+  .mt-hd__in { padding: 0 24px; }
+  .ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .anchor { position: relative; }
+  .mt-hd__menu { top: 52px; left: 0; }
+  .mt-hd__who-dot.p2 { background: var(--profile-2); }
+</style>
+</head>
+<body>
+<div class="stack">
+<header class="mt-hd"><div class="mt-hd__in">
+  <a class="mt-hd__logo" href="#"><span class="mt-hd__mark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg></span>필받음</a>
+  <div class="mt-hd__r">
+    <a class="mt-btn mt-btn--ghost" href="#">로그인</a>
+    <a class="mt-btn mt-btn--solid mt-btn--md" href="#">시작하기</a>
+  </div>
+</div></header>
+<header class="mt-hd"><div class="mt-hd__in">
+  <a class="mt-hd__logo" href="#"><span class="mt-hd__mark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg></span>필받음</a>
+  <nav class="mt-hd__nav" aria-label="주 메뉴">
+    <a href="#">홈</a><a href="#" aria-current="page">약 목록</a><a href="#">복용 달력</a><a href="#">챗봇</a>
+    <span class="anchor"><a href="#" aria-haspopup="true" aria-expanded="true" style="height:100%">설정</a>
+      <span class="mt-hd__menu" role="menu"><a href="#" role="menuitem">프로필 관리</a><a href="#" role="menuitem">알림</a></span></span>
+  </nav>
+  <div class="mt-hd__r">
+    <button class="mt-hd__who" type="button" aria-haspopup="true" aria-expanded="false"><span class="mt-hd__who-k">관리할 사람</span><span class="mt-hd__who-dot p2"></span><span class="mt-hd__who-v">엄마</span></button>
+    <span class="mt-hd__nick">하나님</span>
+    <button class="mt-btn mt-btn--assistive mt-btn--md" type="button">로그아웃</button>
+  </div>
+</div></header>
+</div>
+</body>
+</html>

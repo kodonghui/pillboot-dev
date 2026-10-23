@@ -1,0 +1,249 @@
+.drug-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-28);
+}
+
+.drug-detail__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.drug-detail__back {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.drug-detail__title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.drug-detail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+.drug-detail__neutral {
+  color: var(--label-neutral);
+}
+
+.drug-detail__muted {
+  color: var(--label-alternative);
+}
+
+.drug-detail__number {
+  font-variant-numeric: tabular-nums;
+}
+
+.drug-detail__strong {
+  font-weight: 700;
+}
+
+/* 공식 정보(왼쪽 3) · 내 복용정보(오른쪽 2) */
+.drug-detail__columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-24);
+}
+
+.drug-detail__official {
+  flex: 3 1 560px;
+  gap: var(--space-24);
+  min-width: 0;
+  padding: var(--space-28);
+}
+
+.drug-detail__mine {
+  flex: 2 1 360px;
+  gap: var(--space-20);
+  min-width: 0;
+  padding: var(--space-28);
+}
+
+/* 목업 .box-hd */
+.drug-detail__box-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding-bottom: var(--space-16);
+  border-bottom: 1px solid var(--line-neutral);
+}
+
+.drug-detail__box-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+.drug-detail__official-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-28);
+}
+
+.drug-detail__figure {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0;
+}
+
+.drug-detail__guide {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+/* 목업 항목 사이 18px은 간격 스케일에 없어 16px을 쓴다. */
+.drug-detail__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  margin: 0;
+}
+
+.drug-detail__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.drug-detail__section dd {
+  margin: 0;
+}
+
+/* 출처 상자(목업 회색 면, 2열) */
+.drug-detail__source {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-16) var(--space-20);
+  border: 1px solid var(--line-neutral);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+}
+
+.drug-detail__source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-14) var(--space-24);
+  margin: 0;
+}
+
+.drug-detail__source-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.drug-detail__source-grid dd {
+  margin: 0;
+}
+
+/* 목업 .kv: 이름 104px | 값, 줄 사이 선 */
+.drug-detail__kv {
+  margin: 0;
+}
+
+.drug-detail__kv > div {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-16);
+  padding: var(--space-14) 0;
+  border-top: 1px solid var(--line-neutral);
+}
+
+.drug-detail__kv > div:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.drug-detail__kv dt {
+  padding-top: var(--space-2);
+  color: var(--label-neutral);
+}
+
+.drug-detail__kv dd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-6);
+  min-width: 0;
+  margin: 0;
+}
+
+.drug-detail__times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.drug-detail__mine-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+/* 약 삭제 줄 */
+.drug-detail__delete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-20);
+  padding-top: var(--space-24);
+  border-top: 1px solid var(--line-normal);
+}
+
+.drug-detail__delete-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* 삭제 확인창 안의 약 상자 */
+.drug-detail__delete-target {
+  display: flex;
+  align-items: center;
+  gap: var(--space-14);
+  padding: var(--space-14) var(--space-16);
+  border: 1px solid var(--line-neutral);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+}
+
+.drug-detail__delete-target-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.drug-detail__delete-schedule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+@media (max-width: 720px) {
+  .drug-detail__kv > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}

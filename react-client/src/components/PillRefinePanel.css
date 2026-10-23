@@ -1,0 +1,216 @@
+/* 브라우저 <dialog> 기본 모양을 지우고 화면 전체를 덮은 뒤 패널을 오른쪽에 붙인다. */
+.pill-refine {
+  position: fixed;
+  inset: 0;
+  justify-content: flex-end;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.pill-refine[open] {
+  display: flex;
+}
+
+.pill-refine::backdrop {
+  background: var(--material-dimmer);
+}
+
+:root:has(.pill-refine[open]) {
+  overflow: hidden;
+}
+
+/* 목업 .rp(560px). 그림자 -12px 0 40px rgba(23,33,43,.12)는 토큰에 없어 가장 가까운 shadow-large 를 쓴다. */
+.pill-refine__panel {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  height: 100%;
+  border-left: 1px solid var(--line-normal);
+  background: var(--background-elevated);
+  color: var(--label-normal);
+  box-shadow: var(--shadow-large);
+}
+
+.pill-refine__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-16);
+  padding: var(--space-24) var(--space-28) var(--space-16);
+  border-bottom: 1px solid var(--line-neutral);
+}
+
+.pill-refine__title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* 목업 .ibtn */
+.pill-refine__close {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-md);
+  background: var(--background-elevated);
+  color: var(--label-neutral);
+  cursor: pointer;
+}
+
+.pill-refine__close:disabled {
+  cursor: not-allowed;
+}
+
+.pill-refine__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-24);
+  padding: var(--space-24) var(--space-28);
+  overflow-y: auto;
+}
+
+.pill-refine__foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-16) var(--space-28) var(--space-24);
+  border-top: 1px solid var(--line-neutral);
+}
+
+.pill-refine__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-12);
+}
+
+.pill-refine__muted {
+  color: var(--label-alternative);
+}
+
+.pill-refine__neutral {
+  color: var(--label-neutral);
+}
+
+.pill-refine__aside {
+  color: var(--label-alternative);
+  font-weight: 500;
+}
+
+.pill-refine__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.pill-refine__section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-10);
+}
+
+/* 목업 .face */
+.pill-refine__face {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-14) var(--space-16);
+  border: 1px solid var(--line-neutral);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+}
+
+.pill-refine__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+/* 분할선 − · + 의 숨긴 이름이 버튼 안에 머물게 한다. */
+.pill-refine__chips .mt-chip {
+  position: relative;
+}
+
+/* 모양 펼침 칸: 패널 폭을 다 쓴다(목업 .ddw). */
+.pill-refine .select-menu {
+  max-width: none;
+}
+
+.pill-refine__shape {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* 목업 .shp */
+.pill-refine__shape-icon {
+  flex: none;
+  width: 32px;
+  height: 24px;
+  color: var(--label-alternative);
+  opacity: 0.6;
+}
+
+.select-menu__option[aria-pressed='true'] .pill-refine__shape-icon {
+  color: var(--primary-on-weak);
+  opacity: 0.8;
+}
+
+/* 목업 .req: 모두 채우면 초록 상자, 아직이면 회색 상자(목업에 없는 상태) */
+.pill-refine__needs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-14) var(--space-16);
+  border: 1px solid var(--line-neutral);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+  color: var(--label-neutral);
+}
+
+.pill-refine__needs--met {
+  border-color: var(--line-status-positive);
+  background: var(--background-status-positive);
+  color: var(--primary-on-weak);
+}
+
+.pill-refine__needs ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.pill-refine__needs li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.pill-refine__needs li:not(.pill-refine__unmet) .icon {
+  color: var(--primary-on-weak);
+}
+
+.pill-refine__unmet {
+  color: var(--label-alternative);
+}
+
+@media (max-width: 720px) {
+  .pill-refine__head,
+  .pill-refine__body,
+  .pill-refine__foot {
+    padding-right: var(--space-16);
+    padding-left: var(--space-16);
+  }
+}

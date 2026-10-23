@@ -1,0 +1,143 @@
+/* 목업 IMG-05 .cand: 라디오 | 공식 사진 | 이름 영역, 그 아래 비교 표(이름 영역 너비) */
+.pill-candidate {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-10) var(--space-16);
+  padding: var(--space-16);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-lg);
+  background: var(--background-elevated);
+  cursor: pointer;
+}
+
+/* 라디오를 64px 사진의 가운데 높이에 맞춘다(목업 margin-top 21px). */
+.pill-candidate input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: var(--space-20) 0 0;
+  accent-color: var(--primary-normal);
+}
+
+.pill-candidate--checked {
+  border-color: var(--primary-normal);
+  background: var(--primary-weak);
+}
+
+.pill-candidate--checked .pill-candidate__match {
+  background: var(--background-elevated);
+}
+
+/* 미리보기에는 라디오 칸이 없다. */
+.pill-candidate--preview {
+  grid-template-columns: auto minmax(0, 1fr);
+  cursor: default;
+}
+
+/* 라디오 · 사진은 이름 줄과 표 줄에 걸쳐 왼쪽에 둔다. */
+.pill-candidate > input,
+.pill-candidate__spacer,
+.pill-candidate > .drug-thumb {
+  grid-row: span 2;
+}
+
+/* 이미 등록한 약(목업 IMG-04 .cand.off) */
+.pill-candidate--registered {
+  background: var(--background-alternative);
+  color: var(--label-alternative);
+  cursor: not-allowed;
+}
+
+.pill-candidate__spacer {
+  flex: none;
+  width: 22px;
+}
+
+.pill-candidate__body {
+  display: flex;
+  flex-direction: column;
+  grid-column: -2;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.pill-candidate__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+/* 목업 .cand-n 17px 700 → screen-item(18px)에 굵기 700 */
+.pill-candidate__name {
+  font-weight: 700;
+}
+
+.pill-candidate--registered .pill-candidate__name {
+  color: var(--label-alternative);
+  font-weight: 600;
+}
+
+.pill-candidate__muted {
+  color: var(--label-alternative);
+}
+
+.pill-candidate__registered {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+  font-weight: 500;
+}
+
+/* 목업 .mt2: 항목 110px | 내 사진 | 공식 정보 | 결과 */
+.pill-candidate__table {
+  display: grid;
+  grid-column: -2;
+  grid-template-columns: 110px minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-6) var(--space-14);
+  color: var(--label-normal);
+}
+
+.pill-candidate__row {
+  display: contents;
+}
+
+.pill-candidate__th {
+  color: var(--label-alternative);
+}
+
+.pill-candidate__row .pill-candidate__mine {
+  color: var(--label-neutral);
+}
+
+.pill-candidate__none {
+  color: var(--label-alternative);
+}
+
+/* 목업 .m-na: 일치로 세지 않은 항목 */
+.pill-candidate__unknown {
+  border: 1px dashed var(--line-normal);
+  background: var(--background-elevated);
+  color: var(--label-alternative);
+}
+
+/* 좁은 화면: 목업은 내 사진 칸만 숨기지만, 이름 영역 안에서는 공식 정보 칸이 거의 남지 않아 표를 카드 너비로 편다. */
+@media (max-width: 720px) {
+  .pill-candidate > input,
+  .pill-candidate__spacer,
+  .pill-candidate > .drug-thumb {
+    grid-row: auto;
+  }
+
+  .pill-candidate__table {
+    grid-column: 1 / -1;
+    grid-template-columns: 90px minmax(0, 1fr) auto;
+  }
+
+  .pill-candidate__mine {
+    display: none;
+  }
+}

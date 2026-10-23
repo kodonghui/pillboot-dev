@@ -1,0 +1,36 @@
+/* 화면 본문 틀: 최대 1280px, 좌우 48px(좁은 화면 16px). 목업 v2의 .wrap.main */
+.layout-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-28);
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-40) var(--space-48) var(--space-72);
+}
+
+/* 시작 화면(MEM-01) 아래 출처 줄 */
+.layout-footer {
+  border-top: 1px solid var(--line-normal);
+  background: var(--background-elevated);
+  color: var(--label-alternative);
+}
+
+.layout-footer__in {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-16);
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-24) var(--space-48);
+}
+
+@media (max-width: 720px) {
+  .layout-main {
+    padding: var(--space-24) var(--space-16) var(--space-48);
+  }
+
+  .layout-footer__in {
+    padding: var(--space-24) var(--space-16);
+  }
+}

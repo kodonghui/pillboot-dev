@@ -1,0 +1,22 @@
+/* 목업 .two: 시작일 · 종료일 두 칸, 720px 이하에서는 한 줄씩 */
+.period-field__dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-16);
+}
+
+@media (max-width: 720px) {
+  .period-field__dates {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.period-field__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.period-field__days {
+  font-variant-numeric: tabular-nums;
+}

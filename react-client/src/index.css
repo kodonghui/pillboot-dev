@@ -1,0 +1,16 @@
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--background-normal);
+  color: var(--label-normal);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+*, *::before, *::after { box-sizing: border-box; }
+h1, h2, h3, p, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+button, input { font: inherit; color: inherit; }
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: var(--space-2);
+}

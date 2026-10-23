@@ -1,0 +1,9 @@
+/* 감싸는 상자에 position 이 없으면 페이지 폭을 넓힐 수 있으니, 가로 스크롤 상자 안에서는 상자에 position 을 준다. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

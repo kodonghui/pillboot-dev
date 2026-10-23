@@ -1,0 +1,172 @@
+/* 목업 CMN-01 머리: 인사와 날짜 사이 6px */
+.home-page__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.home-page__neutral {
+  color: var(--label-neutral);
+}
+
+.home-page__muted {
+  color: var(--label-alternative);
+}
+
+/* 오늘 먹을 약(넓게)과 할 일(380px)을 한 줄에 두고, 좁으면 할 일이 아래로 내려간다. */
+.home-page__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-24);
+}
+
+/* 오늘 먹을 약 카드(목업 style="padding:0"): 머리 · 시각 줄 · 달력 바로가기를 사이 없이 선으로 잇는다.
+   padding: 디자인 번들의 좁은 화면 .mt-card 18px 이 --flush 를 덮어써서 0 으로 되돌린다. */
+.home-page__today {
+  flex: 999 1 560px;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+/* 목업 위아래 22px은 간격 스케일에 없어 20px. */
+.home-page__today-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-20) var(--space-28);
+  border-bottom: 1px solid var(--line-neutral);
+}
+
+/* 목업 .slot: 시각 · 개수 · 사람별 개수(왼쪽)와 "약 보기"(오른쪽) */
+.home-page__slot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-24);
+  padding: var(--space-28);
+  border-top: 1px solid var(--line-neutral);
+}
+
+.home-page__slot:first-child {
+  border-top: 0;
+}
+
+.home-page__slot-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-14);
+  min-width: 0;
+}
+
+.home-page__slot-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-16);
+}
+
+.home-page__time {
+  font-variant-numeric: tabular-nums;
+}
+
+.home-page__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+/* 불러오는 중 · 불러오지 못함 · 약 없음(목업에 없음). 시각 줄과 같은 안쪽 여백을 둔다. */
+.home-page__state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-28);
+}
+
+.home-page__state > .mt-notice {
+  flex: 1;
+}
+
+/* 목업: 위아래 4px, 위 선 */
+.home-page__today-foot {
+  padding: var(--space-4) var(--space-28);
+  border-top: 1px solid var(--line-neutral);
+}
+
+/* 할 일 카드(목업 380px, 최대 440px). 머리와 목록 사이 8px */
+.home-page__todo {
+  flex: 1 1 380px;
+  gap: var(--space-8);
+  max-width: 440px;
+}
+
+.home-page__todo-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 목업 .sc-list: 바로가기 사이 선 */
+.home-page__shortcuts > li {
+  border-top: 1px solid var(--line-neutral);
+}
+
+.home-page__shortcuts > li:first-child {
+  border-top: 0;
+}
+
+/* 목업 .sc: 아이콘 · 제목 · 설명 한 줄(높이 72px 이상) */
+.home-page__shortcut {
+  display: flex;
+  align-items: center;
+  gap: var(--space-14);
+  min-height: 72px;
+  padding: var(--space-12) 0;
+  color: var(--label-normal);
+  text-decoration: none;
+}
+
+.home-page__shortcut:hover {
+  color: var(--primary-on-weak);
+}
+
+/* 목업 .sc-ic: 40px, 둥근 10px */
+.home-page__shortcut-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+/* 목업 .sc-t 17px 600은 타입 스케일에 없어 screen-item(18px 600)을 쓴다. */
+.home-page__shortcut-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.home-page__chevron {
+  flex: none;
+  margin-left: auto;
+}
+
+/* 좁은 화면(목업): 시각 줄 안쪽 20px, 넘치면 "약 보기"를 아래로 내린다. */
+@media (max-width: 720px) {
+  .home-page__slot {
+    flex-wrap: wrap;
+    padding: var(--space-20);
+  }
+
+  .home-page__state {
+    padding: var(--space-20);
+  }
+}

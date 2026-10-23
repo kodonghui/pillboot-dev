@@ -1,0 +1,36 @@
+<!-- @dsCard group="Selection" height=150 subtitle="선택 버튼 · 기본 48px · 작은 44px" -->
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>Chip</title>
+<style>
+  body { margin: 0; padding: var(--space-16); background: var(--background-normal); font-family: var(--font-sans); }
+  .grid { display: flex; flex-direction: column; gap: var(--space-12); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="row" role="group" aria-label="누구의 프로필">
+    <button class="mt-chip" type="button" aria-pressed="true">본인</button>
+    <button class="mt-chip" type="button" aria-pressed="false">가족</button>
+  </div>
+  <div class="row" role="group" aria-label="복용 때">
+    <button class="mt-chip mt-chip--sm" type="button" aria-pressed="false">식전</button>
+    <button class="mt-chip mt-chip--sm" type="button" aria-pressed="true">식후 30분</button>
+    <button class="mt-chip mt-chip--sm" type="button" aria-pressed="false">식후 바로</button>
+    <button class="mt-chip mt-chip--sm" type="button" aria-pressed="false">자기 전</button>
+    <button class="mt-chip mt-chip--sm" type="button" disabled>60일</button>
+  </div>
+</div>
+<script>
+  document.querySelectorAll('.row').forEach(function (row) {
+    row.addEventListener('click', function (e) {
+      var chip = e.target.closest('.mt-chip');
+      if (!chip || chip.disabled) return;
+      row.querySelectorAll('.mt-chip').forEach(function (c) { if (!c.disabled) c.setAttribute('aria-pressed', 'false'); });
+      chip.setAttribute('aria-pressed', 'true');
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+.timing-field__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.timing-field__count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.timing-field__words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}

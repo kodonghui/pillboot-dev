@@ -1,0 +1,124 @@
+/* 답변 본문. 서버가 저장한 줄바꿈을 그대로 보여 준다. */
+.chat-answer__text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.chat-answer__muted {
+  color: var(--label-alternative);
+}
+
+/* 금기 정보 카드(목업 .note 를 세로로 쌓은 카드, 안쪽 18px은 토큰에 없어 16px) */
+.chat-answer__dur {
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-16);
+}
+
+/* 목업 .dur-t: 아이콘 · 제목 · 종류 배지 */
+.chat-answer__dur-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+.chat-answer__dur-names {
+  color: var(--label-normal);
+}
+
+/* 색 카드 위의 종류 배지(목업 .on-dg · .on-wn) */
+.chat-answer__dur-badge--negative {
+  border: 1px solid var(--line-status-negative);
+  background: var(--background-elevated);
+  color: var(--label-status-negative);
+}
+
+.chat-answer__dur-badge--caution {
+  border: 1px solid var(--line-status-cautionary);
+  background: var(--background-elevated);
+  color: var(--label-status-cautionary);
+}
+
+/* 일부 약 확인 못 함 · 경고 없음 안내의 두 줄(목업 .dur-b 6px) */
+.chat-answer__note {
+  gap: var(--space-6);
+}
+
+/* 근거(목업 .evd: 위 선 아래 12px) */
+.chat-answer__evidence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--line-neutral);
+}
+
+/* 근거 보기 · 접기는 왼쪽 끝에 붙인다(목업 padding-left 0). */
+.chat-answer__toggle {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.chat-answer__broken {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+}
+
+.chat-answer__broken .icon {
+  margin-top: var(--space-2);
+}
+
+/* 근거 목록(목업 .evl · .evr) */
+.chat-answer__sources {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line-neutral);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+}
+
+.chat-answer__source {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-14) var(--space-16);
+  border-top: 1px solid var(--line-neutral);
+}
+
+.chat-answer__source:first-child {
+  border-top: 0;
+}
+
+/* 확인하지 못한 근거(목업 .evr.na: 흰 바탕, 점선) */
+.chat-answer__source--missing {
+  border-top-style: dashed;
+  border-top-color: var(--line-normal);
+  background: var(--background-elevated);
+}
+
+.chat-answer__source-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.chat-answer__source-name {
+  color: var(--label-normal);
+  font-weight: 700;
+}
+
+/* 출처와 날짜(목업 .evr-m) */
+.chat-answer__source-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-14);
+  color: var(--label-alternative);
+}
+
+.chat-answer__cancelled {
+  color: var(--label-status-negative);
+}

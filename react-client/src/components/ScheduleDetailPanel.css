@@ -1,0 +1,182 @@
+/* 목업 .dpanel: 달력 오른쪽 340px 패널. 1000px 이하에서는 달력 아래로 내려가 폭을 다 쓴다.
+   그림자 -12px 0 32px rgba(23,33,43,.10)는 토큰에 없어 가장 가까운 shadow-large 를 쓴다. */
+.schedule-panel {
+  flex: 1 1 340px;
+  gap: var(--space-20);
+  max-width: 340px;
+  box-shadow: var(--shadow-large);
+  animation: schedule-panel-in 0.28s ease-out;
+}
+
+@keyframes schedule-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--space-32));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 달력 아래로 내려오면 폭을 다 쓰므로 옆에서 밀려 들어오면 화면이 잠깐 가로로 넘친다. 아래에서 올라오게 한다. */
+@keyframes schedule-panel-up {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-16));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 1000px) {
+  .schedule-panel {
+    max-width: none;
+    animation-name: schedule-panel-up;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-panel {
+    animation: none;
+  }
+}
+
+.schedule-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.schedule-panel__title:focus {
+  outline: none;
+}
+
+.schedule-panel__muted {
+  color: var(--label-alternative);
+}
+
+.schedule-panel__neutral {
+  color: var(--label-neutral);
+}
+
+.schedule-panel__strong {
+  font-weight: 700;
+}
+
+.schedule-panel__number {
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-panel__drug {
+  display: flex;
+  align-items: center;
+  gap: var(--space-14);
+}
+
+.schedule-panel__name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* 목업 .kv: 이름(왼쪽)과 값(오른쪽), 줄마다 아래 선 */
+.schedule-panel__kv {
+  margin: 0;
+  border-top: 1px solid var(--line-neutral);
+}
+
+.schedule-panel__kv > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  min-height: 52px;
+  padding: var(--space-10) 0;
+  border-bottom: 1px solid var(--line-neutral);
+}
+
+.schedule-panel__kv dt {
+  color: var(--label-alternative);
+  white-space: nowrap;
+}
+
+.schedule-panel__kv dd {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-6);
+  margin: 0;
+  font-weight: 500;
+  text-align: right;
+}
+
+.schedule-panel__kv dd.schedule-panel__strong {
+  font-weight: 700;
+}
+
+.schedule-panel__act {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+/* 목업 .act-grp: 위 선 아래 버튼 묶음. 사이 18px은 간격 스케일에 없어 16px을 쓴다. */
+.schedule-panel__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding-top: var(--space-20);
+  border-top: 1px solid var(--line-normal);
+}
+
+/* 지워진 일정(목업 SCH-05 not-found) */
+.schedule-panel__missing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-12);
+  padding: var(--space-8) 0;
+}
+
+.schedule-panel__missing-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--background-status-cautionary);
+  color: var(--label-status-cautionary);
+}
+
+/* 삭제 확인창의 일정 요약(목업 .dsum) */
+.schedule-panel__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-14) var(--space-16);
+  border: 1px solid var(--line-neutral);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+}
+
+.schedule-panel__summary-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.schedule-panel__times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}

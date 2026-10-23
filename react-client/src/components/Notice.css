@@ -1,0 +1,13 @@
+/* 버튼이 있는 안내 줄(목업 홈 "알림 켜기"): 글자와 버튼을 한 줄에 두고, 좁으면 버튼이 아래로 내려간다. */
+.notice--with-action {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.notice--with-action .mt-notice__icon {
+  margin-top: 0;
+}
+
+.notice--with-action .mt-notice__text {
+  flex: 1 1 320px;
+}

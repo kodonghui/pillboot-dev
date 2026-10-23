@@ -1,0 +1,169 @@
+.drugs-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-28);
+}
+
+/* 제목 묶음(왼쪽)과 "약 등록"(오른쪽) */
+.drugs-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-20);
+}
+
+.drugs-page__title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.drugs-page__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+.drugs-page__lead {
+  color: var(--label-neutral);
+}
+
+.drugs-page__muted {
+  color: var(--label-alternative);
+}
+
+/* 목업 MED-01 비어 있음 */
+.drugs-page__empty {
+  align-items: center;
+  padding: var(--space-72) var(--space-24);
+  text-align: center;
+}
+
+.drugs-page__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+.drugs-page__empty-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 520px;
+}
+
+.drugs-page__empty-action {
+  margin-top: var(--space-8);
+}
+
+/* 표 카드(목업 style="padding:0"). 디자인 번들의 좁은 화면 .mt-card 18px 이 --flush 를 덮어써서 0 으로 되돌린다. */
+.drugs-page__card {
+  padding: 0;
+}
+
+/* 목업 .tbl. position 은 화면 읽기 전용 글자가 상자 밖으로 새지 않게 한다. */
+.drugs-page__scroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+.drugs-page__table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+}
+
+.drugs-page__table th {
+  padding: var(--space-14) var(--space-16);
+  border-bottom: 1px solid var(--line-normal);
+  background: var(--background-alternative);
+  color: var(--label-alternative);
+  text-align: left;
+}
+
+/* 목업 위아래 18px은 간격 스케일에 없어 프로필 표와 같은 16px을 쓴다. */
+.drugs-page__table td {
+  padding: var(--space-16);
+  border-top: 1px solid var(--line-neutral);
+  vertical-align: middle;
+}
+
+.drugs-page__table tr:first-child td {
+  border-top: 0;
+}
+
+.drugs-page__col-drug {
+  width: 46%;
+}
+
+.drugs-page__col-source {
+  width: 20%;
+}
+
+.drugs-page__drug {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+}
+
+.drugs-page__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.drugs-page__name-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* 목업 .dname: 18px 700 */
+.drugs-page__name {
+  color: var(--label-normal);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.drugs-page__name:hover {
+  color: var(--primary-on-weak);
+  text-decoration: underline;
+}
+
+.drugs-page__schedule {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.drugs-page__times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.drugs-page__time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 목업 .dose 15px 600. 타입 스케일에 15px이 없어 본문(16px)에 굵기만 올린다. */
+.drugs-page__dose {
+  color: var(--label-normal);
+  font-weight: 600;
+}
+
+.drugs-page__no-schedule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}

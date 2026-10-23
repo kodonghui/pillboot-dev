@@ -1,0 +1,83 @@
+/* 일정 추가 · 수정 공통 틀(목업 SCH-03 · 06) */
+
+/* 머리: 돌아가기 링크 아래 제목 · 설명(사이 4px, 제목과 설명 사이 10px) */
+.schedule-form-page__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.schedule-form-page__back {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.schedule-form-page__title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.schedule-form-page__lead {
+  color: var(--label-neutral);
+}
+
+/* 입력 묶음: 최대 760px, 사이 20px */
+.schedule-form-page__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  width: 100%;
+  max-width: 760px;
+}
+
+.schedule-form-page__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.schedule-form-page__foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-12);
+}
+
+/* 수정: 바꿀 수 없는 약 · 프로필(목업 .fixed) */
+.schedule-form-page__fixed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-16);
+}
+
+.schedule-form-page__fixed dl {
+  display: flex;
+  flex: 1 1 300px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-12) var(--space-40);
+  margin: 0;
+}
+
+.schedule-form-page__fixed dl > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.schedule-form-page__fixed dt {
+  color: var(--label-alternative);
+}
+
+.schedule-form-page__fixed dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.schedule-form-page__fixed .schedule-form-page__maker {
+  color: var(--label-alternative);
+  font-weight: 400;
+}

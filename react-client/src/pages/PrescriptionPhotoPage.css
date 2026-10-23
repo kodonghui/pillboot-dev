@@ -1,0 +1,265 @@
+.prescription-photo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-28);
+}
+
+.prescription-photo__neutral {
+  color: var(--label-neutral);
+}
+
+.prescription-photo__muted {
+  color: var(--label-alternative);
+}
+
+.prescription-photo__number {
+  font-variant-numeric: tabular-nums;
+}
+
+.prescription-photo__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* IMG-01 · 03 본문(목업 최대 760px) */
+.prescription-photo__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  max-width: 760px;
+}
+
+.prescription-photo__drop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.prescription-photo__error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.prescription-photo__rejected {
+  padding-left: var(--space-24);
+}
+
+.prescription-photo__picked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.prescription-photo__picked-card {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-20);
+  padding: var(--space-16) var(--space-20);
+}
+
+.prescription-photo__preview {
+  width: 144px;
+  height: 108px;
+}
+
+.prescription-photo__file {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.prescription-photo__file-name {
+  font-weight: 600;
+}
+
+/* IMG-06 상자 안 읽은 이름 */
+.prescription-photo__names {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-weight: 600;
+}
+
+/* IMG-04 요약 줄 */
+.prescription-photo__top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.prescription-photo__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) var(--space-12);
+}
+
+.prescription-photo__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+/* 목업 .grp: 왼쪽 읽은 이름 | 오른쪽 후보 */
+.prescription-photo__group {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-16) var(--space-32);
+  padding: var(--space-24) var(--space-28);
+}
+
+.prescription-photo__group--unknown {
+  border-color: var(--line-status-cautionary);
+}
+
+.prescription-photo__read {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+  max-width: 280px;
+}
+
+.prescription-photo__choices {
+  flex: 999 1 520px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.prescription-photo__choices legend {
+  padding: 0;
+}
+
+.prescription-photo__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-8);
+  margin-top: var(--space-10);
+}
+
+/* 목업 .cand */
+.prescription-photo__cand {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-14);
+  min-height: 64px;
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-lg);
+  background: var(--background-elevated);
+  cursor: pointer;
+}
+
+.prescription-photo__cand input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: var(--space-2) 0 0;
+  accent-color: var(--primary-normal);
+}
+
+.prescription-photo__cand--checked {
+  border-color: var(--primary-normal);
+  background: var(--primary-weak);
+}
+
+.prescription-photo__cand--registered {
+  background: var(--background-alternative);
+  color: var(--label-alternative);
+  cursor: not-allowed;
+}
+
+.prescription-photo__spacer {
+  flex: none;
+  width: 22px;
+}
+
+.prescription-photo__cand-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.prescription-photo__cand-name {
+  font-weight: 700;
+}
+
+.prescription-photo__cand--registered .prescription-photo__cand-name {
+  color: var(--label-alternative);
+  font-weight: 600;
+}
+
+.prescription-photo__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-16);
+  color: var(--label-alternative);
+}
+
+.prescription-photo__registered {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+  font-weight: 500;
+}
+
+/* "이 중에 없음": 라디오 줄 아래 이름 고쳐 검색 · 다시 찍기 */
+.prescription-photo__cand--none {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  cursor: default;
+}
+
+.prescription-photo__none {
+  display: flex;
+  align-items: center;
+  gap: var(--space-14);
+  cursor: pointer;
+}
+
+.prescription-photo__none input {
+  margin-top: 0;
+}
+
+.prescription-photo__none-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin-top: var(--space-10);
+}
+
+/* 후보를 못 찾은 이름 */
+.prescription-photo__unknown {
+  display: flex;
+  flex: 999 1 520px;
+  flex-direction: column;
+  gap: var(--space-10);
+  min-width: 0;
+}
+
+.prescription-photo__note {
+  margin-top: var(--space-12);
+}
+
+@media (max-width: 720px) {
+  .prescription-photo__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .prescription-photo__group {
+    padding: var(--space-16);
+  }
+}

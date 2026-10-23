@@ -1,0 +1,85 @@
+/* 목업 .panel.form: 요소 사이 28px. 안쪽 여백은 디자인 시스템 mt-card--wide(28px)를 쓴다(목업 32px). */
+.profile-form {
+  gap: var(--space-28);
+}
+
+.profile-form__name {
+  max-width: 420px;
+}
+
+/* 이름 오류(왼쪽)와 글자 수(오른쪽)를 한 줄에 둔다(목업 .frow · .cnt). */
+.profile-form__name-help {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+  max-width: 420px;
+}
+
+.profile-form__count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.profile-form__year {
+  max-width: 200px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 입력칸 + 단위 글자(년 · cm · kg) */
+.profile-form__unit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+.profile-form__unit .mt-input {
+  min-width: 0;
+}
+
+.profile-form__unit-label {
+  flex: none;
+  color: var(--label-neutral);
+  white-space: nowrap;
+}
+
+.profile-form__group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.profile-form__legend {
+  margin-bottom: var(--space-8);
+  padding: 0;
+}
+
+.profile-form__body-size {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-16);
+}
+
+.profile-form__body-field {
+  flex: 0 1 220px;
+}
+
+.profile-form__sub-label {
+  font-weight: 500;
+}
+
+.profile-form__group > .mt-field__help {
+  margin-top: var(--space-8);
+}
+
+/* 목업 .form-ft: 위 선 + 버튼 줄 */
+.profile-form__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+  padding-top: var(--space-24);
+  border-top: 1px solid var(--line-neutral);
+}
