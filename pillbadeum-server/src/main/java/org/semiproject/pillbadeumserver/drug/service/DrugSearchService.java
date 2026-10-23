@@ -5,6 +5,7 @@ import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.dto.DrugSearchResponse;
+import org.semiproject.pillbadeumserver.image.service.PillCatalog;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,13 +49,15 @@ public class DrugSearchService {
     private final PublicDataClient publicDataClient;
     private final MyDrugRepository myDrugRepository;
     private final ProfileAccessChecker profileAccessChecker;
+    private final PillCatalog catalog;
 
     public DrugSearchService(PublicDataClient publicDataClient,
                              MyDrugRepository myDrugRepository,
-                             ProfileAccessChecker profileAccessChecker) {
+                             ProfileAccessChecker profileAccessChecker, PillCatalog catalog) {
         this.publicDataClient = publicDataClient;
         this.myDrugRepository = myDrugRepository;
         this.profileAccessChecker = profileAccessChecker;
+        this.catalog = catalog;
     }
 
     /* 목차. 1. 프로필 기준 검색 (화면의 '약 등록 › 이름 검색') */
@@ -90,7 +94,24 @@ public class DrugSearchService {
                 .filter(item -> item.itemSeq() != null)  // 품목기준코드가 없으면 고를 수 없으므로 제외
                 .toList();
 
-        return new PageImpl<>(content, page, PublicDataClient.totalCount(body));
+        return new PageImpl<>(withCachedImages(content), page, PublicDataClient.totalCount(body));
+    }
+
+    /** 품목코드가 같은 공식 카탈로그의 사진만 보강함. 추가 HTTP·DB 쓰기·식별 자료 준비 대기는 없음. */
+    private List<DrugSearchResponse> withCachedImages(List<DrugSearchResponse> content) {
+        var missing = new HashSet<String>();
+        content.stream().filter(item -> item.imageUrl() == null || item.imageUrl().isBlank())
+                .forEach(item -> missing.add(item.itemSeq()));
+        if (missing.isEmpty()) return content;
+        var images = new HashMap<String, String>();
+        for (var row : catalog.cachedRows()) {
+            String code = text(row, "ITEM_SEQ");
+            if (!missing.contains(code)) continue;
+            String image = text(row, "ITEM_IMAGE");
+            if (image != null && !image.isBlank()) images.putIfAbsent(code, image);
+        }
+        return content.stream().map(item -> DrugSearchResponse.of(item.itemSeq(), item.name(), item.maker(),
+                missing.contains(item.itemSeq()) ? images.get(item.itemSeq()) : item.imageUrl(), item.registered())).toList();
     }
 
     /** REG-003 보조 경로도 함량 대조를 공유함. 일반 이름 검색의 페이지네이션은 변경하지 않음. */
