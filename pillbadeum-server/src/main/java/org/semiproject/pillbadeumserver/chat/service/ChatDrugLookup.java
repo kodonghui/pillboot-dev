@@ -171,7 +171,9 @@ public class ChatDrugLookup {
         var codes = oldSources.stream().filter(s -> s.source()==AnswerSource.Type.PERMIT).map(AnswerSource::itemSeq).distinct().toList();
         if (codes.isEmpty()) return Resolution.none();
         if (codes.size()>2) return new Resolution(List.of(),"어느 제품을 말씀하시는지 정확한 약 이름을 알려주세요.",List.of());
-        return continued(codes.stream().map(code -> byCode(code,input,deadline)).toList(),input);
+        var medications = codes.stream().map(code -> byCode(code,input,deadline)).toList();
+        return ChatQuestionPurpose.formatting(input.question()) ? continued(medications,input)
+                : new Resolution(medications,null,List.of());
     }
 
     private Resolution continued(List<AnswerInput.Medication> medications, AnswerInput input) {

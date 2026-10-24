@@ -166,7 +166,8 @@ class ChatLookupReviewTests {
             verify(official).collect(argThat(m -> m.stream().map(AnswerInput.Medication::itemSeq).toList().equals(List.of(A, B))),
                     any(ChatDeadline.class), anyString());
             verify(dur).collect(argThat(value -> value.medications().stream().map(AnswerInput.Medication::itemSeq).toList().containsAll(List.of(A, B))
-                    && ChatQuestionPurpose.coadministration(value.question())), any(ChatDeadline.class));
+                    && value.question().equals(input.question()) && ChatQuestionPurpose.coadministration(value.question())), any(ChatDeadline.class));
+            verify(ai).createTextResult(anyString(), argThat(messages -> messages.getLast().content().equals(input.question())), anyInt());
         }
     }
 
