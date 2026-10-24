@@ -105,14 +105,13 @@ public class DurEvaluator {
                 List.copyOf(warnings.values()), message), List.copyOf(provenance));
     }
 
-    /** 단순 기록 확인·서식 요청에는 정상 조회 안내를 반복하지 않음. 경고·미확인은 질문과 무관하게 유지함. */
+    /** 정상 무경고 결과는 DUR·병용 질문에만 안내함. 실제 경고·미확인은 질문과 무관하게 유지함. */
     public boolean needsExplanation(AnswerInput input, DurNotice notice) {
         if ("NO_DRUG".equals(notice.lookup())) return false;
         if (!"ALL".equals(notice.lookup()) || !"NONE".equals(notice.result()) || !notice.items().isEmpty()) return true;
         if (ChatQuestionPurpose.recordOnly(input.question())) return false;
         String question = input.question().replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
-        return List.of("병용", "상호작용", "금기", "부작용", "안전", "위험", "주의사항", "용량", "임신", "임부", "임산부", "수유",
-                "먹어도", "복용해도", "괜찮", "알레르기", "과량", "과다", "몇알", "몇정", "분할", "중단")
+        return List.of("dur", "병용", "상호작용", "금기")
                 .stream().anyMatch(question::contains) || ChatQuestionPurpose.coadministration(input.question());
     }
 

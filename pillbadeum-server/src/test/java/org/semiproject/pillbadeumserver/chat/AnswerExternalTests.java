@@ -112,7 +112,8 @@ class AnswerExternalTests {
         assertThat(sent.get().path("instructions").asString()).contains("진단·처방·용량 변경·복용 중단", "UNKNOWN", "FAILED·PARTIAL");
         assertThat(sent.get().path("input").toString()).contains(PRIVATE, "synthetic permit facts").doesNotContain("<DOC>", "<p>");
         assertThat(result.responseId()).isEqualTo("resp-fixture");
-        assertThat(result.content()).doesNotContain("fabricated").contains("지금은 금기 정보를 확인하지 못했어요");
+        assertThat(result.content()).doesNotContain("fabricated", "DUR 확인:");
+        assertThat(result.durNotice().message()).contains("지금은 금기 정보를 확인하지 못했어요");
         var provenance = sources.sources(result.content());
         assertThat(provenance).hasSize(4).extracting(AnswerSource::source)
                 .containsExactly(AnswerSource.Type.EASY_DRUG, AnswerSource.Type.PERMIT, AnswerSource.Type.USER_INPUT, AnswerSource.Type.DUR);

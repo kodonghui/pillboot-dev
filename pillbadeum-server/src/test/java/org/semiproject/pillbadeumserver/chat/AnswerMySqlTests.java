@@ -308,12 +308,16 @@ class AnswerMySqlTests {
     }
 
     @Test
-    void repeatedGeneralGuidanceRetainsAFailedDurCheckAndBodyWarning() throws Exception {
+    void repeatedGeneralGuidanceStoresAFailedDurCardWithoutDuplicatingItsWarningInTheBody() throws Exception {
         pair(sessionId, 1, "legacy-user", "legacy-answer");
         var result = body(send(sessionId, "알림 설정은 어디에 있어?", 200));
         assertThat(result.path("answer").path("durNotice").path("lookup").asString()).isEqualTo("FAILED");
         assertThat(background(requests.getFirst()).path("dur").path("lookup").asString()).isEqualTo("FAILED");
-        assertThat(result.path("answer").path("content").asString()).contains("DUR 확인:", "금기가 없다는 뜻은 아니니");
+        assertThat(result.path("answer").path("content").asString()).doesNotContain("DUR 확인:", "금기가 없다는 뜻은 아니니");
+        assertThat(result.path("answer").path("durNotice").path("message").asString()).contains("금기가 없다는 뜻은 아니니");
+        var saved = JSON.readTree(jdbc.queryForObject("SELECT CAST(dur_notice AS CHAR) FROM chat_message WHERE message_id=?",
+                String.class, result.path("answer").path("messageId").asLong()));
+        assertThat(saved).isEqualTo(result.path("answer").path("durNotice"));
     }
 
     @Test
@@ -480,7 +484,7 @@ class AnswerMySqlTests {
         assertThat(notice.path("checkedCount").asInt()).isEqualTo(2);
         assertThat(notice.path("items").toString()).contains("합성등록약정", "다른합성약정", "synthetic pair warning");
         assertThat(notice.path("items").path(0).path("type").asString()).isEqualTo("INTERACTION");
-        assertThat(result.path("answer").path("content").asString()).contains("병용금기 ·");
+        assertThat(result.path("answer").path("content").asString()).doesNotContain("DUR 확인:", "병용금기 ·");
         assertThat(publicCodes).containsOnly(drugCode);
         assertThat(durCodes).contains(drugCode, partner);
         assertThat(background(requests.getFirst()).path("dur").path("result").asString()).isEqualTo("FOUND");
@@ -515,7 +519,8 @@ class AnswerMySqlTests {
                 "PROHBT_CONTENT", "synthetic pregnancy caution", "INGR_NAME", "fixture", "CHANGE_DATE", "20261017")));
         var result = body(send(sessionId, "복약 질문", 200));
         assertThat(result.path("answer").path("durNotice").path("result").asString()).isEqualTo("FOUND");
-        assertThat(result.path("answer").path("content").asString()).contains("임신 중이라면 주의가 필요해요");
+        assertThat(result.path("answer").path("durNotice").path("items").toString()).contains("임신 중이라면 주의가 필요해요");
+        assertThat(result.path("answer").path("content").asString()).doesNotContain("DUR 확인:");
         assertThat(room().get("snap_pregnant")).isNull();
         assertThat(jdbc.queryForObject("SELECT profile_pregnant FROM profile WHERE profile_id=?", Boolean.class, profileId)).isTrue();
         assertThat(jdbc.queryForObject("SELECT type FROM dur_warning WHERE item_seq=?", String.class, drugCode)).isEqualTo("임부");
@@ -549,7 +554,8 @@ class AnswerMySqlTests {
         durRows(drugCode, DurLookup.Type.INTERACTION, List.of(Map.of("ITEM_SEQ", drugCode,
                 "MIXTURE_ITEM_SEQ", partner, "PROHBT_CONTENT", longContent)));
         var result = body(send(sessionId, "같이 먹어도 돼?", 200));
-        assertThat(result.path("answer").path("content").asString()).contains(longContent);
+        assertThat(result.path("answer").path("durNotice").path("items").path(0).path("content").asString()).isEqualTo(longContent);
+        assertThat(result.path("answer").path("content").asString()).doesNotContain(longContent);
         assertThat(jdbc.queryForObject("SELECT content FROM dur_interaction WHERE item_seq2=?", String.class, drugCode)).isEqualTo("old short cache");
     }
 

@@ -282,7 +282,8 @@ class ChatFlowHttpTests {
         assertThat(first.path("answer").path("durNotice").isNull()).isTrue();
         var second = question(session, "이 약의 금기는?", 200);
         var answer = second.path("answer");
-        assertThat(answer.path("content").asString()).contains("지금은 공식 정보를 확인하지 못해", "금기가 없다는 뜻은 아니니");
+        assertThat(answer.path("content").asString()).contains("지금은 공식 정보를 확인하지 못해").doesNotContain("DUR 확인:");
+        assertThat(answer.path("durNotice").path("message").asString()).contains("금기가 없다는 뜻은 아니니");
         assertThat(answer.path("durNotice").path("lookup").asString()).isEqualTo("FAILED");
         assertThat(answer.path("durNotice").path("result").isNull()).isTrue();
         var sources = JSON.readTree(answer.path("content").asString().split("@@SOURCES@@", 2)[1].strip());
