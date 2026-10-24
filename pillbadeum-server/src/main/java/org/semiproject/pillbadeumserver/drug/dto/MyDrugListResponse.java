@@ -55,8 +55,14 @@ public record MyDrugListResponse(
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
     public static MyDrugListResponse from(MyDrug myDrug) {
+        return from(myDrug, null);
+    }
+
+    public static MyDrugListResponse from(MyDrug myDrug, String fallbackImage) {
 
         Drug drug = myDrug.getDrug();
+        String image = drug == null ? null : drug.getImageUrl();
+        if (drug != null && (image == null || image.isBlank())) image = fallbackImage;
         List<String> doseTimes = myDrug.getDoseTimes().stream()
                 .map(TIME_FORMAT::format)
                 .toList();
@@ -66,7 +72,7 @@ public record MyDrugListResponse(
                 drug == null ? null : drug.getItemSeq(),
                 drug == null ? myDrug.getCustomName() : drug.getName(),
                 drug == null ? null : drug.getMaker(),
-                drug == null ? null : drug.getImageUrl(),
+                image,
                 drug == null ? null : drug.getEtcOtc(),
                 myDrug.getConfirmedDosePerTime(),
                 myDrug.getTiming(),

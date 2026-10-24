@@ -10,6 +10,7 @@ import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
 import org.semiproject.pillbadeumserver.image.domain.PhotoDrugSelectionRequest;
 import org.semiproject.pillbadeumserver.image.service.SelectedImageRegistrationService;
+import org.semiproject.pillbadeumserver.image.service.PillCatalog;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -42,17 +43,19 @@ public class MyDrugService {
     private final DrugSyncService drugSyncService;
     private final MyDrugRegisterService myDrugRegisterService;
     private final SelectedImageRegistrationService selectedRegistration;
+    private final PillCatalog catalog;
 
     public MyDrugService(MyDrugRepository myDrugRepository,
                          ProfileAccessChecker profileAccessChecker,
                          DrugSyncService drugSyncService,
                          MyDrugRegisterService myDrugRegisterService,
-                         SelectedImageRegistrationService selectedRegistration) {
+                         SelectedImageRegistrationService selectedRegistration, PillCatalog catalog) {
         this.myDrugRepository = myDrugRepository;
         this.profileAccessChecker = profileAccessChecker;
         this.drugSyncService = drugSyncService;
         this.myDrugRegisterService = myDrugRegisterService;
         this.selectedRegistration = selectedRegistration;
+        this.catalog = catalog;
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -67,8 +70,16 @@ public class MyDrugService {
 
         profileAccessChecker.checkOwner(profileId);
 
-        return myDrugRepository.findAllWithDrugByProfileId(profileId).stream()
-                .map(MyDrugListResponse::from)
+        var records = myDrugRepository.findAllWithDrugByProfileId(profileId);
+        var missingImages = new HashSet<String>();
+        records.forEach(record -> {
+            var drug = record.getDrug();
+            if (drug != null && (drug.getImageUrl() == null || drug.getImageUrl().isBlank()))
+                missingImages.add(drug.getItemSeq());
+        });
+        var images = catalog.cachedImageUrls(missingImages);
+        return records.stream()
+                .map(record -> MyDrugListResponse.from(record, record.getDrug() == null ? null : images.get(record.getDrug().getItemSeq())))
                 .toList();
     }
 

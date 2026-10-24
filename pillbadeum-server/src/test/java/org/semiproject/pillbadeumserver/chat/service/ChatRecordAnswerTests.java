@@ -15,6 +15,14 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
 class ChatRecordAnswerTests {
+    @ParameterizedTest
+    @ValueSource(strings={"검색 이야기는 여기까지 하고 원래 등록된 저녁 약 이름과 시각만 알려줘",
+            "검색은 그만하고 내가 등록한 약 이름과 시각만 알려줘", "이제 조회하지 말고 내 약 목록과 시각만 알려줘",
+            "공공데이터 조회를 중단하고 내 약 이름과 시각만 알려줘"})
+    void explicitSearchCancellationDoesNotTurnARecordQuestionIntoAnOfficialLookup(String question) {
+        assertThat(ChatQuestionPurpose.recordOnly(question)).isTrue();
+    }
+
     @Test
     void recallingQueriedProductsAgainstTheRegisteredListDoesNotNeedNewOfficialEvidence() {
         assertThat(ChatQuestionPurpose.recordOnly("현재 내 등록 약 두 개와 앞서 조회만 한 제품을 구분해서 짧게 정리해줘")).isTrue();
@@ -63,7 +71,9 @@ class ChatRecordAnswerTests {
 
     @ParameterizedTest
     @ValueSource(strings={"밥 먹고 몇 분 후에 약 먹어야해?","식전에는 먹으면 안되는거야?","저녁 약 시각과 천식이 있어도 되는지 알려줘",
-            "내 약 성분이 겹치는지 알려줘","등록 용량이 안전한지 알려줘","내 저녁 약 두 배는?","내 저녁 약의 약효 지속시간은?","타이레놀 검색해줘"})
+            "내 약 성분이 겹치는지 알려줘","등록 용량이 안전한지 알려줘","내 저녁 약 두 배는?","내 저녁 약의 약효 지속시간은?","타이레놀 검색해줘",
+            "검색은 그만하고 내 저녁 약의 효능과 주의사항을 알려줘", "검색하지 말고 내 저녁 약 두 배 먹어도 돼?",
+            "검색은 그만하고 다른 약 타이레놀을 찾아줘"})
     void medicalOrSearchQuestionIsNeverMistakenForARecordOnlyRequest(String question) {
         assertThat(ChatQuestionPurpose.recordOnly(question)).isFalse();
     }

@@ -24,6 +24,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.semiproject.pillbadeumserver.chat.service.AnswerFailedException;
@@ -261,10 +263,13 @@ class AnswerMySqlTests {
         }
     }
 
-    @Test
-    void registeredRecordQuestionCommitsNormallyWithoutCallingUnavailableOfficialProviders() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings={"내가 등록한 약 이름과 복용 시각을 기록 기준으로 알려줘",
+            "검색 이야기는 여기까지 하고 원래 등록된 저녁 약 이름과 시각만 알려줘",
+            "검색은 그만하고 내가 등록한 약 이름과 복용 시각만 알려줘", "이제 조회하지 말고 내 약 목록과 시각만 알려줘"})
+    void registeredRecordQuestionCommitsNormallyWithoutCallingUnavailableOfficialProviders(String question) throws Exception {
         publicStatus.set(503);
-        var response=send(sessionId,"내가 등록한 약 이름과 복용 시각을 기록 기준으로 알려줘",200);
+        var response=send(sessionId,question,200);
         var body=JSON.readTree(response.getResponse().getContentAsString()).path("answer");
         assertThat(publicCalls.get()).isZero();assertThat(durCodes).isEmpty();
         assertThat(body.path("durNotice").isNull()).isTrue();

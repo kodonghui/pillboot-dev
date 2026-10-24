@@ -66,6 +66,19 @@ public class PillCatalog implements AutoCloseable {
         return current == null ? List.of() : current.rows();
     }
 
+    /** 사진 보완은 같은 공식 품목코드의 메모리 사본만 사용한다. 준비 대기·추가 HTTP는 없다. */
+    public Map<String, String> cachedImageUrls(Set<String> itemSeqs) {
+        if (itemSeqs.isEmpty()) return Map.of();
+        var images = new HashMap<String, String>();
+        for (var row : cachedRows()) {
+            String code = PillSimilarity.text(row, "ITEM_SEQ");
+            if (!itemSeqs.contains(code)) continue;
+            String image = PillSimilarity.text(row, "ITEM_IMAGE");
+            if (PillSimilarity.present(image)) images.putIfAbsent(code, image);
+        }
+        return Map.copyOf(images);
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     public void onReady() { if (snapshot == null || snapshot.loadedAt().plus(MAX_AGE).isBefore(Instant.now())) refreshInBackground(); }
 

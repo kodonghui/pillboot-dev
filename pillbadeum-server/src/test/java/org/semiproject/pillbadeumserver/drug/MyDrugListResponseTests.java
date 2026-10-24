@@ -9,6 +9,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class MyDrugListResponseTests {
     @Test
+    void aManualMedicationNeverReceivesAnOfficialPictureWithoutAnItemCode() {
+        assertThat(MyDrugListResponse.from(MyDrug.createCustom(17L, "직접입력약"), "https://nedrug.mfds.go.kr/unused.jpg").imageUrl()).isNull();
+    }
+    @Test
     void manuallyNamedMedicationCanBeShownInTeammatesDrugListWithoutACatalogLink() {
         var response = MyDrugListResponse.from(MyDrug.createCustom(17L, "혈압약"));
         assertThat(response.itemSeq()).isNull();

@@ -7,6 +7,7 @@ import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 import org.semiproject.pillbadeumserver.common.exception.ForbiddenException;
 import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
 import org.semiproject.pillbadeumserver.drug.domain.DrugSource;
+import org.semiproject.pillbadeumserver.drug.domain.Drug;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrug;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
@@ -47,11 +48,32 @@ class MyDrugServiceTests {
     private final ProfileAccessChecker profileAccessChecker = mock(ProfileAccessChecker.class);
     private final DrugSyncService drugSyncService = mock(DrugSyncService.class);
     private final MyDrugRegisterService registerService = mock(MyDrugRegisterService.class);
+    private final org.semiproject.pillbadeumserver.image.service.PillCatalog catalog = mock(org.semiproject.pillbadeumserver.image.service.PillCatalog.class);
     private final MyDrugService myDrugService = new MyDrugService(myDrugRepository,
             profileAccessChecker, drugSyncService, registerService,
-            mock(org.semiproject.pillbadeumserver.image.service.SelectedImageRegistrationService.class));
+            mock(org.semiproject.pillbadeumserver.image.service.SelectedImageRegistrationService.class), catalog);
 
     private final MyDrugCreateRequest request = request(ITEM_SEQ);
+
+    @Test
+    void legacyMissingPhotoUsesTheExactCachedImageWithoutAnExternalSyncOrOverwritingGoodPhotos() {
+        var first = linked(ITEM_SEQ, null); var second = linked(OTHER_ITEM_SEQ, "https://nedrug.mfds.go.kr/original.jpg");
+        when(myDrugRepository.findAllWithDrugByProfileId(PROFILE_ID)).thenReturn(List.of(first, second));
+        when(catalog.cachedImageUrls(java.util.Set.of(ITEM_SEQ))).thenReturn(java.util.Map.of(
+            ITEM_SEQ, "https://nedrug.mfds.go.kr/cached.jpg", OTHER_ITEM_SEQ, "https://nedrug.mfds.go.kr/ignored.jpg"));
+        var result = myDrugService.getMyDrugs(PROFILE_ID);
+        assertThat(result).extracting(value -> value.imageUrl()).containsExactly(
+            "https://nedrug.mfds.go.kr/cached.jpg", "https://nedrug.mfds.go.kr/original.jpg");
+        assertThat(first.getDrug().getImageUrl()).isNull();
+        verify(catalog).cachedImageUrls(java.util.Set.of(ITEM_SEQ));
+        verifyNoInteractions(drugSyncService, registerService);
+    }
+
+    private MyDrug linked(String code, String image) {
+        var drug = mock(Drug.class); when(drug.getItemSeq()).thenReturn(code); when(drug.getImageUrl()).thenReturn(image);
+        var value = mock(MyDrug.class); when(value.getDrug()).thenReturn(drug); when(value.getDoseTimes()).thenReturn(List.of());
+        when(value.getSource()).thenReturn(DrugSource.SEARCH); return value;
+    }
 
     /* 목차. 1. 저장 */
     @Test

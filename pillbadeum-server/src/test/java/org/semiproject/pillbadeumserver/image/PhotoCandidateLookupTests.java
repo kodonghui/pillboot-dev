@@ -21,6 +21,31 @@ class PhotoCandidateLookupTests {
   final JsonMapper json = new JsonMapper();
 
   @Test
+  void prescriptionCandidateUsesItsCachedOfficialImageAndKeepsAnExistingImage() {
+    var missing = row("900001", "사진없는후보");
+    var complete = row("900002", "사진있는후보"); complete.put("ITEM_IMAGE", "https://nedrug.mfds.go.kr/original.jpg");
+    when(client.get(eq(DrugSyncService.PERMIT_INFO_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(missing, complete))));
+    when(catalog.cachedImageUrls(Set.of("900001"))).thenReturn(Map.of("900001", "https://nedrug.mfds.go.kr/cached.jpg"));
+    var result = lookup.prescription("후보", null);
+    assertThat(result).extracting(value -> value.imageUrl()).containsExactly(
+        "https://nedrug.mfds.go.kr/cached.jpg", "https://nedrug.mfds.go.kr/original.jpg");
+    verify(catalog).cachedImageUrls(Set.of("900001"));
+    verify(catalog, never()).rows();
+    verify(client).get(eq(DrugSyncService.PERMIT_INFO_PATH), anyMap());
+    verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void aDifferentProductsImageCannotFillAMissingPrescriptionImage() {
+    when(client.get(eq(DrugSyncService.PERMIT_INFO_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(row("900001", "사진없는후보")))));
+    when(catalog.cachedImageUrls(anySet())).thenReturn(Map.of("900002", "https://nedrug.mfds.go.kr/other.jpg"));
+    assertThat(lookup.prescription("후보", null).getFirst().imageUrl()).isNull();
+    verify(catalog, never()).rows();
+  }
+
+  @Test
   void permitListUsesRealSpecialtyFieldForBothDrugTypes() {
     var otc = row("900001", "합성일반약");
     otc.remove("ETC_OTC_NAME"); otc.put("SPCLTY_PBLC", "일반의약품");
