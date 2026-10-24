@@ -99,7 +99,8 @@ public class PhotoCandidateLookup {
     int excluded = 0;
     for (var row : rows) {
       try {
-        var value = candidate(row, clues == null ? null : PillSimilarity.printsMatch(clues, row), images.get(text(row, "ITEM_SEQ")));
+        String code = text(row, "ITEM_SEQ");
+        var value = candidate(row, clues == null ? null : PillSimilarity.printsMatch(clues, row), code == null ? null : images.get(code));
         valid.putIfAbsent(value.itemSeq(), value);
       } catch (ExternalApiException invalidCandidate) { excluded++; }
     }

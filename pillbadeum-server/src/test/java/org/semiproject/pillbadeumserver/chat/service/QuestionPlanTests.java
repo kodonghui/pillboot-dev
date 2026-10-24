@@ -17,6 +17,16 @@ class QuestionPlanTests {
         assertThat(plan.purpose()).isEqualTo(QuestionPlan.Purpose.COMBINED);
     }
 
+    @Test
+    void coadministrationInsideAListRequestStillRequiresOfficialEvidenceAndDur() {
+        String question = "내 약 목록 중 같이 먹을 수 있는 약을 정리해줘";
+        assertThat(ChatQuestionPurpose.coadministration(question)).isTrue();
+        assertThat(ChatQuestionPurpose.recordOnly(question)).isFalse();
+        assertThat(QuestionPlan.guarded(QuestionCategory.PASS, QuestionPlan.Purpose.RECORD, question, List.of()).purpose())
+                .isEqualTo(QuestionPlan.Purpose.COMBINED);
+        assertThat(ChatQuestionPurpose.recordOnly("내 약 목록을 함께 표로 정리해줘")).isTrue();
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"권장량 말고 등록한 개수와 시각만 알려줘", "검색은 그만하고 내 저녁 약 이름과 시각만",
             "내 약에 입력해 둔 식전·식후 기록만 읽어줘. 권장 방법을 묻는 건 아니야."})

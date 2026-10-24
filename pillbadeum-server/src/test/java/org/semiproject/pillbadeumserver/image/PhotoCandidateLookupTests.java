@@ -21,6 +21,25 @@ class PhotoCandidateLookupTests {
   final JsonMapper json = new JsonMapper();
 
   @Test
+  void missingBlankAndNullCodesAreExcludedBeforeImmutableImageMapLookup() {
+    for (var images : List.of(Map.<String, String>of(), Map.of("900001", "https://nedrug.mfds.go.kr/valid.jpg"))) {
+      var missing = row("900000", "합성약"); missing.remove("ITEM_SEQ");
+      var blank = row(" ", "합성약");
+      var nullCode = row("900000", "합성약"); nullCode.put("ITEM_SEQ", null);
+      when(client.get(anyString(), anyMap())).thenReturn(json.valueToTree(Map.of("items",
+          List.of(missing, blank, nullCode, row("900001", "합성약")))));
+      when(catalog.cachedImageUrls(anySet())).thenReturn(images);
+      var result = lookup.prescriptionResult("합성약", null);
+      assertThat(result.status()).isEqualTo("PARTIAL");
+      assertThat(result.excludedCount()).isEqualTo(3);
+      assertThat(result.candidates()).singleElement().satisfies(value -> {
+        assertThat(value.itemSeq()).isEqualTo("900001");
+        assertThat(value.imageUrl()).isEqualTo(images.get("900001"));
+      });
+    }
+  }
+
+  @Test
   void prescriptionCandidateUsesItsCachedOfficialImageAndKeepsAnExistingImage() {
     var missing = row("900001", "사진없는후보");
     var complete = row("900002", "사진있는후보"); complete.put("ITEM_IMAGE", "https://nedrug.mfds.go.kr/original.jpg");

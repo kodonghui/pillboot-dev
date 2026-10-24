@@ -28,6 +28,7 @@ public class ChatDrugLookup {
             이름 대신 제조사/함량만 보완했다면 직전 검색 이름과 사용자가 추가한 조건만 조합한다.
             mode FOLLOWUP: '그 약', '그 제품', '성분은?', 앞선 설명/표 요청처럼 새 제품명이 없는 후속 질문이다.
             mode RECORD: 아침/저녁 등록 약, 내 약 목록·복약 기록·일정·시각·메모·별명·대화 정리 요청이다.
+            단순 '표로/짧게'는 직전 검색 제품의 FOLLOWUP이다. 함께 복용 가능한지 묻는 질문은 RECORD가 아니다.
             FOLLOWUP/RECORD에서는 names를 빈 배열로 반환한다. 새 제품 이름을 명시하면 LOOKUP을 우선한다.
             단, 이전 답변이 비어 있고 이전 질문에 제품명이 명시돼 있으면 FOLLOWUP의 names에 그 이름을 그대로 복사한다.
             이름이 특정되지 않은 감기약·비타민 등을 임의 제품명으로 바꾸지 않는다.
@@ -50,8 +51,24 @@ public class ChatDrugLookup {
         this.ai=ai;this.publicData=publicData;this.sources=sources;this.executor=executor;
     }
 
-    public record Resolution(List<AnswerInput.Medication> medications, String reply, List<AnswerSource> sources) {
+    public record Resolution(List<AnswerInput.Medication> medications, String reply, List<AnswerSource> sources,
+                             String continuationQuestion) {
+        public Resolution(List<AnswerInput.Medication> medications, String reply, List<AnswerSource> sources) {
+            this(medications, reply, sources, null);
+        }
         public static Resolution none() { return new Resolution(List.of(),null,List.of()); }
+    }
+
+    /** 공개 응답을 늘리지 않고 기존 이력의 품목코드와 번호 목록만 재사용한다. */
+    private record Pending(String body, List<AnswerSource> choices, List<AnswerSource> retained) {
+        List<AnswerSource> sources() {
+            var all = new ArrayList<>(choices); all.addAll(retained); return List.copyOf(all);
+        }
+    }
+
+    boolean formattingFollowup(AnswerInput input) {
+        return ChatQuestionPurpose.formatting(input.question()) && lastSources(input).stream()
+                .anyMatch(s -> s.source() == AnswerSource.Type.PERMIT);
     }
 
     public Resolution resolve(AnswerInput input, ChatDeadline deadline) {
@@ -59,9 +76,11 @@ public class ChatDrugLookup {
         var last=input.recentTurns().stream().max(Comparator.comparingInt(AnswerInput.Turn::turnNo));
         String previous=last.map(t->sources.body(t.answer())).orElse("");
         var oldSources=last.map(t->sources.sources(t.answer())).orElse(List.of());
-        var choices=previous.startsWith(CHOICES) ? oldSources.stream().filter(s->s.source()==AnswerSource.Type.PERMIT).toList() : List.<AnswerSource>of();
+        var pending = pending(previous, oldSources);
         int direct=choice(question);
-        if (direct>0 && !choices.isEmpty()) return select(choices,direct,input,deadline);
+        if (direct>0 && pending != null) return select(pending,direct,input,deadline);
+        if (formattingFollowup(input)) return pending != null
+                ? new Resolution(List.of(), pending.body(), pending.sources()) : restore(oldSources,input,deadline);
         // 기존 기록·서식 질문은 검색어 추출/공공 검색을 추가하지 않음.
         if (question.matches("(?s).*(아침|저녁|일정|시각|몇 시|기록|별명|표로|요약|짧게|두 문장|등록된 약|내 목록).*" )
                 && !question.matches("(?s).*(효능|효과|주의|부작용|용법|복용법|상호작용|병용|검색|찾아|미등록|목록에 없).*"))
@@ -72,13 +91,13 @@ public class ChatDrugLookup {
                         +"\n이전 답변: "+previous.substring(0,Math.min(1600,previous.length()))
                         +"\n현재 질문: "+question)),0,"chat_drug_query",SCHEMA,"low")));
         String mode=query.path("mode").asString("");int selected=query.path("choice").asInt(0);
-        if (!choices.isEmpty() && selected>0) return select(choices,selected,input,deadline);
+        if (pending != null && selected>0) return select(pending,selected,input,deadline);
         if ("RECORD".equals(mode)) return Resolution.none();
         if ("FOLLOWUP".equals(mode)) {
             // '내 약'으로 대상을 바꿨으면 직전 검색 제품에 고정하지 않고 현재 등록 목록으로 돌아간다.
             if (question.replaceAll("\\s+", "").matches(".*(내(?:아침|점심|저녁)?약|등록(?:한|된)?약|약목록|내목록).*"))
                 return Resolution.none();
-            if (!choices.isEmpty()) return new Resolution(List.of(),previous,choices);
+            if (pending != null) return new Resolution(List.of(),previous,pending.sources());
             if (last.isPresent() && previous.isBlank() && query.path("names").isArray() && query.path("names").size() == 1) {
                 String name = query.path("names").get(0).path("name").asString("");
                 var owned = exactOwned(input, name, query.path("names").get(0).path("maker").asString(""));
@@ -87,18 +106,28 @@ public class ChatDrugLookup {
             }
             if (last.isPresent() && previous.isBlank())
                 return new Resolution(List.of(), "직전 질문의 약을 확인하지 못했어요. 어느 약인지 정확한 제품명을 알려주세요.", List.of());
-            var codes=oldSources.stream().filter(s->s.source()==AnswerSource.Type.PERMIT).map(AnswerSource::itemSeq).distinct().toList();
-            return codes.size()==1 ? new Resolution(List.of(byCode(codes.getFirst(),input,deadline)),null,List.of()) : Resolution.none();
+            return restore(oldSources,input,deadline);
         }
         if (!"LOOKUP".equals(mode) || !query.path("names").isArray() || query.path("names").size()>2)
             throw ExternalApiException.failed("약 검색","검색어를 확인하지 못했습니다.",null);
         var found=new LinkedHashMap<String,AnswerInput.Medication>();
+        boolean resumingPair = false;
+        // 직전 후보의 함량/제조사를 좁히는 중이면 이미 확정한 다른 약도 함께 유지한다.
+        if (pending != null && query.path("names").size() == 1) {
+            String base = withoutStrength(canonical(query.path("names").get(0).path("name").asString("")));
+            if (base.length() >= 2 && pending.choices().stream().anyMatch(s -> canonical(s.drugName()).contains(base))) {
+                for (var retained : pending.retained()) found.put(retained.itemSeq(),byCode(retained.itemSeq(),input,deadline));
+                resumingPair = !found.isEmpty();
+            }
+        }
+        List<JsonNode> ambiguous = null;
+        boolean more = false;
         for (var name:query.path("names")) {
             String keyword=name.path("name").asString("").strip(),maker=name.path("maker").asString("").strip();
             if (keyword.length()<2 || keyword.length()>50 || maker.length()>100)
                 throw ExternalApiException.failed("약 검색","제품 이름을 확인하지 못했습니다.",null);
-            String provided=canonical(question+" "+last.map(AnswerInput.Turn::question).orElse(""));
-            if (!provided.contains(canonical(keyword)) || (!maker.isBlank() && !canonical(question+" "+previous).contains(canonical(maker))))
+            String original = pending == null ? last.map(AnswerInput.Turn::question).orElse("") : previousQuestion(input);
+            if (!providedKeyword(keyword,question,original) || (!maker.isBlank() && !canonical(question+" "+previous).contains(canonical(maker))))
                 return new Resolution(List.of(),"제품명을 임의로 고르지 않을게요. 포장에 적힌 정확한 제품명·함량·제조사를 알려주세요.",List.of());
             // 부분 문자열이 아닌 추출된 전체 제품명이 일치할 때만 기존 코드를 재사용한다.
             var owned = exactOwned(input, keyword, maker);
@@ -113,15 +142,83 @@ public class ChatDrugLookup {
                 if (code.matches("[0-9]{9}")) unique.putIfAbsent(code,row);
             }
             if (unique.isEmpty() && !result.more()) return new Resolution(List.of(),"공식 약 검색에서 ‘"+keyword+"’에 맞는 제품을 찾지 못했어요. 정확한 제품명·함량·제조사를 확인해 주세요.",List.of());
-            if (unique.size()!=1 || result.more()) return choices(unique.values().stream().limit(5).toList(),input,result.more()||unique.size()>5);
+            if (unique.size()!=1 || result.more()) {
+                if (ambiguous != null) return new Resolution(List.of(),"두 제품 모두 여러 후보가 있어요. 각각의 정확한 제품명·함량·제조사를 알려주세요.",List.of());
+                ambiguous = unique.values().stream().limit(5).toList(); more = result.more()||unique.size()>5;
+                continue;
+            }
             var medication=medication(unique.values().iterator().next(),input);found.put(medication.itemSeq(),medication);
         }
-        return new Resolution(List.copyOf(found.values()),null,List.of());
+        if (ambiguous != null) return choices(ambiguous,input,more,List.copyOf(found.values()));
+        return resumingPair ? continued(List.copyOf(found.values()),input)
+                : new Resolution(List.copyOf(found.values()),null,List.of());
     }
 
-    private Resolution select(List<AnswerSource> choices,int selected,AnswerInput input,ChatDeadline deadline) {
-        if (selected>choices.size()) return new Resolution(List.of(),"보여드린 제품 번호 또는 정확한 제품명을 알려주세요.",choices);
-        return new Resolution(List.of(byCode(choices.get(selected-1).itemSeq(),input,deadline)),null,List.of());
+    private Resolution select(Pending pending,int selected,AnswerInput input,ChatDeadline deadline) {
+        if (selected>pending.choices().size()) {
+            String correction = "보여드린 제품 번호 또는 정확한 제품명을 알려주세요.";
+            return new Resolution(List.of(),pending.body().contains(correction) ? pending.body() : pending.body()+"\n"+correction,pending.sources());
+        }
+        var found = new LinkedHashMap<String,AnswerInput.Medication>();
+        for (var retained : pending.retained()) found.put(retained.itemSeq(),byCode(retained.itemSeq(),input,deadline));
+        var selectedProduct = byCode(pending.choices().get(selected-1).itemSeq(),input,deadline);
+        found.put(selectedProduct.itemSeq(),selectedProduct);
+        return pending.retained().isEmpty() ? new Resolution(List.copyOf(found.values()),null,List.of())
+                : continued(List.copyOf(found.values()),input);
+    }
+
+    private Resolution restore(List<AnswerSource> oldSources, AnswerInput input, ChatDeadline deadline) {
+        var codes = oldSources.stream().filter(s -> s.source()==AnswerSource.Type.PERMIT).map(AnswerSource::itemSeq).distinct().toList();
+        if (codes.isEmpty()) return Resolution.none();
+        if (codes.size()>2) return new Resolution(List.of(),"어느 제품을 말씀하시는지 정확한 약 이름을 알려주세요.",List.of());
+        return continued(codes.stream().map(code -> byCode(code,input,deadline)).toList(),input);
+    }
+
+    private Resolution continued(List<AnswerInput.Medication> medications, AnswerInput input) {
+        String original = previousQuestion(input);
+        return new Resolution(medications,null,List.of(),original.isBlank() ? null : original+"\n"+input.question());
+    }
+
+    private List<AnswerSource> lastSources(AnswerInput input) {
+        return input.recentTurns().stream().max(Comparator.comparingInt(AnswerInput.Turn::turnNo))
+                .map(t -> sources.sources(t.answer())).orElse(List.of());
+    }
+
+    private Pending pending(String body, List<AnswerSource> provenance) {
+        if (!body.startsWith(CHOICES)) return null;
+        var permits = provenance.stream().filter(s -> s.source()==AnswerSource.Type.PERMIT).toList();
+        int count = (int) body.lines().filter(line -> line.matches("[1-5]\\. .*" )).count();
+        if (count==0 || count>permits.size()) return null;
+        // 번호가 붙은 후보 뒤에는 앞서 확정한 약만 둔다. ok는 의약 근거 확인 여부를 그대로 뜻한다.
+        return new Pending(body,permits.subList(0,count),permits.subList(count,permits.size()));
+    }
+
+    private String previousQuestion(AnswerInput input) {
+        String original = "";
+        for (var turn : input.recentTurns().stream().sorted(Comparator.comparingInt(AnswerInput.Turn::turnNo).reversed()).toList()) {
+            boolean selection = choice(turn.question())>0 || ChatQuestionPurpose.formatting(turn.question());
+            if (sources.body(turn.answer()).startsWith(CHOICES)) {
+                if (!selection) original = turn.question();
+            } else {
+                if (!original.isBlank()) return original;
+                if (!selection) return turn.question();
+            }
+        }
+        return original;
+    }
+
+    private static final java.util.regex.Pattern STRENGTH = java.util.regex.Pattern.compile(
+            "[0-9]+(?:\\.[0-9]+)?(?:mcg|μg|ug|mg|g)(?![a-z])");
+
+    private static String withoutStrength(String value) { return STRENGTH.matcher(value).replaceAll(""); }
+
+    private static boolean providedKeyword(String keyword, String question, String previous) {
+        String name = canonical(keyword), current = canonical(question), prior = canonical(previous);
+        if ((current+" "+prior).contains(name)) return true;
+        String base = withoutStrength(name);
+        var strengths = STRENGTH.matcher(name).results().map(java.util.regex.MatchResult::group).toList();
+        return !strengths.isEmpty() && base.length()>=2 && prior.contains(base)
+                && strengths.stream().allMatch(current::contains);
     }
 
     private AnswerInput.Medication byCode(String code,AnswerInput input,ChatDeadline deadline) {
@@ -141,11 +238,15 @@ public class ChatDrugLookup {
         }).toList();
     }
 
-    private Resolution choices(List<JsonNode> rows,AnswerInput input,boolean more) {
+    private Resolution choices(List<JsonNode> rows,AnswerInput input,boolean more,List<AnswerInput.Medication> retained) {
         var provenance=new ArrayList<AnswerSource>();var text=new StringBuilder(CHOICES);
         for (int i=0;i<rows.size();i++) {
             var m=medication(rows.get(i),input);
-            text.append("\n").append(i+1).append(". ").append(m.name()).append(" · ").append(m.maker());
+            text.append("\n").append(i+1).append(". ").append(m.name().replaceAll("\\s+"," ")).append(" · ").append(m.maker().replaceAll("\\s+"," "));
+            provenance.add(new AnswerSource(m.itemSeq(),m.name(),AnswerSource.Type.PERMIT,LocalDate.now(TimeZoneConfig.ZONE),false,false));
+        }
+        for (var m : retained) {
+            text.append("\n함께 확인할 약: ").append(m.name().replaceAll("\\s+"," "));
             provenance.add(new AnswerSource(m.itemSeq(),m.name(),AnswerSource.Type.PERMIT,LocalDate.now(TimeZoneConfig.ZONE),false,false));
         }
         if (more) text.append("\n이 밖에도 제품이 있어요. 정확한 제품명·함량·제조사를 알려주시면 더 좁혀 볼게요.");

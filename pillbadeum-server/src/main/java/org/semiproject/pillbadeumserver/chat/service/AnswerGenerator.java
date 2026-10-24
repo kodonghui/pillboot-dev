@@ -99,23 +99,26 @@ public class AnswerGenerator {
 
     public GeneratedAnswer generate(AnswerInput input, ChatDeadline deadline, QuestionPlan plan) {
         deadline.check();
-        if (plan.purpose() == QuestionPlan.Purpose.RECORD) return recordAnswer(input, deadline);
+        if (plan.purpose() == QuestionPlan.Purpose.RECORD
+                && !(ChatQuestionPurpose.formatting(input.question()) && drugLookup.formattingFollowup(input))) return recordAnswer(input, deadline);
         var selection = drugLookup.resolve(input, deadline);
         if (selection.reply() != null)
             return new GeneratedAnswer(sources.append(selection.reply(), selection.sources()), null, null, List.of());
+        var answerInput = selection.continuationQuestion() == null ? input : input.withQuestion(selection.continuationQuestion());
+        String evidenceQuestion = selection.continuationQuestion() == null ? plan.evidenceQuestion() : selection.continuationQuestion();
         var combined = new LinkedHashMap<String, AnswerInput.Medication>();
         input.medications().forEach(m -> combined.put(m.itemSeq(), m));
         selection.medications().forEach(m -> combined.putIfAbsent(m.itemSeq(), m));
         var medications = selection.medications().isEmpty() ? selectMedications(input) : List.copyOf(combined.values());
         var evidenceMedications = selection.medications().isEmpty() ? medications : selection.medications();
-        var durInput = new AnswerInput(input.birthYear(), input.gender(), input.pregnant(), plan.evidenceQuestion(),
+        var durInput = new AnswerInput(input.birthYear(), input.gender(), input.pregnant(), evidenceQuestion,
                 List.copyOf(combined.values()), input.recentTurns(), input.firstAnswer(), input.recentSummaries(), input.similarSummaries(),
                 input.summaryCount(), input.unidentifiedDrugNames());
         if (medications.isEmpty()) return new GeneratedAnswer(sources.append(input.unidentifiedDrugNames().isEmpty() ? NO_DRUG : UNIDENTIFIED, List.of()), null,
                 durEvaluator.cardNotice(input, durEvaluator.evaluate(input, List.of()).notice()));
 
         // 같은 공공데이터 Semaphore를 공유한다. 둘 다 DB 쓰기가 없어 늦은 결과는 취소·폐기할 수 있다.
-        String documentQuestion = plan.evidenceQuestion();
+        String documentQuestion = evidenceQuestion;
         if (!selection.medications().isEmpty() && !input.recentTurns().isEmpty()
                 && input.question().matches("\\s*(?:[1-5]번.*|(?:첫|두|세|네|다섯)\\s*번째.*|왜.*|그\\s*약.*)"))
             documentQuestion += " " + input.recentTurns().stream().max(Comparator.comparingInt(AnswerInput.Turn::turnNo)).orElseThrow().question();
@@ -147,7 +150,7 @@ public class AnswerGenerator {
                     ? "지금은 공식 정보를 확인하지 못해 답할 수 없어요. 잠시 후 다시 물어봐 주세요."
                     : "공식 자료에서 확인할 수 없어요. 약사에게 확인해 주세요.";
         } else {
-            var messages = messages(input, medications, evidence, notice);
+            var messages = messages(answerInput, medications, evidence, notice);
             deadline.check();
             // effort max의 긴 정리 답변이 30초를 넘어 60초까지 기다림(CHK-42). 전체 85초 마감이 먼저 오면 그때 끊음.
             AiTextResult generated = deadline.within(Duration.ofSeconds(60)).await(executor.submit(() -> {
@@ -177,7 +180,8 @@ public class AnswerGenerator {
     /** 기록 질문에는 현재 DB 사본만 사용한다. 의약 정보 수집 실패가 기록 답변을 막지 않는다. */
     private GeneratedAnswer recordAnswer(AnswerInput input, ChatDeadline deadline) {
         var records = input.registeredRecords();
-        if (records.isEmpty() && !input.question().matches("(?s).*(별명|기억|대화|처음).*"))
+        if (records.isEmpty() && input.recentTurns().isEmpty() && input.recentSummaries().isEmpty()
+                && input.similarSummaries().isEmpty() && !input.question().matches("(?s).*(별명|기억|대화|처음).*"))
             return new GeneratedAnswer(sources.append("등록된 약이 없어요.", List.of()), null, null, List.of());
         var evidence = new OfficialDrugEvidence.Evidence(List.of());
         var messages = messages(input, records, evidence, null);

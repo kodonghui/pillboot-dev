@@ -45,6 +45,11 @@ public record AnswerInput(long birthYear, String gender, Boolean pregnant, Strin
         return new AnswerInput(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer,
                 recentSummaries, similarSummaries, summaryCount, names, registeredRecords);
     }
+    /** 후보 선택 후 원래 질문을 이어 답하기 위한 요청 내 사본이다. 저장된 질문은 바꾸지 않는다. */
+    AnswerInput withQuestion(String value) {
+        return new AnswerInput(birthYear, gender, pregnant, value, medications, recentTurns, firstAnswer,
+                recentSummaries, similarSummaries, summaryCount, unidentifiedDrugNames, registeredRecords);
+    }
     public record Medication(String itemSeq, String name, String maker, String etcOtc, Integer dosePerTime,
                               String timing, LocalDate startDate, LocalDate endDate,
                               List<LocalTime> doseTimes, LocalDate updatedAt) {}
