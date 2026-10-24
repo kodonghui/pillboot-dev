@@ -75,6 +75,9 @@ public class ChatDrugLookup {
         if (!choices.isEmpty() && selected>0) return select(choices,selected,input,deadline);
         if ("RECORD".equals(mode)) return Resolution.none();
         if ("FOLLOWUP".equals(mode)) {
+            // '내 약'으로 대상을 바꿨으면 직전 검색 제품에 고정하지 않고 현재 등록 목록으로 돌아간다.
+            if (question.replaceAll("\\s+", "").matches(".*(내(?:아침|점심|저녁)?약|등록(?:한|된)?약|약목록|내목록).*"))
+                return Resolution.none();
             if (!choices.isEmpty()) return new Resolution(List.of(),previous,choices);
             if (last.isPresent() && previous.isBlank() && query.path("names").isArray() && query.path("names").size() == 1) {
                 String name = query.path("names").get(0).path("name").asString("");

@@ -76,6 +76,15 @@ class ChatDrugLookupTests {
         var result=lookup.resolve(input("다시 저녁 약 이름과 시각만 알려줘",List.of()),ChatDeadline.after(Duration.ofSeconds(2)));
         assertThat(result).isEqualTo(ChatDrugLookup.Resolution.none());verifyNoInteractions(ai,data);
     }
+    @Test void medicalQuestionAboutMyMedicationsDoesNotKeepThePreviousSingleProductSelected() {
+        extraction("FOLLOWUP", "");
+        var old = List.of(new org.semiproject.pillbadeumserver.chat.domain.AnswerSource("199900001", "가상약",
+                org.semiproject.pillbadeumserver.chat.domain.AnswerSource.Type.PERMIT, LocalDate.now(), true, false));
+        var recent = List.of(new AnswerInput.Turn(1, "가상약의 효능은?", sources.append("합성 설명", old), null, null));
+        var result = lookup.resolve(input("내 약 식전으로 바꿔도 되는지는 공식 자료로 확인해야 하는 거야?", recent), ChatDeadline.after(Duration.ofSeconds(2)));
+        assertThat(result).isEqualTo(ChatDrugLookup.Resolution.none());
+        verifyNoInteractions(data);
+    }
     @Test void partialBrandWithStrengthKeepsMatchingVariantsForUserConfirmation() {
         extraction("LOOKUP","가상약10mg");results(2,List.of(row("199900001","가상약정10밀리그램"),row("199900002","가상약캡슐10밀리그램")));
         var result=lookup.resolve(input("가상약10mg 효능은?",List.of()),ChatDeadline.after(Duration.ofSeconds(2)));

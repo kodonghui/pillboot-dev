@@ -47,4 +47,9 @@ class QuestionPlanTests {
         assertThat(input.gender()).isEqualTo("MALE");
         assertThat(input.pregnant()).isFalse();
     }
+
+    @Test
+    void overlappingIngredientQuestionLoadsTheActualCautionDocument() {
+        assertThat(OfficialDrugEvidence.wantsDocument("NB_DOC_DATA", "다른 아세트아미노펜 제품과 겹칠 수 있어?")).isTrue();
+    }
 }
