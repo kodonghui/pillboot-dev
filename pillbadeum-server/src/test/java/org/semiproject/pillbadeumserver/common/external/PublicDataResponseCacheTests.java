@@ -34,6 +34,19 @@ class PublicDataResponseCacheTests {
     }
 
     @Test
+    void invalidLookupDropsOnlyThatItemsPagesAndKeepsOtherProductsAndServices(){
+        var cache=new PublicDataResponseCache();
+        var page1=PublicDataResponseCache.Key.of("/age",Map.of("itemSeq","A","pageNo",1));
+        var page2=PublicDataResponseCache.Key.of("/age",Map.of("itemSeq","A","pageNo",2));
+        var other=PublicDataResponseCache.Key.of("/age",Map.of("itemSeq","B","pageNo",1));
+        var differentService=PublicDataResponseCache.Key.of("/permit",Map.of("itemSeq","A","pageNo",1));
+        for(var key:java.util.List.of(page1,page2,other,differentService))cache.put(key,"reply");
+        cache.discard(PublicDataResponseCache.Key.of("/age",Map.of("itemSeq","A")));
+        assertThat(cache.get(page1)).isNull();assertThat(cache.get(page2)).isNull();
+        assertThat(cache.get(other)).isEqualTo("reply");assertThat(cache.get(differentService)).isEqualTo("reply");
+    }
+
+    @Test
     void keySnapshotsEffectiveFiltersAndDoesNotContainCredentials(){
         var params=new HashMap<String,Object>();params.put("itemSeq","100");params.put("pageNo",1);
         params.put("serviceKey","synthetic-secret");params.put("type","ignored");params.put("unused",null);

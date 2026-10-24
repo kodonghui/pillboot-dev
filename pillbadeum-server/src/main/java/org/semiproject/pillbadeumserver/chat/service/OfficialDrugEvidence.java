@@ -119,6 +119,8 @@ public class OfficialDrugEvidence {
             return new Lookup(source(medication, type, updated == null ? LocalDate.now(TimeZoneConfig.ZONE) : updated,
                     !facts.isEmpty() || cancelled, cancelled), Map.copyOf(facts), false);
         } catch (BusinessException | NumberFormatException exception) {
+            boolean easy=type==AnswerSource.Type.EASY_DRUG;
+            publicData.discard(easy?EASY_PATH:PERMIT_PATH,Map.of(easy?"itemSeq":"item_seq",medication.itemSeq()));
             log.warn("[답변 근거 조회] source={} result=unavailable", type);
             return failed(medication, type);
         }

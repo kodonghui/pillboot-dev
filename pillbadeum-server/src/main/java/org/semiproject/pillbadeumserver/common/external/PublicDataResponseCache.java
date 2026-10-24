@@ -30,6 +30,11 @@ final class PublicDataResponseCache {
         if(entries.size()>MAX_ENTRIES)entries.remove(entries.keySet().iterator().next());
     }
 
+    synchronized void discard(Key identity){
+        entries.keySet().removeIf(key->key.path().equals(identity.path())
+                &&key.parameters().entrySet().containsAll(identity.parameters().entrySet()));
+    }
+
     record Key(String path,Map<String,String> parameters){
         static Key of(String path,Map<String,?> parameters){
             var normalized=new TreeMap<String,String>();

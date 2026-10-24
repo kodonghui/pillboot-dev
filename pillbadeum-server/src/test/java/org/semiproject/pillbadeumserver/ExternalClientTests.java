@@ -70,6 +70,17 @@ class ExternalClientTests {
     }
 
     @Test
+    void publicDataDoesNotMaskTheCatalogsExplicitRefreshWithAnotherCache() {
+        AtomicInteger calls=new AtomicInteger();
+        String path="/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03";
+        server.createContext(path,exchange->{calls.incrementAndGet();respond(exchange,200,
+                "{\"header\":{\"resultCode\":\"00\"},\"body\":{\"totalCount\":0,\"items\":[]}}");});
+        var client=publicData();
+        client.get(path,Map.of("pageNo",1));client.get(path,Map.of("pageNo",1));
+        assertThat(calls.get()).isEqualTo(2);
+    }
+
+    @Test
     void publicDataReusesOnlyTheSameSuccessfulQueryAndReturnsIndependentParsedBodies() {
         AtomicInteger calls=new AtomicInteger();
         server.createContext("/cached",exchange->{calls.incrementAndGet();respond(exchange,200,

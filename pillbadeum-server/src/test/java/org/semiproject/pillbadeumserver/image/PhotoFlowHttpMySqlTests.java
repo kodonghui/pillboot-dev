@@ -62,6 +62,7 @@ class PhotoFlowHttpMySqlTests {
   @Autowired org.semiproject.pillbadeumserver.image.service.PillIdentificationSessions sessions;
   @Autowired FileStorage files;
   @Autowired org.semiproject.pillbadeumserver.chat.service.RegistrationDurPrefetch durPrefetch;
+  @Autowired org.semiproject.pillbadeumserver.common.external.PublicDataClient publicData;
   @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
   HttpClient browser;
   long memberId, profileId, otherProfileId, foreignMember, foreignProfile;
@@ -221,6 +222,8 @@ class PhotoFlowHttpMySqlTests {
 
   @BeforeEach
   void fixtures() throws Exception {
+    // 같은 합성 약 이름의 품목코드를 매 시험 바꾸므로 이전 시험의 이름 검색 응답은 재사용하지 않음.
+    publicData.discard(org.semiproject.pillbadeumserver.drug.service.DrugSyncService.PERMIT_INFO_PATH,Map.of());
     try (var c = dataSource.getConnection()) {
       TestDatabaseSchema.prepare(c);
     }

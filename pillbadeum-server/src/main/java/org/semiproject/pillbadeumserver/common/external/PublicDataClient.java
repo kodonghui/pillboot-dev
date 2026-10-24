@@ -97,14 +97,21 @@ public class PublicDataClient {
         return execute(path, params, waitMillis, deadline);
     }
 
+    /** 호출 서비스의 품목·페이지·임상 필드 검증에 실패한 응답은 다음 요청에 재사용하지 않음. */
+    public void discard(String path,Map<String,?> identity){
+        responses.discard(PublicDataResponseCache.Key.of(path,identity));
+    }
+
     private JsonNode execute(String path, Map<String, ?> params, long waitMillis, long deadline) {
 
         if (serviceKey == null || serviceKey.isBlank()) {
             throw ExternalApiException.failed(API_NAME, "서비스 키(PUBLIC_DATA_SERVICE_KEY)가 설정되지 않았습니다.", null);
         }
         checkDeadline(deadline);
+        // 낱알 전체 카탈로그는 자체 파일 캐시와 명시적 refresh가 있으므로 HTTP 응답을 중복 저장하지 않음.
+        boolean reusable=!path.startsWith("/1471000/MdcinGrnIdntfcInfoService03/");
         var cacheKey=PublicDataResponseCache.Key.of(path,params);
-        String cached=responses.get(cacheKey);
+        String cached=reusable?responses.get(cacheKey):null;
         if(cached!=null){
             log.debug("[공공데이터] result=reused");
             return extractBody(cached);
@@ -125,7 +132,7 @@ public class PublicDataClient {
 
         return ExternalApiCaller.withPermit(API_NAME, permits, waitMillis,()->{
             checkDeadline(deadline);
-            String reused=responses.get(cacheKey);
+            String reused=reusable?responses.get(cacheKey):null;
             if(reused!=null)return extractBody(reused);
             String raw=ExternalApiCaller.callWithRetry(API_NAME,()->{
                 checkDeadline(deadline);
@@ -141,7 +148,7 @@ public class PublicDataClient {
             checkDeadline(deadline);
             JsonNode body=extractBody(raw);
             String count=body.path("totalCount").asString("");
-            if(count.matches("[0-9]{1,9}")){
+            if(reusable&&count.matches("[0-9]{1,9}")){
                 var items=items(body);
                 int total=Integer.parseInt(count);
                 Object requested=params.get("itemSeq");
