@@ -92,7 +92,7 @@ public class AnswerGenerator {
         var medications = selection.medications().isEmpty() ? selectMedications(input) : List.copyOf(combined.values());
         var evidenceMedications = selection.medications().isEmpty() ? medications : selection.medications();
         var durInput = new AnswerInput(input.birthYear(), input.gender(), input.pregnant(), input.question(),
-                medications, input.recentTurns(), input.firstAnswer(), input.recentSummaries(), input.similarSummaries(),
+                List.copyOf(combined.values()), input.recentTurns(), input.firstAnswer(), input.recentSummaries(), input.similarSummaries(),
                 input.summaryCount(), input.unidentifiedDrugNames());
         if (medications.isEmpty()) return new GeneratedAnswer(sources.append(input.unidentifiedDrugNames().isEmpty() ? NO_DRUG : UNIDENTIFIED, List.of()), null,
                 durEvaluator.cardNotice(input, durEvaluator.evaluate(input, List.of()).notice()));
