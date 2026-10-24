@@ -32,8 +32,8 @@ public class DrugSyncService {
     public static final String GRAIN_INFO_PATH = "/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03";
     public static final String SOURCE_NAME = "식품의약품안전처 의약품 낱알식별 정보";
 
-    // 성분명(material)을 얻는 허가정보 목록 API. 팀 활용신청 주소와 다르면 이 상수만 바꾼다.
-    public static final String PERMIT_INFO_PATH = "/1471000/DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08";
+    // 목록 전용 연산의0건 응답을 피하고 이름·품목코드·페이지를 지원하는 기존 허가 상세 연산을 공유함.
+    public static final String PERMIT_INFO_PATH = DrugGuideService.PERMIT_DETAIL_PATH;
     // 한글 성분을 우선하며 없으면 영문 필드를 사용함. 대소문자는 구분하지 않음.
     public static final List<String> PERMIT_MATERIAL_FIELDS = List.of("MAIN_ITEM_INGR", "ITEM_INGR_NAME");
     // 같은 이름의 약(용량 · 제조사 다름)이 여러 건 나올 수 있어 넉넉히 받는다.
@@ -154,11 +154,10 @@ public class DrugSyncService {
                 .findFirst().orElseThrow(() -> new NotFoundException("공식 허가정보에서 품목을 확인하지 못했습니다."));
     }
 
-    /* 설명. 허가 목록에서 성분명을 찾는다. 없으면 null을 반환해 같은 품목의 상세로 보완함. */
+    /* 설명. 허가정보에서 성분명을 찾는다. 없으면 null을 반환해 품목코드로 다시 확인함. */
     private String fetchMaterial(String itemSeq, String itemName) {
 
-        // 허가정보 Service08 목록 API 는 item_seq 조건을 무시하고 다른 약을 돌려준다. (2026-10-19 확인)
-        // 그래서 낱알식별에서 받은 제품명(item_name)으로 찾고, 결과 중 품목기준코드가 같은 것을 고른다.
+        // 낱알에서 받은 제품명과 품목코드로 조회하며, 같은 품목의 성분만 사용함.
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("item_seq", itemSeq);
         if (itemName != null) {

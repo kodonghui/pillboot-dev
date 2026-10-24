@@ -1446,12 +1446,12 @@ class PhotoFlowHttpMySqlTests {
                               "합성 공식 효능",
                               "updateDe",
                               "2026-10-20")))));
-        } else if (path.contains("getDrugPrdtPrmsnDtlInq08")) {
+        } else if (path.contains("getDrugPrdtPrmsnDtlInq08") && !query.contains("item_name=")) {
           var detail = new LinkedHashMap<String, Object>();
           detail.put("ITEM_SEQ", t.code1); detail.put("EE_DOC_DATA", "<DOC>합성 허가 근거</DOC>"); detail.put("CHANGE_DATE", "20261020");
           if (t.permitMetadata && !t.officialRows.isEmpty()) {
             detail.putAll(t.officialRows.getFirst());
-            // 실제 목록/상세는 전문·일반 필드명이 서로 다름.
+            // 품목코드 전용 조회의 대역을 실제 허가 상세 필드명으로 맞춤.
             Object type = detail.remove("SPCLTY_PBLC");
             if (type != null) detail.put("ETC_OTC_CODE", type);
           }
