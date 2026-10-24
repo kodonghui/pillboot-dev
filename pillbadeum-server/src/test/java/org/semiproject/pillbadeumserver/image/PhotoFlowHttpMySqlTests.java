@@ -1381,6 +1381,7 @@ class PhotoFlowHttpMySqlTests {
       if (path.equals("/responses")) {
         var request = JSON.readTree(exchange.getRequestBody().readAllBytes());
         boolean isVision = "synthetic-photo-vision".equals(request.path("model").asString());
+        boolean isQuery = "chat_drug_query".equals(request.path("text").path("format").path("name").asString());
         if (isVision) {
           t.visionRequests.add(request);
           t.sawUploaded =
@@ -1413,6 +1414,7 @@ class PhotoFlowHttpMySqlTests {
                                 "text",
                                 isVision
                                     ? JSON.writeValueAsString(t.vision)
+                                    : isQuery ? "{\"mode\":\"RECORD\",\"choice\":0,\"names\":[]}"
                                     : "합성 복약 안내입니다. 공식 주의사항을 확인하고 궁금한 점은 약사에게 문의하세요."))))));
       } else if (path.equals("/decisions")) {
         respond(

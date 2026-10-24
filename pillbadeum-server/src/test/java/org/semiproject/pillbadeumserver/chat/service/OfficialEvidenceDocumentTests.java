@@ -30,7 +30,7 @@ class OfficialEvidenceDocumentTests {
                 ? Map.of("totalCount",0,"items",List.of()) : Map.of("totalCount",1,"items",List.of(item))));
     }
     @Test void missingInlineEfficacyReadsSameProductOfficialDocumentAndKeepsFullText() {
-        provider(Map.of("EE_DOC_ID","official","STORAGE_METHOD","storage"));
+        provider(Map.of("EE_DOC_ID","official","UD_DOC_ID","official","NB_DOC_ID","official","STORAGE_METHOD","storage"));
         when(documents.read(eq(drug.itemSeq()),eq("EE"),any(Duration.class))).thenReturn("Official efficacy < 5 mg; age > 12. Preserve entire medical sentence.");
         var result=evidence.collect(List.of(drug),ChatDeadline.after(Duration.ofSeconds(2)),"효능은?");
         assertThat(result.lookups().get(1).facts().get("EE_DOC_DATA")).isEqualTo("Official efficacy < 5 mg; age > 12. Preserve entire medical sentence.");
