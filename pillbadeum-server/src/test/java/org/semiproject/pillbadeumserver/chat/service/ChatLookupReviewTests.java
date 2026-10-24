@@ -150,6 +150,13 @@ class ChatLookupReviewTests {
         }
     }
 
+    @Test void aStrengthSubstringCannotStandInForTheStrengthTheUserProvided() {
+        extract("LOOKUP", "가상약10mg");
+        var recent = List.of(answered("가상약 검색해줘", source(A, "가상약정10mg")));
+        assertThat(lookup.resolve(input("110mg짜리", recent, false), deadline()).reply()).contains("임의로 고르지");
+        verifyNoInteractions(data);
+    }
+
     @Test void coadministrationFollowupRestoresBothSearchedProductsRatherThanRegisteredOnes() {
         for (boolean registered : List.of(false, true)) {
             reset(ai, data, official, dur); extract("FOLLOWUP"); officialByCode(); generatedEvidence();

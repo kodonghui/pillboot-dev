@@ -217,8 +217,9 @@ public class ChatDrugLookup {
         if ((current+" "+prior).contains(name)) return true;
         String base = withoutStrength(name);
         var strengths = STRENGTH.matcher(name).results().map(java.util.regex.MatchResult::group).toList();
+        var suppliedStrengths = STRENGTH.matcher(current).results().map(java.util.regex.MatchResult::group).toList();
         return !strengths.isEmpty() && base.length()>=2 && prior.contains(base)
-                && strengths.stream().allMatch(current::contains);
+                && suppliedStrengths.containsAll(strengths);
     }
 
     private AnswerInput.Medication byCode(String code,AnswerInput input,ChatDeadline deadline) {
