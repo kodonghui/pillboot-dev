@@ -116,6 +116,98 @@ class DrugSyncFallbackTests {
     assertThat(cached.getMaterial()).isEqualTo("합성성분");
   }
 
+  @Test
+  void partialGrainUsesSameCodePermitMetadataWithoutReplacingAppearanceOrMutatingResponse() {
+    var grain = partialGrain(null);
+    var detail = new LinkedHashMap<>(row());
+    detail.put("ITEM_NAME", "허가자료의 제품명 표기");
+    detail.put("DRUG_SHAPE", "타원형");
+    detail.put("COLOR_CLASS1", "노랑");
+    when(client.get(eq(DrugGuideService.PERMIT_DETAIL_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(detail))));
+    when(drugs.save(any())).thenAnswer(c -> c.getArgument(0));
+
+    var result = service.getOrSync("900001");
+
+    assertThat(result.getMaker()).isEqualTo("합성제약");
+    assertThat(result.getMaterial()).isEqualTo("합성성분");
+    assertThat(result.getName()).isEqualTo("합성정(합성성분)");
+    assertThat(result.getShape()).isEqualTo("원형");
+    assertThat(result.getColor()).isEqualTo("하양");
+    assertThat(result.getPrintFront()).isEqualTo("AB");
+    assertThat(result.getImageUrl()).isEqualTo("https://official.test/grain.jpg");
+    assertThat(result.getMetadataSource()).isEqualTo("MIXED");
+    assertThat(grain.path("ENTP_NAME").isNull()).isTrue();
+    verify(client).get(DrugGuideService.PERMIT_DETAIL_PATH,
+        Map.of("item_seq", "900001", "pageNo", 1, "numOfRows", 1));
+  }
+
+  @Test
+  void missingIngredientIsSupplementedWithoutOverwritingPresentGrainMaker() {
+    partialGrain("낱알자료제약");
+    when(client.get(eq(DrugGuideService.PERMIT_DETAIL_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(row()))));
+    when(drugs.save(any())).thenAnswer(c -> c.getArgument(0));
+
+    var result = service.getOrSync("900001");
+
+    assertThat(result.getMaker()).isEqualTo("낱알자료제약");
+    assertThat(result.getMaterial()).isEqualTo("합성성분");
+    assertThat(result.getShape()).isEqualTo("원형");
+  }
+
+  @Test
+  void wrongCodeOrStillMissingRequiredPermitFieldsNeverCreatesADrug() {
+    partialGrain(null);
+    for (String missing : List.of("WRONG_CODE", "ENTP_NAME", "MAIN_ITEM_INGR")) {
+      var detail = new LinkedHashMap<>(row());
+      if (missing.equals("WRONG_CODE")) detail.put("ITEM_SEQ", "900002");
+      else detail.remove(missing);
+      when(client.get(eq(DrugGuideService.PERMIT_DETAIL_PATH), anyMap()))
+          .thenReturn(json.valueToTree(Map.of("items", List.of(detail))));
+      assertThatThrownBy(() -> service.getOrSync("900001")).as(missing)
+          .isInstanceOf(NotFoundException.class);
+    }
+    verify(drugs, never()).save(any());
+  }
+
+  @Test
+  void permitSupplementTimeoutRemainsAnExternalFailure() {
+    partialGrain(null);
+    when(client.get(eq(DrugGuideService.PERMIT_DETAIL_PATH), anyMap()))
+        .thenThrow(ExternalApiException.timeout("synthetic", null));
+
+    assertThatThrownBy(() -> service.getOrSync("900001"))
+        .isInstanceOf(ExternalApiException.class);
+    verify(drugs, never()).save(any());
+  }
+
+  @Test
+  void completeGrainAndListMetadataDoNotAddADetailLookup() {
+    partialGrain("낱알자료제약");
+    when(client.get(eq(DrugSyncService.PERMIT_INFO_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(row()))));
+    when(drugs.save(any())).thenAnswer(c -> c.getArgument(0));
+
+    assertThat(service.getOrSync("900001").getMaker()).isEqualTo("낱알자료제약");
+    verify(client, never()).get(eq(DrugGuideService.PERMIT_DETAIL_PATH), anyMap());
+  }
+
+  private tools.jackson.databind.JsonNode partialGrain(String maker) {
+    var grain = new LinkedHashMap<String, Object>(row());
+    grain.put("ITEM_NAME", "합성정(합성성분)"); grain.put("ENTP_NAME", maker);
+    grain.remove("MAIN_ITEM_INGR"); grain.put("CLASS_NAME", "합성분류");
+    grain.put("DRUG_SHAPE", "원형"); grain.put("COLOR_CLASS1", "하양");
+    grain.put("FORM_CODE_NAME", "필름코팅정"); grain.put("PRINT_FRONT", "AB");
+    grain.put("ITEM_IMAGE", "https://official.test/grain.jpg");
+    var node = json.valueToTree(grain);
+    when(client.get(eq(DrugSyncService.GRAIN_INFO_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(node))));
+    when(client.get(eq(DrugSyncService.PERMIT_INFO_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(), "totalCount", 0)));
+    return node;
+  }
+
   static Map<String, Object> row() {
     return Map.of("ITEM_SEQ", "900001", "ITEM_NAME", "합성시럽", "ENTP_NAME", "합성제약", "ETC_OTC_NAME", "일반의약품", "MAIN_ITEM_INGR", "[SYN]합성성분");
   }

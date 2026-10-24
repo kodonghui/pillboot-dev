@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-/** REG-005/008: 공식 품목을 확인해 drug FK를 보장함. 낱알0건은 허가 상세로 확인하며 외부 호출은 TX 밖임. */
+/** REG-005/008: 공식 품목을 확인해 drug FK를 보장함. 낱알0건·필수 정보 누락은 허가 상세로 보완하며 외부 호출은 TX 밖임. */
 @Service
 public class DrugSyncService {
 
@@ -92,7 +92,14 @@ public class DrugSyncService {
         }
         final JsonNode item = found;
         String material = permitOnly ? materialOf(item) : fetchMaterial(key, text(item, "ITEM_NAME"));
-        Values values = Values.from(item, key, material, permitOnly);
+        String maker = text(item, "ENTP_NAME");
+        // 낱알 행이 있어도 필수 정보는 비어 있을 수 있음. 같은 품목의 허가 상세로 부족한 값만 보완함.
+        if (!permitOnly && (maker == null || material == null)) {
+            JsonNode permit = fetchPermitInfo(key);
+            if (maker == null) maker = textIgnoreCase(permit, "ENTP_NAME");
+            if (material == null) material = materialOf(permit);
+        }
+        Values values = Values.from(item, key, material, permitOnly, maker);
         LocalDateTime now = LocalDateTime.now(org.semiproject.pillbadeumserver.common.config.TimeZoneConfig.ZONE);
         String source = permitOnly ? "PERMIT" : "MIXED";
 
@@ -147,7 +154,7 @@ public class DrugSyncService {
                 .findFirst().orElseThrow(() -> new NotFoundException("공식 허가정보에서 품목을 확인하지 못했습니다."));
     }
 
-    /* 설명. 허가정보 API 에서 성분명을 찾는다. 없으면 null (→ Values.from 에서 404) */
+    /* 설명. 허가 목록에서 성분명을 찾는다. 없으면 null을 반환해 같은 품목의 상세로 보완함. */
     private String fetchMaterial(String itemSeq, String itemName) {
 
         // 허가정보 Service08 목록 API 는 item_seq 조건을 무시하고 다른 약을 돌려준다. (2026-10-19 확인)
@@ -213,12 +220,16 @@ public class DrugSyncService {
         }
 
         static Values from(JsonNode item, String itemSeq, String material, boolean permitOnly) {
+            return from(item, itemSeq, material, permitOnly, text(item, "ENTP_NAME"));
+        }
+
+        static Values from(JsonNode item, String itemSeq, String material, boolean permitOnly, String maker) {
 
             String formCodeName = text(item, "FORM_CODE_NAME");
 
             Values raw = new Values(
                     cut(text(item, "ITEM_NAME"), LEN_NAME),
-                    cut(text(item, "ENTP_NAME"), LEN_MAKER),
+                    cut(maker, LEN_MAKER),
                     DrugRegulatoryType.parse(item),
                     cut(text(item, "CLASS_NAME"), LEN_CLASS_NAME),
                     cut(text(item, "ITEM_IMAGE"), LEN_IMAGE_URL),
