@@ -688,8 +688,13 @@ class AnswerMySqlTests {
             respond(exchange, decisionStatus.get(), JSON.writeValueAsString(Map.of("answers", List.of(Map.of(
                     "type", "choice", "name", "medication_category", "choice", category.get())))));
         } else if (path.equals("/responses")) {
+            var input = JSON.readTree(exchange.getRequestBody().readAllBytes());
+            if ("chat_drug_query".equals(input.path("text").path("format").path("name").asString())) {
+                respond(exchange, 200, completed("{\"mode\":\"RECORD\",\"choice\":0,\"names\":[]}"));
+                return;
+            }
             generations.incrementAndGet();
-            requests.add(JSON.readTree(exchange.getRequestBody().readAllBytes()));
+            requests.add(input);
             duringGeneration.get().run();
             try { respond(exchange, generationStatus.get(), response.get()); } catch (IOException ignored) { exchange.close(); }
         } else if (path.equals(OfficialDrugEvidence.EASY_PATH) || path.equals(OfficialDrugEvidence.PERMIT_PATH)) {

@@ -429,6 +429,12 @@ class ChatFlowHttpTests {
                         "usage", Map.of("prompt_tokens", 7, "total_tokens", 7)));
             } else if (path.equals("/responses")) {
                 var input = JSON.readTree(exchange.getRequestBody().readAllBytes());
+                if ("chat_drug_query".equals(input.path("text").path("format").path("name").asString())) {
+                    respond(exchange, 200, Map.of("id", "resp-query", "status", "completed", "output", List.of(
+                            Map.of("type", "message", "content", List.of(Map.of("type", "output_text", "text",
+                                    "{\"mode\":\"RECORD\",\"choice\":0,\"names\":[]}"))))));
+                    return;
+                }
                 boolean summary = input.path("instructions").asString().startsWith("필받음 대화 기록");
                 String text;
                 int status = 200;

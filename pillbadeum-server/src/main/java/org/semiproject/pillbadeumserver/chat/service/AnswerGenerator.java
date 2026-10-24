@@ -35,7 +35,9 @@ public class AnswerGenerator {
             3. 약의 효능·용법·주의·상호작용은 이번 officialEvidence에 실제 제공된 내용만 사용한다.
                e약은요를 우선하고 허가정보로 보충한다. 빠진 내용을 지식·추측·이전 답변으로 채우지 않는다.
                근거 없는 항목은 '공식 자료에서 확인할 수 없어요'라고 말한다.
-            4. 등록 목록에 없는 약·비타민 등은 이름 검색이나 안전성을 확인한 것처럼 답하지 말고 먼저 등록을 안내한다.
+            4. registeredItemSeqs에 있는 품목만 실제 등록 약이다. 검색으로 조회한 다른 품목은 복용 중인 약이 아니다.
+               미등록 제품도 이번 공식 검색·원문에 있는 내용은 설명하며 등록을 강요하거나 자동 등록했다고 말하지 않는다.
+               제품이 확정되지 않았거나 자료가 없으면 임의 제품·약효·안전성을 추측하지 않는다.
                unidentifiedDrugNames의 직접 입력 약은 품목 미확인 상태다. 공식 정보·DUR·안전성을 확인했다고 말하지 않는다.
                사본의 임신 여부 UNKNOWN을 임신 아님으로 해석하지 않는다. 나이는 출생연도 차이의 범위 추정이다.
                일정은 오늘·내일의 사용자 등록 기록만 설명한다. 처방이나 등록 기록을 바꾸지 않는다.
@@ -63,10 +65,11 @@ public class AnswerGenerator {
     private final AsyncTaskExecutor executor;
     private final DurLookupService durLookup;
     private final DurEvaluator durEvaluator;
+    private final ChatDrugLookup drugLookup;
 
     public AnswerGenerator(OpenAiClient openAi, OfficialDrugEvidence official, DurLookupService durLookup,
                            DurEvaluator durEvaluator, AnswerSources sources, ObjectMapper json,
-                           @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor) {
+                           @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor, ChatDrugLookup drugLookup) {
         this.openAi = openAi;
         this.official = official;
         this.sources = sources;
@@ -74,18 +77,34 @@ public class AnswerGenerator {
         this.executor = executor;
         this.durLookup = durLookup;
         this.durEvaluator = durEvaluator;
+        this.drugLookup = drugLookup;
     }
 
     /** 공식 근거가 없으면 모델 추측을 사용하지 않고 서버 고정 안내를 저장할 답변으로 반환한다. */
     public GeneratedAnswer generate(AnswerInput input, ChatDeadline deadline) {
         deadline.check();
-        var medications = selectMedications(input);
+        var selection = drugLookup.resolve(input, deadline);
+        if (selection.reply() != null)
+            return new GeneratedAnswer(sources.append(selection.reply(), selection.sources()), null, null, List.of());
+        var combined = new LinkedHashMap<String, AnswerInput.Medication>();
+        input.medications().forEach(m -> combined.put(m.itemSeq(), m));
+        selection.medications().forEach(m -> combined.putIfAbsent(m.itemSeq(), m));
+        var medications = selection.medications().isEmpty() ? selectMedications(input) : List.copyOf(combined.values());
+        var evidenceMedications = selection.medications().isEmpty() ? medications : selection.medications();
+        var durInput = new AnswerInput(input.birthYear(), input.gender(), input.pregnant(), input.question(),
+                medications, input.recentTurns(), input.firstAnswer(), input.recentSummaries(), input.similarSummaries(),
+                input.summaryCount(), input.unidentifiedDrugNames());
         if (medications.isEmpty()) return new GeneratedAnswer(sources.append(input.unidentifiedDrugNames().isEmpty() ? NO_DRUG : UNIDENTIFIED, List.of()), null,
                 durEvaluator.cardNotice(input, durEvaluator.evaluate(input, List.of()).notice()));
 
         // 같은 공공데이터 Semaphore를 공유한다. 둘 다 DB 쓰기가 없어 늦은 결과는 취소·폐기할 수 있다.
-        Future<OfficialDrugEvidence.Evidence> officialTask = executor.submit(() -> official.collect(medications, deadline));
-        Future<List<DurLookup>> durTask = executor.submit(() -> durLookup.collect(input, deadline));
+        String documentQuestion = input.question();
+        if (!selection.medications().isEmpty() && !input.recentTurns().isEmpty()
+                && input.question().matches("\\s*(?:[1-5]번.*|(?:첫|두|세|네|다섯)\\s*번째.*|왜.*|그\\s*약.*)"))
+            documentQuestion += " " + input.recentTurns().stream().max(Comparator.comparingInt(AnswerInput.Turn::turnNo)).orElseThrow().question();
+        String documentScope = documentQuestion;
+        Future<OfficialDrugEvidence.Evidence> officialTask = executor.submit(() -> official.collect(evidenceMedications, deadline, documentScope));
+        Future<List<DurLookup>> durTask = executor.submit(() -> durLookup.collect(durInput, deadline));
         OfficialDrugEvidence.Evidence evidence;
         List<DurLookup> lookups;
         try {
@@ -95,9 +114,13 @@ public class AnswerGenerator {
             if (!officialTask.isDone()) officialTask.cancel(true);
             if (!durTask.isDone()) durTask.cancel(true);
         }
-        var dur = durEvaluator.evaluate(input, lookups);
+        var dur = durEvaluator.evaluate(durInput, lookups);
+        var notice = dur.notice();
+        if (selection.medications().stream().anyMatch(m -> input.medications().stream().noneMatch(r -> r.itemSeq().equals(m.itemSeq()))))
+            notice = new DurNotice(notice.lookup(), notice.result(), notice.checkedCount(), notice.uncheckedDrugNames(),
+                    notice.items(), notice.message().replace("등록 약", "확인한 품목"));
         List<AnswerSource> provenance = new ArrayList<>(evidence.lookups().stream().map(OfficialDrugEvidence.Lookup::source).toList());
-        for (var medication : medications) provenance.add(new AnswerSource(medication.itemSeq(), medication.name(),
+        for (var medication : input.medications().stream().filter(m -> medications.stream().anyMatch(s -> s.itemSeq().equals(m.itemSeq()))).toList()) provenance.add(new AnswerSource(medication.itemSeq(), medication.name(),
                 AnswerSource.Type.USER_INPUT, medication.updatedAt(), true, false));
         provenance.addAll(dur.sources());
         String text;
@@ -107,7 +130,7 @@ public class AnswerGenerator {
                     ? "지금은 공식 정보를 확인하지 못해 답할 수 없어요. 잠시 후 다시 물어봐 주세요."
                     : "공식 자료에서 확인할 수 없어요. 약사에게 확인해 주세요.";
         } else {
-            var messages = messages(input, medications, evidence, dur.notice());
+            var messages = messages(input, medications, evidence, notice);
             deadline.check();
             // effort max의 긴 정리 답변이 30초를 넘어 60초까지 기다림(CHK-42). 전체 85초 마감이 먼저 오면 그때 끊음.
             AiTextResult generated = deadline.within(Duration.ofSeconds(60)).await(executor.submit(() -> {
@@ -124,14 +147,13 @@ public class AnswerGenerator {
             text += "\n\n허가 취하·취소가 확인된 약이 있어요. 복용 여부는 의사나 약사에게 확인해 주세요.";
         }
         // 발견·미확인·안전 질문의 안내는 유지하며 정상 조회의 단순 기록/서식 답변에는 반복하지 않음.
-        if (durEvaluator.needsExplanation(input, dur.notice())) {
-            text += "\n\nDUR 확인: " + dur.notice().message();
-            for (var item : dur.notice().items()) text += "\n- " + DurLookup.Type.valueOf(item.type()).label()
+        if (durEvaluator.needsExplanation(durInput, notice)) {
+            text += "\n\nDUR 확인: " + notice.message();
+            for (var item : notice.items()) text += "\n- " + DurLookup.Type.valueOf(item.type()).label()
                     + " · " + String.join(" + ", item.drugNames()) + " · " + item.content();
         }
-        DurNotice notice = durEvaluator.cardNotice(input, dur.notice());
         deadline.check();
-        return new GeneratedAnswer(sources.append(text, provenance), responseId, notice, lookups);
+        return new GeneratedAnswer(sources.append(text, provenance), responseId, durEvaluator.cardNotice(durInput, notice), lookups);
     }
 
     /** 현재 명시한 약을 선택함. 생략된 후속 질문은 직전 약을 우선하되 다른 등록 약·일정도 최대10개 유지함. */
@@ -186,6 +208,7 @@ public class AnswerGenerator {
             }
         }
         String background = json.writeValueAsString(Map.of("patient", patient, "medications", medications,
+                "registeredItemSeqs", input.medications().stream().map(AnswerInput.Medication::itemSeq).toList(),
                 "today", today.toString(), "tomorrow", today.plusDays(1).toString(), "userSchedules", schedules,
                 "officialEvidence", evidence.lookups(), "dur", dur, "unidentifiedDrugNames", input.unidentifiedDrugNames()));
         List<AiMessage> result = new ArrayList<>();

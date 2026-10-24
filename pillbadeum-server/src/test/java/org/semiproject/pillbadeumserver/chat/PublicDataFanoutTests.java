@@ -39,7 +39,7 @@ class PublicDataFanoutTests {
       for (int i = 1; i <= 4; i++) medications.add(new AnswerInput.Medication("90000" + i, "합성약" + i, "합성제약", "OTC", 1, null, null, null, List.of(), LocalDate.now()));
       var input = new AnswerInput(1990, "MALE", false, "등록 약 안내", medications, List.of(), false);
       var deadline = ChatDeadline.after(Duration.ofSeconds(20));
-      var official = executor.submit(() -> new OfficialDrugEvidence(client, executor, 4).collect(medications, deadline));
+      var official = executor.submit(() -> new OfficialDrugEvidence(client, executor, 4, org.mockito.Mockito.mock(org.semiproject.pillbadeumserver.drug.service.OfficialDrugDocuments.class)).collect(medications, deadline));
       var dur = executor.submit(() -> new DurLookupService(client, executor, 4).collect(input, deadline));
       var evidence = official.get(20, TimeUnit.SECONDS);
       var lookups = dur.get(20, TimeUnit.SECONDS);

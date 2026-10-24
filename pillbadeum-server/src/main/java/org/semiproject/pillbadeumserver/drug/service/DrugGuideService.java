@@ -48,7 +48,7 @@ public class DrugGuideService {
     // 항목 하나가 이보다 길면 본문 대신 생략 안내를 넣는다. (의료 정보를 중간에서 자르지 않고, 항목을 말없이 빼지도 않는다)
     // 전문의약품의 '사용상의 주의사항'은 실제로 이만큼 길 수 있어 비정상 응답으로 단정하지 않는다.
     private static final int MAX_SECTION_LENGTH = 20_000;
-    static final String OMITTED_SECTION = "내용이 길어 앱에서는 보여 드리지 않아요. "
+    public static final String OMITTED_SECTION = "내용이 길어 앱에서는 보여 드리지 않아요. "
             + "의약품안전나라(nedrug.mfds.go.kr)에서 이 약의 전체 내용을 확인해 주세요.";
 
     // e약은요 필드 → 화면 항목 (화면 표시 순서)

@@ -1,6 +1,7 @@
 package org.semiproject.pillbadeumserver.drug.service;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -21,6 +22,12 @@ public final class PrescriptionDrugLookup {
 
     /** 최대 세 가지 조회만 수행함. 통신 장애를 빈 결과로 숨기거나 함량을 버리고 채택하지 않음. */
     public List<JsonNode> find(String name, String maker) {
+        return find(name, maker, null).rows();
+    }
+
+    /** 채팅은 잘린 첫 페이지의 한 품목을 유일한 제품으로 확정하지 않음. 기존 처방전 필터를 재사용함. */
+    public Matches find(String name, String maker, Duration remaining) {
+        long endsAt = remaining == null ? Long.MAX_VALUE : System.nanoTime() + remaining.toNanos();
         var clue = new Clue(name);
         for (String query : clue.queries()) {
             var params = new LinkedHashMap<String, Object>();
@@ -28,12 +35,19 @@ public final class PrescriptionDrugLookup {
             if (maker != null && !maker.isBlank()) params.put("entp_name", maker.strip());
             params.put("pageNo", 1);
             params.put("numOfRows", 100);
-            var matches = PublicDataClient.items(client.get(DrugSyncService.PERMIT_INFO_PATH, params)).stream()
-                    .filter(row -> clue.matches(text(row, "ITEM_NAME"))).toList();
-            if (!matches.isEmpty()) return matches;
+            var body = remaining == null ? client.get(DrugSyncService.PERMIT_INFO_PATH, params)
+                    : client.get(DrugSyncService.PERMIT_INFO_PATH, params, Duration.ofNanos(Math.max(1, endsAt - System.nanoTime())));
+            var items = PublicDataClient.items(body);
+            var matches = items.stream()
+                    .filter(row -> clue.matches(text(row, "ITEM_NAME"))
+                            || remaining != null && clue.matchesPartialName(text(row,"ITEM_NAME"))).toList();
+            boolean more = remaining != null && PublicDataClient.totalCount(body) > items.size();
+            if (!matches.isEmpty() || more) return new Matches(matches, more);
         }
-        return List.of();
+        return new Matches(List.of(), false);
     }
+
+    public record Matches(List<JsonNode> rows, boolean more) {}
 
     private static final class Clue {
         final String clean, base, form;
@@ -88,6 +102,12 @@ public final class PrescriptionDrugLookup {
                 if (base.contains("장용") != candidateBase.contains("장용")) return false;
             }
             return true;
+        }
+
+        boolean matchesPartialName(String candidate) {
+            return candidate != null && form == null && !complex && !strengths.isEmpty()
+                    && base(clean(candidate)).startsWith(base) && strengths.equals(strengths(clean(candidate)))
+                    && !COMPLEX.matcher(clean(candidate)).find();
         }
     }
 

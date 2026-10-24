@@ -78,8 +78,11 @@ class AnswerExternalTests {
         var publicData = new PublicDataClient(json, base, "private-public-key", 1000, 300, 4, 20);
         var openAi = new OpenAiClient(json, "private-ai-key", base, "chat-only", "decision-only", "vision-only", "embedding-only",
                 "", 1000, 300, 500, 60000, 4, 20, new BigDecimal("0.10"), 85_000);
-        generator = new AnswerGenerator(openAi, new OfficialDrugEvidence(publicData, executor, 4),
-                new DurLookupService(publicData, executor, 4), new DurEvaluator(), sources, json, executor);
+        var lookup = org.mockito.Mockito.mock(org.semiproject.pillbadeumserver.chat.service.ChatDrugLookup.class);
+        org.mockito.Mockito.when(lookup.resolve(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(org.semiproject.pillbadeumserver.chat.service.ChatDrugLookup.Resolution.none());
+        generator = new AnswerGenerator(openAi, new OfficialDrugEvidence(publicData, executor, 4, org.mockito.Mockito.mock(org.semiproject.pillbadeumserver.drug.service.OfficialDrugDocuments.class)),
+                new DurLookupService(publicData, executor, 4), new DurEvaluator(), sources, json, executor, lookup);
         easyBody.set(success(List.of(Map.of("itemSeq", CODE, "efcyQesitm", "<p>" + PRIVATE + "</p>",
                 "useMethodQesitm", "synthetic official directions", "updateDe", "2026-10-17"))));
         permitBody.set(success(List.of(Map.of("ITEM_SEQ", CODE, "EE_DOC_DATA", "<DOC><![CDATA[synthetic permit facts]]></DOC>",

@@ -32,7 +32,7 @@ class AnswerContextTests {
         executor = new SimpleAsyncTaskExecutor("answer-context-test-");
         executor.setVirtualThreads(true);
         generator = new AnswerGenerator(mock(OpenAiClient.class), mock(OfficialDrugEvidence.class), mock(DurLookupService.class),
-                new DurEvaluator(), sources, json, executor);
+                new DurEvaluator(), sources, json, executor, mock(ChatDrugLookup.class));
     }
 
     @AfterEach
