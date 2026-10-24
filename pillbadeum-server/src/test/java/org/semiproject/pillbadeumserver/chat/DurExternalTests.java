@@ -55,7 +55,7 @@ class DurExternalTests {
         executor = new SimpleAsyncTaskExecutor("dur-http-test-");
         executor.setVirtualThreads(true);
         service = new DurLookupService(new PublicDataClient(json, "http://127.0.0.1:" + server.getAddress().getPort(),
-                "synthetic-dur-key", 1000, 250, 2, 100), executor, 2);
+                "synthetic-dur-key", 1000, 1000, 2, 100), executor, 2);
         responder.set(request -> success(0, request.page(), List.of()));
     }
 
