@@ -39,7 +39,7 @@ function AppHeader({ variant }) {
                 복용 달력
               </MenuLink>
               <MenuLink to={paths.chat} menu={menu}>
-                챗봇
+                약봉이
               </MenuLink>
               <SettingsMenu />
             </nav>

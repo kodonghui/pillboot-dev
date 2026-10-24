@@ -235,7 +235,7 @@ function ChatPage() {
 
   return (
     <div className={sessionId === null ? 'chat-page' : 'chat-page chat-page--room'}>
-      <h1 className="screen-title">챗봇</h1>
+      <h1 className="screen-title">약봉이</h1>
       <div className="chat-page__cols" ref={colsRef}>
         <ChatRoomList
           name={name}

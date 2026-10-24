@@ -46,11 +46,11 @@ public class QuestionService {
         }
         try {
             deadline.check();
-            var category = classifier.classify(question);
-            if (!category.isPassed()) return QuestionResponse.blocked(category);
+            var plan = classifier.plan(question, store.classificationContext(sessionId, memberId, profileId));
+            if (!plan.category().isPassed()) return QuestionResponse.blocked(plan.category());
             deadline.check();
             var saved = store.save(sessionId, memberId, profileId, question);
-            return QuestionResponse.answered(saved, answers.complete(sessionId, memberId, profileId, saved, deadline));
+            return QuestionResponse.answered(saved, answers.complete(sessionId, memberId, profileId, saved, deadline, plan));
         } finally {
             inProgress.remove(sessionId);
         }

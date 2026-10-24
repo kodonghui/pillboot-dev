@@ -159,8 +159,8 @@ class MessageEmbeddingMySqlTests {
         profileId=insert("INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,profile_pregnant,created_at,updated_at) VALUES(?,'embed','SELF',1990,'FEMALE',FALSE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",memberId);
         sessionId=insert("INSERT INTO chat_session(member_id,profile_id,snap_birth_year,snap_gender,snap_pregnant,created_at,updated_at) VALUES(?,?,1990,'FEMALE',NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",memberId,profileId);
         current=this;
-        when(classifier.classify(anyString())).thenReturn(QuestionCategory.PASS);
-        when(generator.generate(any(),any())).thenReturn(new GeneratedAnswer(ANSWER,"synthetic-response-id",null));
+        when(classifier.plan(anyString(), any())).thenReturn(plan(QuestionCategory.PASS));
+        when(generator.generate(any(),any(),any())).thenReturn(new GeneratedAnswer(ANSWER,"synthetic-response-id",null));
         doAnswer(inv->{workerChecks.add(Thread.currentThread().isVirtual()&&!TransactionSynchronizationManager.isActualTransactionActive());return inv.callRealMethod();})
                 .when(openAi).embed(anyString());
     }
@@ -211,7 +211,7 @@ class MessageEmbeddingMySqlTests {
 
     @Test
     void blockedQuestionNeverCreatesMessagesOrEmbeddingRequests() throws Exception {
-        when(classifier.classify(anyString())).thenReturn(QuestionCategory.OFF_TOPIC);
+        when(classifier.plan(anyString(), any())).thenReturn(plan(QuestionCategory.OFF_TOPIC));
         var before=jdbc.queryForMap("SELECT * FROM chat_session WHERE session_id=?",sessionId);
         assertThat(send(200).path("result").asString()).isEqualTo("BLOCKED");
         assertThat(countMessages()).isZero();assertThat(requests).isEmpty();assertThat(exists()).isFalse();
@@ -220,7 +220,7 @@ class MessageEmbeddingMySqlTests {
 
     @Test
     void generatorFailureKeepsOnlyCommittedQuestionAndItsVector() throws Exception {
-        doThrow(new IllegalStateException("synthetic generation failure")).when(generator).generate(any(),any());
+        doThrow(new IllegalStateException("synthetic generation failure")).when(generator).generate(any(),any(),any());
         var error=send(503);
         assertThat(error.path("questionMessageId").asLong()).isPositive();assertThat(countMessages()).isEqualTo(1);
         assertThat(countPoints()).isEqualTo(1);assertThat(requests).hasSize(1);
@@ -340,13 +340,13 @@ class MessageEmbeddingMySqlTests {
 
     @Test
     void retryRetrievesTheExistingQuestionVectorWithoutAnotherEmbedding() throws Exception {
-        seedSearchMemory(6);doThrow(new IllegalStateException("synthetic generation failure")).when(generator).generate(any(),any());
+        seedSearchMemory(6);doThrow(new IllegalStateException("synthetic generation failure")).when(generator).generate(any(),any(),any());
         long question=send(503).path("questionMessageId").asLong();
         var captured=captureContext();retry(question,200);await(()->activeTasks.get()==0&&httpActive.get()==0);
         assertThat(captured.get().similarSummaries()).hasSize(3);
         verify(vectors,times(1)).questionVector(eq(sessionId),eq(question),eq(MODEL),any());
         assertThat(requests.stream().filter(r->QUESTION.equals(r.path("input").asString()))).hasSize(1);
-        verify(classifier,times(1)).classify(anyString());
+        verify(classifier,times(1)).plan(anyString(), any());
     }
 
     @Test
@@ -459,7 +459,7 @@ class MessageEmbeddingMySqlTests {
     }
     private java.util.concurrent.atomic.AtomicReference<AnswerInput> captureContext(){
         var input=new java.util.concurrent.atomic.AtomicReference<AnswerInput>();
-        doAnswer(inv->{input.set(inv.getArgument(0));return new GeneratedAnswer(ANSWER,"synthetic-response-id",null);}).when(generator).generate(any(),any());return input;
+        doAnswer(inv->{input.set(inv.getArgument(0));return new GeneratedAnswer(ANSWER,"synthetic-response-id",null);}).when(generator).generate(any(),any(),any());return input;
     }
     private JsonNode retry(long question,int expected) throws Exception {
         var result=mvc.perform(post("/api/chat-sessions/{s}/messages/{q}/retry",sessionId,question)
@@ -510,4 +510,8 @@ class MessageEmbeddingMySqlTests {
             executor.setTaskDecorator(task->{activeTasks.incrementAndGet();return ()->{try{task.run();}finally{activeTasks.decrementAndGet();}};});return executor;
         }
     }
+    private static QuestionPlan plan(QuestionCategory category) {
+        return new QuestionPlan(category, QuestionPlan.Purpose.COMBINED, "fixture");
+    }
+
 }

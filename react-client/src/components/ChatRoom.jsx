@@ -141,7 +141,7 @@ function BlockedNote({ note }) {
 function Waiting({ slow }) {
   return (
     <div className="chat-msg chat-msg--answer">
-      <p className="visually-hidden">필받음의 답변</p>
+      <p className="visually-hidden">약봉이의 답변</p>
       <div className="chat-msg__answer chat-room__waiting" role="status">
         <Icon name="loader" className="icon--spin" />
         <p className="screen-body chat-room__strong">
@@ -559,7 +559,7 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
       const retrying = pending?.kind === 'retry' && pending.messageId === id
       return (
         <div className="chat-msg chat-msg--answer chat-room__failed-wrap">
-          <p className="visually-hidden">필받음의 답변</p>
+          <p className="visually-hidden">약봉이의 답변</p>
           <div className="mt-notice mt-notice--negative chat-room__failed">
             <Icon name="alertCircle" className="mt-notice__icon" />
             <div className="chat-room__failed-text">
@@ -584,7 +584,7 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
     if (elsewhere && turn === last) {
       return (
         <div className="chat-msg chat-msg--answer">
-          <p className="visually-hidden">필받음의 답변</p>
+          <p className="visually-hidden">약봉이의 답변</p>
           <div className="chat-msg__answer chat-room__elsewhere" role="status">
             <p className="screen-body chat-room__strong chat-room__neutral">이전 질문에 답하는 중이에요.</p>
             <button

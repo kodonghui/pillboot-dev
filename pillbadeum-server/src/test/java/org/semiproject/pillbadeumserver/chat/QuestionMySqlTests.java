@@ -19,6 +19,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.semiproject.pillbadeumserver.chat.service.QuestionClassifier;
+import org.semiproject.pillbadeumserver.chat.service.QuestionPlan;
 import org.semiproject.pillbadeumserver.chat.service.QuestionStore;
 import org.semiproject.pillbadeumserver.chat.service.ChatAnswerService;
 import org.semiproject.pillbadeumserver.chat.dto.QuestionResponse;
@@ -90,11 +91,11 @@ class QuestionMySqlTests {
         profileId = insert("INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,profile_pregnant,created_at,updated_at) "
                 + "VALUES(?, 'fixture', 'SELF', 2000, 'FEMALE', FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", memberId);
         sessionId = session(memberId, profileId);
-        when(classifier.classify(anyString())).thenAnswer(invocation -> {
+        when(classifier.plan(anyString(), any())).thenAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
-            return QuestionCategory.PASS;
+            return plan(QuestionCategory.PASS);
         });
-        when(answers.complete(any(), any(), any(), any(), any())).thenAnswer(invocation -> {
+        when(answers.complete(any(), any(), any(), any(), any(), any())).thenAnswer(invocation -> {
             QuestionResponse.Question question = invocation.getArgument(3);
             return new QuestionResponse.Answer(999L, question.turnNo(), "fixture answer", null,
                     java.time.OffsetDateTime.now(TimeZoneConfig.ZONE));
@@ -117,11 +118,11 @@ class QuestionMySqlTests {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void firstPassCommitsTheLatestProfileAndQuestionTogether(boolean pregnant) throws Exception {
-        when(classifier.classify(anyString())).thenAnswer(invocation -> {
+        when(classifier.plan(anyString(), any())).thenAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             // 분류 대기 중의 프로필 수정도 첫 PASS 저장 시점에 읽어야 한다.
             jdbc.update("UPDATE profile SET profile_birth_year=1991,profile_gender='MALE',profile_pregnant=? WHERE profile_id=?", pregnant, profileId);
-            return QuestionCategory.PASS;
+            return plan(QuestionCategory.PASS);
         });
         String question = "가".repeat(19) + "😀" + "나머지 질문";
         var result = send(sessionId, " \t" + question + "\n ", 200);
@@ -168,12 +169,12 @@ class QuestionMySqlTests {
     @EnumSource(value = QuestionCategory.class, names = {"OFF_TOPIC", "UNSAFE", "EMERGENCY"})
     void blockingDoesNotChangeAnySessionColumnOrConsumeATurn(QuestionCategory category, CapturedOutput output) throws Exception {
         var before = room();
-        when(classifier.classify(QUESTION)).thenReturn(category);
+        when(classifier.plan(eq(QUESTION), any())).thenReturn(plan(category));
         send(sessionId, QUESTION, 200);
         assertThat(count()).isZero();
         assertThat(room()).isEqualTo(before);
         assertThat(output.getAll()).doesNotContain(QUESTION);
-        when(classifier.classify(QUESTION)).thenReturn(QuestionCategory.PASS);
+        when(classifier.plan(eq(QUESTION), any())).thenReturn(plan(QuestionCategory.PASS));
         assertThat(body(send(sessionId, QUESTION, 200)).path("question").path("turnNo").asInt()).isEqualTo(1);
     }
 
@@ -181,13 +182,13 @@ class QuestionMySqlTests {
     @EnumSource(value = ErrorCode.class, names = {"EXTERNAL_API_TIMEOUT", "EXTERNAL_API_FAILED"})
     void classificationFailureLeavesAllRowsUntouchedAndReleasesTheRoom(ErrorCode error) throws Exception {
         var before = room();
-        when(classifier.classify(QUESTION)).thenThrow(new BusinessException(error, "잠시 후 다시 시도해 주세요."));
+        when(classifier.plan(eq(QUESTION), any())).thenThrow(new BusinessException(error, "잠시 후 다시 시도해 주세요."));
         var result = send(sessionId, QUESTION, 503);
         assertThat(body(result).path("code").asString()).isEqualTo(error.getCode());
         assertThat(body(result).has("questionMessageId")).isFalse();
         assertThat(count()).isZero();
         assertThat(room()).isEqualTo(before);
-        doReturn(QuestionCategory.PASS).when(classifier).classify(QUESTION);
+        doReturn(plan(QuestionCategory.PASS)).when(classifier).plan(eq(QUESTION), any());
         send(sessionId, QUESTION, 200);
     }
 
@@ -214,9 +215,9 @@ class QuestionMySqlTests {
     @Test
     void ownershipIsRecheckedAfterClassification() throws Exception {
         long otherMember = member();
-        when(classifier.classify(QUESTION)).thenAnswer(invocation -> {
+        when(classifier.plan(eq(QUESTION), any())).thenAnswer(invocation -> {
             jdbc.update("UPDATE profile SET member_id=? WHERE profile_id=?", otherMember, profileId);
-            return QuestionCategory.PASS;
+            return plan(QuestionCategory.PASS);
         });
         var before = room();
         send(sessionId, QUESTION, 403);
@@ -226,9 +227,9 @@ class QuestionMySqlTests {
 
     @Test
     void removedRoomDuringClassificationCannotBeSaved() throws Exception {
-        when(classifier.classify(QUESTION)).thenAnswer(invocation -> {
+        when(classifier.plan(eq(QUESTION), any())).thenAnswer(invocation -> {
             jdbc.update("DELETE FROM chat_session WHERE session_id=?", sessionId);
-            return QuestionCategory.PASS;
+            return plan(QuestionCategory.PASS);
         });
         send(sessionId, QUESTION, 404);
         assertThat(count()).isZero();
@@ -257,11 +258,11 @@ class QuestionMySqlTests {
         long anotherRoom = session(memberId, profileId);
         CountDownLatch classifying = new CountDownLatch(1);
         CountDownLatch finish = new CountDownLatch(1);
-        when(classifier.classify(QUESTION)).thenAnswer(invocation -> {
+        when(classifier.plan(eq(QUESTION), any())).thenAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             classifying.countDown();
             assertThat(finish.await(10, TimeUnit.SECONDS)).isTrue();
-            return QuestionCategory.PASS;
+            return plan(QuestionCategory.PASS);
         });
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var first = executor.submit(() -> send(sessionId, QUESTION, 200));
@@ -277,7 +278,7 @@ class QuestionMySqlTests {
             }
             first.get(15, TimeUnit.SECONDS);
         }
-        verify(classifier, times(1)).classify(QUESTION);
+        verify(classifier, times(1)).plan(eq(QUESTION), any());
         assertThat(count()).isEqualTo(1);
         assertThat(room()).containsEntry("snap_pregnant", true);
         send(sessionId, "완료 후 다음 질문", 200);
@@ -342,4 +343,8 @@ class QuestionMySqlTests {
         }, key);
         return key.getKey().longValue();
     }
+    private static QuestionPlan plan(QuestionCategory category) {
+        return new QuestionPlan(category, QuestionPlan.Purpose.COMBINED, "fixture");
+    }
+
 }

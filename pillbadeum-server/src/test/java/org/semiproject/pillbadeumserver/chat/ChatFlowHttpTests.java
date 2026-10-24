@@ -231,7 +231,7 @@ class ChatFlowHttpTests {
         assertThat(recovered.path("question").path("messageId").asLong()).isEqualTo(questionId);
         assertThat(recovered.path("answer").path("turnNo").asInt()).isEqualTo(1);
         await(() -> pointCount() == 2);
-        assertThat(decisions.get()).isEqualTo(1);
+        assertThat(decisions.get()).isEqualTo(2); // 최초 안전·목적 분류와 재시도 목적 분류 각1회
         assertThat(embeddingInputs.stream().filter("복구할 합성 질문"::equals).count()).isEqualTo(1);
         assertThat(history(session, "", 200).path("retryMessageId").isNull()).isTrue();
         JsonNode alreadyAnswered = call("POST", messages(session) + "/" + questionId + "/retry", null, token, 400);

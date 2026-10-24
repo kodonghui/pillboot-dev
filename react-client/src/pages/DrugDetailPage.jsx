@@ -168,14 +168,14 @@ function DrugDetailPage() {
               )}
               {guide && sections.length > 0 && (
                 <>
-                  <dl className="drug-detail__sections">
+                  <div className="drug-detail__sections">
                     {sections.map((section) => (
-                      <div className="drug-detail__section" key={section.key}>
-                        <dt className="screen-label drug-detail__neutral">{section.title}</dt>
-                        <dd>{section.content}</dd>
-                      </div>
+                      <details className="drug-detail__section" key={section.key}>
+                        <summary className="screen-label drug-detail__neutral">{section.title}</summary>
+                        <p>{section.content}</p>
+                      </details>
                     ))}
-                  </dl>
+                  </div>
                   <p className="screen-caption drug-detail__muted">
                     출처 {guide.sourceName}
                     {guide.referenceDate && (

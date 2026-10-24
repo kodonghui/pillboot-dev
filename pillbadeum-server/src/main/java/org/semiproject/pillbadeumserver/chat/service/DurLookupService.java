@@ -94,7 +94,8 @@ public class DurLookupService {
         long years = today.getYear() - input.birthYear();
         if (drugCount > 1) types.add(DurLookup.Type.INTERACTION);
         if (years >= 65 || years < 0 || years > 130) types.add(DurLookup.Type.ELDERLY);
-        if (!"MALE".equals(input.gender()) && !Boolean.FALSE.equals(input.pregnant())) types.add(DurLookup.Type.PREGNANCY);
+        if (ChatQuestionPurpose.pregnancy(input.question())
+                || (!"MALE".equals(input.gender()) && !Boolean.FALSE.equals(input.pregnant()))) types.add(DurLookup.Type.PREGNANCY);
         return types;
     }
 

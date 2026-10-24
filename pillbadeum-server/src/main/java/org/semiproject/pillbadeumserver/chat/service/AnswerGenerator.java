@@ -92,8 +92,12 @@ public class AnswerGenerator {
 
     /** 공식 근거가 없으면 모델 추측을 사용하지 않고 서버 고정 안내를 저장할 답변으로 반환한다. */
     public GeneratedAnswer generate(AnswerInput input, ChatDeadline deadline) {
+        return generate(input, deadline, QuestionPlan.legacy(input));
+    }
+
+    public GeneratedAnswer generate(AnswerInput input, ChatDeadline deadline, QuestionPlan plan) {
         deadline.check();
-        if (ChatQuestionPurpose.recordOnly(input.question())) return recordAnswer(input, deadline);
+        if (plan.purpose() == QuestionPlan.Purpose.RECORD) return recordAnswer(input, deadline);
         var selection = drugLookup.resolve(input, deadline);
         if (selection.reply() != null)
             return new GeneratedAnswer(sources.append(selection.reply(), selection.sources()), null, null, List.of());
@@ -102,14 +106,14 @@ public class AnswerGenerator {
         selection.medications().forEach(m -> combined.putIfAbsent(m.itemSeq(), m));
         var medications = selection.medications().isEmpty() ? selectMedications(input) : List.copyOf(combined.values());
         var evidenceMedications = selection.medications().isEmpty() ? medications : selection.medications();
-        var durInput = new AnswerInput(input.birthYear(), input.gender(), input.pregnant(), input.question(),
+        var durInput = new AnswerInput(input.birthYear(), input.gender(), input.pregnant(), plan.evidenceQuestion(),
                 List.copyOf(combined.values()), input.recentTurns(), input.firstAnswer(), input.recentSummaries(), input.similarSummaries(),
                 input.summaryCount(), input.unidentifiedDrugNames());
         if (medications.isEmpty()) return new GeneratedAnswer(sources.append(input.unidentifiedDrugNames().isEmpty() ? NO_DRUG : UNIDENTIFIED, List.of()), null,
                 durEvaluator.cardNotice(input, durEvaluator.evaluate(input, List.of()).notice()));
 
         // 같은 공공데이터 Semaphore를 공유한다. 둘 다 DB 쓰기가 없어 늦은 결과는 취소·폐기할 수 있다.
-        String documentQuestion = input.question();
+        String documentQuestion = plan.evidenceQuestion();
         if (!selection.medications().isEmpty() && !input.recentTurns().isEmpty()
                 && input.question().matches("\\s*(?:[1-5]번.*|(?:첫|두|세|네|다섯)\\s*번째.*|왜.*|그\\s*약.*)"))
             documentQuestion += " " + input.recentTurns().stream().max(Comparator.comparingInt(AnswerInput.Turn::turnNo)).orElseThrow().question();

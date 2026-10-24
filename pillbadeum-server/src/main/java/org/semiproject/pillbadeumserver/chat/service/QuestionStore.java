@@ -45,6 +45,18 @@ public class QuestionStore {
         return session.getProfileId();
     }
 
+    /** 저장 전 분류에 필요한 같은 방의 최근 질문2개와 현재 품목 이름만 읽는다. 건강 사본은 보내지 않는다. */
+    @Transactional(readOnly = true)
+    public QuestionClassifier.Context classificationContext(Long sessionId, Long memberId, Long profileId) {
+        if (!Objects.equals(checkAccess(sessionId, memberId), profileId)) throw new NotFoundException("프로필을 찾을 수 없습니다.");
+        var turns = messages.findHistoryTurns(sessionId, null, org.springframework.data.domain.PageRequest.of(0, 2));
+        var previous = turns.isEmpty() ? java.util.List.<String>of() : messages.findHistoryMessages(sessionId, turns).stream()
+                .filter(message -> "user".equals(message.getRole())).map(ChatMessage::getContent).toList();
+        var products = medications.findAllWithDrugByProfileId(profileId).stream().filter(m -> m.getDrug() != null)
+                .limit(10).map(m -> m.getDrug().getItemSeq() + " " + m.getDrug().getName()).toList();
+        return new QuestionClassifier.Context(previous, products);
+    }
+
     /**
      * PASS 질문만 전달받아 질문·첫 사본·제목·활동 시각을 한 번에 커밋한다.
      * 프로필과 방의 잠금 뒤에 메시지를 조회하므로 동시 저장 후의 최신 턴을 기준으로 계산한다.
