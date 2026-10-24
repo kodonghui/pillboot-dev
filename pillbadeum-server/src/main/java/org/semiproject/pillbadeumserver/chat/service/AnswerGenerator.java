@@ -134,15 +134,18 @@ public class AnswerGenerator {
         return new GeneratedAnswer(sources.append(text, provenance), responseId, notice, lookups);
     }
 
-    /** 현재 질문·직전 완성 턴에 전체 약 이름이 나온 내 약을 우선하고, 없으면 최근 등록 순 최대 10개이다. */
+    /** 현재 명시한 약을 선택함. 생략된 후속 질문은 직전 약을 우선하되 다른 등록 약·일정도 최대10개 유지함. */
     List<AnswerInput.Medication> selectMedications(AnswerInput input) {
         var unique = new LinkedHashMap<String, AnswerInput.Medication>();
         input.medications().forEach(medication -> unique.putIfAbsent(medication.itemSeq(), medication));
         var last = input.recentTurns().stream().max(Comparator.comparingInt(AnswerInput.Turn::turnNo));
-        String reference = normalize(input.question() + last.map(turn -> " " + turn.question() + " " + sources.body(turn.answer())).orElse(""));
+        String reference = normalize(input.question());
         var mentioned = unique.values().stream().filter(medication -> !medication.name().isBlank()
                 && reference.contains(normalize(medication.name()))).toList();
-        return (mentioned.isEmpty() ? unique.values().stream() : mentioned.stream()).limit(10).toList();
+        if (!mentioned.isEmpty()) return mentioned.stream().limit(10).toList();
+        String previous=normalize(last.map(turn -> turn.question()+" "+sources.body(turn.answer())).orElse(""));
+        return unique.values().stream().sorted(Comparator.comparing(medication -> medication.name().isBlank()
+                || !previous.contains(normalize(medication.name())))).limit(10).toList();
     }
 
     /** 자료를 중간에서 잘라 의학적 뜻을 바꾸지 않는다. 전체 자료가 예산을 넘는 근거는 미확인 처리한다. */

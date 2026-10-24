@@ -39,6 +39,32 @@ class AnswerContextTests {
     void close() { executor.close(); }
 
     @Test
+    void switchingFromMorningToEveningKeepsBothRegisteredSchedulesInTheModelInput() {
+        var today=LocalDate.now(TimeZoneConfig.ZONE);
+        var morning=new AnswerInput.Medication("202106092","타이레놀정500밀리그람(아세트아미노펜)","maker","OTC",1,
+                "식후",today,today.plusDays(7),List.of(LocalTime.of(8,0)),today);
+        var evening=new AnswerInput.Medication("197400040","인데놀정10mg(프로프라놀롤염산염)","maker","ETC",1,
+                "식후",today,today.plusDays(7),List.of(LocalTime.of(21,0)),today);
+        var input=input("저녁 기록도 같은 방식으로 한 줄만 알려줘.",List.of(morning,evening),List.of(
+                new AnswerInput.Turn(33,"오늘 아침으로 등록된 약 이름과 시각만 알려줘.",morning.name()+" — 08:00",null,null)));
+        var selected=generator.selectMedications(input);
+        var data=json.readTree(generator.messages(input,selected,new OfficialDrugEvidence.Evidence(List.of()),
+                new DurEvaluator().evaluate(input,List.of()).notice()).getFirst().content().split("\n",2)[1]);
+        assertThat(data.path("medications").size()).isEqualTo(2);
+        assertThat(data.path("userSchedules").toString()).contains("197400040","21:00","202106092","08:00");
+        assertThat(data.path("userSchedules").size()).isEqualTo(4);
+    }
+
+    @Test
+    void currentExplicitMedicationTakesPriorityOverThePreviousAnswerMedication() {
+        var morning=medication("202106092","아침약정");
+        var evening=medication("197400040","저녁약정");
+        var input=input("저녁약정의 성분은?",List.of(morning,evening),List.of(
+                new AnswerInput.Turn(1,"아침약정 시각은?","아침약정은08:00임.",null,null)));
+        assertThat(generator.selectMedications(input)).containsExactly(evening);
+    }
+
+    @Test
     void recentTurnsKeepTheLatestSixInChronologicalPairsAndRemoveSourceBlocks() {
         List<AnswerInput.Turn> turns = new ArrayList<>();
         for (int i = 1; i <= 8; i++) turns.add(new AnswerInput.Turn(i, "question-" + i,
@@ -171,13 +197,14 @@ class AnswerContextTests {
     }
 
     @Test
-    void onlyNamesInCurrentQuestionOrTheLastCompleteTurnArePrioritized() {
+    void explicitCurrentNamesSelectWhilePreviousNamesOnlyPrioritizeWithinTen() {
         var medications = new ArrayList<AnswerInput.Medication>();
         for (int i = 0; i < 12; i++) medications.add(medication("code-" + i, "등록약" + i + "정"));
         var input = input("등록약 11 정은 언제?", medications, List.of());
         assertThat(generator.selectMedications(input)).extracting(AnswerInput.Medication::itemSeq).containsExactly("code-11");
         input = input("이건?", medications, List.of(new AnswerInput.Turn(4, "등록약10정", "fixture", 10, 10)));
-        assertThat(generator.selectMedications(input)).extracting(AnswerInput.Medication::itemSeq).containsExactly("code-10");
+        assertThat(generator.selectMedications(input)).hasSize(10)
+                .extracting(AnswerInput.Medication::itemSeq).startsWith("code-10").contains("code-0","code-8");
     }
 
     @Test
