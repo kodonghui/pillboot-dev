@@ -88,7 +88,7 @@ function ProfileEditPage() {
       >
         <Notice>복용 달력 색은 자동으로 정해져요.</Notice>
         <Notice variant="info">
-          바꾼 값은 다음 새 대화부터 챗봇 답변에 쓰여요. 약 목록, 일정, 대화방은 그대로예요.
+          바꾼 값은 다음 새 대화부터 약봉이 답변에 쓰여요. 약 목록, 일정, 대화방은 그대로예요.
         </Notice>
       </ProfileForm>
     </div>

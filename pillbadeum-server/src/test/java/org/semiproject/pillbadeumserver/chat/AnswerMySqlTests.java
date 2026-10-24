@@ -586,7 +586,7 @@ class AnswerMySqlTests {
     private static String durKey(String code, DurLookup.Type type) { return code + ":" + type; }
 
     @Test
-    void retryRecoversTheSameQuestionAndDoesNotClassifyInsertOrReembedIt() throws Exception {
+    void retryRecoversTheSameQuestionAndReplansPurposeWithoutInsertOrReembedding() throws Exception {
         generationStatus.set(503);
         long question = body(send(sessionId, "복약 질문", 503)).path("questionMessageId").asLong();
         var state = room();
@@ -599,7 +599,7 @@ class AnswerMySqlTests {
         assertThat(result.path("question").path("messageId").asLong()).isEqualTo(question);
         assertThat(result.path("answer").path("turnNo").asInt()).isEqualTo(1);
         assertThat(count()).isEqualTo(2);
-        assertThat(decisions.get()).isEqualTo(1);
+        assertThat(decisions.get()).isEqualTo(3); // 최초 분류1회, 재시도 목적 분류2회
         assertThat(generations.get()).isEqualTo(3);
         org.mockito.Mockito.verify(embeddings, org.mockito.Mockito.times(1)).questionCommitted(eq(sessionId), eq(question), anyString(), any());
         retry(question, 400).getResponse();

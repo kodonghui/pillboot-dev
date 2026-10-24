@@ -96,7 +96,7 @@ function ProfileSwitcher({ locked }) {
               )
             })}
           </ul>
-          <p className="screen-caption profile-switcher__help">약 목록과 챗봇이 고른 사람 기준으로 바뀌어요.</p>
+          <p className="screen-caption profile-switcher__help">약 목록과 약봉이가 고른 사람 기준으로 바뀌어요.</p>
           <div className="profile-switcher__footer">
             <Link className="mt-btn mt-btn--ghost mt-btn--md profile-switcher__manage" to={paths.profiles}>
               <Icon name="users" size="s" />

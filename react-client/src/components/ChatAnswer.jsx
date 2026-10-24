@@ -330,7 +330,7 @@ function ChatAnswer({ message, profileName }) {
 
   return (
     <div className="chat-msg chat-msg--answer">
-      <p className="visually-hidden">필받음의 답변</p>
+      <p className="visually-hidden">약봉이의 답변</p>
       <div className="chat-msg__answer chat-answer">
         <AnswerBody body={body} />
         {message.durNotice && <DurNotice notice={message.durNotice} />}
