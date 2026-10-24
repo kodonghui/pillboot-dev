@@ -56,20 +56,21 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
         int getAnswered();
     }
 
-    /** 같은 방의 완성된 이전 6턴만 읽는다. 레거시 중복은 각 역할의 마지막 행 한 개로 고정한다. */
+    /** 최근15턴과 미요약 구간의 합집합을 읽는다. 미응답 질문도 보존하고 중복 역할은 마지막 행만 쓴다. */
     @Query(value = """
             SELECT q.trun_no AS turnNo, q.content AS question, a.content AS answer,
                    q.token_count AS questionTokens, a.token_count AS answerTokens
-            FROM chat_message q JOIN chat_message a
+            FROM chat_message q LEFT JOIN chat_message a
               ON a.session_id=q.session_id AND a.trun_no=q.trun_no AND a.role='assistant'
-            WHERE q.session_id=:sessionId AND q.role='user' AND q.trun_no<:beforeTurn
-              AND q.message_id=(SELECT MAX(u.message_id) FROM chat_message u
-                WHERE u.session_id=q.session_id AND u.trun_no=q.trun_no AND u.role='user')
               AND a.message_id=(SELECT MAX(r.message_id) FROM chat_message r
                 WHERE r.session_id=q.session_id AND r.trun_no=q.trun_no AND r.role='assistant')
-            ORDER BY q.trun_no DESC LIMIT 6
+            WHERE q.session_id=:sessionId AND q.role='user' AND q.trun_no<:beforeTurn AND q.trun_no>=:fromTurn
+              AND q.message_id=(SELECT MAX(u.message_id) FROM chat_message u
+                WHERE u.session_id=q.session_id AND u.trun_no=q.trun_no AND u.role='user')
+            ORDER BY q.trun_no ASC
             """, nativeQuery = true)
-    List<CompleteTurn> findRecentCompleteTurns(@Param("sessionId") Long sessionId, @Param("beforeTurn") int beforeTurn);
+    List<CompleteTurn> findAnswerContextTurns(@Param("sessionId") Long sessionId, @Param("beforeTurn") int beforeTurn,
+                                             @Param("fromTurn") int fromTurn);
 
     interface CompleteTurn {
         int getTurnNo();

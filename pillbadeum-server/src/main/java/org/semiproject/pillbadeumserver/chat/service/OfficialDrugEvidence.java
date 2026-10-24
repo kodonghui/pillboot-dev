@@ -148,7 +148,7 @@ public class OfficialDrugEvidence {
         String q = question.replaceAll("\\s+", "");
         if (q.isBlank() || "PN_DOC_DATA".equals(field)) return false;
         boolean efficacy = q.matches(".*(효능|효과|기전|해열|진통|염증|심박|쓰는약|어떤약).*"),
-                usage = q.matches(".*(용법|사용법|복용법|복용방법|용량|몇정|몇알|놓쳤|잊었|중단|두배).*"),
+                usage = q.matches(".*(용법|사용법|복용법|복용방법|용량|몇정|몇알|놓쳤|잊었|중단|끊|중지|거르|건너뛰|두배|식전|식후|공복|식사|식간|밥|몇분|복용간격|먹는시간|먹는시점|복용시점|언제먹|먹어야|먹으면|어떻게먹).*"),
                 caution = q.matches(".*(주의|부작용|이상반응|천식|당뇨|저혈당|간질환|음주|간기능|술|중복|병용|상호작용|같이|함께|안전|위험|임신|중단|두배).*"),
                 general = !efficacy && !usage && !caution && q.matches(".*(자세히|깊게|설명|알려줘).*" ) && !q.matches(".*(이름|성분|시각|기록|일정|별명|표로|짧게).*" );
         return switch (field) {

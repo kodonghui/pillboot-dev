@@ -65,13 +65,13 @@ class AnswerContextTests {
     }
 
     @Test
-    void recentTurnsKeepTheLatestSixInChronologicalPairsAndRemoveSourceBlocks() {
+    void selectedRecentAndUnsummarizedTurnsRemainChronologicalWithoutSourceBlocks() {
         List<AnswerInput.Turn> turns = new ArrayList<>();
         for (int i = 1; i <= 8; i++) turns.add(new AnswerInput.Turn(i, "question-" + i,
                 "answer-" + i + "\n@@SOURCES@@\n[untrusted-old-source]", 10, 10));
         var messages = generator.recentMessages(turns);
-        assertThat(messages).hasSize(12);
-        assertThat(messages.getFirst().content()).isEqualTo("question-3");
+        assertThat(messages).hasSize(16);
+        assertThat(messages.getFirst().content()).isEqualTo("question-1");
         assertThat(messages.getLast().content()).isEqualTo("answer-8");
         assertThat(messages).allMatch(message -> !message.content().contains("SOURCES") && !message.content().contains("untrusted"));
     }
@@ -95,7 +95,7 @@ class AnswerContextTests {
         assertThat(messages.getFirst().content()).startsWith("가");
         assertThat(messages.getLast().content()).startsWith("라");
         assertThat(generator.recentMessages(List.of(new AnswerInput.Turn(3,
-                "가".repeat(4000), "answer", null, null)))).isEmpty();
+                "가".repeat(4000), "answer", null, null)))).hasSize(2);
     }
 
     @Test
@@ -117,21 +117,21 @@ class AnswerContextTests {
     }
 
     @Test
-    void characterBudgetIncludesTheExactBoundaryAndDropsOnlyOlderWholeTurns() {
+    void oldFourThousandEstimateDoesNotDropAnUnsummarizedTurn() {
         var latest = new AnswerInput.Turn(2, "가".repeat(1000), "나".repeat(936), null, null);
         var exactlyFits = new AnswerInput.Turn(1, "다".repeat(1000), "라".repeat(936), null, null);
         assertThat(generator.recentMessages(List.of(exactlyFits, latest))).hasSize(4);
         var oneTooLong = new AnswerInput.Turn(1, "다".repeat(1000), "라".repeat(937), null, null);
         assertThat(generator.recentMessages(List.of(oneTooLong, latest)))
-                .extracting(message -> message.content()).containsExactly(latest.question(), latest.answer());
+                .extracting(message -> message.content()).containsExactly(oneTooLong.question(), oneTooLong.answer(), latest.question(), latest.answer());
     }
 
     @Test
-    void positiveStoredTokenCountsOverrideTheCharacterFallback() {
+    void legacyTokenEstimatesDoNotOverrideSelectedRawHistory() {
         var older = new AnswerInput.Turn(1, "짧은 질문", "짧은 답변", 2000, 2000);
         var latest = new AnswerInput.Turn(2, "다음 질문", "다음 답변", 1, 1);
         assertThat(generator.recentMessages(List.of(older, latest)))
-                .extracting(message -> message.content()).containsExactly(latest.question(), latest.answer());
+                .extracting(message -> message.content()).containsExactly(older.question(), older.answer(), latest.question(), latest.answer());
         assertThat(generator.recentMessages(List.of(
                 new AnswerInput.Turn(1, "가".repeat(5000), "answer", 1, 1)))).hasSize(2);
     }
@@ -146,10 +146,32 @@ class AnswerContextTests {
     }
 
     @Test
-    void anOversizedLatestTurnCannotBeReplacedWithStaleOlderContext() {
+    void aLongRecentTurnIsPreservedAndTheWholeRequestGuardOwnsTheInputLimit() {
         var older = new AnswerInput.Turn(1, "지난 질문", "지난 답변", null, null);
         var latest = new AnswerInput.Turn(2, "현재 직전 질문", "가".repeat(4000), null, null);
-        assertThat(generator.recentMessages(List.of(older, latest))).isEmpty();
+        assertThat(generator.recentMessages(List.of(older, latest))).hasSize(4);
+    }
+
+    @Test
+    void fifteenLongTurnsAndMoreThanFifteenUnsummarizedTurnsReachTheModel() {
+        var turns = java.util.stream.IntStream.rangeClosed(11, 30).mapToObj(i ->
+                new AnswerInput.Turn(i, "question-" + i, "한글답변".repeat(100), null, null)).toList();
+        var input = new AnswerInput(1990, "MALE", false, "now", List.of(), turns, false,
+                List.of(new AnswerInput.Summary(1, 1, 10, "old summary")));
+        var messages = generator.messages(input, List.of(), new OfficialDrugEvidence.Evidence(List.of()), null);
+        assertThat(messages).hasSize(43);
+        assertThat(messages.get(2).content()).isEqualTo("question-11");
+        assertThat(messages.get(messages.size()-2).content()).isEqualTo("한글답변".repeat(100));
+    }
+
+    @Test
+    void unansweredQuestionIsContextWithoutAnInventedAssistantReply() {
+        var messages = generator.recentMessages(List.of(
+                new AnswerInput.Turn(1, "아침 약", "아침 답변", null, null),
+                new AnswerInput.Turn(2, "저녁 약 인데놀정10mg 효능", null, null, null)));
+        assertThat(messages).hasSize(3);
+        assertThat(messages.getLast().role()).isEqualTo("user");
+        assertThat(messages.getLast().content()).contains("답변 없음", "인데놀정10mg");
     }
 
     @Test

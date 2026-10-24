@@ -108,10 +108,11 @@ public class DurEvaluator {
     public boolean needsExplanation(AnswerInput input, DurNotice notice) {
         if ("NO_DRUG".equals(notice.lookup())) return false;
         if (!"ALL".equals(notice.lookup()) || !"NONE".equals(notice.result()) || !notice.items().isEmpty()) return true;
+        if (ChatQuestionPurpose.recordOnly(input.question())) return false;
         String question = input.question().replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
         return List.of("병용", "상호작용", "금기", "부작용", "안전", "위험", "주의사항", "용량", "임신", "임부",
-                "같이", "함께", "먹어도", "복용해도", "괜찮", "알레르기", "과량", "과다", "몇알", "몇정", "분할", "중단")
-                .stream().anyMatch(question::contains);
+                "먹어도", "복용해도", "괜찮", "알레르기", "과량", "과다", "몇알", "몇정", "분할", "중단")
+                .stream().anyMatch(question::contains) || ChatQuestionPurpose.coadministration(input.question());
     }
 
     /** CHAT-008: 발견 경고·미확인은 유지하고 정상 조회의 불필요한 반복 카드만 줄임. */

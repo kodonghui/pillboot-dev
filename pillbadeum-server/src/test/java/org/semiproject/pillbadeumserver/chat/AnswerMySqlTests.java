@@ -171,6 +171,7 @@ class AnswerMySqlTests {
     @AfterEach
     void cleanOnlyThisTestsData() {
         for (long member : members) {
+            jdbc.update("DELETE x FROM chat_summary x JOIN chat_session s ON s.session_id=x.session_id WHERE s.member_id=?", member);
             jdbc.update("DELETE m FROM chat_message m JOIN chat_session s ON s.session_id=m.session_id WHERE s.member_id=?", member);
             jdbc.update("DELETE FROM chat_session WHERE member_id=?", member);
         }
@@ -230,7 +231,7 @@ class AnswerMySqlTests {
     }
 
     @Test
-    void onlyThisRoomsCompletedTurnsAndThisProfilesMedicationEnterThePrompt() throws Exception {
+    void onlyThisRoomsHistoryIncludingUnansweredQuestionsAndThisProfilesMedicationEnterThePrompt() throws Exception {
         long otherProfile = profile(memberId, false);
         String otherDrug = medication(otherProfile, "다른프로필약정");
         long otherRoom = session(otherProfile);
@@ -240,11 +241,52 @@ class AnswerMySqlTests {
         pair(sessionId, 3, "own-three", "own-answer-three");
         send(sessionId, "지금 질문", 200);
         String input = requests.getFirst().path("input").toString();
-        assertThat(input).contains("own-one", "own-three", drugCode)
-                .doesNotContain("other-room", "unanswered-old-question", "private-old-source", "@@SOURCES@@", otherDrug,
+        assertThat(input).contains("own-one", "own-three", drugCode, "unanswered-old-question", "답변 없음")
+                .doesNotContain("other-room", "private-old-source", "@@SOURCES@@", otherDrug,
                         "member-private-marker", "개인표식", "profile_height", "profile_weight");
         assertThat(publicCodes).containsOnly(drugCode);
         assertThat(jdbc.queryForObject("SELECT MAX(trun_no) FROM chat_message WHERE session_id=?", Integer.class, sessionId)).isEqualTo(4);
+    }
+
+    @Test
+    void inputKeepsEveryUnsummarizedTurnBeforeTheFirstTenTurnSummary() {
+        for (int next : List.of(8,9,10)) {
+            long room = session(profileId);
+            for (int turn=1;turn<next;turn++) pair(room,turn,"question-"+turn,"answer-"+turn);
+            jdbc.update("INSERT INTO chat_message(session_id,trun_no,role,content) VALUES(?,?,'user','now')",room,next);
+            long id=jdbc.queryForObject("SELECT message_id FROM chat_message WHERE session_id=? AND trun_no=? AND role='user'",Long.class,room,next);
+            var input=store.loadAnswerInput(room,memberId,profileId,new org.semiproject.pillbadeumserver.chat.dto.QuestionResponse.Question(id,next));
+            assertThat(input.recentTurns()).extracting(org.semiproject.pillbadeumserver.chat.service.AnswerInput.Turn::turnNo)
+                    .containsExactlyElementsOf(java.util.stream.IntStream.range(1,next).boxed().toList());
+        }
+    }
+
+    @Test
+    void registeredRecordQuestionCommitsNormallyWithoutCallingUnavailableOfficialProviders() throws Exception {
+        publicStatus.set(503);
+        var response=send(sessionId,"내가 등록한 약 이름과 복용 시각을 기록 기준으로 알려줘",200);
+        var body=JSON.readTree(response.getResponse().getContentAsString()).path("answer");
+        assertThat(publicCalls.get()).isZero();assertThat(durCodes).isEmpty();
+        assertThat(body.path("durNotice").isNull()).isTrue();
+        assertThat(sources.sources(body.path("content").asString())).extracting(AnswerSource::source)
+                .containsExactly(AnswerSource.Type.USER_INPUT);
+        assertThat(background(requests.getFirst()).path("recordOnly").asBoolean()).isTrue();
+    }
+
+    @Test
+    void delayedSummaryTailBeyondFifteenIsPreservedAndStoredSummaryAllowsARecentFifteenWindow() {
+        for(int turn=1;turn<=30;turn++) pair(sessionId,turn,"question-"+turn,"answer-"+turn);
+        jdbc.update("INSERT INTO chat_summary(session_id,from_turn,to_turn,content,created_at) VALUES(?,1,10,'summary1',NOW())",sessionId);
+        jdbc.update("INSERT INTO chat_message(session_id,trun_no,role,content) VALUES(?,31,'user','now')",sessionId);
+        long id=jdbc.queryForObject("SELECT message_id FROM chat_message WHERE session_id=? AND trun_no=31 AND role='user'",Long.class,sessionId);
+        var question=new org.semiproject.pillbadeumserver.chat.dto.QuestionResponse.Question(id,31);
+        assertThat(store.loadAnswerInput(sessionId,memberId,profileId,question).recentTurns())
+                .extracting(org.semiproject.pillbadeumserver.chat.service.AnswerInput.Turn::turnNo)
+                .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(11,30).boxed().toList());
+        jdbc.update("INSERT INTO chat_summary(session_id,from_turn,to_turn,content,created_at) VALUES(?,11,20,'summary2',NOW())",sessionId);
+        assertThat(store.loadAnswerInput(sessionId,memberId,profileId,question).recentTurns())
+                .extracting(org.semiproject.pillbadeumserver.chat.service.AnswerInput.Turn::turnNo)
+                .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(16,30).boxed().toList());
     }
 
     @Test
@@ -275,8 +317,9 @@ class AnswerMySqlTests {
         durZero(drugCode);
         var result = body(send(sessionId, "등록 약 이름만 알려줘", 200));
         assertThat(result.path("answer").path("durNotice").isNull()).isTrue();
-        assertThat(background(requests.getFirst()).path("dur").path("lookup").asString()).isEqualTo("ALL");
-        assertThat(background(requests.getFirst()).path("dur").path("result").asString()).isEqualTo("NONE");
+        assertThat(background(requests.getFirst()).path("recordOnly").asBoolean()).isTrue();
+        assertThat(background(requests.getFirst()).path("dur").isEmpty()).isTrue();
+        assertThat(publicCalls.get()).isZero();
         assertThat(result.path("answer").path("content").asString()).doesNotContain("DUR 확인:");
     }
 
@@ -294,7 +337,7 @@ class AnswerMySqlTests {
         var next = body(send(sessionId, "다음 질문", 200));
         assertThat(next.path("question").path("turnNo").asInt()).isEqualTo(2);
         assertThat(count()).isEqualTo(3);
-        assertThat(requests.getLast().path("input").toString()).doesNotContain("실패할 질문");
+        assertThat(requests.getLast().path("input").toString()).contains("실패할 질문", "답변 없음");
     }
 
     @Test

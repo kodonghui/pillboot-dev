@@ -189,15 +189,15 @@ class ChatFlowHttpTests {
                 assertThat(turn.path("question").asString()).startsWith("합성 질문 ");
             }
         }
-        // 41번째 실제 모델 입력에서 오래된 검색 요약 1개→최근 3요약→완성 6턴→현재 질문을 확인한다.
+        // 41번째 입력에서 옛 검색 요약1개→최근3요약→최근15턴→현재 질문을 확인한다.
         var input = answerRequests.getLast().path("input");
-        assertThat(input.size()).isEqualTo(18);
+        assertThat(input.size()).isEqualTo(36);
         for (int i = 0; i < 4; i++) {
             assertThat(input.path(i + 1).path("content").asString()).contains("구간 요약 " + (i * 10 + 1) + "-" + (i * 10 + 10));
         }
-        assertThat(input.path(5).path("content").asString()).isEqualTo("합성 질문 35");
-        assertThat(input.path(16).path("role").asString()).isEqualTo("assistant");
-        assertThat(input.path(17).path("content").asString()).isEqualTo("합성 질문 41");
+        assertThat(input.path(5).path("content").asString()).isEqualTo("합성 질문 26");
+        assertThat(input.path(34).path("role").asString()).isEqualTo("assistant");
+        assertThat(input.path(35).path("content").asString()).isEqualTo("합성 질문 41");
 
         JsonNode latest = history(session, "", 200);
         assertThat(latest.path("messages").size()).isEqualTo(60);

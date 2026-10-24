@@ -333,7 +333,7 @@ class MessageEmbeddingMySqlTests {
         var captured=captureContext();send(200);await(()->activeTasks.get()==0&&httpActive.get()==0);
         assertThat(captured.get().recentSummaries()).extracting(AnswerInput.Summary::summaryId).containsExactly(ids.get(5),ids.get(4),ids.get(3));
         assertThat(captured.get().similarSummaries()).extracting(AnswerInput.Summary::summaryId).containsExactly(ids.get(0),ids.get(1),ids.get(2));
-        assertThat(captured.get().recentTurns()).hasSize(6);
+        assertThat(captured.get().recentTurns()).hasSize(15);
         assertThat(requests.stream().filter(r->QUESTION.equals(r.path("input").asString()))).hasSize(1);
         verify(vectors,times(1)).similarSummaryIds(eq(sessionId),eq(MODEL),any(),anyList(),any());
     }
@@ -364,7 +364,7 @@ class MessageEmbeddingMySqlTests {
         doThrow(new IllegalStateException("synthetic qdrant failure")).when(vectors).similarSummaryIds(anyLong(),anyString(),any(),anyList(),any());
         assertThat(send(200).path("result").asString()).isEqualTo("ANSWERED");await(()->activeTasks.get()==0&&httpActive.get()==0);
         assertThat(captured.get().recentSummaries()).hasSize(3);assertThat(captured.get().similarSummaries()).isEmpty();
-        assertThat(captured.get().recentTurns()).hasSize(6);
+        assertThat(captured.get().recentTurns()).hasSize(15);
     }
 
     @Test

@@ -230,7 +230,8 @@ class SummaryMySqlTests {
             var input=questions.loadAnswerInput(sessionId,memberId,profileId,new org.semiproject.pillbadeumserver.chat.dto.QuestionResponse.Question(q,51));
             assertThat(input.recentSummaries()).extracting(AnswerInput.Summary::fromTurn).containsExactly(41,31,21);
             assertThat(input.recentSummaries()).allMatch(s->!s.content().contains("other-room"));
-            assertThat(input.recentTurns()).hasSize(6);
+            assertThat(input.recentTurns()).hasSize(15)
+                    .extracting(AnswerInput.Turn::turnNo).containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(36,50).boxed().toList());
             assertThat(input.summaryCount()).isEqualTo(5);
             var ids=new java.util.ArrayList<>(jdbc.queryForList("SELECT summary_id FROM chat_summary",Long.class));ids.add(Long.MAX_VALUE);
             assertThat(summaryStore.selectedEarlier(sessionId,51,ids,input.recentSummaries().stream().map(AnswerInput.Summary::summaryId).toList()))

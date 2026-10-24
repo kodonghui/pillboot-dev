@@ -13,6 +13,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** 합성 품목·사본으로 조회 범위와 금기 대조의 경계를 확인한다. 실제 의학적 판정 사례가 아니다. */
 class DurEvaluatorTests {
+    @Test
+    void formattingTogetherIsNotCoadministrationButActualCombinedUseStillNeedsNotice() {
+        var evaluator = new DurEvaluator();
+        var notice = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("ALL","NONE",4,List.of(),List.of(),"fixture");
+        var record = new AnswerInput(1993,"UNKNOWN",false,"내 등록 약 함량·시각과 함께 표로 보여줘",List.of(),List.of(),false);
+        assertThat(evaluator.needsExplanation(record,notice)).isFalse();
+        var medical = new AnswerInput(1993,"UNKNOWN",false,"두 약을 함께 복용해도 돼?",List.of(),List.of(),false);
+        assertThat(evaluator.needsExplanation(medical,notice)).isTrue();
+    }
     private final DurEvaluator evaluator = new DurEvaluator();
     private final LocalDate today = LocalDate.now(TimeZoneConfig.ZONE);
 

@@ -29,6 +29,7 @@ public class ChatDrugLookup {
             mode FOLLOWUP: '그 약', '그 제품', '성분은?', 앞선 설명/표 요청처럼 새 제품명이 없는 후속 질문이다.
             mode RECORD: 아침/저녁 등록 약, 내 약 목록·복약 기록·일정·시각·메모·별명·대화 정리 요청이다.
             FOLLOWUP/RECORD에서는 names를 빈 배열로 반환한다. 새 제품 이름을 명시하면 LOOKUP을 우선한다.
+            단, 이전 답변이 비어 있고 이전 질문에 제품명이 명시돼 있으면 FOLLOWUP의 names에 그 이름을 그대로 복사한다.
             이름이 특정되지 않은 감기약·비타민 등을 임의 제품명으로 바꾸지 않는다.
             choice는 검색 후보에서 '2번', '두 번째 제품'처럼 명시적으로 선택한 번호이며 아니면0이다.
             """;
@@ -75,6 +76,14 @@ public class ChatDrugLookup {
         if ("RECORD".equals(mode)) return Resolution.none();
         if ("FOLLOWUP".equals(mode)) {
             if (!choices.isEmpty()) return new Resolution(List.of(),previous,choices);
+            if (last.isPresent() && previous.isBlank() && query.path("names").isArray() && query.path("names").size() == 1) {
+                String name = query.path("names").get(0).path("name").asString("");
+                var owned = exactOwned(input, name, query.path("names").get(0).path("maker").asString(""));
+                if (owned.size() == 1 && canonical(last.get().question()).contains(canonical(name)))
+                    return new Resolution(owned, null, List.of());
+            }
+            if (last.isPresent() && previous.isBlank())
+                return new Resolution(List.of(), "직전 질문의 약을 확인하지 못했어요. 어느 약인지 정확한 제품명을 알려주세요.", List.of());
             var codes=oldSources.stream().filter(s->s.source()==AnswerSource.Type.PERMIT).map(AnswerSource::itemSeq).distinct().toList();
             return codes.size()==1 ? new Resolution(List.of(byCode(codes.getFirst(),input,deadline)),null,List.of()) : Resolution.none();
         }
@@ -88,6 +97,12 @@ public class ChatDrugLookup {
             String provided=canonical(question+" "+last.map(AnswerInput.Turn::question).orElse(""));
             if (!provided.contains(canonical(keyword)) || (!maker.isBlank() && !canonical(question+" "+previous).contains(canonical(maker))))
                 return new Resolution(List.of(),"제품명을 임의로 고르지 않을게요. 포장에 적힌 정확한 제품명·함량·제조사를 알려주세요.",List.of());
+            // 부분 문자열이 아닌 추출된 전체 제품명이 일치할 때만 기존 코드를 재사용한다.
+            var owned = exactOwned(input, keyword, maker);
+            if (owned.size() == 1 && !question.matches("(?s).*(검색|찾아|미등록|목록에 없).*")) {
+                found.put(owned.getFirst().itemSeq(), owned.getFirst());
+                continue;
+            }
             var result=new PrescriptionDrugLookup(publicData).find(keyword,maker,deadline.remaining());
             var unique=new LinkedHashMap<String,JsonNode>();
             for (var row:result.rows()) {
@@ -107,9 +122,20 @@ public class ChatDrugLookup {
     }
 
     private AnswerInput.Medication byCode(String code,AnswerInput input,ChatDeadline deadline) {
+        var owned = input.medications().stream().filter(m -> code.equals(m.itemSeq())).findFirst();
+        if (owned.isPresent()) return owned.get();
         var body=publicData.get(DrugSyncService.PERMIT_INFO_PATH,Map.of("item_seq",code,"pageNo",1,"numOfRows",1),deadline.remaining());
         return PublicDataClient.items(body).stream().filter(r->code.equals(r.path("ITEM_SEQ").asString("")))
                 .findFirst().map(r->medication(r,input)).orElseThrow(()->ExternalApiException.failed("약 검색","선택한 공식 품목을 확인하지 못했습니다.",null));
+    }
+
+    private List<AnswerInput.Medication> exactOwned(AnswerInput input, String keyword, String maker) {
+        String q = canonical(keyword);
+        return input.medications().stream().filter(m -> {
+            String name = canonical(m.name().replaceAll("\\([^)]*\\)", ""));
+            return !name.isBlank() && (q.equals(name) || q.equals(canonical(m.name())))
+                    && (maker.isBlank() || canonical(m.maker()).equals(canonical(maker)));
+        }).toList();
     }
 
     private Resolution choices(List<JsonNode> rows,AnswerInput input,boolean more) {
