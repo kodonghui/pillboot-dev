@@ -17,6 +17,19 @@ class QuestionPlanTests {
         assertThat(plan.purpose()).isEqualTo(QuestionPlan.Purpose.COMBINED);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"엄마가 먹는 타이레놀 보관은 어떻게 해?",
+            "엄마 약 목록에 있는 타이레놀정500밀리그람(아세트아미노펜)의 보관방법을 알려줘",
+            "내 저녁 약은 냉장 보관해야 해?", "내 약 목록에 있는 약의 보관방법은?",
+            "등록한 약의 보관 방법을 짧게 알려줘", "내 약 보관 조건을 표로 정리해줘"})
+    void storageQuestionsRequireOfficialEvidenceEvenWhenTheyMentionRegisteredRecords(String question) {
+        assertThat(ChatQuestionPurpose.medicalQuestion(question)).isTrue();
+        assertThat(ChatQuestionPurpose.recordOnly(question)).isFalse();
+        var plan = QuestionPlan.guarded(QuestionCategory.PASS, QuestionPlan.Purpose.RECORD, question, List.of());
+        assertThat(plan.purpose()).isEqualTo(QuestionPlan.Purpose.COMBINED);
+        assertThat(plan.evidenceQuestion()).isEqualTo(question);
+    }
+
     @Test
     void coadministrationInsideAListRequestStillRequiresOfficialEvidenceAndDur() {
         String question = "내 약 목록 중 같이 먹을 수 있는 약을 정리해줘";
@@ -32,6 +45,16 @@ class QuestionPlanTests {
             "내 약에 입력해 둔 식전·식후 기록만 읽어줘. 권장 방법을 묻는 건 아니야."})
     void clearNewRecordQuestionDoesNotInheritThePreviousMedicalTopic(String question) {
         var plan = QuestionPlan.guarded(QuestionCategory.PASS, QuestionPlan.Purpose.COMBINED, question, List.of("임산부 주의사항은?"));
+        assertThat(plan.purpose()).isEqualTo(QuestionPlan.Purpose.RECORD);
+        assertThat(plan.evidenceQuestion()).isEqualTo(question);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"내 약 목록만 알려줘", "내 원래 저녁 약 이름과 시각만 알려줘",
+            "내 약 일정이 저장된 시간을 알려줘", "내 약 일정 저장 방법을 알려줘", "내가 아까 물어본 약 이름은?"})
+    void returningToRecordsAfterStorageAdviceDoesNotRepeatOfficialLookups(String question) {
+        var plan = QuestionPlan.guarded(QuestionCategory.PASS, QuestionPlan.Purpose.COMBINED,
+                question, List.of("등록한 약의 보관방법은?"));
         assertThat(plan.purpose()).isEqualTo(QuestionPlan.Purpose.RECORD);
         assertThat(plan.evidenceQuestion()).isEqualTo(question);
     }
