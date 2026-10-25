@@ -8,6 +8,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.Set;
+import java.util.LinkedHashMap;
 import java.util.concurrent.Semaphore;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -26,6 +27,8 @@ public class OfficialDrugDocuments {
     private final HttpClient client;
     private final Duration timeout;
     private final Semaphore permits;
+    private final LinkedHashMap<String, Cached> cache = new LinkedHashMap<>(16, .75f, true);
+    private record Cached(String text, long expiresAt) {}
 
     @Autowired
     public OfficialDrugDocuments(@Value("${public-data.connect-timeout-ms}") long connectMs,
@@ -43,12 +46,36 @@ public class OfficialDrugDocuments {
     }
 
     public String read(String itemSeq, String kind) {
+        return read(itemSeq, kind, timeout);
+    }
+
+    /** 같은 정상 원문만 5분/최대24개 재사용함. 호출자 마감보다 오래 permit/HTTP를 기다리지 않음. */
+    public String read(String itemSeq, String kind, Duration remaining) {
         if (itemSeq == null || kind == null || !itemSeq.matches("[0-9]{9}") || !Set.of("EE", "UD", "NB").contains(kind))
             throw new IllegalArgumentException("공식 품목코드와 문서 종류가 필요합니다.");
+        if (remaining.isNegative() || remaining.isZero() || Thread.currentThread().isInterrupted())
+            throw ExternalApiException.timeout(API, null);
+        String key = itemSeq + ":" + kind;
+        synchronized (cache) {
+            var hit = cache.get(key);
+            if (hit != null && hit.expiresAt() > System.nanoTime()) return hit.text();
+            cache.remove(key);
+        }
+        long endsAt = System.nanoTime() + Math.min(timeout.toNanos(), remaining.toNanos());
         // 공공 API의 대문자 /PBP/CMN/PDFDOWNLOAD는404임. 공식 사이트의 실제 경로를 사용함.
         URI uri = base.resolve("/pbp/cmn/pdfDownload/" + itemSeq + "/" + kind);
-        var request = HttpRequest.newBuilder(uri).timeout(timeout).GET().build();
-        return ExternalApiCaller.withPermit(API, permits, timeout.toMillis(), () -> read(request));
+        String text = ExternalApiCaller.withPermit(API, permits, Math.max(1, (endsAt - System.nanoTime()) / 1_000_000), () -> {
+            long nanos = endsAt - System.nanoTime();
+            if (nanos <= 0) throw ExternalApiException.timeout(API, null);
+            return read(HttpRequest.newBuilder(uri).timeout(Duration.ofNanos(nanos)).GET().build());
+        });
+        if (!DrugGuideService.OMITTED_SECTION.equals(text) && text.length() <= 128_000 && endsAt > System.nanoTime()) {
+            synchronized (cache) {
+                cache.put(key, new Cached(text, System.nanoTime() + Duration.ofMinutes(5).toNanos()));
+                while (cache.size() > 24) cache.remove(cache.keySet().iterator().next());
+            }
+        }
+        return text;
     }
 
     private String read(HttpRequest request) {

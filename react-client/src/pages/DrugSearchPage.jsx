@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { errorOf } from '../api/client.js'
@@ -10,6 +10,7 @@ import Icon from '../components/Icon.jsx'
 import NoValue from '../components/NoValue.jsx'
 import Notice from '../components/Notice.jsx'
 import ProfileDot from '../components/ProfileDot.jsx'
+import PhotoSaveBar from '../components/PhotoSaveBar.jsx'
 import { useDrugGuide } from '../components/useDrugGuide.js'
 import { useManagedProfile } from '../components/useManagedProfile.js'
 import { guideProvider, guideSections } from '../drugInfo.js'
@@ -332,7 +333,7 @@ function DrugSearchPage() {
                   const classes = ['drug-search__item', item.registered && 'drug-search__item--registered', picked && 'drug-search__item--picked']
                   const label = `${item.maker ? `${item.maker} ` : ''}${item.name}`
                   let action = (
-                    <button className="mt-btn mt-btn--assistive mt-btn--md" type="button" aria-label={`${label} 고르기`} onClick={() => choose(item)}>
+                    <button className="mt-btn mt-btn--assistive mt-btn--md" type="button" aria-label={`${label} 고르기`} disabled={saving} onClick={() => choose(item)}>
                       고르기
                     </button>
                   )
@@ -419,14 +420,14 @@ function DrugSearchPage() {
                       공식 정보
                     </h3>
                     {sections.length > 0 ? (
-                      <dl className="drug-search__kv">
+                      <div className="drug-search__sections">
                         {sections.map((section) => (
-                          <Fragment key={section.key}>
-                            <dt className="screen-label">{section.title}</dt>
-                            <dd>{section.content}</dd>
-                          </Fragment>
+                          <details className="drug-search__section" key={section.key}>
+                            <summary className="screen-label">{section.title}</summary>
+                            <p className="screen-body">{section.content}</p>
+                          </details>
                         ))}
-                      </dl>
+                      </div>
                     ) : (
                       <p className="screen-body drug-search__neutral">공공데이터에서 이 약의 효능 · 사용법 · 주의사항을 찾지 못했어요.</p>
                     )}
@@ -456,17 +457,6 @@ function DrugSearchPage() {
                     <b>저장하지 못했어요.</b> 잠시 후 다시 저장해 주세요.
                   </Notice>
                 )}
-                <div className="drug-search__actions">
-                  {!pick.registered && (
-                    <button className="mt-btn mt-btn--solid" type="button" disabled={saving} onClick={save}>
-                      {saving && <Icon name="loader" size="s" className="icon--spin" />}
-                      {name}의 약 목록에 저장
-                    </button>
-                  )}
-                  <button className="mt-btn mt-btn--assistive" type="button" onClick={chooseAnother}>
-                    다른 약 고르기
-                  </button>
-                </div>
               </section>
             ) : (
               <aside className="mt-card drug-search__placeholder" aria-label="고른 약의 공식 정보">
@@ -488,6 +478,18 @@ function DrugSearchPage() {
             )}
           </div>
         </section>
+      )}
+      {!pickMode && pick && (
+        <PhotoSaveBar status={pick.name} help={`${name}의 약 목록에 고른 약을 저장해요.`} busy={saving}
+          error={saveError ? '저장하지 못했어요. 고른 약은 그대로예요. 다시 시도해 주세요.' : null}>
+          <button className="mt-btn mt-btn--assistive" type="button" onClick={chooseAnother}>다른 약 고르기</button>
+          {!pick.registered && (
+            <button className="mt-btn mt-btn--solid" type="button" disabled={saving} onClick={save}>
+              {saving && <Icon name="loader" size="s" className="icon--spin" />}
+              {name}의 약 목록에 저장
+            </button>
+          )}
+        </PhotoSaveBar>
       )}
     </div>
   )

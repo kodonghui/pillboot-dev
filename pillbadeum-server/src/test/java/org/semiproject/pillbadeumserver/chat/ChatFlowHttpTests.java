@@ -189,15 +189,15 @@ class ChatFlowHttpTests {
                 assertThat(turn.path("question").asString()).startsWith("합성 질문 ");
             }
         }
-        // 41번째 실제 모델 입력에서 오래된 검색 요약 1개→최근 3요약→완성 6턴→현재 질문을 확인한다.
+        // 41번째 입력에서 옛 검색 요약1개→최근3요약→최근15턴→현재 질문을 확인한다.
         var input = answerRequests.getLast().path("input");
-        assertThat(input.size()).isEqualTo(18);
+        assertThat(input.size()).isEqualTo(36);
         for (int i = 0; i < 4; i++) {
             assertThat(input.path(i + 1).path("content").asString()).contains("구간 요약 " + (i * 10 + 1) + "-" + (i * 10 + 10));
         }
-        assertThat(input.path(5).path("content").asString()).isEqualTo("합성 질문 35");
-        assertThat(input.path(16).path("role").asString()).isEqualTo("assistant");
-        assertThat(input.path(17).path("content").asString()).isEqualTo("합성 질문 41");
+        assertThat(input.path(5).path("content").asString()).isEqualTo("합성 질문 26");
+        assertThat(input.path(34).path("role").asString()).isEqualTo("assistant");
+        assertThat(input.path(35).path("content").asString()).isEqualTo("합성 질문 41");
 
         JsonNode latest = history(session, "", 200);
         assertThat(latest.path("messages").size()).isEqualTo(60);
@@ -231,7 +231,7 @@ class ChatFlowHttpTests {
         assertThat(recovered.path("question").path("messageId").asLong()).isEqualTo(questionId);
         assertThat(recovered.path("answer").path("turnNo").asInt()).isEqualTo(1);
         await(() -> pointCount() == 2);
-        assertThat(decisions.get()).isEqualTo(1);
+        assertThat(decisions.get()).isEqualTo(2); // 최초 안전·목적 분류와 재시도 목적 분류 각1회
         assertThat(embeddingInputs.stream().filter("복구할 합성 질문"::equals).count()).isEqualTo(1);
         assertThat(history(session, "", 200).path("retryMessageId").isNull()).isTrue();
         JsonNode alreadyAnswered = call("POST", messages(session) + "/" + questionId + "/retry", null, token, 400);
@@ -282,7 +282,8 @@ class ChatFlowHttpTests {
         assertThat(first.path("answer").path("durNotice").isNull()).isTrue();
         var second = question(session, "이 약의 금기는?", 200);
         var answer = second.path("answer");
-        assertThat(answer.path("content").asString()).contains("지금은 공식 정보를 확인하지 못해", "금기가 없다는 뜻은 아니니");
+        assertThat(answer.path("content").asString()).contains("지금은 공식 정보를 확인하지 못해").doesNotContain("DUR 확인:");
+        assertThat(answer.path("durNotice").path("message").asString()).contains("금기가 없다는 뜻은 아니니");
         assertThat(answer.path("durNotice").path("lookup").asString()).isEqualTo("FAILED");
         assertThat(answer.path("durNotice").path("result").isNull()).isTrue();
         var sources = JSON.readTree(answer.path("content").asString().split("@@SOURCES@@", 2)[1].strip());
@@ -429,6 +430,12 @@ class ChatFlowHttpTests {
                         "usage", Map.of("prompt_tokens", 7, "total_tokens", 7)));
             } else if (path.equals("/responses")) {
                 var input = JSON.readTree(exchange.getRequestBody().readAllBytes());
+                if ("chat_drug_query".equals(input.path("text").path("format").path("name").asString())) {
+                    respond(exchange, 200, Map.of("id", "resp-query", "status", "completed", "output", List.of(
+                            Map.of("type", "message", "content", List.of(Map.of("type", "output_text", "text",
+                                    "{\"mode\":\"RECORD\",\"choice\":0,\"names\":[]}"))))));
+                    return;
+                }
                 boolean summary = input.path("instructions").asString().startsWith("필받음 대화 기록");
                 String text;
                 int status = 200;

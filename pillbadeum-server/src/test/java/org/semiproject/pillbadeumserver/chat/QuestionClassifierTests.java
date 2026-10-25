@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.semiproject.pillbadeumserver.chat.service.QuestionClassifier;
+import org.semiproject.pillbadeumserver.chat.service.QuestionPlan;
 import org.semiproject.pillbadeumserver.chat.domain.QuestionCategory;
 import org.semiproject.pillbadeumserver.common.ai.OpenAiClient;
 import org.semiproject.pillbadeumserver.common.exception.AiUnavailableException;
@@ -206,6 +207,44 @@ class QuestionClassifierTests {
         return new QuestionClassifier(new OpenAiClient(JSON, key, baseUrl,
                 "chat-unused", decisionModel, "vision-unused", "embedding-unused", "high",
                 2000, shortTimeout, 2000, 60000, 1, 50, new java.math.BigDecimal("0.10"), 85_000));
+    }
+
+    @Test
+    void oneDecisionIncludesOwnedContextAndKeepsMedicalQuestionsOutOfTheRecordRoute() {
+        AtomicReference<JsonNode> sent = new AtomicReference<>();
+        server.createContext("/decisions", exchange -> {
+            calls.incrementAndGet();
+            sent.set(JSON.readTree(exchange.getRequestBody().readAllBytes()));
+            respond(exchange, 200, answer("PASS_RECORD"));
+        });
+        var plan = classifier("local-test-key", "decision-only", 1000).plan("임산부는 먹으면 안되는 약이 있어?",
+                new QuestionClassifier.Context(List.of("내 약 이름은?"), List.of("197400040 합성약")));
+        assertThat(plan.category()).isEqualTo(QuestionCategory.PASS);
+        assertThat(plan.purpose()).isEqualTo(QuestionPlan.Purpose.COMBINED);
+        assertThat(calls.get()).isEqualTo(1);
+        var request = sent.get();
+        var context = JSON.readTree(request.path("input").asString());
+        assertThat(context.path("previousQuestions").path(0).asString()).isEqualTo("내 약 이름은?");
+        assertThat(context.path("products").path(0).asString()).isEqualTo("197400040 합성약");
+        assertThat(request.path("questions").size()).isEqualTo(1);
+        assertThat(request.path("questions").path(0).path("choices").size()).isEqualTo(6);
+    }
+
+    @Test
+    void retryClassifiesPurposeOnlyWithoutReintroducingBlockedCategories() {
+        AtomicReference<JsonNode> sent = new AtomicReference<>();
+        server.createContext("/decisions", exchange -> {
+            calls.incrementAndGet();
+            sent.set(JSON.readTree(exchange.getRequestBody().readAllBytes()));
+            respond(exchange, 200, answer("PASS_RECORD"));
+        });
+        var input = new org.semiproject.pillbadeumserver.chat.service.AnswerInput(1993, "MALE", false,
+                "내 저녁 약 이름과 시각은?", List.of(), List.of(), false);
+        assertThat(classifier("local-test-key", "decision-only", 1000).retryPlan(input).purpose()).isEqualTo(QuestionPlan.Purpose.RECORD);
+        assertThat(calls.get()).isEqualTo(1);
+        var choices = sent.get().path("questions").path(0).path("choices");
+        assertThat(choices.size()).isEqualTo(3);
+        assertThat(choices.toString()).doesNotContain("OFF_TOPIC", "UNSAFE", "EMERGENCY");
     }
 
     private void stub(int status, String body) {

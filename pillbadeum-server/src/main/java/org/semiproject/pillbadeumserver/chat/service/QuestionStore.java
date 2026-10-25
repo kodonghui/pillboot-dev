@@ -45,6 +45,18 @@ public class QuestionStore {
         return session.getProfileId();
     }
 
+    /** 저장 전 분류에 필요한 같은 방의 최근 질문2개와 현재 품목 이름만 읽는다. 건강 사본은 보내지 않는다. */
+    @Transactional(readOnly = true)
+    public QuestionClassifier.Context classificationContext(Long sessionId, Long memberId, Long profileId) {
+        if (!Objects.equals(checkAccess(sessionId, memberId), profileId)) throw new NotFoundException("프로필을 찾을 수 없습니다.");
+        var turns = messages.findHistoryTurns(sessionId, null, org.springframework.data.domain.PageRequest.of(0, 2));
+        var previous = turns.isEmpty() ? java.util.List.<String>of() : messages.findHistoryMessages(sessionId, turns).stream()
+                .filter(message -> "user".equals(message.getRole())).map(ChatMessage::getContent).toList();
+        var products = medications.findAllWithDrugByProfileId(profileId).stream().filter(m -> m.getDrug() != null)
+                .limit(10).map(m -> m.getDrug().getItemSeq() + " " + m.getDrug().getName()).toList();
+        return new QuestionClassifier.Context(previous, products);
+    }
+
     /**
      * PASS 질문만 전달받아 질문·첫 사본·제목·활동 시각을 한 번에 커밋한다.
      * 프로필과 방의 잠금 뒤에 메시지를 조회하므로 동시 저장 후의 최신 턴을 기준으로 계산한다.
@@ -95,7 +107,7 @@ public class QuestionStore {
         }
     }
 
-    /** 소유권 확인 후 확정 사본·현재 내 약·완성된 이전 턴을 값 객체로 복사하고 DB 연결을 반납한다. */
+    /** 소유권 확인 후 현재 내 약·최근15턴·미요약 원문을 복사하고 DB 연결을 반납한다. */
     @Transactional(readOnly = true)
     public AnswerInput loadAnswerInput(Long sessionId, Long memberId, Long profileId, QuestionResponse.Question question) {
         if (!Objects.equals(checkAccess(sessionId, memberId), profileId)) {
@@ -113,14 +125,26 @@ public class QuestionStore {
                 new AnswerInput.Medication(m.getDrug().getItemSeq(), m.getDrug().getName(), m.getDrug().getMaker(),
                         m.getDrug().getEtcOtc(), m.getConfirmedDosePerTime(), m.getTiming(), m.getStartDate(), m.getEndDate(),
                         m.getDoseTimes(), m.getUpdatedAt().toLocalDate())).toList();
-        var turns = messages.findRecentCompleteTurns(sessionId, savedQuestion.getTurnNo()).stream().map(turn ->
-                new AnswerInput.Turn(turn.getTurnNo(), turn.getQuestion(), turn.getAnswer(),
-                        turn.getQuestionTokens(), turn.getAnswerTokens())).toList();
+        // 공식 품목코드가 없어도 직접 입력한 이름·일정은 DB 기록으로 조회할 수 있다.
+        var records = registered.stream().map(m -> new AnswerInput.Medication(
+                m.getDrug() == null ? "" : m.getDrug().getItemSeq(),
+                m.getDrug() == null ? m.getCustomName() : m.getDrug().getName(),
+                m.getDrug() == null ? "" : m.getDrug().getMaker(),
+                m.getDrug() == null ? "UNKNOWN" : m.getDrug().getEtcOtc(), m.getConfirmedDosePerTime(),
+                m.getTiming(), m.getStartDate(), m.getEndDate(), m.getDoseTimes(), m.getUpdatedAt().toLocalDate())).toList();
         var recentSummaries = summaries.findTop3BySessionIdAndToTurnLessThanOrderByToTurnDesc(sessionId, savedQuestion.getTurnNo())
                 .stream().map(s -> new AnswerInput.Summary(s.getSummaryId(), s.getFromTurn(), s.getToTurn(), s.getContent())).toList();
+        int summaryEnd = recentSummaries.stream().mapToInt(AnswerInput.Summary::toTurn).max().orElse(0);
+        var recentTurnIds = messages.findHistoryTurns(sessionId, savedQuestion.getTurnNo(),
+                org.springframework.data.domain.PageRequest.of(0, 15));
+        int recentStart = recentTurnIds.stream().mapToInt(Integer::intValue).min().orElse(savedQuestion.getTurnNo());
+        int fromTurn = Math.min(recentStart, summaryEnd + 1);
+        var turns = messages.findAnswerContextTurns(sessionId, savedQuestion.getTurnNo(), fromTurn).stream().map(turn ->
+                new AnswerInput.Turn(turn.getTurnNo(), turn.getQuestion(), turn.getAnswer(),
+                        turn.getQuestionTokens(), turn.getAnswerTokens())).toList();
         return new AnswerInput(session.getSnapBirthYear(), session.getSnapGender(), session.getSnapPregnant(),
                 savedQuestion.getContent(), drugs, turns, !messages.existsBySessionIdAndRole(sessionId, "assistant"),
-                recentSummaries, java.util.List.of(), summaries.countBySessionIdAndToTurnLessThan(sessionId, savedQuestion.getTurnNo()), unidentified);
+                recentSummaries, java.util.List.of(), summaries.countBySessionIdAndToTurnLessThan(sessionId, savedQuestion.getTurnNo()), unidentified, records);
     }
 
     /** 같은 질문의 턴에 답변·활동 시각·보조 ID를 함께 저장한다. 외부 대기는 이 트랜잭션 전에 끝낸다. */

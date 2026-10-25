@@ -75,8 +75,9 @@ public class DurEvaluator {
                             content = "출생연도 정보로 노인주의 여부를 대조하지 못했어요. 공식 내용: " + content;
                         }
                     } else if (type == DurLookup.Type.PREGNANCY) {
-                        if ("MALE".equals(input.gender()) || Boolean.FALSE.equals(input.pregnant())) continue;
-                        if (!"FEMALE".equals(input.gender()) || input.pregnant() == null) {
+                        boolean generalQuestion = ChatQuestionPurpose.pregnancy(input.question());
+                        if (!generalQuestion && ("MALE".equals(input.gender()) || Boolean.FALSE.equals(input.pregnant()))) continue;
+                        if (generalQuestion || !"FEMALE".equals(input.gender()) || input.pregnant() == null) {
                             content = "임신 중이라면 주의가 필요해요. 의사나 약사와 상담해 주세요. 공식 내용: " + content;
                         }
                     }
@@ -97,21 +98,21 @@ public class DurEvaluator {
                 ? "지금은 금기 정보를 확인하지 못했어요. 금기가 없다는 뜻은 아니니 약사에게 확인해 주세요."
                 : "이번 요청에서 " + drugs.size() + "개 등록 약의 " + scope + " 중 " + successful + "/" + total + "개 조회를 확인했어요. "
                     + (found ? "확인된 금기·주의 또는 해당 가능 항목이 있어요. " : unresolved
-                        ? "품목·연령 조건을 추가로 확인해야 해요. " : "확인한 유형·프로필 조건에서는 해당 항목을 찾지 못했어요. ")
+                        ? "품목·연령 조건을 추가로 확인해야 해요. " : "확인한 유형·" + (ChatQuestionPurpose.pregnancy(input.question()) ? "질문" : "프로필") + " 조건에서는 해당 항목을 찾지 못했어요. ")
                     + (unchecked.isEmpty() ? "" : "일부 약·유형은 확인하지 못했어요. ")
                     + "모든 약의 안전성을 보장하는 결과는 아니에요. 복용 여부는 의사나 약사에게 확인해 주세요.";
         return new Evaluation(new DurNotice(lookup, result, checked, List.copyOf(unchecked),
                 List.copyOf(warnings.values()), message), List.copyOf(provenance));
     }
 
-    /** 단순 기록 확인·서식 요청에는 정상 조회 안내를 반복하지 않음. 경고·미확인은 질문과 무관하게 유지함. */
+    /** 정상 무경고 결과는 DUR·병용 질문에만 안내함. 실제 경고·미확인은 질문과 무관하게 유지함. */
     public boolean needsExplanation(AnswerInput input, DurNotice notice) {
         if ("NO_DRUG".equals(notice.lookup())) return false;
         if (!"ALL".equals(notice.lookup()) || !"NONE".equals(notice.result()) || !notice.items().isEmpty()) return true;
+        if (ChatQuestionPurpose.recordOnly(input.question())) return false;
         String question = input.question().replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
-        return List.of("병용", "상호작용", "금기", "부작용", "안전", "위험", "주의사항", "용량", "임신", "임부",
-                "같이", "함께", "먹어도", "복용해도", "괜찮", "알레르기", "과량", "과다", "몇알", "몇정", "분할", "중단")
-                .stream().anyMatch(question::contains);
+        return List.of("dur", "병용", "상호작용", "금기")
+                .stream().anyMatch(question::contains) || ChatQuestionPurpose.coadministration(input.question());
     }
 
     /** CHAT-008: 발견 경고·미확인은 유지하고 정상 조회의 불필요한 반복 카드만 줄임. */

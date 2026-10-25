@@ -87,8 +87,8 @@ class SummaryMySqlTests {
         memberId = insert("INSERT INTO member(email,password_hash,nickname,user_role,created_at,updated_at) VALUES(?,'fixture','summary','USER',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", "summary-"+UUID.randomUUID()+"@example.test");
         profileId = insert("INSERT INTO profile(member_id,profile_name,relationship_type,profile_birth_year,profile_gender,profile_pregnant,created_at,updated_at) VALUES(?,'summary','SELF',1990,'FEMALE',FALSE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",memberId);
         sessionId = insert("INSERT INTO chat_session(member_id,profile_id,snap_birth_year,snap_gender,snap_pregnant,created_at,updated_at) VALUES(?,?,1990,'FEMALE',FALSE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",memberId,profileId);
-        when(classifier.classify(anyString())).thenReturn(QuestionCategory.PASS);
-        when(generator.generate(any(),any())).thenReturn(new GeneratedAnswer("합성 답변\n@@SOURCES@@\n[]","synthetic-response",null));
+        when(classifier.plan(anyString(), any())).thenReturn(plan(QuestionCategory.PASS));
+        when(generator.generate(any(),any(),any())).thenReturn(new GeneratedAnswer("합성 답변\n@@SOURCES@@\n[]","synthetic-response",null));
         doAnswer(inv -> {
             calls.incrementAndGet();
             assertThat(Thread.currentThread().isVirtual()).isTrue();
@@ -155,9 +155,9 @@ class SummaryMySqlTests {
     @Test
     void failedBoundaryAnswerWaitsUntilALaterAnswerWithoutInventingTheMissingAnswer() throws Exception {
         seedPairs(1,9);
-        when(generator.generate(any(),any())).thenThrow(new BusinessException(ErrorCode.EXTERNAL_API_TIMEOUT,"synthetic"));
+        when(generator.generate(any(),any(),any())).thenThrow(new BusinessException(ErrorCode.EXTERNAL_API_TIMEOUT,"synthetic"));
         send(503);await(() -> active.get()==0);assertThat(count()).isZero();
-        doReturn(new GeneratedAnswer("later answer",null,null)).when(generator).generate(any(),any());
+        doReturn(new GeneratedAnswer("later answer",null,null)).when(generator).generate(any(),any(),any());
         send(200);await(() -> active.get()==0);
         assertThat(count()).isEqualTo(1);
         assertThat(inputs.getFirst().path("turns").path(9).path("answer").isNull()).isTrue();
@@ -230,7 +230,8 @@ class SummaryMySqlTests {
             var input=questions.loadAnswerInput(sessionId,memberId,profileId,new org.semiproject.pillbadeumserver.chat.dto.QuestionResponse.Question(q,51));
             assertThat(input.recentSummaries()).extracting(AnswerInput.Summary::fromTurn).containsExactly(41,31,21);
             assertThat(input.recentSummaries()).allMatch(s->!s.content().contains("other-room"));
-            assertThat(input.recentTurns()).hasSize(6);
+            assertThat(input.recentTurns()).hasSize(15)
+                    .extracting(AnswerInput.Turn::turnNo).containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(36,50).boxed().toList());
             assertThat(input.summaryCount()).isEqualTo(5);
             var ids=new java.util.ArrayList<>(jdbc.queryForList("SELECT summary_id FROM chat_summary",Long.class));ids.add(Long.MAX_VALUE);
             assertThat(summaryStore.selectedEarlier(sessionId,51,ids,input.recentSummaries().stream().map(AnswerInput.Summary::summaryId).toList()))
@@ -252,4 +253,8 @@ class SummaryMySqlTests {
     private void seedUser(int turn){jdbc.update("INSERT INTO chat_message(session_id,trun_no,role,content) VALUES(?,?,'user','unanswered')",sessionId,turn);}
     private long insert(String sql,Object...args){var key=new GeneratedKeyHolder();jdbc.update(c->{var p=c.prepareStatement(sql,java.sql.Statement.RETURN_GENERATED_KEYS);for(int i=0;i<args.length;i++)p.setObject(i+1,args[i]);return p;},key);return key.getKey().longValue();}
     private static void await(BooleanSupplier condition) throws Exception {long end=System.nanoTime()+Duration.ofSeconds(7).toNanos();while(!condition.getAsBoolean()&&System.nanoTime()<end)Thread.sleep(10);assertThat(condition.getAsBoolean()).isTrue();}
+    private static QuestionPlan plan(QuestionCategory category) {
+        return new QuestionPlan(category, QuestionPlan.Purpose.COMBINED, "fixture");
+    }
+
 }

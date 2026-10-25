@@ -194,6 +194,8 @@ function Evidence({ sources, profileName }) {
   }
   const { official, mine } = sourceGroups(sources)
   const officialSources = official.flatMap((drug) => drug.sources)
+  const confirmed = official.map((drug) => ({ ...drug, sources: drug.sources.filter((source) => source.ok === true || source.cancelled === true) })).filter((drug) => drug.sources.length > 0)
+  const unverified = official.map((drug) => ({ ...drug, sources: drug.sources.filter((source) => source.ok !== true && source.cancelled !== true) })).filter((drug) => drug.sources.length > 0)
   // 공식 자료를 하나도 확인하지 못한 답변(목업 CHT-02-13): 근거 보기 없이 펼쳐 두고 공식 자료는 한 줄로 묶는다.
   // 꼬리표에는 확인하지 못한 까닭이 없어 목업의 「자료 없음」 · 「조회 실패」 문구는 쓰지 않는다.
   // 허가 취하가 확인된 근거가 있으면 한 줄로 묶지 않고 약별 목록으로 보여 준다.
@@ -229,13 +231,21 @@ function Evidence({ sources, profileName }) {
         aria-controls={open ? listId : undefined}
         onClick={() => setOpen(!open)}
       >
-        {open ? '근거 접기' : '근거 보기'} ({sources.length})
+        {open ? '근거 접기' : '근거 보기'}
         <Icon name={open ? 'chevronUp' : 'chevronDown'} size="s" />
       </button>
       {open && (
         <div className="chat-answer__groups" id={listId}>
-          {official.length > 0 && <OfficialSources drugs={official} />}
+          {confirmed.length > 0 && <OfficialSources drugs={confirmed} />}
           {mine.length > 0 && <MySources sources={mine} profileName={profileName} />}
+          {unverified.length > 0 && (
+            <details className="chat-answer__unverified">
+              <summary className="screen-label">확인하지 못한 출처</summary>
+              <ul className="chat-answer__sources">
+                {unverified.map((drug) => <OfficialDrug key={drug.key} drug={drug} />)}
+              </ul>
+            </details>
+          )}
         </div>
       )}
     </div>
@@ -320,7 +330,7 @@ function ChatAnswer({ message, profileName }) {
 
   return (
     <div className="chat-msg chat-msg--answer">
-      <p className="visually-hidden">필받음의 답변</p>
+      <p className="visually-hidden">약봉이의 답변</p>
       <div className="chat-msg__answer chat-answer">
         <AnswerBody body={body} />
         {message.durNotice && <DurNotice notice={message.durNotice} />}

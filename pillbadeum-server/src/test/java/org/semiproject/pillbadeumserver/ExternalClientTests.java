@@ -70,6 +70,81 @@ class ExternalClientTests {
     }
 
     @Test
+    void publicDataDoesNotMaskTheCatalogsExplicitRefreshWithAnotherCache() {
+        AtomicInteger calls=new AtomicInteger();
+        String path="/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03";
+        server.createContext(path,exchange->{calls.incrementAndGet();respond(exchange,200,
+                "{\"header\":{\"resultCode\":\"00\"},\"body\":{\"totalCount\":0,\"items\":[]}}");});
+        var client=publicData();
+        client.get(path,Map.of("pageNo",1));client.get(path,Map.of("pageNo",1));
+        assertThat(calls.get()).isEqualTo(2);
+    }
+
+    @Test
+    void publicDataReusesOnlyTheSameSuccessfulQueryAndReturnsIndependentParsedBodies() {
+        AtomicInteger calls=new AtomicInteger();
+        server.createContext("/cached",exchange->{calls.incrementAndGet();respond(exchange,200,
+                "{\"header\":{\"resultCode\":\"00\"},\"body\":{\"totalCount\":0,\"items\":[]}}");});
+        var client=publicData();
+        var first=client.get("/cached",Map.of("itemName","합성약","pageNo",1));
+        ((tools.jackson.databind.node.ObjectNode)first).put("totalCount",999);
+        assertThat(client.get("/cached",Map.of("pageNo",1,"itemName","합성약")).path("totalCount").asInt()).isZero();
+        assertThat(calls.get()).isEqualTo(1);
+        client.get("/cached",Map.of("pageNo",2,"itemName","합성약"));
+        client.get("/cached",Map.of("pageNo",1,"itemName","다른약"));
+        assertThat(calls.get()).isEqualTo(3);
+    }
+
+    @Test
+    void publicDataDoesNotKeepGatewayFailuresAndCanRecoverOnTheNextRequest() {
+        AtomicInteger calls=new AtomicInteger();
+        server.createContext("/recover",exchange->{
+            boolean first=calls.incrementAndGet()==1;
+            respond(exchange,200,first?"{\"header\":{\"resultCode\":\"22\"}}":
+                    "{\"header\":{\"resultCode\":\"00\"},\"body\":{\"totalCount\":0,\"items\":[]}}");
+        });
+        var client=publicData();
+        assertThrows(ExternalApiException.class,()->client.get("/recover",Map.of()));
+        assertThat(client.get("/recover",Map.of()).path("totalCount").asInt()).isZero();
+        client.get("/recover",Map.of());
+        assertThat(calls.get()).isEqualTo(2);
+    }
+
+    @Test
+    void publicDataDoesNotCacheWrongItemOrInconsistentEmptyResults() {
+        AtomicInteger calls=new AtomicInteger();
+        server.createContext("/wrong-item",exchange->{calls.incrementAndGet();respond(exchange,200,
+                "{\"header\":{\"resultCode\":\"00\"},\"body\":{\"totalCount\":1,\"items\":[{\"ITEM_SEQ\":\"other\"}]}}");});
+        server.createContext("/incomplete",exchange->{calls.incrementAndGet();respond(exchange,200,
+                "{\"header\":{\"resultCode\":\"00\"},\"body\":{\"totalCount\":1,\"items\":[]}}");});
+        var client=publicData();
+        for(int i=0;i<2;i++){
+            client.get("/wrong-item",Map.of("item_seq","wanted"));
+            client.get("/incomplete",Map.of());
+        }
+        assertThat(calls.get()).isEqualTo(4);
+    }
+
+    @Test
+    void publicDataReadAndRetryCannotIgnoreTheRemainingRequestBudget() {
+        AtomicInteger calls=new AtomicInteger();
+        server.createContext("/slow-budget",exchange->{
+            calls.incrementAndGet();
+            try {Thread.sleep(750);} catch(InterruptedException e){Thread.currentThread().interrupt();}
+            respond(exchange,200,"{\"header\":{\"resultCode\":\"00\"},\"body\":{\"totalCount\":0,\"items\":[]}}");
+        });
+        server.createContext("/ready",exchange->respond(exchange,200,
+                "{\"header\":{\"resultCode\":\"00\"},\"body\":{\"totalCount\":0,\"items\":[]}}"));
+        var client=publicData();
+        long start=System.nanoTime();
+        var error=assertThrows(ExternalApiException.class,()->client.get("/slow-budget",Map.of(),java.time.Duration.ofMillis(60)));
+        assertThat(error.getErrorCode().name()).isEqualTo("EXTERNAL_API_TIMEOUT");
+        assertThat(java.time.Duration.ofNanos(System.nanoTime()-start)).isLessThan(java.time.Duration.ofMillis(600));
+        assertThat(calls.get()).isEqualTo(1);
+        assertThat(client.get("/ready",Map.of(),java.time.Duration.ofSeconds(1)).path("totalCount").asInt()).isZero();
+    }
+
+    @Test
     void publicDataUsesHttp11WithoutRequestingAnHttp2Upgrade() {
         AtomicReference<String> upgrade = new AtomicReference<>();
         AtomicReference<String> protocol = new AtomicReference<>();
@@ -279,8 +354,9 @@ class ExternalClientTests {
             var aiClient = new OpenAiClient(JSON, "synthetic-key", baseUrl, "chat", "decision", "vision", "embedding", "",
                     2000, 3000, 3000, 60000, 1, 10000, new java.math.BigDecimal("0.10"), 85000);
             var publicClient = new PublicDataClient(JSON, baseUrl, "synthetic-key", 2000, 3000, 1, 10000);
+            var queryNo=new AtomicInteger(); // 서로 다른 정상 조회로 permit 대기를 검증함. 동일 조회 재사용 시험과 구분함.
             java.util.concurrent.Callable<Object> request = () -> ai
-                    ? aiClient.createText("규칙", MESSAGES, 100) : publicClient.get(path, Map.of());
+                    ? aiClient.createText("규칙", MESSAGES, 100) : publicClient.get(path, Map.of("pageNo",queryNo.incrementAndGet()));
             try (var callers = Executors.newVirtualThreadPerTaskExecutor()) {
                 var first = callers.submit(request);
                 assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();

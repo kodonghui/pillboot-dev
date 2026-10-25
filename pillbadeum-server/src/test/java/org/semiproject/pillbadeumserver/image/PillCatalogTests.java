@@ -19,6 +19,29 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 class PillCatalogTests {
+    @Test
+    void cachedImagesUseExactCodesWithoutDownloadingOrWaiting(@TempDir Path directory) {
+        var client = mock(PublicDataClient.class); var json = new JsonMapper();
+        var target = Map.of("ITEM_SEQ", "197600046", "ITEM_NAME", "대상약", "ITEM_IMAGE", "https://nedrug.mfds.go.kr/target.jpg");
+        var other = Map.of("ITEM_SEQ", "197400040", "ITEM_NAME", "다른약", "ITEM_IMAGE", "https://nedrug.mfds.go.kr/other.jpg");
+        when(client.get(eq(DrugSyncService.GRAIN_INFO_PATH), anyMap(), any(Duration.class)))
+            .thenReturn(json.valueToTree(Map.of("totalCount", 2, "items", List.of(target, other))));
+        try (var catalog = new PillCatalog(client, json, directory.resolve("catalog.json").toString(), false, 1)) {
+            catalog.refresh(); clearInvocations(client);
+            assertThat(catalog.cachedImageUrls(Set.of("197600046", "999999999")))
+                .containsExactlyEntriesOf(Map.of("197600046", "https://nedrug.mfds.go.kr/target.jpg"));
+            verifyNoInteractions(client);
+        }
+    }
+
+    @Test
+    void anUnavailableCatalogSimplyHasNoOptionalImages(@TempDir Path directory) {
+        var client = mock(PublicDataClient.class);
+        try (var catalog = new PillCatalog(client, new JsonMapper(), directory.resolve("missing.json").toString(), false, 1)) {
+            assertThat(catalog.cachedImageUrls(Set.of("197600046"))).isEmpty();
+            verifyNoInteractions(client);
+        }
+    }
     @TempDir Path directory;
     final JsonMapper json = new JsonMapper();
     final PublicDataClient client = mock(PublicDataClient.class);

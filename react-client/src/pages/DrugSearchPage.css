@@ -292,3 +292,11 @@ li:first-child.drug-search__item {
   gap: var(--space-12);
   padding-top: var(--space-4);
 }
+.drug-search__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.drug-search__section > summary { cursor: pointer; }
+.drug-search__section > p { margin: var(--space-12) 0 0; }

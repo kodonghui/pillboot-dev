@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.semiproject.pillbadeumserver.chat.service.QuestionClassifier;
+import org.semiproject.pillbadeumserver.chat.service.QuestionPlan;
 import org.semiproject.pillbadeumserver.chat.service.ChatAnswerService;
 import org.semiproject.pillbadeumserver.chat.service.AnswerFailedException;
 import org.semiproject.pillbadeumserver.chat.controller.QuestionExceptionHandler;
@@ -60,10 +61,10 @@ class QuestionWebTests {
 
     @Test
     void passNormalizesTheQuestionAndUsesOnlyTheAuthenticatedMember() throws Exception {
-        when(classifier.classify("복약 질문")).thenReturn(QuestionCategory.PASS);
+        when(classifier.plan(eq("복약 질문"), any())).thenReturn(plan(QuestionCategory.PASS));
         var question = new QuestionResponse.Question(100L, 1);
         when(store.save(42L, 7L, 10L, "복약 질문")).thenReturn(question);
-        when(answers.complete(eq(42L), eq(7L), eq(10L), eq(question), any())).thenReturn(new QuestionResponse.Answer(
+        when(answers.complete(eq(42L), eq(7L), eq(10L), eq(question), any(), any())).thenReturn(new QuestionResponse.Answer(
                 101L, 1, "fixture answer\n@@SOURCES@@\n[]", null, java.time.OffsetDateTime.parse("2026-10-19T19:00:00+09:00")));
         mvc.perform(post("/api/chat-sessions/42/messages").header("Authorization", authorization())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -82,15 +83,15 @@ class QuestionWebTests {
                 .andExpect(header().string("Cache-Control", containsString("no-store")));
         var order = inOrder(store, classifier, answers);
         order.verify(store).checkAccess(42L, 7L);
-        order.verify(classifier).classify("복약 질문");
+        order.verify(classifier).plan(eq("복약 질문"), any());
         order.verify(store).save(42L, 7L, 10L, "복약 질문");
-        order.verify(answers).complete(eq(42L), eq(7L), eq(10L), eq(question), any());
+        order.verify(answers).complete(eq(42L), eq(7L), eq(10L), eq(question), any(), any());
     }
 
     @ParameterizedTest
     @EnumSource(value = QuestionCategory.class, names = {"OFF_TOPIC", "UNSAFE", "EMERGENCY"})
     void blockedCategoriesReturnFixedNoticesWithoutSaving(QuestionCategory category) throws Exception {
-        when(classifier.classify("fixture")).thenReturn(category);
+        when(classifier.plan(eq("fixture"), any())).thenReturn(plan(category));
         mvc.perform(post("/api/chat-sessions/42/messages").header("Authorization", authorization())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"fixture\"}"))
                 .andExpect(status().isOk())
@@ -143,19 +144,19 @@ class QuestionWebTests {
     @Test
     void thousandCharactersAfterStrippingAreAccepted() throws Exception {
         String question = "가".repeat(1000);
-        when(classifier.classify(question)).thenReturn(QuestionCategory.OFF_TOPIC);
+        when(classifier.plan(eq(question), any())).thenReturn(plan(QuestionCategory.OFF_TOPIC));
         mvc.perform(post("/api/chat-sessions/42/messages").header("Authorization", authorization())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(new JsonMapper().writeValueAsString(java.util.Map.of("content", " \n" + question + "\t "))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result").value("BLOCKED"));
-        verify(classifier).classify(question);
+        verify(classifier).plan(eq(question), any());
     }
 
     @Test
     void failedClassificationReleasesTheRoomForTheNextRequest() throws Exception {
-        when(classifier.classify("fixture"))
+        when(classifier.plan(eq("fixture"), any()))
                 .thenThrow(new BusinessException(ErrorCode.EXTERNAL_API_TIMEOUT, "잠시 후 다시 시도해 주세요."))
-                .thenReturn(QuestionCategory.OFF_TOPIC);
+                .thenReturn(plan(QuestionCategory.OFF_TOPIC));
         mvc.perform(post("/api/chat-sessions/42/messages").header("Authorization", authorization())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"fixture\"}"))
                 .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("EXTERNAL_TIMEOUT"))
@@ -196,9 +197,9 @@ class QuestionWebTests {
 
     @Test
     void failureAfterQuestionCommitHasItsIdAndTheNextRequestIsAllowed() throws Exception {
-        when(classifier.classify("fixture")).thenReturn(QuestionCategory.PASS);
+        when(classifier.plan(eq("fixture"), any())).thenReturn(plan(QuestionCategory.PASS));
         when(store.save(42L, 7L, 10L, "fixture")).thenReturn(new QuestionResponse.Question(100L, 1));
-        when(answers.complete(eq(42L), eq(7L), eq(10L), any(), any()))
+        when(answers.complete(eq(42L), eq(7L), eq(10L), any(), any(), any()))
                 .thenThrow(new AnswerFailedException(100L, new BusinessException(ErrorCode.EXTERNAL_API_TIMEOUT, "private fixture")));
         mvc.perform(post("/api/chat-sessions/42/messages").header("Authorization", authorization())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"fixture\"}"))
@@ -207,9 +208,13 @@ class QuestionWebTests {
                 .andExpect(jsonPath("$.code").value("EXTERNAL_TIMEOUT"))
                 .andExpect(jsonPath("$.questionMessageId").value(100))
                 .andExpect(jsonPath("$.message").value("답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요."));
-        doReturn(QuestionCategory.OFF_TOPIC).when(classifier).classify("fixture");
+        doReturn(plan(QuestionCategory.OFF_TOPIC)).when(classifier).plan(eq("fixture"), any());
         mvc.perform(post("/api/chat-sessions/42/messages").header("Authorization", authorization())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"fixture\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result").value("BLOCKED"));
     }
+    private static QuestionPlan plan(QuestionCategory category) {
+        return new QuestionPlan(category, QuestionPlan.Purpose.COMBINED, "fixture");
+    }
+
 }

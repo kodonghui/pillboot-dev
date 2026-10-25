@@ -160,7 +160,7 @@ function Todo({ profile, drugs }) {
           />
         </li>
         <li>
-          <Shortcut to={paths.chat} icon="chat" title="챗봇에 묻기" description={chatText} />
+          <Shortcut to={paths.chat} icon="chat" title="약봉이에게 묻기" description={chatText} />
         </li>
       </ul>
     </section>

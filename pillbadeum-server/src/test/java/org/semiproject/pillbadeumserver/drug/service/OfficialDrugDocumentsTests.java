@@ -42,13 +42,17 @@ class OfficialDrugDocumentsTests {
             }
             doc.save(out); pdf = out.toByteArray();
         }
+        var calls = new AtomicInteger();
         server.createContext("/pbp/cmn/pdfDownload/199900001/EE", exchange -> {
+            calls.incrementAndGet();
             assertThat(exchange.getRequestURI().getQuery()).isNull();
             assertThat(exchange.getRequestHeaders().getFirst("Authorization")).isNull();
             exchange.sendResponseHeaders(200, pdf.length); exchange.getResponseBody().write(pdf); exchange.close();
         });
-        assertThat(new OfficialDrugDocuments(base, 1000, 1000, 1).read("199900001", "EE"))
-                .isEqualTo("Synthetic official document");
+        var client = new OfficialDrugDocuments(base, 1000, 1000, 1);
+        assertThat(client.read("199900001", "EE")).isEqualTo("Synthetic official document");
+        assertThat(client.read("199900001", "EE", java.time.Duration.ofMillis(100))).isEqualTo("Synthetic official document");
+        assertThat(calls).hasValue(1);
     }
 
     @Test void invalidInputAndRedirectDoNotReachAnArbitraryAddress() {
@@ -74,7 +78,7 @@ class OfficialDrugDocumentsTests {
         server.createContext("/pbp/cmn/pdfDownload/199900001/UD", exchange -> {
             try { Thread.sleep(200); exchange.sendResponseHeaders(200, -1); } catch (Exception ignored) {} finally { exchange.close(); }
         });
-        assertThatThrownBy(() -> new OfficialDrugDocuments(base, 1000, 40, 1).read("199900001", "UD"))
+        assertThatThrownBy(() -> new OfficialDrugDocuments(base, 1000, 1000, 1).read("199900001", "UD", java.time.Duration.ofMillis(40)))
                 .isInstanceOfSatisfying(ExternalApiException.class, error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.EXTERNAL_API_TIMEOUT));
     }
 }

@@ -94,7 +94,7 @@ function ProfilesPage() {
           프로필 관리
         </h1>
         <p className="screen-body profiles-page__lead">
-          약 목록과 챗봇은 프로필마다 따로예요. 복용 달력에는 모든 프로필 일정이 색으로 함께 보여요.
+          약 목록과 약봉이는 프로필마다 따로예요. 복용 달력에는 모든 프로필 일정이 색으로 함께 보여요.
         </p>
       </div>
       <Link className="mt-btn mt-btn--solid" to={paths.profileNew}>
@@ -239,7 +239,7 @@ function ProfilesPage() {
       {target && (
         <ConfirmDialog
           title={`${target.profileName} 프로필을 삭제할까요?`}
-          description="이 프로필에 등록된 약과 챗봇 대화 기록도 함께 삭제됩니다. 삭제 후에는 되돌릴 수 없습니다."
+          description="이 프로필에 등록된 약과 약봉이 대화 기록도 함께 삭제됩니다. 삭제 후에는 되돌릴 수 없습니다."
           danger
           confirmLabel="프로필 삭제"
           confirmIcon="trash"

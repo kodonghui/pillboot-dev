@@ -8,9 +8,17 @@ import java.util.List;
 public record AnswerInput(long birthYear, String gender, Boolean pregnant, String question,
                           List<Medication> medications, List<Turn> recentTurns, boolean firstAnswer,
                           List<Summary> recentSummaries, List<Summary> similarSummaries, long summaryCount,
-                          List<String> unidentifiedDrugNames) {
+                          List<String> unidentifiedDrugNames, List<Medication> registeredRecords) {
     public AnswerInput {
         unidentifiedDrugNames = List.copyOf(unidentifiedDrugNames);
+        registeredRecords = List.copyOf(registeredRecords);
+    }
+    public AnswerInput(long birthYear, String gender, Boolean pregnant, String question,
+                       List<Medication> medications, List<Turn> recentTurns, boolean firstAnswer,
+                       List<Summary> recentSummaries, List<Summary> similarSummaries, long summaryCount,
+                       List<String> unidentifiedDrugNames) {
+        this(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer,
+                recentSummaries, similarSummaries, summaryCount, unidentifiedDrugNames, medications);
     }
     /** 기존 맥락 입력은 품목 미확인 약이 없는 경우로 유지한다. */
     public AnswerInput(long birthYear, String gender, Boolean pregnant, String question,
@@ -31,11 +39,16 @@ public record AnswerInput(long birthYear, String gender, Boolean pregnant, Strin
 
     public AnswerInput withSimilarSummaries(List<Summary> summaries) {
         return new AnswerInput(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer,
-                recentSummaries, summaries, summaryCount, unidentifiedDrugNames);
+                recentSummaries, summaries, summaryCount, unidentifiedDrugNames, registeredRecords);
     }
     public AnswerInput withUnidentifiedDrugNames(List<String> names) {
         return new AnswerInput(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer,
-                recentSummaries, similarSummaries, summaryCount, names);
+                recentSummaries, similarSummaries, summaryCount, names, registeredRecords);
+    }
+    /** 후보 선택 후 원래 질문을 이어 답하기 위한 요청 내 사본이다. 저장된 질문은 바꾸지 않는다. */
+    AnswerInput withQuestion(String value) {
+        return new AnswerInput(birthYear, gender, pregnant, value, medications, recentTurns, firstAnswer,
+                recentSummaries, similarSummaries, summaryCount, unidentifiedDrugNames, registeredRecords);
     }
     public record Medication(String itemSeq, String name, String maker, String etcOtc, Integer dosePerTime,
                               String timing, LocalDate startDate, LocalDate endDate,

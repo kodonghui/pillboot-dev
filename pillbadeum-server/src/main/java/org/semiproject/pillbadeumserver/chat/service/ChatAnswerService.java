@@ -20,9 +20,10 @@ public class ChatAnswerService {
     private final MessageEmbeddingService embeddings;
     private final SummaryService summaries;
     private final SummaryContextService context;
+    private final QuestionClassifier classifier;
 
     public ChatAnswerService(QuestionStore store, AnswerGenerator generator, DurCacheStore cache, MessageEmbeddingService embeddings, SummaryService summaries, SummaryContextService context,
-                              @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor) {
+                              @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor, QuestionClassifier classifier) {
         this.store = store;
         this.generator = generator;
         this.executor = executor;
@@ -30,31 +31,38 @@ public class ChatAnswerService {
         this.embeddings = embeddings;
         this.summaries = summaries;
         this.context = context;
+        this.classifier = classifier;
     }
 
     /** 저장된 질문을 기준으로 생성·짧은 답변 저장을 연결하고, 후속 실패에는 같은 질문 ID를 보존한다. */
     public QuestionResponse.Answer complete(Long sessionId, Long memberId, Long profileId,
                                              QuestionResponse.Question question, ChatDeadline deadline) {
-        return complete(sessionId, memberId, profileId, question, deadline, false);
+        return complete(sessionId, memberId, profileId, question, deadline, false, null);
+    }
+
+    public QuestionResponse.Answer complete(Long sessionId, Long memberId, Long profileId,
+                                            QuestionResponse.Question question, ChatDeadline deadline, QuestionPlan plan) {
+        return complete(sessionId, memberId, profileId, question, deadline, false, plan);
     }
 
     /** 이미 저장한 질문의 분류·임베딩을 반복하지 않고, 저장 직전에 retry 자격을 다시 확인한다. */
     public QuestionResponse.Answer retry(Long sessionId, Long memberId, Long profileId,
                                           QuestionResponse.Question question, ChatDeadline deadline) {
-        return complete(sessionId, memberId, profileId, question, deadline, true);
+        return complete(sessionId, memberId, profileId, question, deadline, true, null);
     }
 
     private QuestionResponse.Answer complete(Long sessionId, Long memberId, Long profileId,
-                                             QuestionResponse.Question question, ChatDeadline deadline, boolean retry) {
+                                             QuestionResponse.Question question, ChatDeadline deadline, boolean retry, QuestionPlan plan) {
         try {
             deadline.check();
             var loaded = store.loadAnswerInput(sessionId, memberId, profileId, question);
+            var routing = retry ? classifier.retryPlan(loaded) : plan == null ? QuestionPlan.legacy(loaded) : plan;
             // 질문은 이미 커밋됐다. 임베딩 실패는 기존 최근 대화·답변 흐름으로 진행한다.
             float[] vector = retry ? (loaded.summaryCount() >= 4 ? context.savedQuestionVector(sessionId, question.messageId(), deadline) : null)
                     : embeddings.questionCommitted(sessionId, question.messageId(), loaded.question(), deadline);
             var input = context.enrich(sessionId, question.turnNo(), loaded, vector, deadline);
             deadline.check();
-            var generated = deadline.await(executor.submit(() -> generator.generate(input, deadline)));
+            var generated = deadline.await(executor.submit(() -> generator.generate(input, deadline, routing)));
             deadline.check();
             // 실패한 캐시 교체는 별도 트랜잭션 전체가 롤백된다. 실제 조회 결과로 만든 답변은 유지한다.
             try { cache.refresh(generated.durLookups(), deadline); }

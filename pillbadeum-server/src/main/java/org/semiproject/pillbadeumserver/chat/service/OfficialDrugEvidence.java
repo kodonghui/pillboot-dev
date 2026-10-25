@@ -14,6 +14,8 @@ import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
+import org.semiproject.pillbadeumserver.drug.service.OfficialDrugDocuments;
+import org.semiproject.pillbadeumserver.drug.service.DrugGuideService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -31,22 +33,29 @@ public class OfficialDrugEvidence {
     private static final List<String> EASY_FIELDS = List.of("efcyQesitm", "useMethodQesitm", "atpnWarnQesitm",
             "atpnQesitm", "intrcQesitm", "seQesitm", "depositMethodQesitm");
     private static final List<String> PERMIT_FIELDS = List.of("EE_DOC_DATA", "UD_DOC_DATA", "NB_DOC_DATA",
-            "PN_DOC_DATA", "STORAGE_METHOD");
+            "PN_DOC_DATA", "STORAGE_METHOD", "MAIN_ITEM_INGR", "ITEM_INGR_NAME");
     private static final Logger log = LoggerFactory.getLogger(OfficialDrugEvidence.class);
     private final PublicDataClient publicData;
     private final AsyncTaskExecutor executor;
     private final int batchSize;
+    private final OfficialDrugDocuments documents;
 
     public OfficialDrugEvidence(PublicDataClient publicData,
                                 @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor,
-                                @Value("${public-data.max-concurrent-calls:4}") int maxConcurrentCalls) {
+                                @Value("${public-data.max-concurrent-calls:4}") int maxConcurrentCalls,
+                                OfficialDrugDocuments documents) {
         this.publicData = publicData;
         this.executor = executor;
         this.batchSize = Math.max(1, Math.min(10, maxConcurrentCalls));
+        this.documents = documents;
     }
 
     /** 최대 10품목을 적은 수씩 병렬 조회하고 40초와 요청 잔여 시간 중 작은 한도로 제한한다. */
     public Evidence collect(List<AnswerInput.Medication> medications, ChatDeadline requestDeadline) {
+        return collect(medications, requestDeadline, "");
+    }
+
+    public Evidence collect(List<AnswerInput.Medication> medications, ChatDeadline requestDeadline, String question) {
         var deadline = requestDeadline.within(Duration.ofSeconds(40));
         List<Lookup> lookups = new ArrayList<>();
         for (int offset = 0; offset < medications.size(); offset += batchSize) {
@@ -64,8 +73,8 @@ public class OfficialDrugEvidence {
             try {
                 for (var medication : batch) {
                     tasks.add(executor.submit(() -> List.of(
-                            lookup(medication, AnswerSource.Type.EASY_DRUG, deadline),
-                            lookup(medication, AnswerSource.Type.PERMIT, deadline))));
+                            lookup(medication, AnswerSource.Type.EASY_DRUG, deadline, question),
+                            lookup(medication, AnswerSource.Type.PERMIT, deadline, question))));
                 }
                 for (int i = 0; i < tasks.size(); i++) {
                     try {
@@ -82,7 +91,7 @@ public class OfficialDrugEvidence {
         return new Evidence(List.copyOf(lookups));
     }
 
-    private Lookup lookup(AnswerInput.Medication medication, AnswerSource.Type type, ChatDeadline deadline) {
+    private Lookup lookup(AnswerInput.Medication medication, AnswerSource.Type type, ChatDeadline deadline, String question) {
         try {
             deadline.check();
             boolean easy = type == AnswerSource.Type.EASY_DRUG;
@@ -103,10 +112,18 @@ public class OfficialDrugEvidence {
                             value.path(easy ? "itemSeq" : "ITEM_SEQ").asString("")))
                     .findFirst().orElseThrow(OfficialDrugEvidence::invalid);
             Map<String, String> facts = new LinkedHashMap<>();
+            boolean incomplete = false;
             for (String field : easy ? EASY_FIELDS : PERMIT_FIELDS) {
                 String raw = item.path(field).asString("");
                 if (raw.length() > 64_000) throw invalid();
                 String text = clean(raw);
+                if (!easy && text.isBlank() && field.endsWith("_DOC_DATA") && wantsDocument(field, question)
+                        && !item.path(field.substring(0, 2) + "_DOC_ID").asString("").isBlank()) {
+                    try {
+                        text = java.util.Objects.toString(documents.read(medication.itemSeq(), field.substring(0, 2), deadline.remaining()), "").replaceAll("\\s+", " ").strip();
+                        if (DrugGuideService.OMITTED_SECTION.equals(text)) { text = ""; incomplete = true; }
+                    } catch (BusinessException error) { incomplete = true; }
+                }
                 if (!text.isBlank()) facts.put(field, text);
             }
             // 의료 정보를 중간에서 잘라 뜻을 바꾸지 않고 과도하게 큰 자료는 미확인으로 처리한다.
@@ -117,11 +134,29 @@ public class OfficialDrugEvidence {
                     || cancellationName.contains("취하") || cancellationName.contains("취소"));
             LocalDate updated = parseDate(item.path(easy ? "updateDe" : "CHANGE_DATE").asString(""));
             return new Lookup(source(medication, type, updated == null ? LocalDate.now(TimeZoneConfig.ZONE) : updated,
-                    !facts.isEmpty() || cancelled, cancelled), Map.copyOf(facts), false);
+                    !facts.isEmpty() || cancelled, cancelled), Map.copyOf(facts), incomplete);
         } catch (BusinessException | NumberFormatException exception) {
+            boolean easy=type==AnswerSource.Type.EASY_DRUG;
+            publicData.discard(easy?EASY_PATH:PERMIT_PATH,Map.of(easy?"itemSeq":"item_seq",medication.itemSeq()));
             log.warn("[답변 근거 조회] source={} result=unavailable", type);
             return failed(medication, type);
         }
+    }
+
+    /** 단순 기록/성분/서식에는 PDF를 읽지 않고 의학 질문의 필요한 문서 전체를 선택함. 본문을 자르지 않음. */
+    static boolean wantsDocument(String field, String question) {
+        String q = question.replaceAll("\\s+", "");
+        if (q.isBlank() || "PN_DOC_DATA".equals(field)) return false;
+        boolean efficacy = q.matches(".*(효능|효과|기전|해열|진통|염증|심박|쓰는약|어떤약).*"),
+                usage = q.matches(".*(용법|사용법|복용법|복용방법|용량|몇정|몇알|놓쳤|잊었|중단|끊|중지|거르|건너뛰|두배|식전|식후|공복|식사|식간|밥|몇분|복용간격|먹는시간|먹는시점|복용시점|언제먹|먹어야|먹으면|어떻게먹).*"),
+                caution = q.matches(".*(주의|부작용|이상반응|천식|당뇨|저혈당|간질환|음주|간기능|술|중복|겹|병용|상호작용|같이|함께|안전|위험|임신|임산부|임부|수유|중단|두배).*"),
+                general = !efficacy && !usage && !caution && q.matches(".*(자세히|깊게|설명|알려줘).*" ) && !q.matches(".*(이름|성분|시각|기록|일정|별명|표로|짧게).*" );
+        return switch (field) {
+            case "EE_DOC_DATA" -> efficacy || general;
+            case "UD_DOC_DATA" -> usage || general;
+            case "NB_DOC_DATA" -> caution || usage || general;
+            default -> false;
+        };
     }
 
     static String clean(String text) {

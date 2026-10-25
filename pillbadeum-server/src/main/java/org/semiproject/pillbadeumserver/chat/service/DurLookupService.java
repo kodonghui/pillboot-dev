@@ -94,7 +94,8 @@ public class DurLookupService {
         long years = today.getYear() - input.birthYear();
         if (drugCount > 1) types.add(DurLookup.Type.INTERACTION);
         if (years >= 65 || years < 0 || years > 130) types.add(DurLookup.Type.ELDERLY);
-        if (!"MALE".equals(input.gender()) && !Boolean.FALSE.equals(input.pregnant())) types.add(DurLookup.Type.PREGNANCY);
+        if (ChatQuestionPurpose.pregnancy(input.question())
+                || (!"MALE".equals(input.gender()) && !Boolean.FALSE.equals(input.pregnant()))) types.add(DurLookup.Type.PREGNANCY);
         return types;
     }
 
@@ -125,6 +126,7 @@ public class DurLookupService {
             var updated = rows.stream().map(DurLookup.Row::updatedAt).min(LocalDate::compareTo).orElse(today);
             return new DurLookup(request.code(), request.type(), true, List.copyOf(rows), updated);
         } catch (BusinessException | NumberFormatException exception) {
+            client.discard(request.type().path(),Map.of("itemSeq",request.code()));
             log.warn("[DUR 조회] type={} result=unavailable", request.type());
             return DurLookup.failed(request.code(), request.type(), today);
         }

@@ -13,6 +13,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** 합성 품목·사본으로 조회 범위와 금기 대조의 경계를 확인한다. 실제 의학적 판정 사례가 아니다. */
 class DurEvaluatorTests {
+    @Test
+    void formattingTogetherIsNotCoadministrationButActualCombinedUseStillNeedsNotice() {
+        var evaluator = new DurEvaluator();
+        var notice = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("ALL","NONE",4,List.of(),List.of(),"fixture");
+        var record = new AnswerInput(1993,"UNKNOWN",false,"내 등록 약 함량·시각과 함께 표로 보여줘",List.of(),List.of(),false);
+        assertThat(evaluator.needsExplanation(record,notice)).isFalse();
+        var medical = new AnswerInput(1993,"UNKNOWN",false,"두 약을 함께 복용해도 돼?",List.of(),List.of(),false);
+        assertThat(evaluator.needsExplanation(medical,notice)).isTrue();
+    }
     private final DurEvaluator evaluator = new DurEvaluator();
     private final LocalDate today = LocalDate.now(TimeZoneConfig.ZONE);
 
@@ -72,8 +81,9 @@ class DurEvaluatorTests {
     @ParameterizedTest
     @CsvSource({"등록 약 이름만 알려줘,false", "복약 기록을 표로 정리해줘,false",
             "반복되는 주의 문구를 줄이고 한 문장으로 말해줘,false", "오늘 등록한 복용 시각만 알려줘,false",
-            "같이 먹어도 돼,true", "부작용이 있어,true", "임신 중 복용해도 괜찮아,true", "주의사항을 알려줘,true"})
-    void successfulNoWarningLookupOnlyAddsAnExplanationForSafetyQuestions(String question, boolean expected) {
+            "같이 먹어도 돼,true", "DUR 조회 범위는?,true", "금기 조회 결과는?,true", "상호작용은?,true",
+            "부작용이 있어,false", "임신 중 복용해도 괜찮아,false", "주의사항을 알려줘,false", "술 관련 주의사항은?,false"})
+    void successfulNoWarningLookupOnlyAddsAnExplanationWhenTheDurResultIsRequested(String question, boolean expected) {
         var input = new AnswerInput(1990, "MALE", false, question, List.of(drug("A")), List.of(), false);
         var notice = evaluator.evaluate(input, complete(input)).notice();
         assertThat(evaluator.needsExplanation(input, notice)).isEqualTo(expected);

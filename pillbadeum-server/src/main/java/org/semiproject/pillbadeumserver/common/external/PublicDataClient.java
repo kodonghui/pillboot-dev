@@ -4,6 +4,7 @@ import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.ResourceAccessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
@@ -15,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /* 설명. 공공데이터포털(apis.data.go.kr) 의약품 API 를 부르는 공통 클라이언트
  *  ----------------------------------------------------------------------------------
@@ -34,6 +36,7 @@ import java.util.concurrent.Semaphore;
  *  - HTTP 일시 오류만 0.5초 뒤 1회 재시도한다. 인증/파라미터/응답 형식 오류는 재시도하지 않는다.
  *  - 결과 코드(resultCode)가 '00' 이 아니면 503, 시간 초과도 구분된 코드의 503으로 바뀐다.
  *  - DUR 저장/재사용 여부와 synced_at 갱신은 담당 서비스에서 처리한다.
+ *  - 동일한 정상 응답은5분·128건의 메모리에서 재사용함. 실패·만료 응답을 대체 근거로 사용하지 않음.
  *  - 이 클라이언트의 호출 제한만으로 여러 작업을 합친 요청 전체 90초가 보장되지는 않는다.
  * */
 @Component
@@ -48,6 +51,10 @@ public class PublicDataClient {
     private final String serviceKey;
     private final Semaphore permits;
     private final long permitTimeoutMs;
+    private final String baseUrl;
+    private final long connectTimeoutMs;
+    private final long readTimeoutMs;
+    private final PublicDataResponseCache responses=new PublicDataResponseCache();
 
     public PublicDataClient(ObjectMapper objectMapper,
                             @Value("${public-data.base-url}") String baseUrl,
@@ -60,6 +67,9 @@ public class PublicDataClient {
 
         this.objectMapper = objectMapper;
         this.serviceKey = serviceKey;
+        this.baseUrl=baseUrl;
+        this.connectTimeoutMs=connectTimeoutMs;
+        this.readTimeoutMs=readTimeoutMs;
         if (maxConcurrentCalls < 1 || permitTimeoutMs < 1) {
             throw new IllegalArgumentException("공공데이터 동시 호출 수와 대기 시간은 양수여야 합니다.");
         }
@@ -87,10 +97,24 @@ public class PublicDataClient {
         return execute(path, params, waitMillis, deadline);
     }
 
+    /** 호출 서비스의 품목·페이지·임상 필드 검증에 실패한 응답은 다음 요청에 재사용하지 않음. */
+    public void discard(String path,Map<String,?> identity){
+        responses.discard(PublicDataResponseCache.Key.of(path,identity));
+    }
+
     private JsonNode execute(String path, Map<String, ?> params, long waitMillis, long deadline) {
 
         if (serviceKey == null || serviceKey.isBlank()) {
             throw ExternalApiException.failed(API_NAME, "서비스 키(PUBLIC_DATA_SERVICE_KEY)가 설정되지 않았습니다.", null);
+        }
+        checkDeadline(deadline);
+        // 낱알 전체 카탈로그는 자체 파일 캐시와 명시적 refresh가 있으므로 HTTP 응답을 중복 저장하지 않음.
+        boolean reusable=!path.startsWith("/1471000/MdcinGrnIdntfcInfoService03/");
+        var cacheKey=PublicDataResponseCache.Key.of(path,params);
+        String cached=reusable?responses.get(cacheKey):null;
+        if(cached!=null){
+            log.debug("[공공데이터] result=reused");
+            return extractBody(cached);
         }
 
         // 값을 주소에 직접 이어 붙이지 않고 {변수} 로 넘긴다. 그래야 서비스 키의 +, /, = 가 올바르게 인코딩된다.
@@ -106,17 +130,49 @@ public class PublicDataClient {
             }
         });
 
-        String responseBody = ExternalApiCaller.withPermit(API_NAME, permits, waitMillis,
-                () -> ExternalApiCaller.callWithRetry(API_NAME, () -> {
-                    if (Thread.currentThread().isInterrupted() || System.nanoTime() >= deadline)
-                        throw ExternalApiException.timeout(API_NAME, null);
-                    return restClient.get()
-                        .uri(uri.toString(), variables)
-                        .retrieve()
-                        .body(String.class);
-                }));
+        return ExternalApiCaller.withPermit(API_NAME, permits, waitMillis,()->{
+            checkDeadline(deadline);
+            String reused=reusable?responses.get(cacheKey):null;
+            if(reused!=null)return extractBody(reused);
+            String raw=ExternalApiCaller.callWithRetry(API_NAME,()->{
+                checkDeadline(deadline);
+                try {
+                    return requestClient(deadline).get().uri(uri.toString(),variables).retrieve().body(String.class);
+                } catch(ResourceAccessException error){
+                    // 남은 예산을 쓴 읽기 뒤 고정10초 읽기·0.5초 재시도로 다시 늘리지 않음.
+                    if(deadline!=Long.MAX_VALUE&&deadline-System.nanoTime()<=TimeUnit.MILLISECONDS.toNanos(500))
+                        throw ExternalApiException.timeout(API_NAME,null);
+                    throw error;
+                }
+            });
+            checkDeadline(deadline);
+            JsonNode body=extractBody(raw);
+            String count=body.path("totalCount").asString("");
+            if(reusable&&count.matches("[0-9]{1,9}")){
+                var items=items(body);
+                int total=Integer.parseInt(count);
+                Object requested=params.get("itemSeq");
+                if(requested==null)requested=params.get("item_seq");
+                String code=requested==null?null:requested.toString();
+                boolean matching=code==null||items.stream().allMatch(item->code.equals(
+                        item.path("ITEM_SEQ").asString(item.path("itemSeq").asString(""))));
+                if(matching&&(total==0&&items.isEmpty()||total>=items.size()&&!items.isEmpty()))responses.put(cacheKey,raw);
+            }
+            return body;
+        });
+    }
 
-        return extractBody(responseBody);
+    private void checkDeadline(long deadline){
+        if(Thread.currentThread().isInterrupted()||deadline!=Long.MAX_VALUE&&System.nanoTime()>=deadline)
+            throw ExternalApiException.timeout(API_NAME,null);
+    }
+
+    private RestClient requestClient(long deadline){
+        if(deadline==Long.MAX_VALUE)return restClient;
+        checkDeadline(deadline);
+        long left=Math.max(1,TimeUnit.NANOSECONDS.toMillis(deadline-System.nanoTime()));
+        return RestClientFactory.publicDataBuilder(baseUrl,Duration.ofMillis(Math.min(connectTimeoutMs,left)),
+                Duration.ofMillis(Math.min(readTimeoutMs,left))).build();
     }
 
     /* 목차. 2. body 의 items 를 목록으로 꺼낸다.

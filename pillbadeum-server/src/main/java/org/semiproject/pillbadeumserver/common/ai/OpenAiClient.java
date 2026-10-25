@@ -133,8 +133,15 @@ public class OpenAiClient {
      * */
     public JsonNode createJson(String instructions, List<AiMessage> messages, int maxOutputTokens,
                                String schemaName, Map<String, Object> schema) {
+        return createJson(instructions, messages, maxOutputTokens, schemaName, schema, reasoningEffort);
+    }
 
+    /** 짧은 검색어 추출은 답변·요약 effort와 분리하며 출력 토큰 상한은 추가하지 않음. */
+    public JsonNode createJson(String instructions, List<AiMessage> messages, int maxOutputTokens,
+                               String schemaName, Map<String, Object> schema, String effort) {
         Map<String, Object> body = requestBody(chatModel, instructions, toInput(messages), maxOutputTokens);
+        if (effort == null || effort.isBlank()) body.remove("reasoning");
+        else body.put("reasoning", Map.of("effort", effort));
         body.put("text", jsonSchemaFormat(schemaName, schema));
 
         return parseJson(outputText(post(shortClient, "/responses", body, chatModel, false)));

@@ -62,6 +62,7 @@ class PhotoFlowHttpMySqlTests {
   @Autowired org.semiproject.pillbadeumserver.image.service.PillIdentificationSessions sessions;
   @Autowired FileStorage files;
   @Autowired org.semiproject.pillbadeumserver.chat.service.RegistrationDurPrefetch durPrefetch;
+  @Autowired org.semiproject.pillbadeumserver.common.external.PublicDataClient publicData;
   @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
   HttpClient browser;
   long memberId, profileId, otherProfileId, foreignMember, foreignProfile;
@@ -221,6 +222,8 @@ class PhotoFlowHttpMySqlTests {
 
   @BeforeEach
   void fixtures() throws Exception {
+    // 같은 합성 약 이름의 품목코드를 매 시험 바꾸므로 이전 시험의 이름 검색 응답은 재사용하지 않음.
+    publicData.discard(org.semiproject.pillbadeumserver.drug.service.DrugSyncService.PERMIT_INFO_PATH,Map.of());
     try (var c = dataSource.getConnection()) {
       TestDatabaseSchema.prepare(c);
     }
@@ -1378,6 +1381,7 @@ class PhotoFlowHttpMySqlTests {
       if (path.equals("/responses")) {
         var request = JSON.readTree(exchange.getRequestBody().readAllBytes());
         boolean isVision = "synthetic-photo-vision".equals(request.path("model").asString());
+        boolean isQuery = "chat_drug_query".equals(request.path("text").path("format").path("name").asString());
         if (isVision) {
           t.visionRequests.add(request);
           t.sawUploaded =
@@ -1410,6 +1414,7 @@ class PhotoFlowHttpMySqlTests {
                                 "text",
                                 isVision
                                     ? JSON.writeValueAsString(t.vision)
+                                    : isQuery ? "{\"mode\":\"RECORD\",\"choice\":0,\"names\":[]}"
                                     : "합성 복약 안내입니다. 공식 주의사항을 확인하고 궁금한 점은 약사에게 문의하세요."))))));
       } else if (path.equals("/decisions")) {
         respond(
@@ -1443,12 +1448,12 @@ class PhotoFlowHttpMySqlTests {
                               "합성 공식 효능",
                               "updateDe",
                               "2026-10-20")))));
-        } else if (path.contains("getDrugPrdtPrmsnDtlInq08")) {
+        } else if (path.contains("getDrugPrdtPrmsnDtlInq08") && !query.contains("item_name=")) {
           var detail = new LinkedHashMap<String, Object>();
           detail.put("ITEM_SEQ", t.code1); detail.put("EE_DOC_DATA", "<DOC>합성 허가 근거</DOC>"); detail.put("CHANGE_DATE", "20261020");
           if (t.permitMetadata && !t.officialRows.isEmpty()) {
             detail.putAll(t.officialRows.getFirst());
-            // 실제 목록/상세는 전문·일반 필드명이 서로 다름.
+            // 품목코드 전용 조회의 대역을 실제 허가 상세 필드명으로 맞춤.
             Object type = detail.remove("SPCLTY_PBLC");
             if (type != null) detail.put("ETC_OTC_CODE", type);
           }

@@ -62,7 +62,7 @@ public final class OfficialEvidenceCli {
         try (var executor = new SimpleAsyncTaskExecutor("official-evidence-probe-")) {
             executor.setVirtualThreads(true);
             executor.setTaskTerminationTimeout(1000);
-            var collector = new OfficialDrugEvidence(client,executor,4);
+            var collector = new OfficialDrugEvidence(client, executor, 4, org.mockito.Mockito.mock(org.semiproject.pillbadeumserver.drug.service.OfficialDrugDocuments.class));
             var medication = new AnswerInput.Medication(itemSeq,"public item probe","","",1,null,null,null,List.of(),null);
             var evidence = collector.collect(List.of(medication),ChatDeadline.after(Duration.ofSeconds(40)));
             List<SourceResult> results = new ArrayList<>();

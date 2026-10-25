@@ -308,7 +308,7 @@ function PrescriptionResult({ profile, color, draft, onRetake, onLeave, onExpire
           return (
             <section className="mt-card prescription-photo__group" key={group.readNo} aria-labelledby={groupId}>
               {read(badge)}
-              <fieldset className="prescription-photo__choices">
+              <fieldset className="prescription-photo__choices" disabled={saving}>
                 <legend className="screen-label prescription-photo__neutral">찾은 후보 {group.candidates.length}개</legend>
                 <div className="prescription-photo__grid">
                   {value?.source === 'SEARCH' && (
@@ -389,6 +389,8 @@ function PrescriptionResult({ profile, color, draft, onRetake, onLeave, onExpire
         </Notice>
       )}
       <PhotoSaveBar
+        busy={saving}
+        error={saveError ? "저장하지 못했어요. 고른 약은 그대로예요." : null}
         status={items.length > 0 ? `${items.length}개 골랐어요` : '아직 고른 약이 없어요'}
         help={help}
         helpId={`${id}-save`}

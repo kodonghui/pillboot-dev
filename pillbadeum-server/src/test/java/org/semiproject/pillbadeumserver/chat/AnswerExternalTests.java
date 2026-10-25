@@ -78,8 +78,11 @@ class AnswerExternalTests {
         var publicData = new PublicDataClient(json, base, "private-public-key", 1000, 300, 4, 20);
         var openAi = new OpenAiClient(json, "private-ai-key", base, "chat-only", "decision-only", "vision-only", "embedding-only",
                 "", 1000, 300, 500, 60000, 4, 20, new BigDecimal("0.10"), 85_000);
-        generator = new AnswerGenerator(openAi, new OfficialDrugEvidence(publicData, executor, 4),
-                new DurLookupService(publicData, executor, 4), new DurEvaluator(), sources, json, executor);
+        var lookup = org.mockito.Mockito.mock(org.semiproject.pillbadeumserver.chat.service.ChatDrugLookup.class);
+        org.mockito.Mockito.when(lookup.resolve(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(org.semiproject.pillbadeumserver.chat.service.ChatDrugLookup.Resolution.none());
+        generator = new AnswerGenerator(openAi, new OfficialDrugEvidence(publicData, executor, 4, org.mockito.Mockito.mock(org.semiproject.pillbadeumserver.drug.service.OfficialDrugDocuments.class)),
+                new DurLookupService(publicData, executor, 4), new DurEvaluator(), sources, json, executor, lookup);
         easyBody.set(success(List.of(Map.of("itemSeq", CODE, "efcyQesitm", "<p>" + PRIVATE + "</p>",
                 "useMethodQesitm", "synthetic official directions", "updateDe", "2026-10-17"))));
         permitBody.set(success(List.of(Map.of("ITEM_SEQ", CODE, "EE_DOC_DATA", "<DOC><![CDATA[synthetic permit facts]]></DOC>",
@@ -109,7 +112,8 @@ class AnswerExternalTests {
         assertThat(sent.get().path("instructions").asString()).contains("진단·처방·용량 변경·복용 중단", "UNKNOWN", "FAILED·PARTIAL");
         assertThat(sent.get().path("input").toString()).contains(PRIVATE, "synthetic permit facts").doesNotContain("<DOC>", "<p>");
         assertThat(result.responseId()).isEqualTo("resp-fixture");
-        assertThat(result.content()).doesNotContain("fabricated").contains("지금은 금기 정보를 확인하지 못했어요");
+        assertThat(result.content()).doesNotContain("fabricated", "DUR 확인:");
+        assertThat(result.durNotice().message()).contains("지금은 금기 정보를 확인하지 못했어요");
         var provenance = sources.sources(result.content());
         assertThat(provenance).hasSize(4).extracting(AnswerSource::source)
                 .containsExactly(AnswerSource.Type.EASY_DRUG, AnswerSource.Type.PERMIT, AnswerSource.Type.USER_INPUT, AnswerSource.Type.DUR);

@@ -212,6 +212,8 @@ function PillResult({ profile, color, result, files, focusTitle, onRefine, onRet
   } else {
     bar = (
       <PhotoSaveBar
+        busy={saving}
+        error={saveError ? "저장하지 못했어요. 고른 약은 그대로예요." : null}
         status={picked ? `${picked.name}${eulAfter(picked.name)} 골랐어요` : '아직 고른 약이 없어요'}
         help={
           picked
@@ -295,7 +297,7 @@ function PillResult({ profile, color, result, files, focusTitle, onRefine, onRet
             않고 &quot;확인 못 함&quot;으로 보여 드려요. 점수나 %는 쓰지 않아요.
           </Notice>
           {!tooMany ? (
-            <fieldset className="pill-photo__choices">
+            <fieldset className="pill-photo__choices" disabled={saving}>
               <legend className="visually-hidden">맞는 약 하나 고르기</legend>
               <div className="pill-photo__list">
                 {candidates.map((candidate) => (

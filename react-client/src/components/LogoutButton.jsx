@@ -24,7 +24,7 @@ function LogoutButton() {
       {confirming && (
         <ConfirmDialog
           title="로그아웃할까요?"
-          description="로그아웃하면 로그인 화면으로 돌아가요. 내 약 · 복용 달력 · 챗봇은 다시 로그인하면 볼 수 있어요."
+          description="로그아웃하면 로그인 화면으로 돌아가요. 내 약 · 복용 달력 · 약봉이는 다시 로그인하면 볼 수 있어요."
           confirmLabel="로그아웃"
           confirmIcon="logout"
           onConfirm={signOut}

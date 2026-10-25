@@ -279,7 +279,7 @@ class MessageHistoryMySqlTests {
 
     @Test
     void blockedPostDoesNotReappearInHistoryOrTriggerProviders() throws Exception {
-        when(classifier.classify(anyString())).thenReturn(QuestionCategory.OFF_TOPIC);
+        when(classifier.plan(anyString(), any())).thenReturn(plan(QuestionCategory.OFF_TOPIC));
         mvc.perform(post("/api/chat-sessions/{id}/messages", roomId).header("Authorization", auth(memberId))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"blocked fixture\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result").value("BLOCKED"));
@@ -323,4 +323,8 @@ class MessageHistoryMySqlTests {
             for(int i=0;i<values.length;i++)statement.setObject(i+1,values[i]);return statement;},key);
         return key.getKey().longValue();
     }
+    private static QuestionPlan plan(QuestionCategory category) {
+        return new QuestionPlan(category, QuestionPlan.Purpose.COMBINED, "fixture");
+    }
+
 }

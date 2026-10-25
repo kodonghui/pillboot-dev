@@ -35,7 +35,9 @@ public class PhotoCandidateLookup {
     var ordered = rows.stream().sorted(Comparator.<JsonNode>comparingInt(row -> Boolean.TRUE.equals(org.semiproject.pillbadeumserver.drug.domain.DrugCancellation.parse(row)) ? 1 : 0)
         .thenComparingInt(row -> exact(name, text(row, "ITEM_NAME")) ? 0 : 1)
         .thenComparingInt(row -> exact(maker, text(row, "ENTP_NAME")) ? 0 : 1)).toList();
-    return validated(ordered, null);
+    var missingImages = ordered.stream().filter(row -> !present(first(row, "ITEM_IMAGE", "ITEM_IMAGE_URL")))
+        .map(row -> text(row, "ITEM_SEQ")).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+    return validated(ordered, null, catalog.cachedImageUrls(missingImages));
   }
 
   public List<PhotoCandidateData> pill(PillIdentification clues) {
@@ -92,12 +94,13 @@ public class PhotoCandidateLookup {
   }
 
   /** 후보 하나의 불완전함이 정상 후보를 없애지 않도록 행별 검증 후 중복/상한을 적용함. */
-  private static Result validated(List<JsonNode> rows, PillIdentification clues) {
+  private static Result validated(List<JsonNode> rows, PillIdentification clues, Map<String, String> images) {
     var valid = new LinkedHashMap<String, PhotoCandidateData>();
     int excluded = 0;
     for (var row : rows) {
       try {
-        var value = candidate(row, clues == null ? null : PillSimilarity.printsMatch(clues, row));
+        String code = text(row, "ITEM_SEQ");
+        var value = candidate(row, clues == null ? null : PillSimilarity.printsMatch(clues, row), code == null ? null : images.get(code));
         valid.putIfAbsent(value.itemSeq(), value);
       } catch (ExternalApiException invalidCandidate) { excluded++; }
     }
@@ -117,6 +120,10 @@ public class PhotoCandidateLookup {
   }
 
   private static PhotoCandidateData candidate(JsonNode row, Boolean matched) {
+    return candidate(row, matched, null);
+  }
+
+  private static PhotoCandidateData candidate(JsonNode row, Boolean matched, String fallbackImage) {
     String code = text(row, "ITEM_SEQ"),
         name = text(row, "ITEM_NAME"),
         maker = text(row, "ENTP_NAME");
@@ -129,13 +136,15 @@ public class PhotoCandidateLookup {
       throw ExternalApiException.failed("공공데이터", "후보의 품목코드·이름·제약사·전문/일반 구분을 확인하지 못했습니다.", null);
     Boolean cancelled = org.semiproject.pillbadeumserver.drug.domain.DrugCancellation.parse(row);
     String material = org.semiproject.pillbadeumserver.drug.domain.DrugIngredient.fromOfficial(row);
+    String image = first(row, "ITEM_IMAGE", "ITEM_IMAGE_URL");
+    if (!present(image)) image = fallbackImage;
     return new PhotoCandidateData(
         code,
         cut(name, 50),
         cut(maker, 50),
         type,
         known(text(row, "CLASS_NAME"), 50),
-        cut(first(row, "ITEM_IMAGE", "ITEM_IMAGE_URL"), 255),
+        cut(image, 255),
         cut(text(row, "PRINT_FRONT"), 50),
         cut(text(row, "PRINT_BACK"), 50),
         known(text(row, "DRUG_SHAPE"), 50),

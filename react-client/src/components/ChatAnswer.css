@@ -245,3 +245,8 @@
 .chat-answer__cancelled {
   color: var(--label-status-negative);
 }
+.chat-answer__unverified > summary {
+  cursor: pointer;
+  color: var(--label-alternative);
+  margin-bottom: var(--space-12);
+}

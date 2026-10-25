@@ -24,6 +24,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.semiproject.pillbadeumserver.chat.service.AnswerFailedException;
@@ -171,6 +173,7 @@ class AnswerMySqlTests {
     @AfterEach
     void cleanOnlyThisTestsData() {
         for (long member : members) {
+            jdbc.update("DELETE x FROM chat_summary x JOIN chat_session s ON s.session_id=x.session_id WHERE s.member_id=?", member);
             jdbc.update("DELETE m FROM chat_message m JOIN chat_session s ON s.session_id=m.session_id WHERE s.member_id=?", member);
             jdbc.update("DELETE FROM chat_session WHERE member_id=?", member);
         }
@@ -230,7 +233,7 @@ class AnswerMySqlTests {
     }
 
     @Test
-    void onlyThisRoomsCompletedTurnsAndThisProfilesMedicationEnterThePrompt() throws Exception {
+    void onlyThisRoomsHistoryIncludingUnansweredQuestionsAndThisProfilesMedicationEnterThePrompt() throws Exception {
         long otherProfile = profile(memberId, false);
         String otherDrug = medication(otherProfile, "다른프로필약정");
         long otherRoom = session(otherProfile);
@@ -240,11 +243,55 @@ class AnswerMySqlTests {
         pair(sessionId, 3, "own-three", "own-answer-three");
         send(sessionId, "지금 질문", 200);
         String input = requests.getFirst().path("input").toString();
-        assertThat(input).contains("own-one", "own-three", drugCode)
-                .doesNotContain("other-room", "unanswered-old-question", "private-old-source", "@@SOURCES@@", otherDrug,
+        assertThat(input).contains("own-one", "own-three", drugCode, "unanswered-old-question", "답변 없음")
+                .doesNotContain("other-room", "private-old-source", "@@SOURCES@@", otherDrug,
                         "member-private-marker", "개인표식", "profile_height", "profile_weight");
         assertThat(publicCodes).containsOnly(drugCode);
         assertThat(jdbc.queryForObject("SELECT MAX(trun_no) FROM chat_message WHERE session_id=?", Integer.class, sessionId)).isEqualTo(4);
+    }
+
+    @Test
+    void inputKeepsEveryUnsummarizedTurnBeforeTheFirstTenTurnSummary() {
+        for (int next : List.of(8,9,10)) {
+            long room = session(profileId);
+            for (int turn=1;turn<next;turn++) pair(room,turn,"question-"+turn,"answer-"+turn);
+            jdbc.update("INSERT INTO chat_message(session_id,trun_no,role,content) VALUES(?,?,'user','now')",room,next);
+            long id=jdbc.queryForObject("SELECT message_id FROM chat_message WHERE session_id=? AND trun_no=? AND role='user'",Long.class,room,next);
+            var input=store.loadAnswerInput(room,memberId,profileId,new org.semiproject.pillbadeumserver.chat.dto.QuestionResponse.Question(id,next));
+            assertThat(input.recentTurns()).extracting(org.semiproject.pillbadeumserver.chat.service.AnswerInput.Turn::turnNo)
+                    .containsExactlyElementsOf(java.util.stream.IntStream.range(1,next).boxed().toList());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings={"내가 등록한 약 이름과 복용 시각을 기록 기준으로 알려줘",
+            "검색 이야기는 여기까지 하고 원래 등록된 저녁 약 이름과 시각만 알려줘",
+            "검색은 그만하고 내가 등록한 약 이름과 복용 시각만 알려줘", "이제 조회하지 말고 내 약 목록과 시각만 알려줘"})
+    void registeredRecordQuestionCommitsNormallyWithoutCallingUnavailableOfficialProviders(String question) throws Exception {
+        publicStatus.set(503);
+        var response=send(sessionId,question,200);
+        var body=JSON.readTree(response.getResponse().getContentAsString()).path("answer");
+        assertThat(publicCalls.get()).isZero();assertThat(durCodes).isEmpty();
+        assertThat(body.path("durNotice").isNull()).isTrue();
+        assertThat(sources.sources(body.path("content").asString())).extracting(AnswerSource::source)
+                .containsExactly(AnswerSource.Type.USER_INPUT);
+        assertThat(background(requests.getFirst()).path("recordOnly").asBoolean()).isTrue();
+    }
+
+    @Test
+    void delayedSummaryTailBeyondFifteenIsPreservedAndStoredSummaryAllowsARecentFifteenWindow() {
+        for(int turn=1;turn<=30;turn++) pair(sessionId,turn,"question-"+turn,"answer-"+turn);
+        jdbc.update("INSERT INTO chat_summary(session_id,from_turn,to_turn,content,created_at) VALUES(?,1,10,'summary1',NOW())",sessionId);
+        jdbc.update("INSERT INTO chat_message(session_id,trun_no,role,content) VALUES(?,31,'user','now')",sessionId);
+        long id=jdbc.queryForObject("SELECT message_id FROM chat_message WHERE session_id=? AND trun_no=31 AND role='user'",Long.class,sessionId);
+        var question=new org.semiproject.pillbadeumserver.chat.dto.QuestionResponse.Question(id,31);
+        assertThat(store.loadAnswerInput(sessionId,memberId,profileId,question).recentTurns())
+                .extracting(org.semiproject.pillbadeumserver.chat.service.AnswerInput.Turn::turnNo)
+                .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(11,30).boxed().toList());
+        jdbc.update("INSERT INTO chat_summary(session_id,from_turn,to_turn,content,created_at) VALUES(?,11,20,'summary2',NOW())",sessionId);
+        assertThat(store.loadAnswerInput(sessionId,memberId,profileId,question).recentTurns())
+                .extracting(org.semiproject.pillbadeumserver.chat.service.AnswerInput.Turn::turnNo)
+                .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(16,30).boxed().toList());
     }
 
     @Test
@@ -261,12 +308,16 @@ class AnswerMySqlTests {
     }
 
     @Test
-    void repeatedGeneralGuidanceRetainsAFailedDurCheckAndBodyWarning() throws Exception {
+    void repeatedGeneralGuidanceStoresAFailedDurCardWithoutDuplicatingItsWarningInTheBody() throws Exception {
         pair(sessionId, 1, "legacy-user", "legacy-answer");
         var result = body(send(sessionId, "알림 설정은 어디에 있어?", 200));
         assertThat(result.path("answer").path("durNotice").path("lookup").asString()).isEqualTo("FAILED");
         assertThat(background(requests.getFirst()).path("dur").path("lookup").asString()).isEqualTo("FAILED");
-        assertThat(result.path("answer").path("content").asString()).contains("DUR 확인:", "금기가 없다는 뜻은 아니니");
+        assertThat(result.path("answer").path("content").asString()).doesNotContain("DUR 확인:", "금기가 없다는 뜻은 아니니");
+        assertThat(result.path("answer").path("durNotice").path("message").asString()).contains("금기가 없다는 뜻은 아니니");
+        var saved = JSON.readTree(jdbc.queryForObject("SELECT CAST(dur_notice AS CHAR) FROM chat_message WHERE message_id=?",
+                String.class, result.path("answer").path("messageId").asLong()));
+        assertThat(saved).isEqualTo(result.path("answer").path("durNotice"));
     }
 
     @Test
@@ -275,8 +326,9 @@ class AnswerMySqlTests {
         durZero(drugCode);
         var result = body(send(sessionId, "등록 약 이름만 알려줘", 200));
         assertThat(result.path("answer").path("durNotice").isNull()).isTrue();
-        assertThat(background(requests.getFirst()).path("dur").path("lookup").asString()).isEqualTo("ALL");
-        assertThat(background(requests.getFirst()).path("dur").path("result").asString()).isEqualTo("NONE");
+        assertThat(background(requests.getFirst()).path("recordOnly").asBoolean()).isTrue();
+        assertThat(background(requests.getFirst()).path("dur").isEmpty()).isTrue();
+        assertThat(publicCalls.get()).isZero();
         assertThat(result.path("answer").path("content").asString()).doesNotContain("DUR 확인:");
     }
 
@@ -294,7 +346,7 @@ class AnswerMySqlTests {
         var next = body(send(sessionId, "다음 질문", 200));
         assertThat(next.path("question").path("turnNo").asInt()).isEqualTo(2);
         assertThat(count()).isEqualTo(3);
-        assertThat(requests.getLast().path("input").toString()).doesNotContain("실패할 질문");
+        assertThat(requests.getLast().path("input").toString()).contains("실패할 질문", "답변 없음");
     }
 
     @Test
@@ -432,7 +484,7 @@ class AnswerMySqlTests {
         assertThat(notice.path("checkedCount").asInt()).isEqualTo(2);
         assertThat(notice.path("items").toString()).contains("합성등록약정", "다른합성약정", "synthetic pair warning");
         assertThat(notice.path("items").path(0).path("type").asString()).isEqualTo("INTERACTION");
-        assertThat(result.path("answer").path("content").asString()).contains("병용금기 ·");
+        assertThat(result.path("answer").path("content").asString()).doesNotContain("DUR 확인:", "병용금기 ·");
         assertThat(publicCodes).containsOnly(drugCode);
         assertThat(durCodes).contains(drugCode, partner);
         assertThat(background(requests.getFirst()).path("dur").path("result").asString()).isEqualTo("FOUND");
@@ -467,7 +519,8 @@ class AnswerMySqlTests {
                 "PROHBT_CONTENT", "synthetic pregnancy caution", "INGR_NAME", "fixture", "CHANGE_DATE", "20261017")));
         var result = body(send(sessionId, "복약 질문", 200));
         assertThat(result.path("answer").path("durNotice").path("result").asString()).isEqualTo("FOUND");
-        assertThat(result.path("answer").path("content").asString()).contains("임신 중이라면 주의가 필요해요");
+        assertThat(result.path("answer").path("durNotice").path("items").toString()).contains("임신 중이라면 주의가 필요해요");
+        assertThat(result.path("answer").path("content").asString()).doesNotContain("DUR 확인:");
         assertThat(room().get("snap_pregnant")).isNull();
         assertThat(jdbc.queryForObject("SELECT profile_pregnant FROM profile WHERE profile_id=?", Boolean.class, profileId)).isTrue();
         assertThat(jdbc.queryForObject("SELECT type FROM dur_warning WHERE item_seq=?", String.class, drugCode)).isEqualTo("임부");
@@ -501,7 +554,8 @@ class AnswerMySqlTests {
         durRows(drugCode, DurLookup.Type.INTERACTION, List.of(Map.of("ITEM_SEQ", drugCode,
                 "MIXTURE_ITEM_SEQ", partner, "PROHBT_CONTENT", longContent)));
         var result = body(send(sessionId, "같이 먹어도 돼?", 200));
-        assertThat(result.path("answer").path("content").asString()).contains(longContent);
+        assertThat(result.path("answer").path("durNotice").path("items").path(0).path("content").asString()).isEqualTo(longContent);
+        assertThat(result.path("answer").path("content").asString()).doesNotContain(longContent);
         assertThat(jdbc.queryForObject("SELECT content FROM dur_interaction WHERE item_seq2=?", String.class, drugCode)).isEqualTo("old short cache");
     }
 
@@ -538,7 +592,7 @@ class AnswerMySqlTests {
     private static String durKey(String code, DurLookup.Type type) { return code + ":" + type; }
 
     @Test
-    void retryRecoversTheSameQuestionAndDoesNotClassifyInsertOrReembedIt() throws Exception {
+    void retryRecoversTheSameQuestionAndReplansPurposeWithoutInsertOrReembedding() throws Exception {
         generationStatus.set(503);
         long question = body(send(sessionId, "복약 질문", 503)).path("questionMessageId").asLong();
         var state = room();
@@ -551,7 +605,7 @@ class AnswerMySqlTests {
         assertThat(result.path("question").path("messageId").asLong()).isEqualTo(question);
         assertThat(result.path("answer").path("turnNo").asInt()).isEqualTo(1);
         assertThat(count()).isEqualTo(2);
-        assertThat(decisions.get()).isEqualTo(1);
+        assertThat(decisions.get()).isEqualTo(3); // 최초 분류1회, 재시도 목적 분류2회
         assertThat(generations.get()).isEqualTo(3);
         org.mockito.Mockito.verify(embeddings, org.mockito.Mockito.times(1)).questionCommitted(eq(sessionId), eq(question), anyString(), any());
         retry(question, 400).getResponse();
@@ -688,8 +742,13 @@ class AnswerMySqlTests {
             respond(exchange, decisionStatus.get(), JSON.writeValueAsString(Map.of("answers", List.of(Map.of(
                     "type", "choice", "name", "medication_category", "choice", category.get())))));
         } else if (path.equals("/responses")) {
+            var input = JSON.readTree(exchange.getRequestBody().readAllBytes());
+            if ("chat_drug_query".equals(input.path("text").path("format").path("name").asString())) {
+                respond(exchange, 200, completed("{\"mode\":\"RECORD\",\"choice\":0,\"names\":[]}"));
+                return;
+            }
             generations.incrementAndGet();
-            requests.add(JSON.readTree(exchange.getRequestBody().readAllBytes()));
+            requests.add(input);
             duringGeneration.get().run();
             try { respond(exchange, generationStatus.get(), response.get()); } catch (IOException ignored) { exchange.close(); }
         } else if (path.equals(OfficialDrugEvidence.EASY_PATH) || path.equals(OfficialDrugEvidence.PERMIT_PATH)) {

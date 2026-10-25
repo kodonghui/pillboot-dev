@@ -55,7 +55,7 @@ class DurExternalTests {
         executor = new SimpleAsyncTaskExecutor("dur-http-test-");
         executor.setVirtualThreads(true);
         service = new DurLookupService(new PublicDataClient(json, "http://127.0.0.1:" + server.getAddress().getPort(),
-                "synthetic-dur-key", 1000, 250, 2, 100), executor, 2);
+                "synthetic-dur-key", 1000, 1000, 2, 100), executor, 2);
         responder.set(request -> success(0, request.page(), List.of()));
     }
 
@@ -197,7 +197,7 @@ class DurExternalTests {
         assertThat(attempts.get()).isEqualTo(2);
         responder.set(r -> new Reply(403, "{}"));
         requests.clear();
-        assertThat(collect("A").getFirst().success()).isFalse();
+        assertThat(collect("B").getFirst().success()).isFalse(); // 이전 정상 응답 재사용과 구분하여 새 품목의 영구 HTTP 실패를 검증함.
         assertThat(requests).hasSize(1);
     }
 
