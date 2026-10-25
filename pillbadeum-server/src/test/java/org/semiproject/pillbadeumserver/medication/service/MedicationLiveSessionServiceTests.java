@@ -217,7 +217,7 @@ class MedicationLiveSessionServiceTests {
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposedAt(LocalTime.of(17, 0)));
         when(workflow.confirm(any())).thenCallRealMethod();
         input("in1", "오늘부터 이틀 테스트약"); delegate("d1");
-        clock.now = clock.now.plusSeconds(60);
+        clock.now = clock.now.plusSeconds(180);
         input("in2", "응"); delegate("d2");
         verify(workflow, never()).execute(anyLong(), any());
         verify(client).hangup("live_fixture");
@@ -252,7 +252,7 @@ class MedicationLiveSessionServiceTests {
     void expiredSessionStopsBeforeCommittingAnAlreadyPreparedDecision() {
         start();
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenAnswer(call -> {
-            clock.now = clock.now.plusSeconds(60);
+            clock.now = clock.now.plusSeconds(180);
             return decision();
         });
         input("in1", "알아서 저장해"); delegate("d1");
@@ -270,9 +270,14 @@ class MedicationLiveSessionServiceTests {
     }
 
     @Test
-    void sessionsAreCappedAtOneMinuteAndReleaseTheRemoteConnectionAtTheDeadline() {
+    void sessionsAreCappedAtThreeMinutesAndReleaseTheRemoteConnectionAtTheDeadline() {
         String id = start();
-        clock.now = clock.now.plusSeconds(59);
+        assertThat(service.get(5, id).expiresAt()).isEqualTo(clock.now.plusSeconds(180));
+        clock.now = clock.now.plusSeconds(60);
+        service.expireSessions();
+        assertThat(service.get(5, id).status()).isEqualTo("LISTENING");
+        verify(client, never()).hangup(anyString());
+        clock.now = clock.now.plusSeconds(119);
         service.expireSessions();
         assertThat(service.get(5, id).status()).isEqualTo("LISTENING");
         verify(client, never()).hangup(anyString());
@@ -296,7 +301,7 @@ class MedicationLiveSessionServiceTests {
     void sessionCreatedAfterExpiryIsHungUpWithoutAttaching() {
         setupSelection();
         doAnswer(call -> {
-            clock.now = clock.now.plusSeconds(60);
+            clock.now = clock.now.plusSeconds(180);
             service.expireSessions();
             return new MedicationLiveClient.RemoteSession("live_late", "answer");
         }).when(client).create(anyString(), anyString());

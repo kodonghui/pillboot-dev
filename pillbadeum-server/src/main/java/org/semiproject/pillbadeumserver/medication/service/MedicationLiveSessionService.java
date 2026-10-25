@@ -34,7 +34,7 @@ import java.util.concurrent.Executor;
 @Service
 public class MedicationLiveSessionService {
     private static final Logger log = LoggerFactory.getLogger(MedicationLiveSessionService.class);
-    private static final long MAX_DURATION_SECONDS = 60;
+    private static final long MAX_DURATION_SECONDS = 180;
     private static final long COMPLETION_GRACE_SECONDS = 8;
     private final MedicationLiveClient client;
     private final MedicationRepository reads;
@@ -81,7 +81,7 @@ public class MedicationLiveSessionService {
     @Autowired
     public MedicationLiveSessionService(MedicationLiveClient client, MedicationRepository reads, MedicationLiveWorkflow workflow,
                                          @Qualifier("applicationTaskExecutor") Executor executor,
-                                         @Value("${OPENAI_LIVE_MAX_SECONDS:60}") long durationSeconds,
+                                         @Value("${OPENAI_LIVE_MAX_SECONDS:180}") long durationSeconds,
                                          @Value("${OPENAI_LIVE_MAX_SESSIONS:10}") int maxSessions) {
         this(client, reads, workflow, executor, Clock.system(ZoneId.of("Asia/Seoul")), durationSeconds, maxSessions);
     }

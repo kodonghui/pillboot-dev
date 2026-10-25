@@ -112,15 +112,15 @@ test('내 약 ID는 생략 가능해도 0이나 음수는 허용하지 않음', 
   }
 });
 
-test('1분 만료 즉시 시간 초과 안내와 미디어 정리를 하고 종료 응답을 기다림', async () => {
+test('3분 만료 즉시 시간 초과 안내와 미디어 정리를 하고 종료 응답을 기다림', async () => {
   const closing = deferred();
   const app = environment({ fetcher: (url, options) => {
-    if (options.method === 'POST') return response({ sessionId: 'fixture-session', sdp: 'answer', expiresAt: '2026-10-19T00:01:00Z' }, 201);
+    if (options.method === 'POST') return response({ sessionId: 'fixture-session', sdp: 'answer', expiresAt: '2026-10-19T00:03:00Z' }, 201);
     if (options.method === 'DELETE') return closing.promise;
     return response({ status: 'LISTENING' });
   } });
   app.el('token').value = 'fixture-jwt'; await app.el('start').click();
-  await app.advance(59999); assert.equal(app.stopped(), 0);
+  await app.advance(179999); assert.equal(app.stopped(), 0);
   await app.advance(1);
   assert.equal(app.el('status').textContent, '시간이 초과되어 종료됩니다');
   assert.equal(app.stopped(), 1); assert.equal(app.peers[0].closed, true);
@@ -132,12 +132,12 @@ test('1분 만료 즉시 시간 초과 안내와 미디어 정리를 하고 종�
 
 test('타이머보다 서버 종료 이벤트가 먼저 와도 만료 시각이면 시간 초과로 안내함', async () => {
   const app = environment({ fetcher: (url, options) => {
-    if (options.method === 'POST') return response({ sessionId: 'fixture-session', sdp: 'answer', expiresAt: '2026-10-19T00:01:00Z' }, 201);
+    if (options.method === 'POST') return response({ sessionId: 'fixture-session', sdp: 'answer', expiresAt: '2026-10-19T00:03:00Z' }, 201);
     if (options.method === 'DELETE') return response(null, 204);
     return response({ status: 'LISTENING' });
   } });
   app.el('token').value = 'fixture-jwt'; await app.el('start').click();
-  app.jump(60000); app.receive('session.closed'); await tick();
+  app.jump(180000); app.receive('session.closed'); await tick();
   assert.equal(app.el('status').textContent, '시간이 초과되어 종료됩니다');
   assert.equal(app.stopped(), 1); assert.equal(app.el('start').disabled, false);
 });
