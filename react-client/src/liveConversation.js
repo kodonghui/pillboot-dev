@@ -7,7 +7,7 @@ import { getLiveSession, startLiveSession, stopLiveSession } from './api/live.js
 // 한 대화에 한 번만 쓴다. "다시 시작"은 새 LiveConversation 을 만든다. 화면은 subscribe · getSnapshot 으로 읽는다.
 //
 // phase: connecting(마이크 · 연결 준비) · live(대화 중) · completing(업무 완료, 완료 안내를 듣는 중)
-//        done(완료 뒤 종료) · timeout(1분 초과) · busy(이미 대화 중, 409) · micDenied(마이크 거절) · unavailable · ended(사용자가 끝냄)
+//        done(완료 뒤 종료) · timeout(3분 초과) · busy(이미 대화 중, 409) · micDenied(마이크 거절) · unavailable · ended(사용자가 끝냄)
 
 const pollInterval = 1500
 const iceTimeout = 10000
