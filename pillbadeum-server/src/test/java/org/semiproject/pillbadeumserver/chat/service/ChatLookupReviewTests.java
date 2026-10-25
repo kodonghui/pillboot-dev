@@ -108,6 +108,28 @@ class ChatLookupReviewTests {
         verify(dur).collect(argThat(value -> value.medications().size() == 2 && ChatQuestionPurpose.coadministration(value.question())), any(ChatDeadline.class));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"엄마가 먹는 타이레놀 보관은 어떻게 해?",
+            "엄마 약 목록에 있는 타이레놀정500밀리그람(아세트아미노펜)의 보관방법을 알려줘",
+            "내 약 목록에 있는 타이레놀의 보관 방법을 알려줘"})
+    void storageQuestionReachesOfficialFactsInsteadOfTheRecordOnlyAnswer(String question) {
+        extract("RECORD"); generatedEvidence();
+        var drug = medication(A, "타이레놀정500밀리그람(아세트아미노펜)");
+        when(official.collect(anyList(), any(ChatDeadline.class), anyString())).thenReturn(
+                new OfficialDrugEvidence.Evidence(List.of(new OfficialDrugEvidence.Lookup(
+                        source(A, drug.name()), Map.of("STORAGE_METHOD", "합성 보관조건 자료"), false))));
+        var input = new AnswerInput(1993, "MALE", false, question, List.of(drug), List.of(), false);
+        var result = generator.generate(input, deadline(),
+                QuestionPlan.guarded(QuestionCategory.PASS, QuestionPlan.Purpose.RECORD, question, List.of()));
+        verify(official).collect(eq(List.of(drug)), any(ChatDeadline.class), eq(question));
+        verify(ai).createTextResult(anyString(), argThat(messages -> {
+            var background = json.readTree(messages.getFirst().content().split("\n", 2)[1]);
+            return !background.path("recordOnly").asBoolean()
+                    && background.path("officialEvidence").toString().contains("합성 보관조건 자료");
+        }), anyInt());
+        assertThat(sources.sources(result.content())).anyMatch(s -> s.source() == AnswerSource.Type.PERMIT);
+    }
+
     @Test void explicitlyReturningToRegisteredRecordsDoesNotReuseTheSearchedProduct() {
         when(ai.createTextResult(anyString(), anyList(), anyInt())).thenReturn(new AiTextResult("무관한등록약", "record"));
         var input = input("검색은 그만하고 내 등록 약 목록만 표로 정리해줘",
