@@ -20,6 +20,7 @@ import java.util.Map;
 /** 필수 정보와 기본값 위임 의사를 서버에서 검사한다. prepare 단계에서는 저장하지 않는다. */
 @Service
 public class MedicationLiveWorkflow {
+    private static final long USER_FRAGMENT_GAP_MILLIS = 1000;
     public record Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults, String customName) {
         public Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults) {
             this(profileId, myDrugId, request, defaults, null);
@@ -239,7 +240,8 @@ public class MedicationLiveWorkflow {
 
     private boolean isMedicationListQuestion(String text) {
         return text.contains("약") && text.matches(".*(뭐|무슨|어떤|목록).*")
-                && !text.matches(".*(일정|등록해|등록하자|추가해|저장|변경|바꿔|수정|삭제|지워|그만|중단|취소|부터).*");
+                && (text.contains("목록") || text.matches(".*(먹는약|복용(중인|하는)약|등록(된|한)약|내약|약.*있[어나지니]).*"))
+                && !text.matches(".*(일정|등록해|등록하자|추가해|저장|변경|바꿔|수정|삭제|지워|그만|중단|취소|부터|추천|먹어야).*");
     }
 
     private boolean isBulkScheduleRequest(String text) {
@@ -267,11 +269,28 @@ public class MedicationLiveWorkflow {
 
     private String lastTurn(List<Map<String, Object>> transcript, String role) {
         var result = new StringBuilder();
-        boolean collecting = false;
+        boolean collecting = false, interrupted = false;
+        long nextStart = -1, nextEnd = -1;
         for (int i = transcript.size() - 1; i >= 0; i--) {
             var part = transcript.get(i);
-            if (role.equals(part.get("role"))) { result.insert(0, part.get("content")); collecting = true; }
-            else if (collecting) break;
+            if (!role.equals(part.get("role"))) {
+                if (collecting) interrupted = true;
+                continue;
+            }
+            long start = part.get("start_ms") instanceof Number value ? value.longValue() : -1;
+            long end = part.get("end_ms") instanceof Number value ? value.longValue() : -1;
+            boolean timed = start >= 0 && end > start;
+            if (collecting) {
+                boolean ordered = timed && nextStart >= 0 && start <= nextStart && end <= nextEnd
+                        && (start < nextStart || end < nextEnd);
+                if (ordered) {
+                    if (nextStart - end > USER_FRAGMENT_GAP_MILLIS) break;
+                } else if (interrupted) break;
+            }
+            // 시간으로 연결을 확인할 때만 AI의 끼어들기를 넘는다. 시각이 없거나 반복되면 기존 role 경계를 지킨다.
+            result.insert(0, part.get("content"));
+            collecting = true; interrupted = false;
+            nextStart = timed ? start : -1; nextEnd = timed ? end : -1;
         }
         return result.toString();
     }

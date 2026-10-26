@@ -57,6 +57,76 @@ class MedicationLiveWorkflowTests {
     }
 
     @Test
+    void timedListQuestionSurvivesAssistantSpeechBetweenEveryUserFragment() {
+        when(reads.allDrugs(5)).thenReturn(List.of(target(25, 13, "타이레놀정"), target(26, 13, "인데놀정")));
+        var result = workflow.prepare(5, selection, DATE, List.of(
+                timed("user", "나", 7200, 7400), timed("assistant", "입니다", 7300, 7500),
+                timed("user", " 먹는", 7600, 7800), timed("assistant", ".", 7700, 7900),
+                timed("user", " 약", 8000, 8200), timed("assistant", "어떻게", 8100, 8300),
+                timed("user", " 뭐", 8200, 8400), timed("assistant", " 일정", 8300, 8700),
+                timed("user", " 있어", 8600, 8800), timed("assistant", " 등록을 도와드릴까요?", 8800, 9100)));
+        assertThat(result.outcome().message()).contains("타이레놀정", "인데놀정").doesNotContain("약 이름과 기간");
+        assertThat(result.executable()).isFalse();
+        verifyNoInteractions(planner, schedules);
+    }
+
+    @Test
+    void aPreviousBulkRequestIsSeparatedFromTheNextSingleDrugUtteranceByItsTimeGap() {
+        plan(new Plan("SAVE", null, null, null, null, null, null, null, null, false, null));
+        var result = workflow.prepare(5, selection, DATE, List.of(
+                timed("user", "약 둘 다 등록해줘", 1000, 2000),
+                timed("assistant", "어떤 약부터 등록할까요?", 2500, 3500),
+                timed("user", "테스트약만", 8000, 8700), timed("assistant", "네", 8500, 9000),
+                timed("user", " 다음주 수요일부터 일주일", 8700, 9800)));
+        assertThat(result.proposal()).isNotNull();
+        assertThat(result.outcome().message()).doesNotContain("한 약씩");
+        verify(planner).plan(any(), any(), anyList(), anyList(), anyList());
+    }
+
+    @Test
+    void aTimeGapAlsoSeparatesConsecutiveUserFragmentsWithoutAnAssistantCaption() {
+        plan(new Plan("SAVE", null, null, null, null, null, null, null, null, false, null));
+        var result = workflow.prepare(5, selection, DATE, List.of(timed("user", "약 둘 다", 1000, 2000),
+                timed("user", "테스트약만 다음주부터 일주일", 8000, 9000)));
+        assertThat(result.proposal()).isNotNull();
+        verify(planner).plan(any(), any(), anyList(), anyList(), anyList());
+    }
+
+    @Test
+    void missingOrRepeatedFixtureTimestampsKeepTheExistingRoleBoundary() {
+        plan(new Plan("SAVE", null, null, null, null, null, null, null, null, false, null));
+        for (var transcript : List.of(
+                List.of(user("약 둘 다"), assistant("어떤 약부터?"), user("테스트약만 등록해줘")),
+                List.of(timed("user", "약 둘 다", 0, 1000), timed("assistant", "어떤 약부터?", 0, 1000),
+                        timed("user", "테스트약만 등록해줘", 0, 1000)))) {
+            var result = workflow.prepare(5, selection, DATE, transcript);
+            assertThat(result.proposal()).isNotNull();
+            assertThat(result.outcome().message()).doesNotContain("한 약씩");
+        }
+        verify(planner, times(2)).plan(any(), any(), anyList(), anyList(), anyList());
+    }
+
+    @Test
+    void joiningAClinicalQuestionDoesNotTurnItIntoAnInventoryQuery() {
+        plan(new Plan("ASK", null, null, null, null, null, null, null, null, false, null));
+        var result = workflow.prepare(5, selection, DATE, List.of(timed("user", "어떤 약", 1000, 1500),
+                timed("assistant", "네", 1200, 1700), timed("user", " 먹어야 해", 1500, 2100)));
+        assertThat(result.outcome().message()).doesNotContain("테스트약");
+        verify(planner).plan(any(), any(), anyList(), anyList(), anyList());
+    }
+
+    @Test
+    void anInterleavedRetractionCannotReuseAnEarlierDefaultsDelegation() {
+        plan(new Plan("SAVE", null, null, null, 7, List.of("08:00"), 1, null, null, true, "알아서 저장해"));
+        var result = workflow.prepare(5, selection, DATE, List.of(timed("user", "알아서 저장해", 1000, 2000),
+                timed("assistant", "네", 2500, 3000), timed("user", "기본값", 5000, 5300),
+                timed("assistant", "확인할게요", 5100, 5600), timed("user", " 말고 일주일 8시", 5300, 6500)));
+        assertThat(result.executable()).isFalse();
+        assertThat(result.outcome().missingFields()).contains("correction");
+        verifyNoInteractions(schedules);
+    }
+
+    @Test
     void aScheduleCommandWithAQuestionWordStillUsesThePlanner() {
         plan(new Plan("SAVE", null, null, null, null, null, null, null, null, false, null));
         workflow.prepare(5, selection, DATE, List.of(user("나 먹는 약 뭐 있어? 이 약을 등록해줘")));
@@ -294,4 +364,7 @@ class MedicationLiveWorkflowTests {
     }
     private Map<String, Object> user(String text) { return Map.of("role", "user", "content", text); }
     private Map<String, Object> assistant(String text) { return Map.of("role", "assistant", "content", text); }
+    private Map<String, Object> timed(String role, String text, long start, long end) {
+        return Map.of("role", role, "content", text, "start_ms", start, "end_ms", end);
+    }
 }
