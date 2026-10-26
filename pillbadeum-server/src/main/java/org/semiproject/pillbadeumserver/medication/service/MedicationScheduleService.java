@@ -57,19 +57,19 @@ public class MedicationScheduleService {
         return ScheduleResponse.from(myDrug, target, reads.pushEnabled(memberId));
     }
 
-    /** 두 약의 전체 입력·소유권·존재를 확인하고 모든 행을 잠근 뒤 한 트랜잭션에서 변경한다. */
+    /** 전체 입력·소유권·존재를 확인하고 모든 행을 잠근 뒤 한 트랜잭션에서 변경한다. */
     @Transactional
     public List<ScheduleResponse> saveBatch(long memberId, long profileId, List<ScheduleChange> changes) {
-        if (changes == null || changes.size() != 2 || changes.stream().anyMatch(change -> change == null
+        if (changes == null || changes.isEmpty() || changes.stream().anyMatch(change -> change == null
                 || change.myDrugId() < 1 || change.request() == null)
-                || changes.stream().map(ScheduleChange::myDrugId).distinct().count() != 2) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "함께 등록할 두 약을 다시 선택해주세요.");
+                || changes.stream().map(ScheduleChange::myDrugId).distinct().count() != changes.size()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "함께 등록할 약을 다시 선택해주세요.");
         }
         var ordered = changes.stream().sorted(Comparator.comparingLong(ScheduleChange::myDrugId)).toList();
         var targets = new ArrayList<MedicationTarget>();
         for (var change : ordered) {
             targets.add(ownedTarget(memberId, profileId, change.myDrugId()));
-            // 검증용 비영속 객체에 전체 요청을 검사한다. 실제 행은 두 잠금이 끝나기 전에는 바꾸지 않는다.
+            // 검증용 비영속 객체에 전체 요청을 검사한다. 실제 행은 모든 잠금이 끝나기 전에는 바꾸지 않는다.
             change.request().applyTo(MyDrug.createCustom(profileId, "일정 입력 검증"));
         }
         var locked = ordered.stream().map(change -> lock(profileId, change.myDrugId())).toList();

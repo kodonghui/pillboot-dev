@@ -2,6 +2,8 @@ package org.semiproject.pillbadeumserver.medication.service;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -18,6 +20,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -84,6 +87,52 @@ class MedicationBatchSaveTests {
     void duplicateIdsCannotPretendToBeTwoDrugs() {
         assertThatThrownBy(() -> service.saveBatch(5, 13, List.of(new ScheduleChange(3, request(1)), new ScheduleChange(3, request(1)))))
                 .isInstanceOf(BusinessException.class);
+        verifyNoInteractions(reads, writes);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 3, 12})
+    void savesEveryExistingRowWithoutACountLimit(int count) {
+        var changes = new ArrayList<ScheduleChange>();
+        var entities = new ArrayList<MyDrug>();
+        for (int index = 0; index < count; index++) {
+            long id = 3 + index;
+            owned(id);
+            var drug = entity(id);
+            entities.add(drug);
+            when(writes.findForUpdate(13, id)).thenReturn(Optional.of(drug));
+            changes.addFirst(new ScheduleChange(id, request(2)));
+        }
+        var saved = service.saveBatch(5, 13, changes);
+        assertThat(saved).hasSize(count);
+        assertThat(entities).allSatisfy(drug -> {
+            assertThat(drug.getDoseTimes()).containsExactly(LocalTime.NOON);
+            assertThat(drug.getDosePerTime()).isEqualTo(2);
+        });
+        var order = inOrder(writes);
+        for (int index = 0; index < count; index++) order.verify(writes).findForUpdate(13, 3 + index);
+        verify(writes, never()).save(any());
+    }
+
+    @Test
+    void losingTheLastOfThreeBeforeLockingCannotChangeAnyEarlierRow() {
+        owned(3); owned(4); owned(5);
+        var first = entity(3);
+        var second = entity(4);
+        when(writes.findForUpdate(13, 3)).thenReturn(Optional.of(first));
+        when(writes.findForUpdate(13, 4)).thenReturn(Optional.of(second));
+        when(writes.findForUpdate(13, 5)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.saveBatch(5, 13, List.of(new ScheduleChange(3, request(2)),
+                new ScheduleChange(4, request(2)), new ScheduleChange(5, request(2)))))
+                .isInstanceOf(NotFoundException.class);
+        assertThat(first.hasSchedule()).isFalse();
+        assertThat(second.hasSchedule()).isFalse();
+        verify(writes, never()).save(any());
+    }
+
+    @Test
+    void anEmptyBatchCannotBeSaved() {
+        assertThatThrownBy(() -> service.saveBatch(5, 13, List.of())).isInstanceOf(BusinessException.class);
         verifyNoInteractions(reads, writes);
     }
 

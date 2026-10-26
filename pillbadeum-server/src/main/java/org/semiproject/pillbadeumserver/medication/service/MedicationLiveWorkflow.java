@@ -82,7 +82,12 @@ public class MedicationLiveWorkflow {
         var selectedDrugs = candidates.stream().filter(target -> target.profileId() == selection.selectedProfileId())
                 .sorted(Comparator.comparingLong(MedicationTarget::myDrugId)).toList();
         boolean explicitBatch = isBulkScheduleRequest(lastUser);
-        if (explicitBatch && selectedDrugs.size() != 2) return question("선택한 프로필에 약이 정확히 두 개일 때만 함께 등록할 수 있어요. 등록할 약을 하나씩 말씀해주세요.", List.of("target"));
+        if (explicitBatch && selectedDrugs.isEmpty()) return question("선택한 프로필에 등록된 약이 없어요. 약을 먼저 등록해주세요.", List.of("target"));
+        boolean asksForPair = lastUser.matches(".*(둘다|두개다|두개모두|2개다|두약모두|두약다).*")
+                && !lastUser.matches(".*(전부|모든약|약[은는을를]?(전체|다)).*");
+        if (explicitBatch && asksForPair && selectedDrugs.size() != 2) {
+            return question("선택한 프로필에는 약이 " + selectedDrugs.size() + "개 있어요. 모두 등록하려면 내 약 전부라고 말씀해주세요.", List.of("target"));
+        }
         var profiles = reads.profiles(memberId);
         var plan = planner.plan(selection, today, candidates, profiles, transcript);
         if ("CANCEL".equals(plan.intent())) return question("이번 요청은 취소할게요. 기존 일정은 그대로예요.", List.of());
@@ -100,7 +105,7 @@ public class MedicationLiveWorkflow {
         if (!"SAVE".equals(plan.intent())) return question("약 이름과 기간을 말씀해주시면 나머지는 기본 설정으로 제안해드릴게요.", List.of("request"));
         boolean narrowing = previous != null && !previous.batch().isEmpty() && narrowsToOne(lastUser, plan, selectedDrugs);
         if (narrowing && !singleScopeSpecified(lastUser, plan, selection, selectedDrugs)) {
-            return question("두 약 중 어떤 약 하나를 등록할까요? 약 이름을 말씀해주세요.", List.of("target"));
+            return question("어떤 약 하나를 등록할까요? 약 이름을 말씀해주세요.", List.of("target"));
         }
         boolean continuingBatch = previous != null && !previous.batch().isEmpty() && !narrowing;
         if (explicitBatch || continuingBatch) {
@@ -210,7 +215,7 @@ public class MedicationLiveWorkflow {
                     var saved = schedules.saveBatch(memberId, decision.profileId(), decision.batch());
                     var first = saved.getFirst();
                     String names = saved.stream().map(response -> response.drugName()).collect(java.util.stream.Collectors.joining(", "));
-                    yield new Outcome(names + " 두 약의 일정을 함께 저장했어요.", List.of(), decision.outcome().appliedDefaults(), first,
+                    yield new Outcome(names + " 총 " + saved.size() + "개 약의 일정을 함께 저장했어요.", List.of(), decision.outcome().appliedDefaults(), first,
                             new CompletedOperation(Operation.SAVE, first.profileId(), first.myDrugId()));
                 }
                 var saved = decision.myDrugId() == 0
@@ -229,9 +234,9 @@ public class MedicationLiveWorkflow {
 
     private Decision prepareBatch(Plan plan, StartRequest selection, LocalDate today, List<Map<String, Object>> transcript,
                                   String lastUser, List<MedicationTarget> selectedDrugs, Proposal previous) {
-        if (selectedDrugs.size() != 2 || plan.profileId() != null && plan.profileId().longValue() != selection.selectedProfileId()
+        if (selectedDrugs.isEmpty() || plan.profileId() != null && plan.profileId().longValue() != selection.selectedProfileId()
                 || plan.customName() != null && !plan.customName().isBlank()) {
-            return question("선택한 프로필의 등록된 두 약만 함께 등록할 수 있어요. 프로필과 약을 다시 확인해주세요.", List.of("target"));
+            return question("선택한 프로필의 등록된 약만 함께 등록할 수 있어요. 프로필과 약을 다시 확인해주세요.", List.of("target"));
         }
         String hint = plan.profileHint() == null ? "" : normalize(plan.profileHint());
         var selected = selectedDrugs.getFirst();
@@ -243,11 +248,11 @@ public class MedicationLiveWorkflow {
         if (previous != null && (previous.profileId() != selection.selectedProfileId()
                 || !previous.batch().stream().map(ScheduleChange::myDrugId).sorted().toList()
                 .equals(selectedDrugs.stream().map(MedicationTarget::myDrugId).toList()))) {
-            return question("제안한 뒤 약 목록이 바뀌었어요. 함께 등록할 두 약을 다시 확인해주세요.", List.of("target"));
+            return question("제안한 뒤 약 목록이 바뀌었어요. 함께 등록할 약을 다시 확인해주세요.", List.of("target"));
         }
         String evidence = plan.actionEvidence() == null ? "" : normalize(plan.actionEvidence());
         if (previous == null && (!isBulkScheduleRequest(evidence) || !userText(transcript).contains(evidence))) {
-            return question("선택한 프로필의 두 약을 모두 함께 등록할지 말씀해주세요.", List.of("target"));
+            return question("선택한 프로필의 약 전부를 함께 등록할지 말씀해주세요.", List.of("target"));
         }
         var proposals = new ArrayList<Proposal>();
         var missing = new ArrayList<String>();
@@ -298,7 +303,7 @@ public class MedicationLiveWorkflow {
     }
 
     private boolean narrowsToOne(String text, Plan plan, List<MedicationTarget> selectedDrugs) {
-        if (text.matches(".*(둘다|두개다|두개모두|2개다|두약모두|전부|모든약)(는|은|을|를|가)?(말고|아니라|아니고).*")
+        if (text.matches(".*(둘다|두개다|두개모두|2개다|두약모두|전부|모든약|약전체|약모두)(는|은|을|를|가)?(말고|아니라|아니고).*")
                 || text.matches(".*(이약|선택한약|한약|하나)만.*")) return true;
         if (plan.drugHints() == null || plan.drugHints().size() != 1) return false;
         String hint = plan.drugHints().getFirst() == null ? "" : normalize(plan.drugHints().getFirst());
@@ -317,7 +322,7 @@ public class MedicationLiveWorkflow {
             details.add(targets.get(i).drugName() + " 1회 " + item.dosePerTime() + "개"
                     + (item.timing() == null ? "" : ", " + item.timing()));
         }
-        return from + "부터 " + days + "일 동안 매일 " + times + "에 두 약을 함께 등록할게요. "
+        return from + "부터 " + days + "일 동안 매일 " + times + "로 약 " + targets.size() + "개의 일정을 함께 등록할게요. "
                 + String.join(". ", details) + ". 적용할까요?";
     }
 
@@ -378,8 +383,8 @@ public class MedicationLiveWorkflow {
     private boolean isBulkScheduleRequest(String text) {
         if (text.matches(".*(취소|하지마|하지말|삭제|지워|그만|중단).*")) return false;
         // "둘 다 말고 A"는 한 약으로 정정한 요청이므로 기존 해석 경로에 맡긴다.
-        String request = text.replaceAll("(둘다|두개다|두개모두|2개다|두약모두|두약다|전부|모든약)(는|은|을|를|가)?(말고|아니라|아니고)", "");
-        return request.matches(".*(둘다|두개다|두개모두|2개다|두약모두|두약다|모든약|약[은는을를]?(전부|모두)).*") || request.startsWith("전부");
+        String request = text.replaceAll("(둘다|두개다|두개모두|2개다|두약모두|두약다|전부|모든약|약전체|약모두)(는|은|을|를|가)?(말고|아니라|아니고)", "");
+        return request.matches(".*(둘다|두개다|두개모두|2개다|두약모두|두약다|모든약|약[은는을를]?(전부|모두|전체|다)).*") || request.startsWith("전부");
     }
 
     /** 명시적 기본값 위임만 검증한다. 짧은 동의는 세션에 보관한 제안에만 적용한다. */

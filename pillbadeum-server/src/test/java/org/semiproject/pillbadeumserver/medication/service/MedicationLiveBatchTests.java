@@ -2,6 +2,8 @@ package org.semiproject.pillbadeumserver.medication.service;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -15,6 +17,8 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -195,6 +199,40 @@ class MedicationLiveBatchTests {
         assertThat(result.proposal().customName()).isEqualTo("혈압약");
         assertThat(result.proposal().batch()).isEmpty();
         verifyNoInteractions(schedules);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 3, 12})
+    void allMeansEveryRegisteredDrugOfOnlyTheSelectedProfileAndCorrectionsKeepThemAll(int count) {
+        var owned = IntStream.range(0, count).mapToObj(i -> target(30 + i, "합성약" + i, 1 + i % 2, "식후")).toList();
+        var other = new MedicationTarget(99, 14, "다른프로필", "MOTHER", "다른프로필약", 1, null, null, null, null, null);
+        when(reads.allDrugs(5)).thenReturn(Stream.concat(owned.stream(), Stream.of(other)).toList());
+        var correction = new Plan("SAVE", null, null, null, null, List.of("08:00"), 1, null, null, false, null);
+        when(planner.plan(any(), any(), anyList(), anyList(), anyList())).thenReturn(batchPlan("내 약 전부", "12:00"), correction);
+        var first = workflow.prepare(5, selection, DAY, List.of(user("내 약 전부 일주일 12시에 등록해줘")));
+        assertThat(first.proposal().batch()).hasSize(count);
+        assertThat(first.outcome().message()).contains("약 " + count + "개").doesNotContain("다른프로필약");
+        verifyNoInteractions(schedules);
+        var changed = workflow.prepare(5, selection, DAY, List.of(user("내 약 전부 일주일 12시에 등록해줘"),
+                assistant("적용할까요?"), user("아니 8시에만")), first.proposal());
+        assertThat(changed.proposal().batch()).hasSize(count).allSatisfy(change -> {
+            assertThat(change.request().endDate()).isEqualTo(DAY.plusDays(6));
+            assertThat(change.request().doseTimes()).containsExactly(LocalTime.of(8, 0));
+        });
+        when(schedules.saveBatch(eq(5L), eq(13L), anyList())).thenReturn(owned.stream()
+                .map(drug -> saved(drug.myDrugId(), drug.drugName(), drug.dosePerTime(), drug.timing())).toList());
+        var result = workflow.execute(5, workflow.confirm(changed.proposal()));
+        assertThat(result.message()).contains("총 " + count + "개 약").doesNotContain("다른프로필약");
+        verify(schedules).saveBatch(5, 13, changed.proposal().batch());
+    }
+
+    @Test
+    void sayingBothWhenThereAreThreeDoesNotSilentlyRegisterAnExtraDrug() {
+        when(reads.allDrugs(5)).thenReturn(List.of(target(25, "첫약", 1, null), target(26, "둘째약", 1, null), target(27, "셋째약", 1, null)));
+        var result = workflow.prepare(5, selection, DAY, List.of(user("두 개 다 일주일 등록해줘")));
+        assertThat(result.proposal()).isNull();
+        assertThat(result.outcome().message()).contains("3개", "내 약 전부");
+        verifyNoInteractions(planner, schedules);
     }
 
     private void ownedTwo() {
