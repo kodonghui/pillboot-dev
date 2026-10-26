@@ -17,6 +17,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.*;
+import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -193,6 +194,155 @@ class MedicationLiveSessionServiceTests {
     }
 
     @Test
+    void stableInputWithoutDelegationPreparesAProposalAndUsesNullDelegationId() {
+        String id = start();
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposedAt(LocalTime.of(12, 0)));
+        input("in1", "이번 주 수요일부터");
+        clock.now = clock.now.plusMillis(999);
+        service.expireSessions();
+        verify(workflow, never()).prepare(anyLong(), any(), any(), anyList());
+        input("in2", " 한 주 동안 12시에만 먹을래");
+        clock.now = clock.now.plusMillis(999);
+        service.expireSessions();
+        verify(workflow, never()).prepare(anyLong(), any(), any(), anyList());
+        clock.now = clock.now.plusMillis(1);
+        service.expireSessions();
+        service.expireSessions();
+        assertThat(service.get(5, id).status()).isEqualTo("AWAITING_CONFIRMATION");
+        verify(workflow, times(1)).prepare(eq(5L), any(), any(), argThat(transcript -> transcript.size() == 2));
+        verify(workflow, never()).execute(anyLong(), any());
+        verify(connection).send(argThat(event -> event.get("type").equals("session.commentary.append")
+                && event.containsKey("delegation_id") && event.get("delegation_id") == null));
+    }
+
+    @Test
+    void yesWithoutDelegationSavesOnlyTheStoredProposal() {
+        String id = start();
+        var proposal = proposedAt(LocalTime.of(12, 0));
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposal);
+        when(workflow.confirm(any())).thenCallRealMethod();
+        when(workflow.execute(eq(5L), any())).thenReturn(savedOutcome());
+        input("in1", "이번 주 수요일부터 한 주 동안 12시에만 먹을래");
+        clock.now = clock.now.plusSeconds(1);
+        service.expireSessions();
+        input("in2", "응");
+        service.expireSessions();
+        verify(workflow, never()).execute(anyLong(), any());
+        clock.now = clock.now.plusSeconds(1);
+        service.expireSessions();
+        assertThat(service.get(5, id).status()).isEqualTo("SAVED");
+        assertThat(service.get(5, id).savedSchedule()).isNotNull();
+        verify(workflow, times(1)).prepare(eq(5L), any(), any(), anyList());
+        verify(workflow).confirm(proposal.proposal());
+        verify(workflow).execute(eq(5L), argThat(decision -> decision.request().equals(proposal.proposal().request())));
+    }
+
+    @Test
+    void correctionDuringPlanningIsRetriedWithoutAnotherDelegationAndNeverSavesTheOldDecision() {
+        String id = start();
+        var corrected = proposedAt(LocalTime.of(12, 0));
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenAnswer(call -> {
+            input("in2", "아니 12시에만 먹을래");
+            clock.now = clock.now.plusSeconds(1);
+            service.expireSessions(); // 처리 중에는 안정 구간이 지나도 두 번째 worker를 시작하지 않는다.
+            return decision();
+        }).thenReturn(corrected);
+        when(workflow.confirm(any())).thenCallRealMethod();
+        when(workflow.execute(eq(5L), any())).thenReturn(savedOutcome());
+        input("in1", "일주일 동안 8시에 한 개씩 등록해");
+        delegate("d1");
+        verify(workflow, never()).execute(anyLong(), any());
+        assertThat(service.get(5, id).status()).isEqualTo("LISTENING");
+        service.expireSessions();
+        verify(workflow, times(2)).prepare(eq(5L), any(), any(), anyList());
+        verify(workflow).prepare(eq(5L), any(), any(), argThat(transcript -> transcript.stream()
+                .anyMatch(part -> "아니 12시에만 먹을래".equals(part.get("content")))));
+        assertThat(service.get(5, id).status()).isEqualTo("AWAITING_CONFIRMATION");
+        verify(workflow, never()).execute(anyLong(), any());
+        input("in3", "응");
+        clock.now = clock.now.plusSeconds(1);
+        service.expireSessions();
+        verify(workflow).confirm(corrected.proposal());
+        verify(workflow).execute(eq(5L), argThat(decision -> decision.request().doseTimes().equals(List.of(LocalTime.of(12, 0)))));
+        assertThat(service.get(5, id).status()).isEqualTo("SAVED");
+    }
+
+    @Test
+    void lateDelegationsReuseTheFallbackOutcomeAndCannotSaveTwice() {
+        String id = start();
+        var proposal = proposedAt(LocalTime.of(12, 0));
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposal);
+        when(workflow.confirm(any())).thenCallRealMethod();
+        when(workflow.execute(eq(5L), any())).thenReturn(savedOutcome());
+        input("in1", "일주일 동안 이 약을 먹을래");
+        clock.now = clock.now.plusSeconds(1);
+        service.expireSessions();
+        delegate("late1"); delegate("late1"); delegate("late2");
+        verify(workflow, times(1)).prepare(eq(5L), any(), any(), anyList());
+        verify(workflow, never()).execute(anyLong(), any());
+        verify(connection).send(argThat(event -> event.get("type").equals("session.commentary.append")
+                && "late2".equals(event.get("delegation_id")) && event.get("content").equals(proposal.outcome().message())));
+        input("in2", "응");
+        clock.now = clock.now.plusSeconds(1);
+        service.expireSessions();
+        delegate("late3"); service.expireSessions();
+        verify(workflow, times(1)).confirm(proposal.proposal());
+        verify(workflow, times(1)).execute(eq(5L), any());
+        assertThat(service.get(5, id).status()).isEqualTo("SAVED");
+    }
+
+    @Test
+    void queuedFallbackCannotStartPlanningAfterTheSessionCloses() {
+        var tasks = new ArrayDeque<Runnable>();
+        service = new MedicationLiveSessionService(client, reads, workflow, tasks::add, clock, 300, 10);
+        String id = start();
+        input("in1", "일주일 동안 8시에 한 개씩 등록해");
+        clock.now = clock.now.plusSeconds(1);
+        service.expireSessions();
+        assertThat(tasks).hasSize(1);
+        service.stop(5, id);
+        tasks.remove().run();
+        verify(workflow, never()).prepare(anyLong(), any(), any(), anyList());
+        verify(workflow, never()).execute(anyLong(), any());
+    }
+
+    @Test
+    void inputArrivingBeforeTheQueuedFallbackRunsRestartsTheStabilityWindow() {
+        var tasks = new ArrayDeque<Runnable>();
+        service = new MedicationLiveSessionService(client, reads, workflow, tasks::add, clock, 300, 10);
+        String id = start();
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposedAt(LocalTime.of(12, 0)));
+        input("in1", "일주일 동안 이 약을 먹을래");
+        clock.now = clock.now.plusSeconds(1);
+        service.expireSessions();
+        input("in2", "아니 12시에만");
+        tasks.remove().run();
+        verify(workflow, never()).prepare(anyLong(), any(), any(), anyList());
+        clock.now = clock.now.plusSeconds(1);
+        service.expireSessions();
+        tasks.remove().run();
+        verify(workflow).prepare(eq(5L), any(), any(), argThat(transcript -> transcript.size() == 2));
+        assertThat(service.get(5, id).status()).isEqualTo("AWAITING_CONFIRMATION");
+        verify(workflow, never()).execute(anyLong(), any());
+    }
+
+    @Test
+    void queuedFallbackCannotStartPlanningAfterTheSessionExpires() {
+        var tasks = new ArrayDeque<Runnable>();
+        service = new MedicationLiveSessionService(client, reads, workflow, tasks::add, clock, 300, 10);
+        start();
+        input("in1", "일주일 동안 8시에 한 개씩 등록해");
+        clock.now = clock.now.plusSeconds(1);
+        service.expireSessions();
+        assertThat(tasks).hasSize(1);
+        clock.now = clock.now.plusSeconds(179);
+        tasks.remove().run();
+        verify(workflow, never()).prepare(anyLong(), any(), any(), anyList());
+        verify(workflow, never()).execute(anyLong(), any());
+        verify(client).hangup("live_fixture");
+    }
+
+    @Test
     void correctionReplacesTheProposalAndOnlyTheNewProposalIsConfirmed() {
         String id = start();
         var first = proposedAt(LocalTime.of(7, 0), LocalTime.of(11, 0), LocalTime.of(17, 0));
@@ -215,10 +365,10 @@ class MedicationLiveSessionServiceTests {
     void confirmingAfterSessionExpiryCannotSaveTheStoredProposal() {
         String id = start();
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposedAt(LocalTime.of(17, 0)));
-        when(workflow.confirm(any())).thenCallRealMethod();
         input("in1", "오늘부터 이틀 테스트약"); delegate("d1");
         clock.now = clock.now.plusSeconds(180);
         input("in2", "응"); delegate("d2");
+        verify(workflow, never()).confirm(any());
         verify(workflow, never()).execute(anyLong(), any());
         verify(client).hangup("live_fixture");
         assertThatThrownBy(() -> service.get(5, id)).isInstanceOf(NotFoundException.class);

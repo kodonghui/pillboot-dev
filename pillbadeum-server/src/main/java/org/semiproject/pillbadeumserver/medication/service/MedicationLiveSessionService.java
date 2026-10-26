@@ -24,6 +24,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +37,9 @@ public class MedicationLiveSessionService {
     private static final Logger log = LoggerFactory.getLogger(MedicationLiveSessionService.class);
     private static final long MAX_DURATION_SECONDS = 180;
     private static final long COMPLETION_GRACE_SECONDS = 8;
+    private static final long INPUT_STABILITY_MILLIS = 1000;
+    // 모델 위임 없이 자막에서 시작한 작업은 Live에 delegation_id=null로 결과를 돌려준다.
+    private static final String APP_OWNED_DELEGATION = "";
     private final MedicationLiveClient client;
     private final MedicationRepository reads;
     private final MedicationLiveWorkflow workflow;
@@ -184,7 +188,10 @@ public class MedicationLiveSessionService {
                 boolean user = type.equals("session.input_transcript.delta");
                 state.transcript.add(Map.of("role", user ? "user" : "assistant", "content", delta,
                         "start_ms", event.path("start_ms").asLong(), "end_ms", event.path("end_ms").asLong()));
-                if (user) state.revision++;
+                if (user) {
+                    state.revision++;
+                    state.lastUserInputAt = Instant.now(clock);
+                }
             } else if ("client".equals(event.path("delegation").path("target").asString())) {
                 String id = event.path("delegation").path("id").asString("");
                 if (id.isBlank() || !state.delegations.add(id)) return;
@@ -204,6 +211,11 @@ public class MedicationLiveSessionService {
             String proposalReply;
             synchronized (state) {
                 if (state.closed || state.completed != null || state.pending == null) { state.running = false; state.pending = null; return; }
+                if (!Instant.now(clock).isBefore(state.expiresAt)) { terminate(state, true); state.running = false; return; }
+                if (APP_OWNED_DELEGATION.equals(state.pending)
+                        && Instant.now(clock).isBefore(state.lastUserInputAt.plusMillis(INPUT_STABILITY_MILLIS))) {
+                    state.running = false; state.pending = null; return;
+                }
                 delegation = state.pending; state.pending = null;
                 revision = state.revision;
                 transcript = state.transcript.stream().sorted(Comparator
@@ -285,8 +297,13 @@ public class MedicationLiveSessionService {
 
     private void send(State state, String delegation, String type, String content) {
         var connection = state.connection;
-        if (connection != null && !state.closed) connection.send(Map.of("type", type, "event_id", UUID.randomUUID().toString(),
-                "delegation_id", delegation, "content", content));
+        if (connection != null && !state.closed) {
+            var event = new LinkedHashMap<String, Object>();
+            event.put("type", type); event.put("event_id", UUID.randomUUID().toString());
+            event.put("delegation_id", APP_OWNED_DELEGATION.equals(delegation) ? null : delegation);
+            event.put("content", content);
+            connection.send(event);
+        }
     }
 
     private void disconnected(State state) { executor.execute(() -> terminate(state, true)); }
@@ -307,10 +324,23 @@ public class MedicationLiveSessionService {
     @Scheduled(fixedDelay = 1000)
     void expireSessions() {
         for (State state : sessions.values()) {
-            if (!Instant.now(clock).isBefore(state.expiresAt)
-                    || state.closeAfter != null && !Instant.now(clock).isBefore(state.closeAfter)) {
-                executor.execute(() -> terminate(state, true));
+            boolean expired, run = false;
+            synchronized (state) {
+                if (state.closed) continue;
+                Instant now = Instant.now(clock);
+                expired = !now.isBefore(state.expiresAt)
+                        || state.closeAfter != null && !now.isBefore(state.closeAfter);
+                if (!expired && state.completed == null && state.connection != null && !state.running
+                        && state.revision > state.processedRevision && state.lastUserInputAt != null
+                        && !now.isBefore(state.lastUserInputAt.plusMillis(INPUT_STABILITY_MILLIS))) {
+                    // 정정 때문에 버린 결과도 다음 tick에서 최신 revision으로 다시 처리한다.
+                    if (state.pending == null) state.pending = APP_OWNED_DELEGATION;
+                    state.running = true;
+                    run = true;
+                }
             }
+            if (expired) executor.execute(() -> terminate(state, true));
+            else if (run) executor.execute(() -> process(state));
         }
     }
 
@@ -330,6 +360,7 @@ public class MedicationLiveSessionService {
         volatile Instant closeAfter;
         String status = "CONNECTING", message = "음성 대화를 시작할게요.", pending;
         long revision, processedRevision = -1;
+        Instant lastUserInputAt;
         int characters;
         boolean running;
         List<String> missing = List.of(), defaults = List.of();
