@@ -6,7 +6,6 @@ import DrugName from './DrugName.jsx'
 import Icon from './Icon.jsx'
 import IconButton from './IconButton.jsx'
 import ProfileDot from './ProfileDot.jsx'
-import VisuallyHidden from './VisuallyHidden.jsx'
 import VoiceOrb from './VoiceOrb.jsx'
 import './VoiceScheduleDialog.css'
 
@@ -22,23 +21,35 @@ const completions = {
 }
 
 // 대화 중 머리 상태. 서버 대화 상태(status)와 모자란 값(missingFields)으로 고른다.
-function liveView({ phase, status, missingFields }) {
+function liveView({ phase, status, missingFields, serverMessage }, processingSeconds) {
   if (phase === 'connecting') return { status: '연결하고 있어요', tone: 'idle', hint: null }
   if (status === 'AWAITING_CONFIRMATION') {
     return {
       status: '동의를 기다려요 · 아직 저장 안 됨',
       tone: 'caution',
-      hint: (
+      hint: serverMessage || (
         <>
           <b>“응”</b>이라고 말하면 저장해요. 바꿀 건 그대로 말하면 돼요.
         </>
       ),
     }
   }
-  if (status === 'WAITING_FOR_DETAILS' && missingFields.includes('target')) {
-    return { status: '약 이름을 기다려요', tone: 'caution', hint: listenHint }
+  if (status === 'WAITING_FOR_DETAILS') {
+    return {
+      status: missingFields.includes('target') ? '약 이름을 기다려요' : '추가 정보가 필요해요',
+      tone: 'caution',
+      hint: missingFields.includes('request') ? listenHint : serverMessage || listenHint,
+    }
   }
-  if (status === 'PROCESSING') return { status: '확인하고 있어요', tone: 'primary', hint: listenHint }
+  if (status === 'PROCESSING') {
+    return {
+      status: '일정 확인 중',
+      tone: 'primary',
+      hint: processingSeconds >= 15
+        ? '확인에 시간이 걸리고 있어요. 잠시만 기다려 주세요.'
+        : '말씀하신 내용으로 일정을 확인하고 있어요.',
+    }
+  }
   return { status: '듣고 있어요', tone: 'primary', hint: listenHint }
 }
 
@@ -166,6 +177,9 @@ function VoiceScheduleDialog({ conversation, profiles, onClose, onRestart, onSho
   const timedOut = phase === 'timeout'
   const completion = operation && (phase === 'completing' || phase === 'done') ? completions[operation.action] : null
   const live = !failed && !timedOut && !completion
+  const processingSeconds = live && snapshot.status === 'PROCESSING' && Number.isFinite(snapshot.processingStartedAt)
+    ? Math.max(0, Math.floor((snapshot.now - snapshot.processingStartedAt) / 1000))
+    : null
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -183,7 +197,7 @@ function VoiceScheduleDialog({ conversation, profiles, onClose, onRestart, onSho
   if (failed) view = { ...failureStatus[phase], hint: phase === 'unavailable' ? '날짜를 눌러 직접 추가할 수도 있어요.' : null }
   else if (timedOut) view = { status: '대화가 끝났어요', tone: 'negative', hint: '대화는 최대 3분이에요. 이번 대화에서는 저장한 게 없어요.' }
   else if (completion) view = { status: completion.status, tone: 'primary', hint: completion.card && savedSchedule ? '잘못 들었으면 일정 상세에서 고칠 수 있어요.' : null }
-  else view = liveView(snapshot)
+  else view = liveView(snapshot, processingSeconds)
 
   const card = completion?.card && savedSchedule
   const showTimer = snapshot.deadline && (live || timedOut)
@@ -245,14 +259,22 @@ function VoiceScheduleDialog({ conversation, profiles, onClose, onRestart, onSho
               role={failed || timedOut ? undefined : 'status'}
             >
               {view.status}
+              {processingSeconds !== null && (
+                <span className="voice-dialog__number" role="timer" aria-live="off">
+                  · {processingSeconds}초 경과
+                </span>
+              )}
             </span>
+            {showTimer && (
+              <span
+                className={`screen-caption voice-dialog__timer${timedOut ? ' voice-dialog__timer--over' : ''}`}
+                role="timer"
+                aria-live="off"
+              >
+                대화 남은 시간 {timedOut ? '0:00' : remainingText(snapshot.deadline, snapshot.now)}
+              </span>
+            )}
           </div>
-          {showTimer && (
-            <span className={timedOut ? 'voice-dialog__timer voice-dialog__timer--over' : 'voice-dialog__timer'}>
-              <VisuallyHidden>남은 시간 </VisuallyHidden>
-              {timedOut ? '0:00' : remainingText(snapshot.deadline, snapshot.now)}
-            </span>
-          )}
           <IconButton ref={closeRef} icon="close" label={live ? '대화 끝내기' : '닫기'} onClick={close} />
         </div>
 

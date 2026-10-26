@@ -53,10 +53,20 @@ public class MedicationLiveWorkflow {
 
     public Decision prepare(long memberId, StartRequest selection, LocalDate today, List<Map<String, Object>> transcript) {
         var candidates = reads.allDrugs(memberId);
+        String lastUser = normalize(lastTurn(transcript, "user"));
+        boolean listQuestion = isMedicationListQuestion(lastUser);
+        if (listQuestion || isBulkScheduleRequest(lastUser)) {
+            String names = candidates.stream().filter(target -> target.profileId() == selection.selectedProfileId())
+                    .map(MedicationTarget::drugName).collect(java.util.stream.Collectors.joining(", "));
+            String list = names.isEmpty() ? "선택한 프로필에 등록된 약이 없어요."
+                    : "선택한 프로필에 등록된 약은 " + names + "예요.";
+            if (listQuestion) return question(list, List.of());
+            return question("일정은 지금 한 약씩 등록할 수 있어요. " + list
+                    + (names.isEmpty() ? " 등록할 약 이름 한 가지를 말씀해주세요." : " 어떤 약부터 등록할까요?"), List.of("target"));
+        }
         var profiles = reads.profiles(memberId);
         var plan = planner.plan(selection, today, candidates, profiles, transcript);
         if ("CANCEL".equals(plan.intent())) return question("이번 요청은 취소할게요. 기존 일정은 그대로예요.", List.of());
-        String lastUser = normalize(lastTurn(transcript, "user"));
         if (lastUser.matches("(아니|아니요|싫어|싫어요|안돼|안돼요)")) {
             return question("그럼 바꿀 항목과 값만 말씀해주세요.", List.of("correction"));
         }
@@ -225,6 +235,18 @@ public class MedicationLiveWorkflow {
 
     private Decision question(String message, List<String> missing) {
         return new Decision(0, 0, null, new Outcome(message, missing, List.of(), null));
+    }
+
+    private boolean isMedicationListQuestion(String text) {
+        return text.contains("약") && text.matches(".*(뭐|무슨|어떤|목록).*")
+                && !text.matches(".*(일정|등록해|등록하자|추가해|저장|변경|바꿔|수정|삭제|지워|그만|중단|취소|부터).*");
+    }
+
+    private boolean isBulkScheduleRequest(String text) {
+        if (text.matches(".*(취소|하지마|하지말|삭제|지워|그만|중단).*")) return false;
+        // "둘 다 말고 A"는 한 약으로 정정한 요청이므로 기존 해석 경로에 맡긴다.
+        String request = text.replaceAll("(둘다|두약모두|전부|모든약)(는|은|을|를|가)?(말고|아니라|아니고)", "");
+        return request.matches(".*(둘다|두약모두|모든약|약[은는을를]?(전부|모두)).*") || request.startsWith("전부");
     }
 
     /** 명시적 기본값 위임만 검증한다. 짧은 동의는 세션에 보관한 제안에만 적용한다. */

@@ -28,6 +28,86 @@ class MedicationLiveWorkflowTests {
     private final StartRequest selection = new StartRequest("offer", 13L, 25L, DATE);
 
     @Test
+    void medicationListQuestionReturnsOnlyTheSelectedProfilesDrugsWithoutPlanning() {
+        when(reads.allDrugs(5)).thenReturn(List.of(target(25, 13, "타이레놀정"), target(26, 13, "인데놀정"),
+                target(27, 14, "다른프로필약")));
+        var result = workflow.prepare(5, selection, DATE, List.of(user("나 먹는 약 뭐 있어")));
+        assertThat(result.executable()).isFalse();
+        assertThat(result.outcome().message()).contains("타이레놀정", "인데놀정").doesNotContain("다른프로필약");
+        verifyNoInteractions(planner, schedules);
+        verify(reads, never()).profiles(anyLong());
+    }
+
+    @Test
+    void medicationListReportsNoRegisteredDrugsForTheSelectedProfile() {
+        when(reads.allDrugs(5)).thenReturn(List.of(target(27, 14, "다른프로필약")));
+        var result = workflow.prepare(5, selection, DATE, List.of(user("약 목록 알려줘")));
+        assertThat(result.outcome().message()).isEqualTo("선택한 프로필에 등록된 약이 없어요.");
+        assertThat(result.executable()).isFalse();
+        verifyNoInteractions(planner, schedules);
+    }
+
+    @Test
+    void listQueryUsesTheLatestUserTurnAndJoinsItsTranscriptFragments() {
+        when(reads.allDrugs(5)).thenReturn(List.of(target(25, 13, "타이레놀정")));
+        var result = workflow.prepare(5, selection, DATE, List.of(user("약 둘 다 등록해줘"),
+                assistant("어떤 약부터 등록할까요?"), user("나 먹는 약 "), user("뭐 있어")));
+        assertThat(result.outcome().message()).contains("타이레놀정").doesNotContain("한 약씩");
+        verifyNoInteractions(planner, schedules);
+    }
+
+    @Test
+    void aScheduleCommandWithAQuestionWordStillUsesThePlanner() {
+        plan(new Plan("SAVE", null, null, null, null, null, null, null, null, false, null));
+        workflow.prepare(5, selection, DATE, List.of(user("나 먹는 약 뭐 있어? 이 약을 등록해줘")));
+        verify(planner).plan(any(), any(), anyList(), anyList(), anyList());
+    }
+
+    @Test
+    void explicitBulkRequestsAskForOneOwnedDrugWithoutPlanningOrSaving() {
+        when(reads.allDrugs(5)).thenReturn(List.of(target(25, 13, "타이레놀정"), target(26, 13, "인데놀정"),
+                target(27, 14, "다른프로필약")));
+        for (String text : List.of("약 둘 다 다음주 수요일부터 일주일", "두 약 모두 등록해줘",
+                "전부 다음주 수요일부터 일주일", "모든 약 등록해줘")) {
+            var result = workflow.prepare(5, selection, DATE, List.of(user(text)));
+            assertThat(result.executable()).isFalse();
+            assertThat(result.proposal()).isNull();
+            assertThat(result.outcome().missingFields()).containsExactly("target");
+            assertThat(result.outcome().message()).contains("한 약씩", "타이레놀정", "인데놀정", "어떤 약부터")
+                    .doesNotContain("다른프로필약");
+        }
+        verifyNoInteractions(planner, schedules);
+    }
+
+    @Test
+    void negatedBulkPhrasesAllowTheCorrectedSingleDrugRequest() {
+        plan(new Plan("SAVE", null, null, null, null, null, null, null, null, false, null));
+        for (String text : List.of("둘 다 말고 테스트약만 다음주부터 일주일", "전부가 아니라 테스트약만 등록해줘")) {
+            var result = workflow.prepare(5, selection, DATE, List.of(user(text)));
+            assertThat(result.proposal()).isNotNull();
+            assertThat(result.outcome().message()).doesNotContain("한 약씩");
+        }
+        verify(planner, times(2)).plan(any(), any(), anyList(), anyList(), anyList());
+    }
+
+    @Test
+    void morningStartDoesNotBecomeAnAllDrugsRequest() {
+        plan(new Plan("SAVE", null, null, null, null, null, null, null, null, false, null));
+        var result = workflow.prepare(5, selection, DATE, List.of(user("내일 오전부터 이 약 등록해줘")));
+        assertThat(result.proposal()).isNotNull();
+        verify(planner).plan(any(), any(), anyList(), anyList(), anyList());
+    }
+
+    @Test
+    void cancellingABulkRequestStillUsesTheExistingCancellationPath() {
+        plan(new Plan("CANCEL", null, null, null, null, null, null, null, null, false, null));
+        var result = workflow.prepare(5, selection, DATE, List.of(user("약 둘 다 등록하지 마 취소해")));
+        assertThat(result.outcome().message()).contains("이번 요청은 취소");
+        assertThat(result.executable()).isFalse();
+        verify(planner).plan(any(), any(), anyList(), anyList(), anyList());
+    }
+
+    @Test
     void missingInformationIsProposedTogetherWithoutApplyingDefaultsOrSaving() {
         plan(new Plan("SAVE", null, null, null, null, null, null, null, null, false, null));
         var result = workflow.prepare(5, selection, DATE, List.of(user("약 일정 추가해줘")));
@@ -208,6 +288,9 @@ class MedicationLiveWorkflowTests {
         when(reads.allDrugs(5)).thenReturn(List.of(new MedicationTarget(25, 13, "엄마", "MOTHER", "테스트약", 2, "식후",
                 null, null, null, LocalDateTime.of(2026, 10, 19, 9, 0))));
         when(planner.plan(any(), any(), anyList(), anyList(), anyList())).thenReturn(plan);
+    }
+    private MedicationTarget target(long id, long profileId, String name) {
+        return new MedicationTarget(id, profileId, "합성프로필", "SELF", name, 1, null, null, null, null, null);
     }
     private Map<String, Object> user(String text) { return Map.of("role", "user", "content", text); }
     private Map<String, Object> assistant(String text) { return Map.of("role", "assistant", "content", text); }

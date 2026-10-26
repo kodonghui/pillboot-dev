@@ -21,7 +21,7 @@ class MedicationLivePlannerTests {
         var json = new ObjectMapper();
         var ai = mock(OpenAiClient.class);
         var planner = new MedicationLivePlanner(ai, json, "fixture-model");
-        when(ai.createJson(anyString(), anyList(), anyInt(), anyString(), anyMap())).thenAnswer(call -> {
+        when(ai.createJson(anyString(), anyList(), anyInt(), anyString(), anyMap(), eq("high"))).thenAnswer(call -> {
             var messages = call.<List<org.semiproject.pillbadeumserver.common.ai.AiMessage>>getArgument(1);
             var input = json.readTree(messages.getFirst().content());
             assertThat(input.path("selectedMyDrugId").isNull()).isTrue();
@@ -43,7 +43,7 @@ class MedicationLivePlannerTests {
         var json = new ObjectMapper();
         var ai = mock(OpenAiClient.class);
         var planner = new MedicationLivePlanner(ai, json, "fixture-model");
-        when(ai.createJson(anyString(), anyList(), anyInt(), anyString(), anyMap())).thenAnswer(call -> {
+        when(ai.createJson(anyString(), anyList(), anyInt(), anyString(), anyMap(), eq("high"))).thenAnswer(call -> {
             assertThat(call.<String>getArgument(0)).contains("DELETE", "STOP");
             var messages = call.<List<org.semiproject.pillbadeumserver.common.ai.AiMessage>>getArgument(1);
             var input = json.readTree(messages.getFirst().content());
@@ -62,5 +62,18 @@ class MedicationLivePlannerTests {
         assertThat(plan.profileHint()).isEqualTo("엄마");
         assertThat(plan.drugHints()).containsExactly("타일레놀");
         assertThat(plan.actionEvidence()).isEqualTo("삭제해줘");
+    }
+
+    @Test
+    void liveEffortIsExplicitAndDoesNotUseTheCommonEffortOverload() {
+        var json = new ObjectMapper();
+        var ai = mock(OpenAiClient.class);
+        var planner = new MedicationLivePlanner(ai, json, "fixture-model", "low");
+        when(ai.createJson(anyString(), anyList(), anyInt(), eq("medication_live_plan"), anyMap(), eq("low")))
+                .thenReturn(json.valueToTree(Map.of("intent", "ASK", "useDefaults", false)));
+        planner.plan(new StartRequest("offer", 17L, null, LocalDate.of(2026, 10, 20)),
+                LocalDate.of(2026, 10, 20), List.of(), List.of(), List.of(Map.of("role", "user", "content", "일정 도와줘")));
+        verify(ai).createJson(anyString(), anyList(), anyInt(), eq("medication_live_plan"), anyMap(), eq("low"));
+        verify(ai, never()).createJson(anyString(), anyList(), anyInt(), anyString(), anyMap());
     }
 }

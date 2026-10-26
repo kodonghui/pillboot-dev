@@ -44,7 +44,9 @@ export class LiveConversation {
     this.snapshot = {
       phase: 'connecting',
       status: null,
+      serverMessage: null,
       missingFields: [],
+      processingStartedAt: null,
       messages: [],
       deadline: null,
       now: Date.now(),
@@ -181,7 +183,17 @@ export class LiveConversation {
     try {
       const progress = await getLiveSession(this.sessionId)
       if (this.closed) return
-      this.update({ status: progress.status, missingFields: progress.missingFields ?? [] })
+      const now = Date.now()
+      const processingStartedAt = progress.status === 'PROCESSING'
+        ? this.snapshot.status === 'PROCESSING' ? this.snapshot.processingStartedAt ?? now : now
+        : null
+      this.update({
+        status: progress.status,
+        serverMessage: progress.message ?? null,
+        missingFields: progress.missingFields ?? [],
+        processingStartedAt,
+        now,
+      })
       const operation = progress.completedOperation ?? (progress.savedSchedule ? { action: 'SAVE' } : null)
       if (operation && !this.snapshot.operation) this.complete(operation, progress.savedSchedule)
       else if (progress.status === 'CLOSED') this.lost()
@@ -194,7 +206,7 @@ export class LiveConversation {
 
   // 업무가 끝났다. 마이크를 끄고 완료 안내를 다 들은 뒤(또는 8초 뒤) 대화를 닫는다.
   complete(operation, savedSchedule) {
-    this.update({ phase: 'completing', operation, savedSchedule: savedSchedule ?? null })
+    this.update({ phase: 'completing', operation, savedSchedule: savedSchedule ?? null, processingStartedAt: null })
     this.microphone?.getAudioTracks().forEach((track) => {
       track.enabled = false
     })
@@ -276,7 +288,7 @@ export class LiveConversation {
     if (this.closed) return
     this.closed = true
     this.release()
-    this.update({ phase })
+    this.update({ phase, processingStartedAt: null })
     if (this.sessionId) stopLiveSession(this.sessionId).catch(() => {})
   }
 
