@@ -16,11 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /** 일정 관리의 진입점. 컨트롤러는 HTTP만, 이 클래스는 소유권·트랜잭션·업무 순서를 담당한다. */
 @Service
 @Transactional(readOnly = true)
 public class MedicationScheduleService {
+    public record ScheduleChange(long myDrugId, ScheduleRequest request) {}
     private final MedicationRepository reads;
     private final MedicationScheduleWriteRepository writes;
     private final Clock clock;
@@ -51,6 +55,29 @@ public class MedicationScheduleService {
         // 조회한 MyDrug는 영속 상태다. 트랜잭션 커밋 시 변경 감지로 UPDATE한다.
         // 새 my_drug 행이나 복용 날짜별 행은 만들지 않는다.
         return ScheduleResponse.from(myDrug, target, reads.pushEnabled(memberId));
+    }
+
+    /** 두 약의 전체 입력·소유권·존재를 확인하고 모든 행을 잠근 뒤 한 트랜잭션에서 변경한다. */
+    @Transactional
+    public List<ScheduleResponse> saveBatch(long memberId, long profileId, List<ScheduleChange> changes) {
+        if (changes == null || changes.size() != 2 || changes.stream().anyMatch(change -> change == null
+                || change.myDrugId() < 1 || change.request() == null)
+                || changes.stream().map(ScheduleChange::myDrugId).distinct().count() != 2) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "함께 등록할 두 약을 다시 선택해주세요.");
+        }
+        var ordered = changes.stream().sorted(Comparator.comparingLong(ScheduleChange::myDrugId)).toList();
+        var targets = new ArrayList<MedicationTarget>();
+        for (var change : ordered) {
+            targets.add(ownedTarget(memberId, profileId, change.myDrugId()));
+            // 검증용 비영속 객체에 전체 요청을 검사한다. 실제 행은 두 잠금이 끝나기 전에는 바꾸지 않는다.
+            change.request().applyTo(MyDrug.createCustom(profileId, "일정 입력 검증"));
+        }
+        var locked = ordered.stream().map(change -> lock(profileId, change.myDrugId())).toList();
+        for (int i = 0; i < ordered.size(); i++) ordered.get(i).request().applyTo(locked.get(i));
+        boolean pushEnabled = reads.pushEnabled(memberId);
+        var result = new ArrayList<ScheduleResponse>();
+        for (int i = 0; i < ordered.size(); i++) result.add(ScheduleResponse.from(locked.get(i), targets.get(i), pushEnabled));
+        return List.copyOf(result);
     }
 
     /** Live 저장 확정 시에만 직접 입력한 내 약과 일정을 하나의 트랜잭션으로 만든다. */

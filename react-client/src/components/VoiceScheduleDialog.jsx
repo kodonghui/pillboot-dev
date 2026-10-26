@@ -196,7 +196,7 @@ function VoiceScheduleDialog({ conversation, profiles, onClose, onRestart, onSho
   let view
   if (failed) view = { ...failureStatus[phase], hint: phase === 'unavailable' ? '날짜를 눌러 직접 추가할 수도 있어요.' : null }
   else if (timedOut) view = { status: '대화가 끝났어요', tone: 'negative', hint: '대화는 최대 3분이에요. 이번 대화에서는 저장한 게 없어요.' }
-  else if (completion) view = { status: completion.status, tone: 'primary', hint: completion.card && savedSchedule ? '잘못 들었으면 일정 상세에서 고칠 수 있어요.' : null }
+  else if (completion) view = { status: completion.status, tone: 'primary', hint: snapshot.serverMessage || (completion.card && savedSchedule ? '잘못 들었으면 일정 상세에서 고칠 수 있어요.' : null) }
   else view = liveView(snapshot, processingSeconds)
 
   const card = completion?.card && savedSchedule

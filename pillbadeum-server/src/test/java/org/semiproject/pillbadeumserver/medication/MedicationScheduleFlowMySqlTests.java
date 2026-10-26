@@ -7,6 +7,9 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.semiproject.pillbadeumserver.common.security.JwtTokenProvider;
 import org.semiproject.pillbadeumserver.medication.domain.MedicationReminderRepository;
 import org.semiproject.pillbadeumserver.medication.service.MedicationScheduleService;
+import org.semiproject.pillbadeumserver.medication.service.MedicationScheduleService.ScheduleChange;
+import org.semiproject.pillbadeumserver.common.exception.BusinessException;
+import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
 import org.semiproject.pillbadeumserver.medication.dto.MedicationDtos.ScheduleRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,6 +33,7 @@ import java.util.UUID;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -156,6 +160,48 @@ class MedicationScheduleFlowMySqlTests {
         assertThat(reminders.targets(today.plusDays(1), "07:00")).noneMatch(target -> target.memberId() == fixture.owner);
         mvc.perform(delete(path()).header("Authorization", bearer())).andExpect(status().isNoContent());
         assertThat(reminders.targets(today, "07:00")).noneMatch(target -> target.memberId() == fixture.owner);
+    }
+
+    @Test
+    void batchCommitUpdatesExactlyTwoExistingRowsAndTheUnchangedCalendarQueryFindsBoth() throws Exception {
+        var second = schedules.createCustom(fixture.owner, fixture.profile, "합성두번째약",
+                new ScheduleRequest(today, today.plusDays(1), List.of(LocalTime.of(7, 0)), 2, "식후"));
+        long count = jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Long.class, fixture.profile);
+        var saved = schedules.saveBatch(fixture.owner, fixture.profile, List.of(
+                new ScheduleChange(second.myDrugId(), new ScheduleRequest(today, today.plusDays(6), List.of(LocalTime.NOON), 2, "식후")),
+                new ScheduleChange(fixture.drug, new ScheduleRequest(today, today.plusDays(6), List.of(LocalTime.NOON), 1, "식전"))));
+        assertThat(saved).hasSize(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Long.class, fixture.profile)).isEqualTo(count);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=? AND start_date=? AND end_date=? AND dose_times='12:00'",
+                Long.class, fixture.profile, today, today.plusDays(6))).isEqualTo(2);
+        mvc.perform(get("/api/calendar").header("Authorization", bearer()).param("from", today.toString()).param("to", today.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.schedules.length()").value(2));
+    }
+
+    @Test
+    void missingSecondMedicationLeavesTheFirstCommittedScheduleUnchanged() {
+        var second = schedules.createCustom(fixture.owner, fixture.profile, "합성두번째약",
+                new ScheduleRequest(today, today.plusDays(1), List.of(LocalTime.of(7, 0)), 2, "식후"));
+        var before = jdbc.queryForMap("SELECT start_date,end_date,dose_times,dose_per_time,timing FROM my_drug WHERE my_drug_id=?", fixture.drug);
+        jdbc.update("DELETE FROM my_drug WHERE my_drug_id=?", second.myDrugId());
+        var request = new ScheduleRequest(today, today.plusDays(6), List.of(LocalTime.NOON), 2, "식후");
+        assertThatThrownBy(() -> schedules.saveBatch(fixture.owner, fixture.profile,
+                List.of(new ScheduleChange(fixture.drug, request), new ScheduleChange(second.myDrugId(), request))))
+                .isInstanceOf(NotFoundException.class);
+        assertThat(jdbc.queryForMap("SELECT start_date,end_date,dose_times,dose_per_time,timing FROM my_drug WHERE my_drug_id=?", fixture.drug)).isEqualTo(before);
+    }
+
+    @Test
+    void invalidSecondInputLeavesBothCommittedSchedulesUnchanged() {
+        var second = schedules.createCustom(fixture.owner, fixture.profile, "합성두번째약",
+                new ScheduleRequest(today, today.plusDays(1), List.of(LocalTime.of(7, 0)), 2, "식후"));
+        var before = jdbc.queryForList("SELECT my_drug_id,start_date,end_date,dose_times,dose_per_time,timing FROM my_drug WHERE profile_id=? ORDER BY my_drug_id", fixture.profile);
+        var good = new ScheduleRequest(today, today.plusDays(6), List.of(LocalTime.NOON), 1, "식전");
+        var bad = new ScheduleRequest(today, today.plusDays(6), List.of(LocalTime.NOON, LocalTime.NOON), 2, "식후");
+        assertThatThrownBy(() -> schedules.saveBatch(fixture.owner, fixture.profile,
+                List.of(new ScheduleChange(fixture.drug, good), new ScheduleChange(second.myDrugId(), bad))))
+                .isInstanceOf(BusinessException.class);
+        assertThat(jdbc.queryForList("SELECT my_drug_id,start_date,end_date,dose_times,dose_per_time,timing FROM my_drug WHERE profile_id=? ORDER BY my_drug_id", fixture.profile)).isEqualTo(before);
     }
 
     private String path() { return "/api/profiles/" + fixture.profile + "/drugs/" + fixture.drug + "/schedule"; }

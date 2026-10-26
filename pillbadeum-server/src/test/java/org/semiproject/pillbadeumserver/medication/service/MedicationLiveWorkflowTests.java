@@ -134,8 +134,8 @@ class MedicationLiveWorkflowTests {
     }
 
     @Test
-    void explicitBulkRequestsAskForOneOwnedDrugWithoutPlanningOrSaving() {
-        when(reads.allDrugs(5)).thenReturn(List.of(target(25, 13, "타이레놀정"), target(26, 13, "인데놀정"),
+    void explicitBulkRequestsWithMoreThanTwoDrugsAskWithoutPlanningOrSaving() {
+        when(reads.allDrugs(5)).thenReturn(List.of(target(25, 13, "타이레놀정"), target(26, 13, "인데놀정"), target(28, 13, "세번째약"),
                 target(27, 14, "다른프로필약")));
         for (String text : List.of("약 둘 다 다음주 수요일부터 일주일", "두 약 모두 등록해줘",
                 "전부 다음주 수요일부터 일주일", "모든 약 등록해줘")) {
@@ -143,7 +143,7 @@ class MedicationLiveWorkflowTests {
             assertThat(result.executable()).isFalse();
             assertThat(result.proposal()).isNull();
             assertThat(result.outcome().missingFields()).containsExactly("target");
-            assertThat(result.outcome().message()).contains("한 약씩", "타이레놀정", "인데놀정", "어떤 약부터")
+            assertThat(result.outcome().message()).contains("정확히 두 개", "하나씩")
                     .doesNotContain("다른프로필약");
         }
         verifyNoInteractions(planner, schedules);

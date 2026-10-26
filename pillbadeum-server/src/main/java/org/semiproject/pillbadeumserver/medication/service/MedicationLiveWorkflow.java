@@ -7,6 +7,7 @@ import org.semiproject.pillbadeumserver.medication.domain.MedicationRepository;
 import org.semiproject.pillbadeumserver.medication.domain.MedicationTarget;
 import org.semiproject.pillbadeumserver.medication.dto.MedicationDtos.ScheduleRequest;
 import org.semiproject.pillbadeumserver.medication.dto.MedicationLiveDtos.*;
+import org.semiproject.pillbadeumserver.medication.service.MedicationScheduleService.ScheduleChange;
 import org.springframework.stereotype.Service;
 
 import java.time.DateTimeException;
@@ -14,6 +15,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -21,13 +23,23 @@ import java.util.Map;
 @Service
 public class MedicationLiveWorkflow {
     private static final long USER_FRAGMENT_GAP_MILLIS = 1000;
-    public record Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults, String customName) {
+    public record Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults, String customName,
+                           List<ScheduleChange> batch) {
+        public Proposal { batch = List.copyOf(batch); }
+        public Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults, String customName) {
+            this(profileId, myDrugId, request, defaults, customName, List.of());
+        }
         public Proposal(long profileId, long myDrugId, ScheduleRequest request, List<String> defaults) {
             this(profileId, myDrugId, request, defaults, null);
         }
     }
     // myDrugId=0은 저장 전 초안 내부에서만 사용한다. 완료 응답에는 DB가 발급한 ID만 반환한다.
-    public record Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal, Operation operation, String customName) {
+    public record Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal, Operation operation,
+                           String customName, List<ScheduleChange> batch) {
+        public Decision { batch = List.copyOf(batch); }
+        public Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal, Operation operation, String customName) {
+            this(profileId, myDrugId, request, outcome, proposal, operation, customName, List.of());
+        }
         public Decision(long profileId, long myDrugId, ScheduleRequest request, Outcome outcome, Proposal proposal, Operation operation) {
             this(profileId, myDrugId, request, outcome, proposal, operation, null);
         }
@@ -53,18 +65,24 @@ public class MedicationLiveWorkflow {
     public void requireReady() { planner.requireReady(); }
 
     public Decision prepare(long memberId, StartRequest selection, LocalDate today, List<Map<String, Object>> transcript) {
+        return prepare(memberId, selection, today, transcript, null);
+    }
+
+    public Decision prepare(long memberId, StartRequest selection, LocalDate today, List<Map<String, Object>> transcript, Proposal previous) {
         var candidates = reads.allDrugs(memberId);
         String lastUser = normalize(lastTurn(transcript, "user"));
         boolean listQuestion = isMedicationListQuestion(lastUser);
-        if (listQuestion || isBulkScheduleRequest(lastUser)) {
+        if (listQuestion) {
             String names = candidates.stream().filter(target -> target.profileId() == selection.selectedProfileId())
                     .map(MedicationTarget::drugName).collect(java.util.stream.Collectors.joining(", "));
             String list = names.isEmpty() ? "선택한 프로필에 등록된 약이 없어요."
                     : "선택한 프로필에 등록된 약은 " + names + "예요.";
-            if (listQuestion) return question(list, List.of());
-            return question("일정은 지금 한 약씩 등록할 수 있어요. " + list
-                    + (names.isEmpty() ? " 등록할 약 이름 한 가지를 말씀해주세요." : " 어떤 약부터 등록할까요?"), List.of("target"));
+            return question(list, List.of());
         }
+        var selectedDrugs = candidates.stream().filter(target -> target.profileId() == selection.selectedProfileId())
+                .sorted(Comparator.comparingLong(MedicationTarget::myDrugId)).toList();
+        boolean explicitBatch = isBulkScheduleRequest(lastUser);
+        if (explicitBatch && selectedDrugs.size() != 2) return question("선택한 프로필에 약이 정확히 두 개일 때만 함께 등록할 수 있어요. 등록할 약을 하나씩 말씀해주세요.", List.of("target"));
         var profiles = reads.profiles(memberId);
         var plan = planner.plan(selection, today, candidates, profiles, transcript);
         if ("CANCEL".equals(plan.intent())) return question("이번 요청은 취소할게요. 기존 일정은 그대로예요.", List.of());
@@ -80,6 +98,14 @@ public class MedicationLiveWorkflow {
         }
         if ("TARGET_NOT_FOUND".equals(plan.intent())) return question("어느 프로필의 어떤 약을 등록할까요?", List.of("target"));
         if (!"SAVE".equals(plan.intent())) return question("약 이름과 기간을 말씀해주시면 나머지는 기본 설정으로 제안해드릴게요.", List.of("request"));
+        boolean narrowing = previous != null && !previous.batch().isEmpty() && narrowsToOne(lastUser, plan, selectedDrugs);
+        if (narrowing && !singleScopeSpecified(lastUser, plan, selection, selectedDrugs)) {
+            return question("두 약 중 어떤 약 하나를 등록할까요? 약 이름을 말씀해주세요.", List.of("target"));
+        }
+        boolean continuingBatch = previous != null && !previous.batch().isEmpty() && !narrowing;
+        if (explicitBatch || continuingBatch) {
+            return prepareBatch(plan, selection, today, transcript, lastUser, selectedDrugs, continuingBatch ? previous : null);
+        }
         String customName = plan.customName() == null ? null : plan.customName().strip();
         long profileId = plan.profileId() == null ? selection.selectedProfileId() : plan.profileId();
         Long selectedDrugId = plan.myDrugId() != null ? plan.myDrugId()
@@ -101,8 +127,12 @@ public class MedicationLiveWorkflow {
             target = new MedicationTarget(0, profileId, profile.get().profileName(), profile.get().relationship(),
                     customName, 1, "식후 30분", null, null, null, null);
         }
-        long drugId = target.myDrugId();
+        return prepareTarget(plan, selection, today, transcript, lastUser, target, customName, false);
+    }
 
+    private Decision prepareTarget(Plan plan, StartRequest selection, LocalDate today, List<Map<String, Object>> transcript,
+                                   String lastUser, MedicationTarget target, String customName, boolean requireConfirmation) {
+        long drugId = target.myDrugId();
         boolean allowDefaults = defaultsAllowed(plan, transcript);
         var missing = new ArrayList<String>();
         var defaults = new ArrayList<String>();
@@ -145,7 +175,7 @@ public class MedicationLiveWorkflow {
             if (!missing.isEmpty() && rejectsDefaults(lastUser)) {
                 return question("그럼 바꿀 항목과 값만 말씀해주세요.", List.of("correction"));
             }
-            if (!missing.isEmpty() && !allowDefaults) {
+            if (requireConfirmation || !missing.isEmpty() && !allowDefaults) {
                 if (timing == null && target.timing() != null) {
                     timing = target.timing();
                     if (timing.length() > 20) throw invalid();
@@ -176,6 +206,13 @@ public class MedicationLiveWorkflow {
                 yield new Outcome("오늘까지만 복용하도록 변경했어요.", List.of(), List.of(), stopped, completed);
             }
             case SAVE -> {
+                if (!decision.batch().isEmpty()) {
+                    var saved = schedules.saveBatch(memberId, decision.profileId(), decision.batch());
+                    var first = saved.getFirst();
+                    String names = saved.stream().map(response -> response.drugName()).collect(java.util.stream.Collectors.joining(", "));
+                    yield new Outcome(names + " 두 약의 일정을 함께 저장했어요.", List.of(), decision.outcome().appliedDefaults(), first,
+                            new CompletedOperation(Operation.SAVE, first.profileId(), first.myDrugId()));
+                }
                 var saved = decision.myDrugId() == 0
                         ? schedules.createCustom(memberId, decision.profileId(), decision.customName(), decision.request())
                         : schedules.save(memberId, decision.profileId(), decision.myDrugId(), decision.request());
@@ -187,7 +224,101 @@ public class MedicationLiveWorkflow {
 
     public Decision confirm(Proposal proposal) {
         return new Decision(proposal.profileId(), proposal.myDrugId(), proposal.request(),
-                new Outcome("제안한 일정으로 저장할게요.", List.of(), proposal.defaults(), null), null, Operation.SAVE, proposal.customName());
+                new Outcome("제안한 일정으로 저장할게요.", List.of(), proposal.defaults(), null), null, Operation.SAVE, proposal.customName(), proposal.batch());
+    }
+
+    private Decision prepareBatch(Plan plan, StartRequest selection, LocalDate today, List<Map<String, Object>> transcript,
+                                  String lastUser, List<MedicationTarget> selectedDrugs, Proposal previous) {
+        if (selectedDrugs.size() != 2 || plan.profileId() != null && plan.profileId().longValue() != selection.selectedProfileId()
+                || plan.customName() != null && !plan.customName().isBlank()) {
+            return question("선택한 프로필의 등록된 두 약만 함께 등록할 수 있어요. 프로필과 약을 다시 확인해주세요.", List.of("target"));
+        }
+        String hint = plan.profileHint() == null ? "" : normalize(plan.profileHint());
+        var selected = selectedDrugs.getFirst();
+        if (!hint.isEmpty() && (!userText(transcript).contains(hint)
+                || !normalize(selected.profileName()).contains(hint)
+                && !("SELF".equalsIgnoreCase(selected.relationship()) && List.of("나", "내", "본인", "저", "제").contains(hint)))) {
+            return question("함께 등록할 약의 프로필을 먼저 선택해주세요.", List.of("target"));
+        }
+        if (previous != null && (previous.profileId() != selection.selectedProfileId()
+                || !previous.batch().stream().map(ScheduleChange::myDrugId).sorted().toList()
+                .equals(selectedDrugs.stream().map(MedicationTarget::myDrugId).toList()))) {
+            return question("제안한 뒤 약 목록이 바뀌었어요. 함께 등록할 두 약을 다시 확인해주세요.", List.of("target"));
+        }
+        String evidence = plan.actionEvidence() == null ? "" : normalize(plan.actionEvidence());
+        if (previous == null && (!isBulkScheduleRequest(evidence) || !userText(transcript).contains(evidence))) {
+            return question("선택한 프로필의 두 약을 모두 함께 등록할지 말씀해주세요.", List.of("target"));
+        }
+        var proposals = new ArrayList<Proposal>();
+        var missing = new ArrayList<String>();
+        for (var target : selectedDrugs) {
+            var itemPlan = previous == null ? plan : carryBatchValues(plan, previous.batch().stream()
+                    .filter(change -> change.myDrugId() == target.myDrugId()).findFirst().orElseThrow().request());
+            var prepared = prepareTarget(itemPlan, selection, today, transcript, lastUser, target, null, true);
+            if (prepared.proposal() == null) return prepared;
+            proposals.add(prepared.proposal()); missing.addAll(prepared.outcome().missingFields());
+        }
+        var changes = proposals.stream().map(proposal -> new ScheduleChange(proposal.myDrugId(), proposal.request())).toList();
+        var defaults = java.util.stream.Stream.concat(previous == null ? java.util.stream.Stream.<String>empty() : previous.defaults().stream(),
+                proposals.stream().flatMap(proposal -> proposal.defaults().stream())).distinct().toList();
+        var first = proposals.getFirst();
+        var proposal = new Proposal(selection.selectedProfileId(), first.myDrugId(), first.request(), defaults, null, changes);
+        return new Decision(0, 0, null, new Outcome(batchProposalMessage(selectedDrugs, changes, today),
+                missing.stream().distinct().toList(), List.of(), null), proposal);
+    }
+
+    private Plan carryBatchValues(Plan plan, ScheduleRequest previous) {
+        String start = plan.startDate() == null ? previous.startDate().toString() : plan.startDate();
+        Integer days = plan.durationDays();
+        if (days == null && plan.endDate() == null) days = Math.toIntExact(ChronoUnit.DAYS.between(previous.startDate(), previous.endDate()) + 1);
+        var times = plan.doseTimes();
+        if (times == null && plan.dosePeriods() == null
+                && (plan.dailyCount() == null || plan.dailyCount() == previous.doseTimes().size())) {
+            times = previous.doseTimes().stream().map(LocalTime::toString).toList();
+        }
+        return new Plan(plan.intent(), plan.myDrugId(), start, plan.endDate(), days, times, plan.dailyCount(),
+                plan.dosePerTime() == null ? previous.dosePerTime() : plan.dosePerTime(),
+                plan.timing() == null ? previous.timing() : plan.timing(), plan.useDefaults(), plan.defaultEvidence(),
+                plan.dosePeriods(), plan.profileHint(), plan.drugHints(), plan.actionEvidence(), plan.profileId(), plan.customName());
+    }
+
+    private boolean singleScopeSpecified(String text, Plan plan, StartRequest selection, List<MedicationTarget> selectedDrugs) {
+        if (text.matches(".*(이약|선택한약)만.*") && selection.selectedMyDrugId() != null) {
+            return plan.myDrugId() == null || plan.myDrugId().longValue() == selection.selectedMyDrugId();
+        }
+        for (var target : selectedDrugs) {
+            long id = plan.myDrugId() != null ? plan.myDrugId() : selection.selectedMyDrugId() == null ? 0 : selection.selectedMyDrugId();
+            if (target.myDrugId() != id) continue;
+            if (text.contains(normalize(target.drugName()))) return true;
+            if (plan.drugHints() != null && plan.drugHints().stream().anyMatch(hint -> hint != null && !normalize(hint).isEmpty()
+                    && text.contains(normalize(hint)) && normalize(target.drugName()).contains(normalize(hint))
+                    && selectedDrugs.stream().filter(item -> normalize(item.drugName()).contains(normalize(hint))).count() == 1)) return true;
+        }
+        return false;
+    }
+
+    private boolean narrowsToOne(String text, Plan plan, List<MedicationTarget> selectedDrugs) {
+        if (text.matches(".*(둘다|두개다|두개모두|2개다|두약모두|전부|모든약)(는|은|을|를|가)?(말고|아니라|아니고).*")
+                || text.matches(".*(이약|선택한약|한약|하나)만.*")) return true;
+        if (plan.drugHints() == null || plan.drugHints().size() != 1) return false;
+        String hint = plan.drugHints().getFirst() == null ? "" : normalize(plan.drugHints().getFirst());
+        return !hint.isEmpty() && text.contains(hint + "만")
+                && selectedDrugs.stream().filter(target -> normalize(target.drugName()).contains(hint)).count() == 1;
+    }
+
+    private String batchProposalMessage(List<MedicationTarget> targets, List<ScheduleChange> changes, LocalDate today) {
+        var request = changes.getFirst().request();
+        String from = request.startDate().equals(today) ? "오늘" : request.startDate().getMonthValue() + "월 " + request.startDate().getDayOfMonth() + "일";
+        long days = ChronoUnit.DAYS.between(request.startDate(), request.endDate()) + 1;
+        String times = request.doseTimes().stream().map(this::spokenTime).collect(java.util.stream.Collectors.joining("·"));
+        var details = new ArrayList<String>();
+        for (int i = 0; i < changes.size(); i++) {
+            var item = changes.get(i).request();
+            details.add(targets.get(i).drugName() + " 1회 " + item.dosePerTime() + "개"
+                    + (item.timing() == null ? "" : ", " + item.timing()));
+        }
+        return from + "부터 " + days + "일 동안 매일 " + times + "에 두 약을 함께 등록할게요. "
+                + String.join(". ", details) + ". 적용할까요?";
     }
 
     private String userText(List<Map<String, Object>> transcript) {
@@ -247,8 +378,8 @@ public class MedicationLiveWorkflow {
     private boolean isBulkScheduleRequest(String text) {
         if (text.matches(".*(취소|하지마|하지말|삭제|지워|그만|중단).*")) return false;
         // "둘 다 말고 A"는 한 약으로 정정한 요청이므로 기존 해석 경로에 맡긴다.
-        String request = text.replaceAll("(둘다|두약모두|전부|모든약)(는|은|을|를|가)?(말고|아니라|아니고)", "");
-        return request.matches(".*(둘다|두약모두|모든약|약[은는을를]?(전부|모두)).*") || request.startsWith("전부");
+        String request = text.replaceAll("(둘다|두개다|두개모두|2개다|두약모두|두약다|전부|모든약)(는|은|을|를|가)?(말고|아니라|아니고)", "");
+        return request.matches(".*(둘다|두개다|두개모두|2개다|두약모두|두약다|모든약|약[은는을를]?(전부|모두)).*") || request.startsWith("전부");
     }
 
     /** 명시적 기본값 위임만 검증한다. 짧은 동의는 세션에 보관한 제안에만 적용한다. */

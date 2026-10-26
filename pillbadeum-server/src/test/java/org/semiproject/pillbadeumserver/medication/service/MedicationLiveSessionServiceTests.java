@@ -362,6 +362,32 @@ class MedicationLiveSessionServiceTests {
     }
 
     @Test
+    void aBatchCorrectionPassesTheStoredPairAndYesConfirmsBothOnce() {
+        String id = start();
+        var firstRequest = new ScheduleRequest(DATE, DATE.plusDays(6), List.of(LocalTime.of(8, 0)), 1, "식전");
+        var correctedRequest = new ScheduleRequest(DATE, DATE.plusDays(6), List.of(LocalTime.NOON), 1, "식전");
+        var first = new MedicationLiveWorkflow.Proposal(13, 25, firstRequest, List.of(), null, List.of(
+                new MedicationScheduleService.ScheduleChange(25, firstRequest), new MedicationScheduleService.ScheduleChange(26, firstRequest)));
+        var corrected = new MedicationLiveWorkflow.Proposal(13, 25, correctedRequest, List.of(), null, List.of(
+                new MedicationScheduleService.ScheduleChange(25, correctedRequest), new MedicationScheduleService.ScheduleChange(26, correctedRequest)));
+        when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(new MedicationLiveWorkflow.Decision(0, 0, null,
+                new Outcome("두 약 적용할까요?", List.of(), List.of(), null), first));
+        when(workflow.prepare(eq(5L), any(), any(), anyList(), eq(first))).thenReturn(new MedicationLiveWorkflow.Decision(0, 0, null,
+                new Outcome("두 약 12시에 적용할까요?", List.of(), List.of(), null), corrected));
+        when(workflow.confirm(any())).thenCallRealMethod();
+        when(workflow.execute(eq(5L), any())).thenReturn(savedOutcome());
+        input("in1", "두 개 다 일주일 8시에"); delegate("d1");
+        input("in2", "아니 12시에만"); delegate("d2");
+        verify(workflow, never()).execute(anyLong(), any());
+        input("in3", "응"); delegate("d3"); delegate("d4");
+        verify(workflow).prepare(eq(5L), any(), any(), anyList(), eq(first));
+        verify(workflow).confirm(corrected);
+        verify(workflow, times(1)).execute(eq(5L), argThat(decision -> decision.batch().size() == 2
+                && decision.batch().stream().allMatch(change -> change.request().doseTimes().equals(List.of(LocalTime.NOON)))));
+        assertThat(service.get(5, id).status()).isEqualTo("SAVED");
+    }
+
+    @Test
     void confirmingAfterSessionExpiryCannotSaveTheStoredProposal() {
         String id = start();
         when(workflow.prepare(eq(5L), any(), any(), anyList())).thenReturn(proposedAt(LocalTime.of(17, 0)));
