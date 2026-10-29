@@ -199,6 +199,6 @@ class DrugWebTests {
     static Drug drug() {
         return Drug.create(ITEM_SEQ, "타이레놀정500밀리그램", "한국존슨앤드존슨판매(유)", Drug.OTC, "해열.진통.소염제",
                 null, "TYLENOL", "500", "장방형", "하양", "-", "-", "정제", "Acetaminophen",
-                LocalDateTime.of(2026, 10, 20, 10, 0));
+                LocalDateTime.now(TimeZoneConfig.ZONE));
     }
 }
