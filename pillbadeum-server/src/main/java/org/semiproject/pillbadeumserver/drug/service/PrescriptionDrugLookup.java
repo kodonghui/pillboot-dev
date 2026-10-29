@@ -16,6 +16,8 @@ public final class PrescriptionDrugLookup {
     private static final Pattern ADMINISTRATION = Pattern.compile("/" + NUMBER + "(?:정|캡슐|캅셀|포|개)$");
     private static final Pattern COMPLEX = Pattern.compile("(?:%|퍼센트|mEq|IU|국제단위|단위|/(?:" + NUMBER + ")?(?:mL|L|그램|그람|g))", Pattern.CASE_INSENSITIVE);
     private static final Pattern FORM = Pattern.compile("(캡슐|캅셀|정|시럽|과립|액|산)$");
+    private static final Pattern PARTIAL_STRENGTH = Pattern.compile(".+(?:캡슐|캅셀|정|시럽|과립|액|산)"
+            + NUMBER + "(?:[/+]" + NUMBER + ")*");
     private final PublicDataClient client;
 
     public PrescriptionDrugLookup(PublicDataClient client) { this.client = client; }
@@ -52,11 +54,11 @@ public final class PrescriptionDrugLookup {
     private static final class Clue {
         final String clean, base, form;
         final List<BigDecimal> strengths;
-        final boolean complex, truncated, queryable;
+        final boolean complex, truncated, partialStrength, queryable;
 
         Clue(String name) {
             String original = clean(name);
-            String withoutEllipsis = original.replaceFirst("\\.{2,}$", "");
+            String withoutEllipsis = original.replaceFirst("(?:\\.{2,}|[⋯…‥])+$", "");
             int open = withoutEllipsis.lastIndexOf('(');
             boolean openDescription = open >= 0 && withoutEllipsis.indexOf(')', open) < 0;
             truncated = !original.equals(withoutEllipsis) || openDescription;
@@ -65,11 +67,12 @@ public final class PrescriptionDrugLookup {
             complex = COMPLEX.matcher(clean).find();
             base = base(clean);
             form = form(base);
-            // 잘린 함량·제형은 추측하지 않음. 온전한 제품명 또는 질량 단위까지 읽힌 경우만 조회함.
+            // 판독 원문은 호출자가 보존한다. 잘린 숫자는 완성하지 않고 읽힌 접두어 그대로 후보만 조회한다.
+            partialStrength = truncated && strengths.isEmpty() && PARTIAL_STRENGTH.matcher(clean).matches();
             var mass = MASS.matcher(clean);
             boolean completeMass = false;
             while (mass.find()) completeMass = mass.end() == clean.length();
-            queryable = !truncated || completeMass || FORM.matcher(clean).find();
+            queryable = !truncated || completeMass || FORM.matcher(clean).find() || partialStrength;
         }
 
         List<String> queries() {
@@ -86,6 +89,9 @@ public final class PrescriptionDrugLookup {
         boolean matches(String candidateName) {
             if (candidateName == null || candidateName.isBlank()) return false;
             var candidate = clean(candidateName);
+            if (partialStrength)
+                return !COMPLEX.matcher(candidate).find()
+                        && canonicalUnits(candidate).startsWith(canonicalUnits(clean));
             if (complex) {
                 String expected = canonicalUnits(clean), actual = canonicalUnits(candidate);
                 return actual.equals(expected) || actual.startsWith(expected + "(");

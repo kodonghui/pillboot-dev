@@ -285,6 +285,32 @@ class PhotoFlowHttpMySqlTests {
   }
 
   @Test
+  void clippedPrescriptionNamesPreserveOcrTextThroughReloadAndSelectedRegistration() throws Exception {
+    var firstName = "슈가메트서방정5/100...";
+    var secondName = "듀비메트서방정0.5/10…";
+    officialRows = List.of(row(code1, "슈가메트서방정5/1000밀리그램", "A", "B"),
+        row(code2, "듀비메트서방정0.5/1000밀리그램", "X", "Y"));
+    vision = prescription(firstName, secondName);
+
+    var result = identify("PRESCRIPTION", token, 200, "image");
+    long id = result.path("photoId").asLong();
+    assertThat(result.path("drugs").path(0).path("readName").asString()).isEqualTo(firstName);
+    assertThat(result.path("drugs").path(1).path("readName").asString()).isEqualTo(secondName);
+    assertThat(result.path("drugs").path(0).path("candidates").path(0).path("itemSeq").asString()).isEqualTo(code1);
+    assertThat(result.path("drugs").path(1).path("candidates").path(0).path("itemSeq").asString()).isEqualTo(code2);
+    assertThat(lookups).anyMatch(s -> s.contains("item_name=슈가메트서방정5/100"));
+    assertThat(lookups).anyMatch(s -> s.contains("item_name=듀비메트서방정0.5/10"));
+    assertThat(lookups).noneMatch(s -> s.contains("...") || s.contains("…"));
+    assertThat(jdbc.queryForList("SELECT read_name FROM ocr_candidate WHERE photo_id=? ORDER BY read_no",
+        String.class, id)).containsExactly(firstName, secondName);
+    assertThat(json("GET", "/api/photos/" + id + "/candidates", null, token, 200).path("drugs"))
+        .isEqualTo(result.path("drugs"));
+    var saved = json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code1, code2), token, 201);
+    assertThat(saved.path("saved").size()).isEqualTo(2);
+    assertNoPhotos();
+  }
+
+  @Test
   void prescriptionReloadSelectionAndReplayUseOfficialCodesAndCleanOnlyAfterCommit()
       throws Exception {
     JsonNode result = identify("PRESCRIPTION", token, 200, "image");
