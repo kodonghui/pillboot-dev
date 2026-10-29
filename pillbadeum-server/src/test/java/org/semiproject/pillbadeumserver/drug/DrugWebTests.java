@@ -3,6 +3,7 @@ package org.semiproject.pillbadeumserver.drug;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.semiproject.pillbadeumserver.common.config.CorsConfig;
+import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
 import org.semiproject.pillbadeumserver.common.config.WebConfig;
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
@@ -156,7 +157,7 @@ class DrugWebTests {
     void guideReturnsSourceSectionsAndNotice() throws Exception {
         when(guideService.getGuide(ITEM_SEQ)).thenReturn(new DrugGuideResponse(ITEM_SEQ, "타이레놀정500밀리그램", true,
                 DrugGuideService.EASY_DRUG_SOURCE, "타이레놀정500밀리그램", LocalDate.of(2025, 3, 24),
-                LocalDateTime.of(2026, 10, 20, 10, 0),
+                LocalDateTime.now(TimeZoneConfig.ZONE),
                 List.of(new DrugGuideResponse.Section("efficacy", "효능", "해열 및 진통")),
                 List.of(), "식품의약품안전처 DUR", DrugGuideResponse.NOTICE));
 
