@@ -112,10 +112,36 @@ class PrescriptionDrugLookupTests {
     }
 
     @ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"합성정60...", "합성정0.5m…", "합성서방...", "합성정5mg/..."})
-    void incompleteStrengthOrDosageFormRequiresNameSupplementInsteadOfGuessing(String input) {
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"합성정0.5m…", "합성서방...", "합성정5mg/..."})
+    void incompleteUnitOrDosageFormRequiresNameSupplementInsteadOfGuessing(String input) {
         assertThat(lookup.find(input, null)).isEmpty();
         verifyNoInteractions(client);
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "슈가메트서방정5/100... | 슈가메트서방정5/100 | 슈가메트서방정5/1000밀리그램",
+        "듀비메트서방정0.5/10... | 듀비메트서방정0.5/10 | 듀비메트서방정0.5/1000밀리그램",
+        "듀비메트서방정0.5/10… | 듀비메트서방정0.5/10 | 듀비메트서방정0.5/1000밀리그램",
+        "듀비메트서방정0.5/10⋯ | 듀비메트서방정0.5/10 | 듀비메트서방정0.5/1000밀리그램",
+        "듀비메트서방정0.5/10‥ | 듀비메트서방정0.5/10 | 듀비메트서방정0.5/1000밀리그램",
+        "합성정60... | 합성정60 | 합성정60밀리그램"
+    })
+    void clippedStrengthSearchesOnlyTheReadPrefixAndKeepsTheDecimal(String input, String keyword, String candidate) {
+        when(client.get(anyString(), anyMap())).thenReturn(rows(List.of(candidate,
+                "다른정60mg", "듀비메트서방정0.25/1000밀리그램", "슈가메트정5/1000밀리그램")));
+        assertThat(lookup.find(input, null)).singleElement()
+                .satisfies(row -> assertThat(row.path("ITEM_NAME").asString()).isEqualTo(candidate));
+        verify(client).get(anyString(), eq(Map.of("item_name", keyword, "pageNo", 1, "numOfRows", 100)));
+    }
+
+    @Test
+    void clippedNumericPrefixKeepsMultipleOfficialChoicesWithoutInventingTheMissingDigits() {
+        when(client.get(anyString(), anyMap())).thenReturn(rows(List.of(
+                "합성정60밀리그램", "합성정600밀리그램", "합성정6밀리그램", "합성서방정60밀리그램")));
+        assertThat(lookup.find("합성정60...", null)).extracting(row -> row.path("ITEM_NAME").asString())
+                .containsExactly("합성정60밀리그램", "합성정600밀리그램");
+        verify(client).get(anyString(), eq(Map.of("item_name", "합성정60", "pageNo", 1, "numOfRows", 100)));
     }
 
     @Test
