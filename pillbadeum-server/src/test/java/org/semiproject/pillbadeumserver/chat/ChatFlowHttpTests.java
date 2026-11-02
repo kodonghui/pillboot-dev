@@ -436,6 +436,13 @@ class ChatFlowHttpTests {
                                     "{\"mode\":\"RECORD\",\"choice\":0,\"names\":[]}"))))));
                     return;
                 }
+                // '등록'이 든 질문은 의도 가르기(V3-CHAT-001)를 먼저 거친다. 약 질문으로 돌려 답변 요청만 센다.
+                if ("question_intent".equals(input.path("text").path("format").path("name").asString())) {
+                    respond(exchange, 200, Map.of("id", "resp-intent", "status", "completed", "output", List.of(
+                            Map.of("type", "message", "content", List.of(Map.of("type", "output_text", "text",
+                                    "{\"intent\":\"QUESTION\",\"drugMentions\":[],\"targetMyDrugName\":\"\"}"))))));
+                    return;
+                }
                 boolean summary = input.path("instructions").asString().startsWith("필받음 대화 기록");
                 String text;
                 int status = 200;

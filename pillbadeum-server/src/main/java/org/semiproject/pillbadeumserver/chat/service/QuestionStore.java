@@ -45,16 +45,20 @@ public class QuestionStore {
         return session.getProfileId();
     }
 
-    /** 저장 전 분류에 필요한 같은 방의 최근 질문2개와 현재 품목 이름만 읽는다. 건강 사본은 보내지 않는다. */
+    /**
+     * 저장 전 분류에 필요한 같은 방의 최근 질문2개와 현재 품목 이름만 읽는다. 건강 사본은 보내지 않는다.
+     * 의도 가르기(V3-CHAT-001)용 약목록 이름도 같은 조회에서 함께 담는다.
+     */
     @Transactional(readOnly = true)
     public QuestionClassifier.Context classificationContext(Long sessionId, Long memberId, Long profileId) {
         if (!Objects.equals(checkAccess(sessionId, memberId), profileId)) throw new NotFoundException("프로필을 찾을 수 없습니다.");
         var turns = messages.findHistoryTurns(sessionId, null, org.springframework.data.domain.PageRequest.of(0, 2));
         var previous = turns.isEmpty() ? java.util.List.<String>of() : messages.findHistoryMessages(sessionId, turns).stream()
                 .filter(message -> "user".equals(message.getRole())).map(ChatMessage::getContent).toList();
-        var products = medications.findAllWithDrugByProfileId(profileId).stream().filter(m -> m.getDrug() != null)
-                .limit(10).map(m -> m.getDrug().getItemSeq() + " " + m.getDrug().getName()).toList();
-        return new QuestionClassifier.Context(previous, products);
+        var drugs = medications.findAllWithDrugByProfileId(profileId).stream().filter(m -> m.getDrug() != null).toList();
+        var products = drugs.stream().limit(10).map(m -> m.getDrug().getItemSeq() + " " + m.getDrug().getName()).toList();
+        var names = drugs.stream().map(m -> m.getDrug().getName()).toList();
+        return new QuestionClassifier.Context(previous, products, names);
     }
 
     /**
@@ -98,6 +102,14 @@ public class QuestionStore {
         if (!"user".equals(message.getRole())) throw new BusinessException(ErrorCode.RETRY_NOT_ALLOWED, ErrorCode.RETRY_NOT_ALLOWED.getDescription());
         checkRetryAllowed(sessionId, messageId);
         return new QuestionResponse.Question(messageId, message.getTurnNo());
+    }
+
+    /** 다시 보내기에서 의도를 다시 가를 질문 글. retryQuestion으로 자격을 확인한 질문만 넘긴다. */
+    @Transactional(readOnly = true)
+    public String questionContent(Long sessionId, QuestionResponse.Question question) {
+        return messages.findByMessageIdAndSessionIdAndRole(question.messageId(), sessionId, "user")
+                .map(ChatMessage::getContent)
+                .orElseThrow(() -> new NotFoundException("질문을 찾을 수 없습니다."));
     }
 
     private void checkRetryAllowed(Long sessionId, Long messageId) {
@@ -161,6 +173,17 @@ public class QuestionStore {
                                                   QuestionResponse.Question question, GeneratedAnswer generated,
                                                   ChatDeadline deadline) {
         return persistAnswer(sessionId, memberId, profileId, question, generated, deadline, true);
+    }
+
+    /**
+     * V3-CHAT-002: 모델이 만들지 않은 서버 안내(등록 제안 설명·찾지 못함 등)를 답변으로 저장한다. 저장 규칙은 답변과 같다.
+     * 등록 제안은 ChatProposalStore가 같은 트랜잭션에서 이 메시지에 붙인다.
+     */
+    @Transactional(timeout = 5)
+    public QuestionResponse.Answer saveNotice(Long sessionId, Long memberId, Long profileId,
+                                              QuestionResponse.Question question, String content,
+                                              ChatDeadline deadline, boolean retry) {
+        return persistAnswer(sessionId, memberId, profileId, question, new GeneratedAnswer(content, null, null), deadline, retry);
     }
 
     private QuestionResponse.Answer persistAnswer(Long sessionId, Long memberId, Long profileId,

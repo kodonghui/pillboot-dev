@@ -92,7 +92,8 @@ public class ImageKeywordRegistrationService {
         root.id());
   }
 
-  void cache(PhotoCandidateData c, String source) {
+  /** 공식 응답으로 만든 후보를 약 캐시(drug)에 넣는다. 대화 등록 제안(V3-CHAT-002)도 같은 규칙으로 쓴다. */
+  public void cache(PhotoCandidateData c, String source) {
     var enrich = List.of("class_name", "image_url", "print_front", "print_back", "shape", "color", "line_front", "line_back", "form", "material")
         .stream().map(column -> column + "=IF(" + column + " IS NULL OR " + column + "='미확인',COALESCE(VALUES(" + column + ")," + column + ")," + column + ")")
         .collect(java.util.stream.Collectors.joining(","));

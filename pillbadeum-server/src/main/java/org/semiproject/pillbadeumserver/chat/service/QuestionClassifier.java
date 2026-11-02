@@ -60,7 +60,11 @@ public class QuestionClassifier {
             새 기록 질문에는 지난 의약 주제를 계속 강요하지 않는다. 애매한 경우 PASS를 선택한다.
             """;
 
-    public record Context(List<String> previousQuestions, List<String> products) {
+    /** myDrugNames: 의도 가르기(V3-CHAT-001)에만 보내는 약목록 이름. 안전 분류 호출에는 넣지 않는다. */
+    public record Context(List<String> previousQuestions, List<String> products, List<String> myDrugNames) {
+        public Context(List<String> previousQuestions, List<String> products) {
+            this(previousQuestions, products, List.of());
+        }
         public static Context empty() { return new Context(List.of(), List.of()); }
     }
 

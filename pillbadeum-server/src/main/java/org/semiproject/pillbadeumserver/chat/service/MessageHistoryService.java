@@ -16,11 +16,14 @@ public class MessageHistoryService {
     private final ChatSessionRepository sessions;
     private final ChatMessageRepository messages;
     private final QuestionService questions;
+    private final ChatProposalStore proposals;
 
-    public MessageHistoryService(ChatSessionRepository sessions, ChatMessageRepository messages, QuestionService questions) {
+    public MessageHistoryService(ChatSessionRepository sessions, ChatMessageRepository messages, QuestionService questions,
+                                 ChatProposalStore proposals) {
         this.sessions = sessions;
         this.messages = messages;
         this.questions = questions;
+        this.proposals = proposals;
     }
 
     /**
@@ -48,6 +51,13 @@ public class MessageHistoryService {
         var selected = turns.subList(0, Math.min(limit, turns.size()));
         List<MessageHistoryResponse.Message> history = selected.isEmpty() ? List.of()
                 : messages.findHistoryMessages(sessionId, selected).stream().map(MessageHistoryResponse.Message::from).toList();
+        // V3-CHAT-002·007: 제안 카드를 보여 주는 약봉이 메시지에 지금 상태의 카드를 붙인다.
+        var cards = proposals.findByMessages(history.stream()
+                .filter(message -> message.role() == MessageHistoryResponse.Role.ASSISTANT)
+                .map(MessageHistoryResponse.Message::messageId).toList(), memberId);
+        if (!cards.isEmpty()) history = history.stream()
+                .map(message -> cards.containsKey(message.messageId()) ? message.withProposal(cards.get(message.messageId())) : message)
+                .toList();
 
         // 이전 페이지를 보더라도 재시도 표시는 방 전체의 마지막 질문을 기준으로 한다.
         Long retryId = messages.findLatestQuestionState(sessionId)

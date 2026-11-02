@@ -127,6 +127,14 @@ public class PhotoCandidateLookup {
     return candidate(row, matched, null);
   }
 
+  /**
+   * V3-CHAT-002: 허가정보 검색 행 하나를 약 캐시에 넣을 수 있는 후보로 바꾼다. 필수 정보(품목코드·이름·제약사·전문/일반 구분)가
+   * 없으면 ExternalApiException이다. 대화 등록 제안은 이런 행을 빼고 나머지 후보를 쓴다.
+   */
+  public static PhotoCandidateData permitCandidate(JsonNode row, String fallbackImage) {
+    return candidate(row, null, fallbackImage);
+  }
+
   private static PhotoCandidateData candidate(JsonNode row, Boolean matched, String fallbackImage) {
     String code = text(row, "ITEM_SEQ"),
         name = text(row, "ITEM_NAME"),

@@ -44,7 +44,9 @@ class MessageHistoryWebTests {
                 .andExpect(jsonPath("$.profileId").value(10)).andExpect(jsonPath("$.profileName").value("fixture profile"))
                 .andExpect(jsonPath("$.title").value(nullValue())).andExpect(jsonPath("$.drugCount").value(0))
                 .andExpect(jsonPath("$.retryMessageId").value(100)).andExpect(jsonPath("$.hasMore").value(false))
-                .andExpect(jsonPath("$.messages[0]", aMapWithSize(6)))
+                // v3: 제안 카드 칸(proposal)이 생김. 카드가 없는 메시지는 null(openapi-v3 readMessages)
+                .andExpect(jsonPath("$.messages[0]", aMapWithSize(7)))
+                .andExpect(jsonPath("$.messages[0].proposal").value(nullValue()))
                 .andExpect(jsonPath("$.messages[0].durNotice").value(nullValue())).andExpect(jsonPath("$.messages[0].role").value("USER"))
                 .andExpect(jsonPath("$.messages[0].createdAt").value("2026-10-19T09:00:00+09:00"))
                 .andExpect(header().string("Cache-Control", containsString("no-store")));
