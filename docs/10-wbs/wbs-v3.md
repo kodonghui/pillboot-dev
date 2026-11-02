@@ -16,7 +16,7 @@
 | `feature/v3-relation-other` | 공통 | V3-COMMON-004 | 바로 |
 | `feature/v3-chat-registration` | 2차 | V3-CHAT-001~006 | `feature/v3-drug-strength` 병합 뒤 |
 | `feature/v3-chat-schedule` | 2차 | V3-CHAT-007 | `feature/v3-chat-registration` 병합 뒤 |
-| `feature/v3-chat-progress` | 2차 | V3-CHAT-008 | 바로(서버), 화면 승인 뒤(프론트). DEC-021 |
+| `feature/v3-chat-progress` | 2차 | V3-CHAT-008 | 바로(서버), 화면 승인 뒤(프론트). DEC-021·022(B안) |
 | `feature/v3-kakao-server` | 3차 | V3-KAKAO-002·005·006·010의 서버 쪽 | 11/5 이후 H-14 확인 뒤 |
 | `카톡 다리` 저장소 | 3차 | V3-KAKAO-001~010의 다리 쪽 | 위와 같음. 그 저장소의 브랜치 규칙은 시작 때 확인함 |
 | `feature/v3-appointment` | 4차 | V3-APPT-001~007, V3-COMMON-003 | 바로(서버), 화면 승인 뒤(프론트) |

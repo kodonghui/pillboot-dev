@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
-import { askQuestion, getChatMessages, retryQuestion } from '../api/chat.js'
+import { askQuestionStream, getChatMessages, retryQuestion } from '../api/chat.js'
 import { errorOf } from '../api/client.js'
 import { messageTime, sendTime, splitAnswer } from '../chatInfo.js'
 import { paths } from '../paths.js'
@@ -26,6 +26,14 @@ const checkViews = {
   checking: { icon: 'wifiOff', title: '연결이 끊겼어요. 질문과 답변이 저장됐는지 확인할게요.' },
   unknown: { icon: 'clock', title: '대화 상태를 확인하고 있어요.', text: '확인이 끝나면 답변을 보여 드릴게요.' },
   failed: { icon: 'alertCircle', title: '대화 상태를 확인하지 못했어요.', text: '질문과 입력 중인 내용은 그대로 있어요.' },
+}
+
+// 답변 진행 단계(V3-CHAT-008, design/v3-2-chat-progress.md). now: 지금 단계 · done: 지나온 단계
+const stageNames = {
+  UNDERSTANDING: { now: '질문 살펴보는 중', done: '질문 살펴보기' },
+  FINDING_DRUG: { now: '약 찾는 중', done: '약 찾기' },
+  CHECKING: { now: '공식 자료·금기 확인하는 중', done: '공식 자료·금기 확인' },
+  WRITING: { now: '답 정리하는 중', done: '답 정리' },
 }
 
 // 서버 메시지. 답변은 본문과 근거를 나눠 둔다.
@@ -137,32 +145,57 @@ function BlockedNote({ note }) {
   )
 }
 
-// 답을 기다리는 말풍선(목업 CHT-02-02). 기다림 표시(v3-1-wait-indicator): 2초부터 "답변 만드는 중 · N초",
+// 답을 기다리는 말풍선(목업 CHT-02-02). 기다림 표시(v3-1-wait-indicator): 2초 전에는 "답변을 만드는 중…"만,
 // 15초부터 오래 걸린다는 안내를 더한다. 질문을 보낼 때 나타나므로 나타난 때부터 센다.
-// onGrow: 글이 바뀌어 말풍선 높이가 달라질 수 있을 때 부른다(맨 아래를 보고 있었으면 따라 내려가게).
-function Waiting({ onGrow }) {
+// 2초부터는 서버가 알린 단계를 목록으로 보인다(DEC-022 B안): 지나온 단계는 체크, 지금 단계는 도는 아이콘과 경과 초.
+// 아직 단계를 받지 못했으면 1차처럼 "답변 만드는 중 · N초" 한 줄이다. 앞으로 올 단계는 질문마다 건너뛰는 것이 있어 미리 보이지 않는다.
+// stages: 받은 차례대로의 단계 · onGrow: 말풍선 높이가 달라질 수 있을 때 부른다(맨 아래를 보고 있었으면 따라 내려가게).
+function Waiting({ stages, onGrow }) {
   const seconds = useElapsedSeconds()
   const shown = seconds >= waitShowAfter
   const slow = seconds >= waitSlowAfter
+  const steps = shown ? stages.filter((stage) => stageNames[stage]) : []
 
   useLayoutEffect(() => {
     if (shown || slow) onGrow()
-  }, [shown, slow, onGrow])
+  }, [shown, slow, steps.length, onGrow])
 
   return (
     <div className="chat-msg chat-msg--answer">
       <p className="visually-hidden">약봉이의 답변</p>
       <div className="chat-msg__answer chat-room__waiting" role="status">
-        <Icon name="loader" className="icon--spin" />
-        <p className="screen-body chat-room__strong">
-          {shown ? (
-            <>
-              답변 만드는 중 <WaitSeconds seconds={seconds} />
-            </>
-          ) : (
-            '답변을 만드는 중…'
-          )}
-        </p>
+        {steps.length > 0 ? (
+          <ol className="chat-room__steps">
+            {steps.map((stage, index) =>
+              index < steps.length - 1 ? (
+                <li className="chat-room__step chat-room__step--done" key={stage}>
+                  <Icon name="check" />
+                  <span className="screen-body">{stageNames[stage].done}</span>
+                </li>
+              ) : (
+                <li className="chat-room__step chat-room__step--now" key={stage}>
+                  <Icon name="loader" className="icon--spin" />
+                  <span className="screen-body chat-room__strong">
+                    {stageNames[stage].now} <WaitSeconds seconds={seconds} />
+                  </span>
+                </li>
+              ),
+            )}
+          </ol>
+        ) : (
+          <>
+            <Icon name="loader" className="icon--spin" />
+            <p className="screen-body chat-room__strong">
+              {shown ? (
+                <>
+                  답변 만드는 중 <WaitSeconds seconds={seconds} />
+                </>
+              ) : (
+                '답변을 만드는 중…'
+              )}
+            </p>
+          </>
+        )}
         {slow && <p className="screen-caption wait-slow chat-room__slow">{slowWaitText}</p>}
       </div>
     </div>
@@ -221,6 +254,8 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   const [notSaved, setNotSaved] = useState(false)
   // 답을 기다리는 질문. { kind: 'ask', content, at } · { kind: 'retry', messageId }
   const [pending, setPending] = useState(null)
+  // 기다리는 질문의 답을 만드는 동안 서버가 알린 단계(V3-CHAT-008). 받은 차례대로
+  const [stages, setStages] = useState([])
   // 저장되지 않은 질문과 안내. afterTurn: 보낼 때의 마지막 턴(그 뒤에 보인다)
   const [notes, setNotes] = useState([])
   // 대화 상태 확인. { phase, sentAt, content?, at?, baseTurn?, messageId?, busy? }
@@ -229,6 +264,8 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   // 이전 대화: null(아직 안 불러옴) · 'loading' · 'failed' · 'loaded'
   const [older, setOlder] = useState(null)
   const aliveRef = useRef(false)
+  // 화면을 떠나면 끊는 신호. 답을 기다리던 연결을 닫는다(서버는 답을 끝까지 만들어 저장한다).
+  const leaveRef = useRef(null)
   const timersRef = useRef({ check: 0 })
   const msgsRef = useRef(null)
   // 메시지 영역 스크롤. follow: 맨 아래를 보고 있음(처음에는 맨 아래부터 보여 준다) · top: 마지막 위치 · shown: 처음 맨 아래로 내렸음
@@ -239,9 +276,12 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   useEffect(() => {
     aliveRef.current = true
     const timers = timersRef.current
+    const leave = new AbortController()
+    leaveRef.current = leave
     return () => {
       aliveRef.current = false
       clearTimeout(timers.check)
+      leave.abort()
     }
   }, [])
 
@@ -376,13 +416,18 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   }
 
   // 질문 보내기(목업 CHT-02-02). 입력창은 비워 다음 질문을 쓸 수 있게 하고, 답이 오면 같은 턴에 붙인다.
+  // 답을 기다리는 동안 서버가 알린 단계를 받아 둔다(V3-CHAT-008). 결과 · 오류는 JSON 경로와 같아 처리도 같다.
   // baseTurn: 보낼 때의 마지막 턴. 연결이 끊겼을 때 이보다 뒤의 질문이 대화에 있으면 저장된 것이다.
   const ask = (content, baseTurn) => {
     const text = content.trim()
     const { at, ms: sentAt } = sendTime()
     setPending({ kind: 'ask', content: text, at })
+    setStages([])
     setNotSaved(false)
-    askQuestion(sessionId, text)
+    const onStage = (stage) => {
+      if (aliveRef.current) setStages((list) => (list.includes(stage) ? list : [...list, stage]))
+    }
+    askQuestionStream(sessionId, text, { onStage, signal: leaveRef.current?.signal })
       .then((result) => {
         if (!aliveRef.current) return
         setPending(null)
@@ -719,7 +764,7 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
         {pending?.kind === 'ask' && (
           <div className="chat-room__turn">
             <Question content={pending.content} time={messageTime(pending.at)} />
-            <Waiting onGrow={followEnd} />
+            <Waiting stages={stages} onGrow={followEnd} />
           </div>
         )}
         {check && !check.messageId && (
