@@ -26,6 +26,8 @@ if ($UpgradeExisting) {
     $sqlFiles += '01_PILLBADEUM_DB_SCRIPT.sql'
 }
 $sqlFiles += '13_BASE_CONSENT.sql'
+# V3-DRUG-001: the strength columns are already in 01; existing databases add them after 13.
+if ($UpgradeExisting) { $sqlFiles += '14_DRUG_STRENGTH.sql' }
 if ($IncludeTestData) { $sqlFiles += '02_PILLBADEUM_TEST_DATA.sql' }
 $sqlPaths = $sqlFiles | ForEach-Object { Join-Path $projectRoot "sql/$_" }
 foreach ($sqlPath in $sqlPaths) {
@@ -73,7 +75,7 @@ $sqlText += @'
 
 SELECT IF(
     (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE())=18
-    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE())=146
+    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE())=150
     AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
          AND table_name='drug' AND column_name='material' AND data_type='text' AND is_nullable='NO')=1,
     'READY','BLOCKED') AS current_schema_status;
@@ -93,11 +95,11 @@ if ($setupOutput -contains 'BLOCKED') {
 }
 
 Write-Host ''
-Write-Host 'Current schema is ready: 18 tables, 146 columns, drug.material TEXT; signup policies ready.'
+Write-Host 'Current schema is ready: 18 tables, 150 columns, drug.material TEXT; signup policies ready.'
 if ($UpgradeExisting) {
-    Write-Host 'Applied changes 03-12 and signup policies 13. No sample accounts or drugs were inserted.'
+    Write-Host 'Applied changes 03-12, signup policies 13 and drug strength 14. No sample accounts or drugs were inserted.'
 } else {
-    Write-Host 'Created the current schema using 00, 01 and signup policies 13. Changes 03-12 are not needed for a new database.'
+    Write-Host 'Created the current schema using 00, 01 and signup policies 13. Changes 03-12 and 14 are not needed for a new database.'
 }
 Write-Host 'Copy .env.example to .env if needed, then fill DB_USERNAME, DB_PASSWORD and JWT_SECRET.'
 Write-Host 'Run .\gradlew.bat bootRun from the project directory.'

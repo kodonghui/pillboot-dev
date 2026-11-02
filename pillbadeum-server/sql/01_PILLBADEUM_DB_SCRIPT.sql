@@ -1,5 +1,5 @@
--- 최신 신규 설치용 MySQL 구조:18개 테이블·146개 컬럼임. 대상 DB를 선택한 뒤 전체 실행함.
--- 현재 적용된03~12의 구조를 통합함. drug.material은 처음부터TEXT NOT NULL임. 가입 기본 약관은13에서 준비함.
+-- 최신 신규 설치용 MySQL 구조:18개 테이블·150개 컬럼임. 대상 DB를 선택한 뒤 전체 실행함.
+-- 현재 적용된03~12·14의 구조를 통합함. drug.material은 처음부터TEXT NOT NULL임. 가입 기본 약관은13에서 준비함.
 -- 새 DB는00 → 01, 샘플이 필요할 때만02를 실행함.03~11을 다시 적용할 필요가 없음.
 -- 기존 DB는01로 업그레이드하지 않으며 필요한03~11 패치만 실행함.
 -- CREATE IF NOT EXISTS는 기존 값/테이블을 보존할 뿐 기존 컬럼 구조를 갱신하지 않음.
@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS `drug` (
   `synced_at` datetime NOT NULL,
   `metadata_source` varchar(20) NOT NULL DEFAULT 'UNKNOWN',
   `cancelled` tinyint(1) DEFAULT NULL,
+  `base_name` varchar(50) DEFAULT NULL COMMENT '함량·괄호 성분명을 뗀 기본 이름',
+  `strength_text` varchar(50) DEFAULT NULL COMMENT '품목명의 함량 원문',
+  `strength_ug` decimal(20,4) DEFAULT NULL COMMENT '단일 성분 질량 함량의 μg 값',
+  `strength_unit` varchar(10) DEFAULT NULL COMMENT '함량 표시 단위(mg·μg·g)',
   PRIMARY KEY (`item_seq`),
   CONSTRAINT `chk_drug_type` CHECK ((`etc_otc` in (_utf8mb4'ETC',_utf8mb4'OTC')))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
