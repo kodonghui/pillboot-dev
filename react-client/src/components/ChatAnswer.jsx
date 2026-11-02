@@ -1,9 +1,21 @@
-import { Fragment, useId, useState } from 'react'
+import { Fragment, useId, useLayoutEffect, useRef, useState } from 'react'
 import { answerBlocks, boldParts, durTypes, messageTime, sourceGroups, sourceLabels } from '../chatInfo.js'
 import { isDate } from '../dates.js'
 import { dotDate } from '../text.js'
 import Icon from './Icon.jsx'
+import { closeOnFocusOut, useDismiss } from './useDismiss.js'
 import './ChatAnswer.css'
+
+// 설명 상자의 오른쪽 끝 한계(px): 화면 끝에서 16, 상자를 감싼 스크롤 영역(대화 목록)이 있으면 그 안쪽 끝에서 8 만큼 안.
+function popRightLimit(pop) {
+  let limit = document.documentElement.clientWidth - 16
+  for (let box = pop.parentElement; box; box = box.parentElement) {
+    if (getComputedStyle(box).overflowX === 'visible') continue
+    limit = Math.min(limit, box.getBoundingClientRect().left + box.clientLeft + box.clientWidth - 8)
+    break
+  }
+  return limit
+}
 
 // 자료 갱신일 · 변경일. 날짜가 없거나 읽을 수 없으면 "날짜 확인 불가"다(목업 CHT-02-03).
 function dateText(date) {
@@ -20,6 +32,66 @@ function DrugNames({ names, separator }) {
   ))
 }
 
+// 금기 종류 배지와 뜻 설명 상자(v3-1-dur-tooltip A안, V3-COMMON-002). 배지를 누르면 바로 아래 작은 상자가 뜨고
+// 포커스는 상자의 닫기로 간다. ×·Esc 로 닫으면 배지로 포커스를 돌려주고, 바깥을 누르거나 포커스가 밖으로 나가면 그냥 닫는다.
+// 마우스를 올리기만 해서는 열지 않는다(휴대폰). 좁은 폭에서 상자가 오른쪽으로 넘치면 넘친 만큼 왼쪽으로 옮긴다(popRightLimit).
+function DurBadge({ type }) {
+  const [open, setOpen] = useState(false)
+  const wrapperRef = useRef(null)
+  const toggleRef = useRef(null)
+  const popRef = useRef(null)
+  const closeRef = useRef(null)
+  const popId = useId()
+  const titleId = useId()
+
+  useDismiss(open, setOpen, wrapperRef, toggleRef)
+
+  useLayoutEffect(() => {
+    const pop = popRef.current
+    if (!open || !pop) return
+    pop.style.left = '0px'
+    const over = pop.getBoundingClientRect().right - popRightLimit(pop)
+    if (over > 0) pop.style.left = `${-over}px`
+    closeRef.current.focus()
+  }, [open])
+
+  const close = () => {
+    setOpen(false)
+    toggleRef.current.focus()
+  }
+
+  return (
+    <span className="chat-answer__dur-anchor" ref={wrapperRef} onBlur={closeOnFocusOut(setOpen)}>
+      <button
+        ref={toggleRef}
+        className={`mt-badge chat-answer__dur-badge chat-answer__dur-badge--${type.tone} chat-answer__dur-toggle`}
+        type="button"
+        aria-expanded={open}
+        aria-controls={open ? popId : undefined}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {type.label}
+        <Icon name="info" size="s" />
+        <span className="visually-hidden"> 설명 보기</span>
+      </button>
+      {open && (
+        <div className="chat-answer__dur-pop" id={popId} ref={popRef} role="dialog" aria-labelledby={titleId}>
+          <div className="chat-answer__dur-pop-head">
+            <p className="screen-label" id={titleId}>
+              {type.label}란?
+            </p>
+            <button className="chat-answer__dur-pop-close" ref={closeRef} type="button" aria-label="설명 닫기" onClick={close}>
+              <Icon name="close" size="s" />
+            </button>
+          </div>
+          <p className="screen-caption">{type.meaning}</p>
+          <p className="screen-caption chat-answer__dur-pop-note">일반적인 뜻이에요. 내 경우는 의사·약사에게 확인해 주세요.</p>
+        </div>
+      )}
+    </span>
+  )
+}
+
 // 금기 정보 경고 카드 하나(목업 CHT-02-04 · 15). 병용금기는 두 약을 + 로 묶고, 나머지는 경고마다 카드를 나눈다.
 function DurCard({ item, type }) {
   return (
@@ -27,7 +99,7 @@ function DurCard({ item, type }) {
       <div className="chat-answer__dur-head">
         <Icon name="alertTriangle" size="l" />
         <h3 className="screen-item">{type.title}</h3>
-        <span className={`mt-badge chat-answer__dur-badge chat-answer__dur-badge--${type.tone}`}>{type.label}</span>
+        <DurBadge type={type} />
       </div>
       <p className="screen-body chat-answer__dur-names">
         <DrugNames names={item.drugNames} separator=" + " />

@@ -173,16 +173,36 @@ export function boldParts(text) {
 }
 
 // 금기 정보 종류(DurLookup.Type). tone 은 카드 색이다(목업 노인주의만 주의, 나머지는 위험).
+// meaning: 종류 배지를 누르면 보이는 일반적인 뜻(design/v3-1-dur-tooltip.md, V3-COMMON-002). 화면에 고정해 둔 글이다.
 export const durTypes = {
   INTERACTION: {
     label: '병용금기',
     title: '같이 먹으면 안 돼요',
     tone: 'negative',
     closing: '함께 드시기 전에 의사·약사에게 확인해 주세요.',
+    meaning: '함께 먹으면 부작용이 커지거나 약효가 달라질 수 있어 같이 먹지 않도록 정한 약 조합이에요.',
   },
-  AGE: { label: '연령금기', title: '연령금기 정보가 있어요', tone: 'negative', closing: '의사·약사에게 확인해 주세요.' },
-  ELDERLY: { label: '노인주의', title: '노인주의 정보가 있어요', tone: 'caution', closing: '의사·약사에게 확인해 주세요.' },
-  PREGNANCY: { label: '임부금기', title: '임부금기 정보가 있어요', tone: 'negative', closing: '의사·약사에게 확인해 주세요.' },
+  AGE: {
+    label: '연령금기',
+    title: '연령금기 정보가 있어요',
+    tone: 'negative',
+    closing: '의사·약사에게 확인해 주세요.',
+    meaning: '특정 나이(주로 어린이)에게 쓰면 위험할 수 있어 그 나이에는 먹지 않도록 정한 약이에요.',
+  },
+  ELDERLY: {
+    label: '노인주의',
+    title: '노인주의 정보가 있어요',
+    tone: 'caution',
+    closing: '의사·약사에게 확인해 주세요.',
+    meaning: '65세 이상 어르신이 먹을 때 부작용이 더 잘 생길 수 있어 주의가 필요한 약이에요.',
+  },
+  PREGNANCY: {
+    label: '임부금기',
+    title: '임부금기 정보가 있어요',
+    tone: 'negative',
+    closing: '의사·약사에게 확인해 주세요.',
+    meaning: '임신 중에 먹으면 태아에게 해로울 수 있어 피해야 하는 약이에요.',
+  },
 }
 
 // 추천 질문(목업 CHT-01). 목업의 약 이름이 든 두 질문은 사람마다 약이 달라 넣지 않았다.

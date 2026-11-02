@@ -96,6 +96,80 @@
   color: var(--label-status-cautionary);
 }
 
+/* 금기 종류 배지를 누르면 뜻 설명 상자(v3-1-dur-tooltip A안). 배지 모양은 그대로, 누르는 범위는 위아래로 넓혀 44px */
+.chat-answer__dur-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.chat-answer__dur-toggle {
+  position: relative;
+  gap: var(--space-4);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.chat-answer__dur-toggle::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--space-10) * -1) calc(var(--space-4) * -1);
+}
+
+.chat-answer__dur-toggle:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: var(--space-2);
+}
+
+.chat-answer__dur-pop {
+  position: absolute;
+  top: calc(100% + var(--space-8));
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 96px));
+  padding: var(--space-12) var(--space-14) var(--space-14);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-lg);
+  background: var(--background-elevated);
+  box-shadow: var(--shadow-large);
+  color: var(--label-normal);
+}
+
+.chat-answer__dur-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  margin: calc(var(--space-4) * -1) calc(var(--space-6) * -1) 0 0;
+}
+
+/* 44px 닫기. 상자 모서리 여백 안으로 당겨 상자를 키우지 않는다. */
+.chat-answer__dur-pop-close {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: calc(var(--space-10) * -1) calc(var(--space-10) * -1) calc(var(--space-10) * -1) 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--label-neutral);
+  cursor: pointer;
+}
+
+.chat-answer__dur-pop-close:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: calc(var(--space-2) * -1);
+}
+
+.chat-answer__dur-pop-note {
+  color: var(--label-alternative);
+}
+
 /* 일부 약 확인 못 함 · 경고 없음 안내의 두 줄(목업 .dur-b 6px) */
 .chat-answer__note {
   gap: var(--space-6);
