@@ -7,18 +7,36 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 
-/** CHAT-004: 외부 작업이 공유하는 종료 시점이다. 시간 초과 후 완료된 작업에서 DB를 쓰지 않게 한다. */
+/**
+ * CHAT-004: 외부 작업이 공유하는 종료 시점이다. 시간 초과 후 완료된 작업에서 DB를 쓰지 않게 한다.
+ * V3-CHAT-008: 같은 질문의 모든 단계·작업 스레드로 함께 넘어가므로 진행 단계 알림도 여기에 싣는다.
+ */
 public final class ChatDeadline {
     private final long endsAt;
+    private final ChatProgress progress;
 
-    private ChatDeadline(long endsAt) { this.endsAt = endsAt; }
+    private ChatDeadline(long endsAt, ChatProgress progress) {
+        this.endsAt = endsAt;
+        this.progress = progress;
+    }
 
     public static ChatDeadline after(Duration budget) {
-        return new ChatDeadline(System.nanoTime() + budget.toNanos());
+        return new ChatDeadline(System.nanoTime() + budget.toNanos(), ChatProgress.NONE);
     }
 
     public ChatDeadline within(Duration limit) {
-        return new ChatDeadline(Math.min(endsAt, System.nanoTime() + limit.toNanos()));
+        return new ChatDeadline(Math.min(endsAt, System.nanoTime() + limit.toNanos()), progress);
+    }
+
+    /** 같은 종료 시점에 진행 단계 알림을 붙인다. */
+    public ChatDeadline reporting(ChatProgress progress) {
+        return new ChatDeadline(endsAt, progress == null ? ChatProgress.NONE : progress);
+    }
+
+    /** 진행 단계를 알린다. 화면 연결이 끊겨 알림이 실패해도 답변 만들기·저장은 그대로 이어 간다. */
+    public void stage(ChatStage stage) {
+        try { progress.stage(stage); }
+        catch (RuntimeException ignored) { }
     }
 
     public void check() {
