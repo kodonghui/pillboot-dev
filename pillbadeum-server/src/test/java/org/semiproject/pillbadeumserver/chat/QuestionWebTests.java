@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.semiproject.pillbadeumserver.chat.service.QuestionClassifier;
+import org.semiproject.pillbadeumserver.chat.service.QuestionIntent;
+import org.semiproject.pillbadeumserver.chat.service.QuestionIntentReader;
 import org.semiproject.pillbadeumserver.chat.service.QuestionPlan;
 import org.semiproject.pillbadeumserver.chat.service.ChatAnswerService;
 import org.semiproject.pillbadeumserver.chat.service.AnswerFailedException;
@@ -53,10 +55,13 @@ class QuestionWebTests {
     @MockitoBean QuestionStore store;
     @MockitoBean QuestionClassifier classifier;
     @MockitoBean ChatAnswerService answers;
+    @MockitoBean QuestionIntentReader intents;
 
     @BeforeEach
     void ownedRoom() {
         when(store.checkAccess(42L, 7L)).thenReturn(10L);
+        when(store.classificationContext(42L, 7L, 10L)).thenReturn(QuestionClassifier.Context.empty());
+        when(intents.read(any(), any(), any())).thenReturn(QuestionIntent.question());
     }
 
     @Test

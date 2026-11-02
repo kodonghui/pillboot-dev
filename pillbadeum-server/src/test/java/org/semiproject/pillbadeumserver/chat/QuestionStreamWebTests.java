@@ -17,6 +17,8 @@ import org.semiproject.pillbadeumserver.chat.service.ChatAnswerService;
 import org.semiproject.pillbadeumserver.chat.service.ChatDeadline;
 import org.semiproject.pillbadeumserver.chat.service.ChatStage;
 import org.semiproject.pillbadeumserver.chat.service.QuestionClassifier;
+import org.semiproject.pillbadeumserver.chat.service.QuestionIntent;
+import org.semiproject.pillbadeumserver.chat.service.QuestionIntentReader;
 import org.semiproject.pillbadeumserver.chat.service.QuestionPlan;
 import org.semiproject.pillbadeumserver.chat.service.QuestionService;
 import org.semiproject.pillbadeumserver.chat.service.QuestionStore;
@@ -72,6 +74,7 @@ class QuestionStreamWebTests {
     @MockitoBean QuestionStore store;
     @MockitoBean QuestionClassifier classifier;
     @MockitoBean ChatAnswerService answers;
+    @MockitoBean QuestionIntentReader intents;
 
     @TestConfiguration
     static class Threads {
@@ -93,6 +96,8 @@ class QuestionStreamWebTests {
     @BeforeEach
     void ownedRoom() {
         when(store.checkAccess(42L, 7L)).thenReturn(10L);
+        when(store.classificationContext(42L, 7L, 10L)).thenReturn(QuestionClassifier.Context.empty());
+        when(intents.read(any(), any(), any())).thenReturn(QuestionIntent.question());
     }
 
     @Test

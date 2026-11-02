@@ -45,16 +45,20 @@ public class QuestionStore {
         return session.getProfileId();
     }
 
-    /** 저장 전 분류에 필요한 같은 방의 최근 질문2개와 현재 품목 이름만 읽는다. 건강 사본은 보내지 않는다. */
+    /**
+     * 저장 전 분류에 필요한 같은 방의 최근 질문2개와 현재 품목 이름만 읽는다. 건강 사본은 보내지 않는다.
+     * 의도 가르기(V3-CHAT-001)용 약목록 이름도 같은 조회에서 함께 담는다.
+     */
     @Transactional(readOnly = true)
     public QuestionClassifier.Context classificationContext(Long sessionId, Long memberId, Long profileId) {
         if (!Objects.equals(checkAccess(sessionId, memberId), profileId)) throw new NotFoundException("프로필을 찾을 수 없습니다.");
         var turns = messages.findHistoryTurns(sessionId, null, org.springframework.data.domain.PageRequest.of(0, 2));
         var previous = turns.isEmpty() ? java.util.List.<String>of() : messages.findHistoryMessages(sessionId, turns).stream()
                 .filter(message -> "user".equals(message.getRole())).map(ChatMessage::getContent).toList();
-        var products = medications.findAllWithDrugByProfileId(profileId).stream().filter(m -> m.getDrug() != null)
-                .limit(10).map(m -> m.getDrug().getItemSeq() + " " + m.getDrug().getName()).toList();
-        return new QuestionClassifier.Context(previous, products);
+        var drugs = medications.findAllWithDrugByProfileId(profileId).stream().filter(m -> m.getDrug() != null).toList();
+        var products = drugs.stream().limit(10).map(m -> m.getDrug().getItemSeq() + " " + m.getDrug().getName()).toList();
+        var names = drugs.stream().map(m -> m.getDrug().getName()).toList();
+        return new QuestionClassifier.Context(previous, products, names);
     }
 
     /**

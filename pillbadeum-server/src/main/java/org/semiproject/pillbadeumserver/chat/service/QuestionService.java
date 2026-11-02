@@ -17,12 +17,15 @@ public class QuestionService {
     private final QuestionStore store;
     private final QuestionClassifier classifier;
     private final ChatAnswerService answers;
+    private final QuestionIntentReader intents;
     private final Set<Long> inProgress = ConcurrentHashMap.newKeySet();
 
-    public QuestionService(QuestionStore store, QuestionClassifier classifier, ChatAnswerService answers) {
+    public QuestionService(QuestionStore store, QuestionClassifier classifier, ChatAnswerService answers,
+                           QuestionIntentReader intents) {
         this.store = store;
         this.classifier = classifier;
         this.answers = answers;
+        this.intents = intents;
     }
 
     /**
@@ -60,8 +63,12 @@ public class QuestionService {
         return new Turn(sessionId, deadline, reported -> {
             reported.check();
             reported.stage(ChatStage.UNDERSTANDING);
-            var plan = classifier.plan(question, store.classificationContext(sessionId, memberId, profileId));
+            var context = store.classificationContext(sessionId, memberId, profileId);
+            var plan = classifier.plan(question, context);
             if (!plan.category().isPassed()) return QuestionResponse.blocked(plan.category());
+            // V3-CHAT-001: 통과한 질문만 의도를 가른다. 등록 제안(V3-CHAT-002)·일정 제안(V3-CHAT-007)을 붙이기 전까지는
+            // 모든 의도가 기존 답변 흐름을 탄다.
+            intents.read(question, context.myDrugNames(), reported);
             reported.check();
             var saved = store.save(sessionId, memberId, profileId, question);
             return QuestionResponse.answered(saved, answers.complete(sessionId, memberId, profileId, saved, reported, plan));
