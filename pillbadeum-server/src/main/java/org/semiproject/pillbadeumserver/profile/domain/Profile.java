@@ -13,6 +13,9 @@ import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 @Table(name = "profile")
 public class Profile {
 
+    /** 만들기 · 고치기가 함께 쓰는 관계 값 목록. OTHER 는 v3 '지인·기타'(V3-COMMON-004). 저장 칸은 varchar(10). */
+    public static final String RELATIONSHIP_TYPES = "SELF|MOTHER|FATHER|DAUGHTER|SON|GRANDMA|GRANDPA|SPOUSE|OTHER";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "profile_id")
