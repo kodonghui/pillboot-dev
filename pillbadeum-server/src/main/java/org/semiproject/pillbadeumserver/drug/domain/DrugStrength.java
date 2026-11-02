@@ -26,10 +26,12 @@ public record DrugStrength(String baseName, String text, BigDecimal micrograms, 
     /** 농도·활성 단위처럼 값으로 비교하지 않는 표기. */
     public static final Pattern COMPLEX = Pattern.compile("(?:%|퍼센트|mEq|IU|국제단위|단위|/(?:" + NUMBER + ")?(?:mL|L|그램|그람|g))",
             Pattern.CASE_INSENSITIVE);
+    private static final String VOLUME_UNIT = "밀리리터|리터|mL|L";
     // 숫자 중간(1,000mg의 000mg, .5mg의 5mg)에서 시작하지 않음. 읽지 못하는 숫자 표기는 함량 없음으로 둠.
+    // 농도의 분모(/mL, /5밀리리터)까지 한 함량으로 읽어 분자만 질량으로 보지 않음.
     private static final Pattern TOKEN = Pattern.compile("(?<![0-9.,])" + NUMBER + "(?:\\s*[/+]\\s*" + NUMBER + ")*\\s*"
-            + "(?:" + MASS_UNIT + "|%|퍼센트|mEq|IU|국제단위|단위|mL|L)"
-            + "(?:\\s*/\\s*(?:" + NUMBER + ")?\\s*(?:mL|L|그램|그람|g))?(?![a-zA-Z])", Pattern.CASE_INSENSITIVE);
+            + "(?:" + MASS_UNIT + "|%|퍼센트|mEq|IU|국제단위|단위|" + VOLUME_UNIT + ")"
+            + "(?:\\s*/\\s*(?:" + NUMBER + ")?\\s*(?:" + VOLUME_UNIT + "|그램|그람|g))?(?![a-zA-Z])", Pattern.CASE_INSENSITIVE);
     private static final Pattern PARENTHESES = Pattern.compile("\\([^)]*\\)?");
 
     private static final DrugStrength EMPTY = new DrugStrength(null, null, null, null);
@@ -101,6 +103,7 @@ public record DrugStrength(String baseName, String text, BigDecimal micrograms, 
                 .replace("마이크로그램", "mcg").replace("마이크로그람", "mcg")
                 .replace("밀리그램", "mg").replace("밀리그람", "mg")
                 .replace("그램", "g").replace("그람", "g")
+                .replace("밀리리터", "ml").replace("리터", "l")
                 .replace("μg", "mcg").replace("ug", "mcg");
     }
 }

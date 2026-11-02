@@ -45,6 +45,9 @@ class DrugStrengthTests {
         "○○정 500/125mg                         | ○○정                     | 500/125mg     | -       | -",
         "아모잘탄정5/50밀리그램                   | 아모잘탄정                 | 5/50밀리그램    | -       | -",
         "합성시럽100mg/5mL                       | 합성시럽                  | 100mg/5mL     | -       | -",
+        "합성액100밀리그램/밀리리터                | 합성액                    | 100밀리그램/밀리리터 | -  | -",
+        "합성액100mg/5밀리리터                    | 합성액                    | 100mg/5밀리리터 | -      | -",
+        "합성시럽100밀리리터                      | 합성시럽                  | 100밀리리터     | -       | -",
         "후시딘연고2%(퓨시드산나트륨)              | 후시딘연고                 | 2%            | -       | -",
         "인슐린주100단위/mL                       | 인슐린주                  | 100단위/mL     | -       | -",
         "게보린정(아세트아미노펜,카페인무수물)      | 게보린정                  | -             | -       | -",
@@ -80,6 +83,8 @@ class DrugStrengthTests {
         "합성정          | 합성정10mg             | UNKNOWN",
         "합성정10mg       | 합성정                 | UNKNOWN",
         "합성정0mg        | 합성정1,000mg          | UNKNOWN",
+        "합성액100mg      | 합성액100밀리그램/밀리리터 | DIFFERENT",
+        "합성액100mg/5mL  | 합성액100밀리그램/5밀리리터 | MATCH",
         "합성정5mg        | 합성정.5mg             | UNKNOWN",
     })
     void comparesStrengthByMicrogramsOrCanonicalText(String wanted, String candidate, StrengthMatch expected) {
@@ -130,6 +135,19 @@ class DrugStrengthTests {
         assertThat(page.getContent()).extracting(DrugSearchResponse::strengthMatch)
                 .containsExactly(StrengthMatch.MATCH, StrengthMatch.DIFFERENT, StrengthMatch.DIFFERENT);
         assertThat(page.getTotalElements()).isEqualTo(3);
+    }
+
+    @Test
+    void koreanConcentrationQuerySearchesTheBaseNameAndComparesTheWholeConcentration() {
+        var queries = recordQueries(Map.of("합성액", List.of("합성액100밀리그램/밀리리터", "합성액100mg/5mL")));
+
+        var page = search.search("합성액100mg/5밀리리터", PageRequest.of(0, 10));
+
+        assertThat(queries).containsExactly("합성액");
+        assertThat(page.getContent()).extracting(DrugSearchResponse::name)
+                .containsExactly("합성액100mg/5mL", "합성액100밀리그램/밀리리터");
+        assertThat(page.getContent()).extracting(DrugSearchResponse::strengthMatch)
+                .containsExactly(StrengthMatch.MATCH, StrengthMatch.DIFFERENT);
     }
 
     @Test
