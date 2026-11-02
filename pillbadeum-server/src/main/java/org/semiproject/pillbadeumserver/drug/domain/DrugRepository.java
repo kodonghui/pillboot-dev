@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
+import java.util.List;
 import java.util.Optional;
 
 /* 설명. drug 테이블 조회 · 저장
@@ -21,4 +22,7 @@ public interface DrugRepository extends JpaRepository<Drug, String> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from Drug d where d.itemSeq = :code")
     Optional<Drug> lockForDurRefresh(@Param("code") String code);
+
+    /** V3-DRUG-002: 함량을 아직 채우지 않은 행을 코드 순으로 조금씩 꺼낸다. */
+    List<Drug> findTop500ByBaseNameIsNullOrderByItemSeqAsc();
 }

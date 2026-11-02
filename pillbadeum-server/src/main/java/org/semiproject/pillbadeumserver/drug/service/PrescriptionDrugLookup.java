@@ -6,15 +6,16 @@ import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.Pattern;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
+import org.semiproject.pillbadeumserver.drug.domain.DrugStrength;
 import tools.jackson.databind.JsonNode;
 
 /** REG-003: 판독 원문을 보존하며 조회 표기만 바꾸고, 제품 함량·제형이 다른 후보를 제외함. */
 public final class PrescriptionDrugLookup {
-    private static final String NUMBER = "[0-9]+(?:\\.[0-9]+)?";
-    private static final Pattern MASS = Pattern.compile("(" + NUMBER + "(?:[/+]" + NUMBER + ")*)"
-            + "(마이크로그램|마이크로그람|밀리그램|밀리그람|그램|그람|mcg|μg|ug|mg|g)(?![a-z])", Pattern.CASE_INSENSITIVE);
+    // 함량 표기는 V3-DRUG-001 함량 분리(DrugStrength)와 같은 규칙을 씀.
+    private static final String NUMBER = DrugStrength.NUMBER;
+    private static final Pattern MASS = DrugStrength.MASS;
     private static final Pattern ADMINISTRATION = Pattern.compile("/" + NUMBER + "(?:정|캡슐|캅셀|포|개)$");
-    private static final Pattern COMPLEX = Pattern.compile("(?:%|퍼센트|mEq|IU|국제단위|단위|/(?:" + NUMBER + ")?(?:mL|L|그램|그람|g))", Pattern.CASE_INSENSITIVE);
+    private static final Pattern COMPLEX = DrugStrength.COMPLEX;
     private static final Pattern FORM = Pattern.compile("(캡슐|캅셀|정|시럽|과립|액|산)$");
     private static final Pattern PARTIAL_STRENGTH = Pattern.compile(".+(?:캡슐|캅셀|정|시럽|과립|액|산)"
             + NUMBER + "(?:[/+]" + NUMBER + ")*");

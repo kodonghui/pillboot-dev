@@ -2,6 +2,7 @@ package org.semiproject.pillbadeumserver.drug.dto;
 
 import org.semiproject.pillbadeumserver.drug.domain.Drug;
 import org.semiproject.pillbadeumserver.drug.domain.DrugSource;
+import org.semiproject.pillbadeumserver.drug.domain.DrugStrength;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrug;
 
 import java.time.LocalDate;
@@ -29,7 +30,9 @@ import java.util.List;
  *    "endDate": "2026-12-31",
  *    "source": "PRESCRIPTION_PHOTO",
  *    "sourceName": "처방전 사진",
- *    "registeredAt": "2026-10-10T09:00:00"
+ *    "registeredAt": "2026-10-10T09:00:00",
+ *    "baseName": "노바스크정",
+ *    "strengthText": "5밀리그램"
  *  }
  *  ----------------------------------------------------------------------------------
  *  - 엔티티를 그대로 내보내지 않고 이 DTO 로 옮긴다. (지연 로딩 · 엔티티 변경이 응답에 새지 않게)
@@ -49,7 +52,9 @@ public record MyDrugListResponse(
         LocalDate endDate,          // 복용 종료일
         DrugSource source,          // 등록 방법 코드
         String sourceName,          // 등록 방법 한글 (처방전 사진 등)
-        LocalDateTime registeredAt  // 등록 시각
+        LocalDateTime registeredAt, // 등록 시각
+        String baseName,            // V3-DRUG-004: 기본 이름 (직접 입력한 약은 null)
+        String strengthText         // V3-DRUG-004: 함량 원문 (없으면 null)
 ) {
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
@@ -61,6 +66,7 @@ public record MyDrugListResponse(
     public static MyDrugListResponse from(MyDrug myDrug, String fallbackImage) {
 
         Drug drug = myDrug.getDrug();
+        DrugStrength strength = drug == null ? null : drug.strength();
         String image = drug == null ? null : drug.getImageUrl();
         if (drug != null && (image == null || image.isBlank())) image = fallbackImage;
         List<String> doseTimes = myDrug.getDoseTimes().stream()
@@ -81,6 +87,8 @@ public record MyDrugListResponse(
                 myDrug.getEndDate(),
                 myDrug.getSource(),
                 myDrug.getSource().getDescription(),
-                myDrug.getRegisteredAt());
+                myDrug.getRegisteredAt(),
+                strength == null ? null : strength.baseName(),
+                strength == null ? null : strength.text());
     }
 }

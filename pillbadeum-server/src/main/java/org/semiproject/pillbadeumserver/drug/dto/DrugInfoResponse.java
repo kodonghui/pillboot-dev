@@ -1,6 +1,7 @@
 package org.semiproject.pillbadeumserver.drug.dto;
 
 import org.semiproject.pillbadeumserver.drug.domain.Drug;
+import org.semiproject.pillbadeumserver.drug.domain.DrugStrength;
 import org.semiproject.pillbadeumserver.drug.service.DrugSyncService;
 
 import java.time.LocalDateTime;
@@ -28,7 +29,9 @@ import java.time.LocalDateTime;
  *    "lineBack": null,
  *    "form": "정제",
  *    "sourceName": "식품의약품안전처 의약품 낱알식별 정보",
- *    "syncedAt": "2026-10-19T15:10:00"
+ *    "syncedAt": "2026-10-19T15:10:00",
+ *    "baseName": "노바스크정",
+ *    "strengthText": "5밀리그램"
  *  }
  *  ----------------------------------------------------------------------------------
  *  - material 은 성분명이다. (DB 컬럼 material, sql/03 에서 matrial 오타를 고침)
@@ -52,10 +55,13 @@ public record DrugInfoResponse(
         String lineBack,        // 뒷면 분할선
         String form,            // 제형 (정제 / 연질캡슐 / 경질캡슐 / 기타)
         String sourceName,      // 정보 출처
-        LocalDateTime syncedAt  // 공공데이터에서 가져온 시각
+        LocalDateTime syncedAt, // 공공데이터에서 가져온 시각
+        String baseName,        // V3-DRUG-004: 함량 · 괄호 성분명을 뗀 기본 이름
+        String strengthText     // V3-DRUG-004: 함량 원문 (없으면 null)
 ) {
 
     public static DrugInfoResponse from(Drug drug) {
+        DrugStrength strength = drug.strength();
         return new DrugInfoResponse(
                 drug.getItemSeq(),
                 drug.getName(),
@@ -73,7 +79,9 @@ public record DrugInfoResponse(
                 drug.getLineBack(),
                 drug.getForm(),
                 drug.metadataSourceName(),
-                drug.getSyncedAt());
+                drug.getSyncedAt(),
+                strength.baseName(),
+                strength.text());
     }
 
     private static String toEtcOtcName(String etcOtc) {

@@ -1,5 +1,8 @@
 package org.semiproject.pillbadeumserver.drug.dto;
 
+import org.semiproject.pillbadeumserver.drug.domain.DrugStrength;
+import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
+
 /* 설명. 약 이름 검색 결과 한 줄 (GET /api/drugs/search?name=&profileId=)
  *  ----------------------------------------------------------------------------------
  *  공공데이터 e약은요(getDrbEasyDrugList) 응답에서 화면에 필요한 값만 옮겨 담는다.
@@ -11,23 +14,48 @@ package org.semiproject.pillbadeumserver.drug.dto;
  *    "name": "가스디알정50밀리그램(디메크로틴산마그네슘)",
  *    "maker": "일동제약(주)",
  *    "imageUrl": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/...",
- *    "registered": false
+ *    "registered": false,
+ *    "baseName": "가스디알정",
+ *    "strengthText": "50밀리그램",
+ *    "strengthMatch": "UNKNOWN"
  *  }
  *  - imageUrl : 이미지가 없는 약이면 null
  *  - registered : 이 프로필의 내 약 목록에 이미 있으면 true (화면에서 '등록됨' 표시, 중복 등록 방지)
+ *  - baseName · strengthText : V3-DRUG-004. 품목명에서 뗀 기본 이름과 함량 원문 (함량이 없으면 strengthText = null)
+ *  - strengthMatch : V3-REG-001. 검색어 함량과 비교한 결과 (검색어에 함량이 없으면 UNKNOWN)
  * */
 public record DrugSearchResponse(
         String itemSeq,     // 품목기준코드 (e약은요 itemSeq)
         String name,        // 제품명 (itemName)
         String maker,       // 업체명 (entpName)
         String imageUrl,    // 낱알 이미지 (itemImage)
-        boolean registered  // 이 프로필에 이미 등록된 약인지
+        boolean registered, // 이 프로필에 이미 등록된 약인지
+        String baseName,    // 함량 · 괄호 성분명을 뗀 기본 이름
+        String strengthText, // 함량 원문
+        StrengthMatch strengthMatch // 검색어 함량과의 비교
 ) {
 
     /* 설명. 공공데이터 값은 앞뒤 공백이 섞여 오는 경우가 있어 정리하고, 빈 문자열은 null 로 바꾼다. */
     public static DrugSearchResponse of(String itemSeq, String name, String maker,
                                         String imageUrl, boolean registered) {
-        return new DrugSearchResponse(clean(itemSeq), clean(name), clean(maker), clean(imageUrl), registered);
+        String cleanName = clean(name);
+        DrugStrength strength = DrugStrength.parse(cleanName);
+        return new DrugSearchResponse(clean(itemSeq), cleanName, clean(maker), clean(imageUrl), registered,
+                strength.baseName(), strength.text(), StrengthMatch.UNKNOWN);
+    }
+
+    /** V3-REG-001: 검색어에서 뗀 함량과 이 후보의 함량을 비교해 붙인다. */
+    public DrugSearchResponse withStrengthMatch(DrugStrength wanted) {
+        return new DrugSearchResponse(itemSeq, name, maker, imageUrl, registered, baseName, strengthText,
+                wanted.matchOf(DrugStrength.parse(name)));
+    }
+
+    public DrugSearchResponse withRegistered(boolean value) {
+        return new DrugSearchResponse(itemSeq, name, maker, imageUrl, value, baseName, strengthText, strengthMatch);
+    }
+
+    public DrugSearchResponse withImageUrl(String value) {
+        return new DrugSearchResponse(itemSeq, name, maker, clean(value), registered, baseName, strengthText, strengthMatch);
     }
 
     private static String clean(String value) {
