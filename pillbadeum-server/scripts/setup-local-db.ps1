@@ -28,6 +28,8 @@ if ($UpgradeExisting) {
 $sqlFiles += '13_BASE_CONSENT.sql'
 # V3-DRUG-001: the strength columns are already in 01; existing databases add them after 13.
 if ($UpgradeExisting) { $sqlFiles += '14_DRUG_STRENGTH.sql' }
+# V3-CHAT-002: the chat proposal tables are already in 01; existing databases add them after 14.
+if ($UpgradeExisting) { $sqlFiles += '16_CHAT_PROPOSAL.sql' }
 if ($IncludeTestData) { $sqlFiles += '02_PILLBADEUM_TEST_DATA.sql' }
 $sqlPaths = $sqlFiles | ForEach-Object { Join-Path $projectRoot "sql/$_" }
 foreach ($sqlPath in $sqlPaths) {
@@ -74,8 +76,8 @@ $sqlText = ($sqlPaths | ForEach-Object {
 $sqlText += @'
 
 SELECT IF(
-    (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE())=18
-    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE())=150
+    (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE())=21
+    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE())=171
     AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
          AND table_name='drug' AND column_name='material' AND data_type='text' AND is_nullable='NO')=1,
     'READY','BLOCKED') AS current_schema_status;
@@ -95,11 +97,11 @@ if ($setupOutput -contains 'BLOCKED') {
 }
 
 Write-Host ''
-Write-Host 'Current schema is ready: 18 tables, 150 columns, drug.material TEXT; signup policies ready.'
+Write-Host 'Current schema is ready: 21 tables, 171 columns, drug.material TEXT; signup policies ready.'
 if ($UpgradeExisting) {
-    Write-Host 'Applied changes 03-12, signup policies 13 and drug strength 14. No sample accounts or drugs were inserted.'
+    Write-Host 'Applied changes 03-12, signup policies 13, drug strength 14 and chat proposals 16. No sample accounts or drugs were inserted.'
 } else {
-    Write-Host 'Created the current schema using 00, 01 and signup policies 13. Changes 03-12 and 14 are not needed for a new database.'
+    Write-Host 'Created the current schema using 00, 01 and signup policies 13. Changes 03-12, 14 and 16 are not needed for a new database.'
 }
 Write-Host 'Copy .env.example to .env if needed, then fill DB_USERNAME, DB_PASSWORD and JWT_SECRET.'
 Write-Host 'Run .\gradlew.bat bootRun from the project directory.'

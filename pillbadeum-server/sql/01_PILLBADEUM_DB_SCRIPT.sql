@@ -1,5 +1,5 @@
--- 최신 신규 설치용 MySQL 구조:18개 테이블·150개 컬럼임. 대상 DB를 선택한 뒤 전체 실행함.
--- 현재 적용된03~12·14의 구조를 통합함. drug.material은 처음부터TEXT NOT NULL임. 가입 기본 약관은13에서 준비함.
+-- 최신 신규 설치용 MySQL 구조:21개 테이블·171개 컬럼임. 대상 DB를 선택한 뒤 전체 실행함.
+-- 현재 적용된03~12·14·16의 구조를 통합함. drug.material은 처음부터TEXT NOT NULL임. 가입 기본 약관은13에서 준비함.
 -- 새 DB는00 → 01, 샘플이 필요할 때만02를 실행함.03~11을 다시 적용할 필요가 없음.
 -- 기존 DB는01로 업그레이드하지 않으며 필요한03~11 패치만 실행함.
 -- CREATE IF NOT EXISTS는 기존 값/테이블을 보존할 뿐 기존 컬럼 구조를 갱신하지 않음.
@@ -295,4 +295,63 @@ CREATE TABLE IF NOT EXISTS `vector_cleanup` (
   `session_id` bigint NOT NULL,
   `requested_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`session_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- chat_proposal 테이블을 생성함(V3-CHAT-002~005·007, 16과 같음). 기존 테이블은 그대로 유지함.
+CREATE TABLE IF NOT EXISTS `chat_proposal` (
+  `proposal_id` bigint NOT NULL AUTO_INCREMENT COMMENT '제안 고유 식별자',
+  `member_id` bigint NOT NULL COMMENT '제안을 받은 회원',
+  `profile_id` bigint NOT NULL COMMENT '제안 대상 프로필',
+  `message_id` bigint NOT NULL COMMENT '제안 카드를 보여 주는 약봉이 메시지',
+  `kind` varchar(12) NOT NULL COMMENT 'REGISTER(등록 제안) / SCHEDULE(일정 제안)',
+  `status` varchar(12) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING / CONFIRMED / CANCELLED / EXPIRED',
+  `created_at` datetime NOT NULL COMMENT '제안을 만든 시각',
+  `expires_at` datetime NOT NULL COMMENT '만든 뒤 30분. 이 시각부터 확정할 수 없음',
+  `decided_at` datetime DEFAULT NULL COMMENT '확정·취소·만료로 바뀐 시각. 대기 중에는 NULL',
+  PRIMARY KEY (`proposal_id`),
+  UNIQUE KEY `uq_chat_proposal_message` (`message_id`),
+  KEY `ix_chat_proposal_owner` (`member_id`,`profile_id`,`created_at`),
+  KEY `ix_chat_proposal_pending` (`status`,`expires_at`),
+  KEY `fk_chat_proposal_profile` (`profile_id`),
+  CONSTRAINT `fk_chat_proposal_member` FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_proposal_message` FOREIGN KEY (`message_id`) REFERENCES `chat_message` (`message_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_proposal_profile` FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`) ON DELETE CASCADE,
+  CONSTRAINT `ck_chat_proposal_decided` CHECK ((((`status` = _utf8mb4'PENDING') and (`decided_at` is null)) or ((`status` <> _utf8mb4'PENDING') and (`decided_at` is not null)))),
+  CONSTRAINT `ck_chat_proposal_expiry` CHECK ((`expires_at` > `created_at`)),
+  CONSTRAINT `ck_chat_proposal_kind` CHECK ((`kind` in (_utf8mb4'REGISTER',_utf8mb4'SCHEDULE'))),
+  CONSTRAINT `ck_chat_proposal_status` CHECK ((`status` in (_utf8mb4'PENDING',_utf8mb4'CONFIRMED',_utf8mb4'CANCELLED',_utf8mb4'EXPIRED')))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- chat_proposal_item 테이블을 생성함(등록 제안 항목, 16과 같음). 기존 테이블은 그대로 유지함.
+CREATE TABLE IF NOT EXISTS `chat_proposal_item` (
+  `proposal_id` bigint NOT NULL COMMENT '등록 제안',
+  `item_no` tinyint unsigned NOT NULL COMMENT '카드 안 순서 1~10',
+  `item_seq` varchar(100) NOT NULL COMMENT '후보 품목기준코드',
+  `mention` varchar(100) DEFAULT NULL COMMENT '대화·사진에서 읽은 이름·함량 원문',
+  `strength_match` varchar(10) NOT NULL COMMENT 'MATCH / DIFFERENT / UNKNOWN(V3-REG-002)',
+  `already_registered` tinyint(1) NOT NULL DEFAULT '0' COMMENT '만들 때 이미 약목록에 있어 고를 수 없음',
+  `chosen` tinyint(1) NOT NULL DEFAULT '0' COMMENT '확정 때 고른 항목',
+  `my_drug_id` bigint DEFAULT NULL COMMENT '확정으로 만든 약목록 약. 그 약을 지우면 NULL',
+  PRIMARY KEY (`proposal_id`,`item_no`),
+  UNIQUE KEY `uq_chat_proposal_item_drug` (`proposal_id`,`item_seq`),
+  UNIQUE KEY `uq_chat_proposal_item_my_drug` (`my_drug_id`),
+  KEY `fk_chat_proposal_item_drug` (`item_seq`),
+  CONSTRAINT `fk_chat_proposal_item_drug` FOREIGN KEY (`item_seq`) REFERENCES `drug` (`item_seq`),
+  CONSTRAINT `fk_chat_proposal_item_my_drug` FOREIGN KEY (`my_drug_id`) REFERENCES `my_drug` (`my_drug_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_chat_proposal_item_proposal` FOREIGN KEY (`proposal_id`) REFERENCES `chat_proposal` (`proposal_id`) ON DELETE CASCADE,
+  CONSTRAINT `ck_chat_proposal_item_choice` CHECK (((`chosen` <> 1) or (`already_registered` <> 1))),
+  CONSTRAINT `ck_chat_proposal_item_no` CHECK ((`item_no` between 1 and 10)),
+  CONSTRAINT `ck_chat_proposal_item_strength` CHECK ((`strength_match` in (_utf8mb4'MATCH',_utf8mb4'DIFFERENT',_utf8mb4'UNKNOWN')))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- chat_proposal_schedule 테이블을 생성함(일정 제안 내용, 16과 같음). 기존 테이블은 그대로 유지함.
+CREATE TABLE IF NOT EXISTS `chat_proposal_schedule` (
+  `proposal_id` bigint NOT NULL COMMENT '일정 제안',
+  `my_drug_id` bigint DEFAULT NULL COMMENT '일정을 바꿀 약목록 약. 그 약을 지우면 NULL',
+  `current_schedule` json NOT NULL COMMENT '만들 때의 일정(카드의 지금)',
+  `proposed_schedule` json NOT NULL COMMENT '해석한 일정(카드의 바뀐 뒤)',
+  PRIMARY KEY (`proposal_id`),
+  KEY `fk_chat_proposal_schedule_my_drug` (`my_drug_id`),
+  CONSTRAINT `fk_chat_proposal_schedule_my_drug` FOREIGN KEY (`my_drug_id`) REFERENCES `my_drug` (`my_drug_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_chat_proposal_schedule_proposal` FOREIGN KEY (`proposal_id`) REFERENCES `chat_proposal` (`proposal_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

@@ -36,6 +36,9 @@ public class PillDrugRegistrationService {
         profileAccessChecker.checkOwner(profileId);
         if (request != null && (request.source() == DrugSource.PILL_PHOTO || request.source() == DrugSource.PILL_CLUES))
             throw new BusinessException(ErrorCode.INVALID_INPUT, "알약 식별은 결과 ID와 선택 후보로 저장해 주세요.");
+        // V3-CHAT-003: 등록 방법 '대화'는 등록 제안 확정으로만 저장한다.
+        if (request != null && request.source() == DrugSource.CHAT)
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "대화로 찾은 약은 등록 제안 카드에서 확정해 주세요.");
         if (request == null || request.itemSeq() == null || request.itemSeq().isBlank()
                 || request.dosePerTime() == null || request.startDate() == null || request.endDate() == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
