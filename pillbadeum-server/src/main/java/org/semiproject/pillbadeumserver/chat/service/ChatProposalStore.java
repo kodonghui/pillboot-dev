@@ -18,22 +18,31 @@ import java.util.Optional;
 import org.semiproject.pillbadeumserver.chat.dto.ChatProposalResponse;
 import org.semiproject.pillbadeumserver.chat.dto.QuestionResponse;
 import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
+import org.semiproject.pillbadeumserver.drug.domain.DrugRegistered;
+import org.semiproject.pillbadeumserver.drug.domain.DrugSource;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.image.service.ImageKeywordRegistrationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * V3-CHAT-002~005: 제안 표(SQL 16)를 읽고 쓴다. 카드를 보여 주는 약봉이 메시지와 같은 트랜잭션에서 만들고,
  * 읽을 때는 로그인 회원의 제안만 돌려준다(다른 회원 것은 없는 것과 같음, V3-COMMON-003).
+ * 상태는 "대기이고 만료 전"인 행만 바꾸는 조건부 UPDATE 한 줄로 바꾼다(SQL 16). 바뀐 행이 0이면 호출자가 409로 답한다.
  */
 @Service
 public class ChatProposalStore {
+    private static final Logger log = LoggerFactory.getLogger(ChatProposalStore.class);
     static final Duration LIFETIME = Duration.ofMinutes(30);
+    private static final int EXPIRE_BATCH = 500;
     private static final String SELECT = """
             SELECT p.proposal_id, p.kind, p.status, p.profile_id, p.message_id, p.created_at, p.expires_at, p.decided_at,
                    i.item_no, i.item_seq, i.mention, i.strength_match, i.already_registered, i.chosen, i.my_drug_id,
@@ -48,13 +57,15 @@ public class ChatProposalStore {
     private final QuestionStore questions;
     private final MyDrugRepository medications;
     private final ImageKeywordRegistrationService drugCache;
+    private final ApplicationEventPublisher events;
 
     public ChatProposalStore(JdbcTemplate jdbc, QuestionStore questions, MyDrugRepository medications,
-                             ImageKeywordRegistrationService drugCache) {
+                             ImageKeywordRegistrationService drugCache, ApplicationEventPublisher events) {
         this.jdbc = jdbc;
         this.questions = questions;
         this.medications = medications;
         this.drugCache = drugCache;
+        this.events = events;
     }
 
     /**
@@ -92,6 +103,82 @@ public class ChatProposalStore {
         jdbc.batchUpdate("INSERT INTO chat_proposal_item(proposal_id, item_no, item_seq, mention, strength_match, "
                 + "already_registered) VALUES(?,?,?,?,?,?)", rows);
         return answer.withProposal(find(proposalId, memberId).orElseThrow());
+    }
+
+    /**
+     * V3-CHAT-003: 대기이고 만료 전인 등록 제안을 확정하고, 고른 항목만 등록 방법 '대화'로 약목록에 저장한다.
+     * 사진 선택 저장(items 계약)과 같은 프로필 잠금 아래에서 저장하고, 금기 미리 받기(COMMON-005)는 커밋 뒤에 한다.
+     * 하나라도 실패하면 상태 변경까지 모두 되돌린다.
+     *
+     * @param chosen 서비스가 카드와 맞춰 본 항목('이미 등록됨' 아님)
+     * @throws NotPending 이미 확정·취소됐거나 만료돼 바꾼 행이 없음
+     * @throws ChatProposalConflictException CONFLICT: 고른 약이 그사이 다른 경로로 약목록에 저장됨
+     */
+    @Transactional(timeout = 5)
+    public ChatProposalResponse confirmRegister(long proposalId, long memberId, long profileId,
+                                                List<ChatProposalResponse.Item> chosen) {
+        drugCache.lockProfile(profileId);
+        LocalDateTime now = now();
+        if (jdbc.update("UPDATE chat_proposal SET status = 'CONFIRMED', decided_at = ? WHERE proposal_id = ? "
+                + "AND member_id = ? AND kind = 'REGISTER' AND status = 'PENDING' AND expires_at > ?",
+                now, proposalId, memberId, now) == 0) throw new NotPending();
+        var codes = chosen.stream().map(ChatProposalResponse.Item::itemSeq).toList();
+        if (!registeredAmong(profileId, codes).isEmpty())
+            throw new ChatProposalConflictException(ChatProposalConflictException.Code.CONFLICT, null);
+        for (var item : chosen) {
+            var key = new GeneratedKeyHolder();
+            jdbc.update(connection -> {
+                PreparedStatement statement = connection.prepareStatement("INSERT INTO my_drug(profile_id, item_seq, "
+                        + "dose_per_time, dose_confirmed, source, registered_at, updated_at) VALUES(?,?,1,FALSE,?,?,?)",
+                        Statement.RETURN_GENERATED_KEYS);
+                statement.setLong(1, profileId);
+                statement.setString(2, item.itemSeq());
+                statement.setString(3, DrugSource.CHAT.name());
+                statement.setObject(4, now);
+                statement.setObject(5, now);
+                return statement;
+            }, key);
+            jdbc.update("UPDATE chat_proposal_item SET chosen = TRUE, my_drug_id = ? WHERE proposal_id = ? AND item_no = ?",
+                    Objects.requireNonNull(key.getKey()).longValue(), proposalId, item.itemNo());
+        }
+        events.publishEvent(new DrugRegistered(codes));
+        return find(proposalId, memberId).orElseThrow();
+    }
+
+    /** V3-CHAT-004: 대기이고 만료 전인 제안을 취소한다. 아무것도 저장하지 않는다. 바꾼 행이 없으면 false다. */
+    @Transactional(timeout = 5)
+    public boolean cancel(long proposalId, long memberId) {
+        LocalDateTime now = now();
+        return jdbc.update("UPDATE chat_proposal SET status = 'CANCELLED', decided_at = ? WHERE proposal_id = ? "
+                + "AND member_id = ? AND status = 'PENDING' AND expires_at > ?", now, proposalId, memberId, now) == 1;
+    }
+
+    /** 그 프로필 약목록에 이미 있는 품목 중 codes에 든 것. */
+    @Transactional(readOnly = true)
+    public List<String> registeredAmong(long profileId, List<String> codes) {
+        if (codes.isEmpty()) return List.of();
+        var args = new ArrayList<Object>();
+        args.add(profileId);
+        args.addAll(codes);
+        return jdbc.queryForList("SELECT item_seq FROM my_drug WHERE profile_id = ? AND item_seq IN ("
+                + String.join(",", codes.stream().map(code -> "?").toList()) + ")", String.class, args.toArray());
+    }
+
+    /**
+     * V3-CHAT-005 정리 작업: 만료 시각이 지난 대기 제안을 '만료'로 바꾼다. 읽기·확정은 이 작업과 관계없이 만료 시각으로
+     * 가르므로, 이 작업은 저장된 상태를 맞추기만 한다. decided_at은 만료 시각이다(읽을 때 보여 주는 값과 같음).
+     */
+    @Scheduled(fixedDelayString = "${chat.proposal.expire-interval-ms:600000}",
+            initialDelayString = "${chat.proposal.expire-interval-ms:600000}")
+    public void expireLapsed() {
+        int expired = jdbc.update("UPDATE chat_proposal SET status = 'EXPIRED', decided_at = expires_at "
+                + "WHERE status = 'PENDING' AND expires_at <= ? ORDER BY expires_at LIMIT " + EXPIRE_BATCH, now());
+        if (expired > 0) log.info("[제안 만료] count={}", expired);
+    }
+
+    /** 조건부 UPDATE가 바꾼 행이 없음. 호출자가 지금 상태를 다시 읽어 409로 답한다. */
+    public static class NotPending extends RuntimeException {
+        NotPending() { super(null, null, false, false); }
     }
 
     /** 로그인 회원의 제안 하나. 없거나 다른 회원 것이면 빈 값이다. */
