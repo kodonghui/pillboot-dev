@@ -81,6 +81,27 @@ class ProfileAccessCheckerTests {
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED));
     }
 
+    /* v3 새 대상(V3-COMMON-003): 남의 프로필도 없는 프로필처럼 404 */
+    @Test
+    void hidingCheckPassesOwnProfileAndShowsForeignOrMissingProfileAsNotFound() {
+        login(ME);
+        Profile mine = profileOwnedBy(ME);
+        when(profileRepository.findByProfileIdAndMember_MemberId(2L, ME)).thenReturn(Optional.of(mine));
+        when(profileRepository.findByProfileIdAndMember_MemberId(4L, ME)).thenReturn(Optional.empty());
+
+        assertThatCode(() -> checker.checkOwnerHidingOthers(2L)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> checker.checkOwnerHidingOthers(4L)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> checker.checkOwnerHidingOthers(null)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void hidingCheckStillAnswersUnauthorizedBeforeLookingUpTheProfile() {
+        assertThatThrownBy(() -> checker.checkOwnerHidingOthers(2L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED));
+        verifyNoInteractions(profileRepository);
+    }
+
     private static void login(Long memberId) {
         CustomUserDetails user = new CustomUserDetails(memberId, "fixture@example.test", "ROLE_USER");
         SecurityContextHolder.getContext().setAuthentication(
