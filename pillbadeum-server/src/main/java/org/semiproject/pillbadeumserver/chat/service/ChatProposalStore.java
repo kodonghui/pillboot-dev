@@ -43,13 +43,15 @@ public class ChatProposalStore {
     private static final Logger log = LoggerFactory.getLogger(ChatProposalStore.class);
     static final Duration LIFETIME = Duration.ofMinutes(30);
     private static final int EXPIRE_BATCH = 500;
-    // 대기 카드의 '이미 등록됨'은 읽는 때 약목록도 본다. 카드를 만든 뒤 다른 경로로 저장된 약을 고를 수 없게 보이려는 것이다.
-    // 확정·취소·만료된 카드는 만들 때 값 그대로다(확정한 약은 이제 약목록에 있으므로).
+    // 대기 카드의 '이미 등록됨'은 읽는 때 약목록 값이다. 카드를 만든 뒤 다른 경로로 저장된 약은 고를 수 없고,
+    // 만들 때 있던 약을 회원이 그 뒤 지웠으면 다시 고를 수 있다. 확정·취소·만료된 카드는 만들 때 값 그대로다
+    // (확정한 약은 이제 약목록에 있으므로).
     private static final String SELECT = """
             SELECT p.proposal_id, p.kind, p.status, p.profile_id, p.message_id, p.created_at, p.expires_at, p.decided_at,
                    i.item_no, i.item_seq, i.mention, i.strength_match, i.chosen, i.my_drug_id,
-                   (i.already_registered OR (p.status = 'PENDING' AND EXISTS (SELECT 1 FROM my_drug m
-                       WHERE m.profile_id = p.profile_id AND m.item_seq = i.item_seq))) AS registered,
+                   CASE WHEN p.status = 'PENDING' THEN EXISTS (SELECT 1 FROM my_drug m
+                       WHERE m.profile_id = p.profile_id AND m.item_seq = i.item_seq)
+                   ELSE i.already_registered END AS registered,
                    d.name, d.maker, d.image_url, d.base_name, d.strength_text
             FROM chat_proposal p
             JOIN profile f ON f.profile_id = p.profile_id AND f.member_id = p.member_id
@@ -160,7 +162,9 @@ public class ChatProposalStore {
                 statement.setObject(5, now);
                 return statement;
             }, key);
-            jdbc.update("UPDATE chat_proposal_item SET chosen = TRUE, my_drug_id = ? WHERE proposal_id = ? AND item_no = ?",
+            // 만들 때 있던 약을 회원이 지운 뒤 고른 항목이면 저장된 '이미 등록됨'도 내린다(SQL 16: 고른 항목은 이미 등록됨일 수 없음).
+            jdbc.update("UPDATE chat_proposal_item SET chosen = TRUE, my_drug_id = ?, already_registered = FALSE "
+                            + "WHERE proposal_id = ? AND item_no = ?",
                     Objects.requireNonNull(key.getKey()).longValue(), proposalId, item.itemNo());
         }
         events.publishEvent(new DrugRegistered(codes));

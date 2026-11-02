@@ -209,6 +209,20 @@ class ChatProposalDecisionMySqlTests {
     }
 
     @Test
+    void drugDeletedAfterTheCardCanBeChosenAgain() {
+        jdbc.update("DELETE FROM my_drug WHERE profile_id=? AND item_seq=?", profile, owned);
+        assertThat(service.get(proposalId).items()).as("만들 때 있던 약을 지우면 대기 카드에서 다시 고를 수 있음")
+                .extracting(ChatProposalResponse.Item::alreadyRegistered).containsExactly(false, false, false);
+        var confirmed = service.confirm(proposalId, choose(1));
+        assertThat(confirmed.status()).isEqualTo(ChatProposalResponse.Status.CONFIRMED);
+        assertThat(confirmed.items()).extracting(ChatProposalResponse.Item::chosen).containsExactly(true, false, false);
+        assertThat(confirmed.items()).extracting(ChatProposalResponse.Item::alreadyRegistered).containsExactly(false, false, false);
+        assertThat(jdbc.queryForObject("SELECT source FROM my_drug WHERE profile_id=? AND item_seq=?", String.class, profile, owned))
+                .isEqualTo("CHAT");
+        assertThat(drugCount()).isEqualTo(1);
+    }
+
+    @Test
     void drugSavedBetweenReadingAndLockingIsStillAConflict() {
         // 회원이 카드를 읽은 뒤 잠금 전에 다른 경로 저장이 끼어든 경우. 저장소 쪽 검사가 막는다.
         var card = service.get(proposalId);
