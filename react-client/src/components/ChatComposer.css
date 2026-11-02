@@ -44,3 +44,11 @@
   flex: none;
   min-height: 52px;
 }
+
+/* 입력창 왼쪽 사진 보내기(V3-CHAT-006). 입력칸 높이(52px)에 맞춘 정사각 버튼 */
+.chat-composer__photo {
+  flex: none;
+  width: 52px;
+  min-height: 52px;
+  padding: 0;
+}

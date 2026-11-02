@@ -6,6 +6,9 @@ import { monthDay, monthDayTime } from './text.js'
 // 질문 글자 수 한도(서버 QuestionService 와 같다)
 export const questionLimit = 1000
 
+// 사진 보내기의 회원 턴 글(서버 PhotoProposalService.TURN 과 같다, V3-CHAT-006). 상담 기록에도 이 글로 남는다.
+export const photoTurnText = '처방전·약봉투 사진을 보냈어요'
+
 // 서버가 답변 content 끝에 붙이는 근거 꼬리표(AnswerSources.MARKER). 다음 줄에 근거 목록 JSON 배열이 온다.
 const sourcesMarker = '@@SOURCES@@'
 

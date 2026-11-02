@@ -1,16 +1,19 @@
-import { useId } from 'react'
+import { useId, useRef } from 'react'
 import { questionLimit } from '../chatInfo.js'
+import { photoAccept } from '../photoFile.js'
 import FieldError from './FieldError.jsx'
 import Icon from './Icon.jsx'
 import Notice from './Notice.jsx'
 import './ChatComposer.css'
 
 // 질문 입력창과 보내기(목업 CHT-02 .composer). 1,000자를 넘거나 빈칸뿐이면 보내기를 잠그고, 쓴 질문은 지우지 않는다.
-// locked: 답을 기다리거나 대화 상태를 확인하는 동안 보내기 잠금 · hint: 입력창 아래 안내 · error: 보내지 못한 까닭
-function ChatComposer({ value, onChange, onSend, locked, hint, error }) {
+// 왼쪽 사진 버튼으로 처방전 · 약봉투 사진 1장을 고르면 확인 없이 onPhoto(file) 로 보낸다(V3-CHAT-006, 목업 v3-2/chat-proposal).
+// locked: 답을 기다리거나 대화 상태를 확인하는 동안 보내기 · 사진 잠금 · hint: 입력창 아래 안내 · error: 보내지 못한 까닭
+function ChatComposer({ value, onChange, onSend, onPhoto, locked, hint, error }) {
   const inputId = useId()
   const countId = useId()
   const messageId = useId()
+  const fileRef = useRef(null)
   const tooLong = value.length > questionLimit
   const message = tooLong ? '질문이 너무 길어요. 1,000자까지 보낼 수 있어요.' : error
   const canSend = !locked && !tooLong && value.trim() !== ''
@@ -22,6 +25,26 @@ function ChatComposer({ value, onChange, onSend, locked, hint, error }) {
   return (
     <div className="chat-composer">
       <div className="chat-composer__row">
+        <button
+          className="mt-btn mt-btn--assistive chat-composer__photo"
+          type="button"
+          aria-label="처방전·약봉투 사진 보내기"
+          disabled={locked}
+          onClick={() => fileRef.current.click()}
+        >
+          <Icon name="image" />
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept={photoAccept}
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (file) onPhoto(file)
+          }}
+        />
         <div className="chat-composer__field">
           <label className="visually-hidden" htmlFor={inputId}>
             질문

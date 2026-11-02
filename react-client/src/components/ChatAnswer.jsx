@@ -2,6 +2,7 @@ import { Fragment, useId, useLayoutEffect, useRef, useState } from 'react'
 import { answerBlocks, boldParts, durTypes, messageTime, sourceGroups, sourceLabels } from '../chatInfo.js'
 import { isDate } from '../dates.js'
 import { dotDate } from '../text.js'
+import ChatProposal from './ChatProposal.jsx'
 import Icon from './Icon.jsx'
 import { closeOnFocusOut, useDismiss } from './useDismiss.js'
 import './ChatAnswer.css'
@@ -396,9 +397,11 @@ function AnswerBody({ body }) {
 }
 
 // 필받음의 답변 말풍선(목업 CHT-02). 서버가 저장한 본문을 문단 · 목록 · 굵게로 보여 주고, 금기 정보 카드와 근거를 붙인다.
-// message.answer: chatInfo.js splitAnswer 로 나눈 본문과 근거
-function ChatAnswer({ message, profileName }) {
+// 등록 제안이 있는 답변은 근거 대신 제안 카드를 붙인다(근거를 묻는 답이 아니다, design/v3-2-chat-proposal.md).
+// message.answer: chatInfo.js splitAnswer 로 나눈 본문과 근거 · fromPhoto: 사진으로 받은 답변 · onProposal: 카드의 새 상태
+function ChatAnswer({ message, profileName, fromPhoto, onProposal }) {
   const { body, sources } = message.answer
+  const proposal = message.proposal?.kind === 'REGISTER' ? message.proposal : null
 
   return (
     <div className="chat-msg chat-msg--answer">
@@ -406,7 +409,11 @@ function ChatAnswer({ message, profileName }) {
       <div className="chat-msg__answer chat-answer">
         <AnswerBody body={body} />
         {message.durNotice && <DurNotice notice={message.durNotice} />}
-        <Evidence sources={sources} profileName={profileName} />
+        {proposal ? (
+          <ChatProposal key={proposal.proposalId} proposal={proposal} fromPhoto={fromPhoto} onChange={onProposal} />
+        ) : (
+          <Evidence sources={sources} profileName={profileName} />
+        )}
       </div>
       <span className="screen-caption chat-msg__time">{messageTime(message.createdAt)} 답변</span>
     </div>

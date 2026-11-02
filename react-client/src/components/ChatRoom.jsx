@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
-import { askQuestionStream, getChatMessages, retryQuestion } from '../api/chat.js'
+import { askQuestionStream, getChatMessages, retryQuestion, sendChatPhoto } from '../api/chat.js'
 import { errorOf } from '../api/client.js'
-import { messageTime, sendTime, splitAnswer } from '../chatInfo.js'
+import { messageTime, photoTurnText, sendTime, splitAnswer } from '../chatInfo.js'
 import { paths } from '../paths.js'
+import { photoProblem } from '../photoFile.js'
 import ChatAnswer from './ChatAnswer.jsx'
 import ChatComposer from './ChatComposer.jsx'
 import Icon from './Icon.jsx'
@@ -26,6 +27,13 @@ const checkViews = {
   checking: { icon: 'wifiOff', title: '연결이 끊겼어요. 질문과 답변이 저장됐는지 확인할게요.' },
   unknown: { icon: 'clock', title: '대화 상태를 확인하고 있어요.', text: '확인이 끝나면 답변을 보여 드릴게요.' },
   failed: { icon: 'alertCircle', title: '대화 상태를 확인하지 못했어요.', text: '질문과 입력 중인 내용은 그대로 있어요.' },
+}
+
+// 보내지 못한 질문 · 사진의 입력창 아래 오류(CHT-02-10, design/v3-2-chat-proposal.md 사진 보내기)
+const sendErrors = {
+  question: '질문을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.',
+  photoFile: 'JPG·PNG·WEBP 사진 1장(10MB 이하)만 보낼 수 있어요.',
+  photo: '사진을 처리하지 못했어요. 잠시 후 다시 보내 주세요.',
 }
 
 // 답변 진행 단계(V3-CHAT-008, design/v3-2-chat-progress.md). now: 지금 단계 · done: 지나온 단계
@@ -150,7 +158,8 @@ function BlockedNote({ note }) {
 // 2초부터는 서버가 알린 단계를 목록으로 보인다(DEC-022 B안): 지나온 단계는 체크, 지금 단계는 도는 아이콘과 경과 초.
 // 아직 단계를 받지 못했으면 1차처럼 "답변 만드는 중 · N초" 한 줄이다. 앞으로 올 단계는 질문마다 건너뛰는 것이 있어 미리 보이지 않는다.
 // stages: 받은 차례대로의 단계 · onGrow: 말풍선 높이가 달라질 수 있을 때 부른다(맨 아래를 보고 있었으면 따라 내려가게).
-function Waiting({ stages, onGrow }) {
+// label: 단계가 없을 때 2초부터의 글(사진은 "사진 읽는 중", V3-CHAT-006)
+function Waiting({ stages, onGrow, label = '답변 만드는 중' }) {
   const seconds = useElapsedSeconds()
   const shown = seconds >= waitShowAfter
   const slow = seconds >= waitSlowAfter
@@ -188,7 +197,7 @@ function Waiting({ stages, onGrow }) {
             <p className="screen-body chat-room__strong">
               {shown ? (
                 <>
-                  답변 만드는 중 <WaitSeconds seconds={seconds} />
+                  {label} <WaitSeconds seconds={seconds} />
                 </>
               ) : (
                 '답변을 만드는 중…'
@@ -251,14 +260,15 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   const [loadFailed, setLoadFailed] = useState(-1)
   const [room, setRoom] = useState(null)
   const [draft, setDraft] = useState('')
-  const [notSaved, setNotSaved] = useState(false)
-  // 답을 기다리는 질문. { kind: 'ask', content, at } · { kind: 'retry', messageId }
+  // 보내지 못한 까닭(sendErrors 의 키)
+  const [sendError, setSendError] = useState(null)
+  // 답을 기다리는 질문. { kind: 'ask', content, at } · { kind: 'retry', messageId } · { kind: 'photo', at }
   const [pending, setPending] = useState(null)
   // 기다리는 질문의 답을 만드는 동안 서버가 알린 단계(V3-CHAT-008). 받은 차례대로
   const [stages, setStages] = useState([])
   // 저장되지 않은 질문과 안내. afterTurn: 보낼 때의 마지막 턴(그 뒤에 보인다)
   const [notes, setNotes] = useState([])
-  // 대화 상태 확인. { phase, sentAt, content?, at?, baseTurn?, messageId?, busy? }
+  // 대화 상태 확인. { phase, sentAt, content?, at?, baseTurn?, messageId?, photo?, busy? }
   const [check, setCheck] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   // 이전 대화: null(아직 안 불러옴) · 'loading' · 'failed' · 'loaded'
@@ -364,8 +374,13 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
         const elapsed = Date.now() - target.sentAt
         if (target.content !== undefined && !mine && elapsed > answerWindow) {
           setCheck(null)
-          restoreDraft(target.content)
-          setNotSaved(true)
+          // 사진은 입력창에 돌려놓을 글이 없다.
+          if (target.photo) {
+            setSendError('photo')
+          } else {
+            restoreDraft(target.content)
+            setSendError('question')
+          }
           return
         }
         // 답이 붙었거나 다시 보낼 수 있으면 확인이 끝난 것이다.
@@ -423,7 +438,7 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
     const { at, ms: sentAt } = sendTime()
     setPending({ kind: 'ask', content: text, at })
     setStages([])
-    setNotSaved(false)
+    setSendError(null)
     const onStage = (stage) => {
       if (aliveRef.current) setStages((list) => (list.includes(stage) ? list : [...list, stage]))
     }
@@ -466,7 +481,7 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
         } else if (status === 400 || status === 503) {
           // 서버가 저장 전에 실패를 알려 줬다(CHT-02-10).
           restoreDraft(text)
-          setNotSaved(true)
+          setSendError('question')
         } else if (status === 409) {
           // 저장되지 않았다. 다른 곳에서 이 방의 질문에 답하는 중이라 대화를 다시 불러온다.
           restoreDraft(text)
@@ -501,6 +516,59 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
         if (error.response) refreshRoom()
         else checkSaved({ messageId, sentAt })
       })
+  }
+
+  // 사진 보내기(V3-CHAT-006). 고르면 확인 없이 보내고 회원 턴 "처방전·약봉투 사진을 보냈어요"를 바로 붙인다.
+  // 결과는 질문과 같은 ANSWERED 모양이라 같은 턴에 붙인다. 형식 · 크기가 맞지 않으면(서버 400 도) 회원 턴을 지우고 입력창 아래에 알린다.
+  // 다른 곳에서 답하는 중(409) · 연결 끊김은 질문과 같다. 사진은 처리 뒤 지워져 다시 보내기가 없다.
+  const sendPhoto = (file, baseTurn) => {
+    if (photoProblem(file)) {
+      setSendError('photoFile')
+      return
+    }
+    const { at, ms: sentAt } = sendTime()
+    setPending({ kind: 'photo', at })
+    setSendError(null)
+    sendChatPhoto(sessionId, file)
+      .then((result) => {
+        if (!aliveRef.current) return
+        setPending(null)
+        setRoom((current) => ({
+          ...current,
+          retryMessageId: null,
+          messages: mergeMessages(current.messages, [
+            { messageId: result.question.messageId, turnNo: result.question.turnNo, role: 'USER', content: photoTurnText, createdAt: at },
+            toMessage({ ...result.answer, role: 'ASSISTANT' }),
+          ]),
+        }))
+        onChange()
+      })
+      .catch((error) => {
+        if (!aliveRef.current) return
+        setPending(null)
+        if (leaveIfGone(error)) return
+        const { status } = errorOf(error)
+        if (status === 400) setSendError('photoFile')
+        else if (status === 409) refreshRoom()
+        else if (error.response) setSendError('photo')
+        else checkSaved({ content: photoTurnText, photo: true, at, sentAt, baseTurn })
+      })
+  }
+
+  // 제안 카드의 새 상태(확정 · 취소 · 충돌 · 다시 읽기)를 그 답변에 넣는다. 처음 확정으로 바뀌면 넣은 만큼 약 수를 늘린다
+  // (약이 없을 때의 "약을 등록하면…" 안내를 거둔다).
+  const updateProposal = (next) => {
+    setRoom((current) => {
+      let added = 0
+      const messages = current.messages.map((message) => {
+        if (message.proposal?.proposalId !== next.proposalId) return message
+        if (message.proposal.status !== 'CONFIRMED' && next.status === 'CONFIRMED') {
+          added = next.items.filter((item) => item.chosen).length
+        }
+        return { ...message, proposal: next }
+      })
+      return { ...current, messages, drugCount: current.drugCount + added }
+    })
   }
 
   // 이전 대화 불러오기(CHT-02-12). 지금 보이는 대화 앞에 붙이고 읽던 위치를 그대로 둔다.
@@ -756,7 +824,14 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
         {turns.map((turn) => (
           <div className="chat-room__turn" data-turn={turn.turnNo} key={turn.turnNo}>
             {turn.question && <Question content={turn.question.content} time={messageTime(turn.question.createdAt)} />}
-            {turn.answer && <ChatAnswer message={turn.answer} profileName={name} />}
+            {turn.answer && (
+              <ChatAnswer
+                message={turn.answer}
+                profileName={name}
+                fromPhoto={turn.question?.content === photoTurnText}
+                onProposal={updateProposal}
+              />
+            )}
             {turn.question && !turn.answer && unanswered(turn)}
             {notesAfter(turn.turnNo)}
           </div>
@@ -765,6 +840,12 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
           <div className="chat-room__turn">
             <Question content={pending.content} time={messageTime(pending.at)} />
             <Waiting stages={stages} onGrow={followEnd} />
+          </div>
+        )}
+        {pending?.kind === 'photo' && (
+          <div className="chat-room__turn">
+            <Question content={photoTurnText} time={messageTime(pending.at)} />
+            <Waiting stages={[]} label="사진 읽는 중" onGrow={followEnd} />
           </div>
         )}
         {check && !check.messageId && (
@@ -791,15 +872,16 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
           value={draft}
           onChange={(value) => {
             setDraft(value)
-            setNotSaved(false)
+            setSendError(null)
           }}
           onSend={() => {
             setDraft('')
             ask(draft, lastTurnNo(room.messages))
           }}
+          onPhoto={(file) => sendPhoto(file, lastTurnNo(room.messages))}
           locked={busy}
           hint={hint}
-          error={notSaved ? '질문을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.' : null}
+          error={sendError ? sendErrors[sendError] : null}
         />
       </div>
     </section>

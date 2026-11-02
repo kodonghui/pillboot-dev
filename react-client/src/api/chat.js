@@ -104,3 +104,31 @@ export async function retryQuestion(sessionId, messageId) {
   })
   return data
 }
+
+// ChatPhotoController.submit — POST /api/chat-sessions/{sessionId}/photos
+// 처방전 · 약봉투 사진 1장(multipart image). 결과는 질문 보내기와 같은 ANSWERED 모양이고 스트림 경로는 없다.
+export async function sendChatPhoto(sessionId, file) {
+  const form = new FormData()
+  form.append('image', file)
+  const { data } = await client.post(`/api/chat-sessions/${sessionId}/photos`, form, { timeout: answerTimeout })
+  return data
+}
+
+// ChatProposalController.read — GET /api/chat-proposals/{proposalId}
+export async function getChatProposal(proposalId) {
+  const { data } = await client.get(`/api/chat-proposals/${proposalId}`)
+  return data
+}
+
+// ChatProposalController.confirm — POST /api/chat-proposals/{proposalId}/confirm
+// itemNos: 등록 제안에서 고른 항목 번호
+export async function confirmChatProposal(proposalId, itemNos) {
+  const { data } = await client.post(`/api/chat-proposals/${proposalId}/confirm`, { itemNos })
+  return data
+}
+
+// ChatProposalController.cancel — POST /api/chat-proposals/{proposalId}/cancel
+export async function cancelChatProposal(proposalId) {
+  const { data } = await client.post(`/api/chat-proposals/${proposalId}/cancel`)
+  return data
+}
