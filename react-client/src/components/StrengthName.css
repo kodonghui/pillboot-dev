@@ -1,0 +1,11 @@
+/* 기본 이름 옆 함량 배지. 이름이 길면 배지째 다음 줄로 넘어간다(목업 v3-1/drug-strength A안). */
+.strength-name {
+  margin-inline-start: var(--space-4);
+  vertical-align: middle;
+}
+
+/* 후보의 함량 일치 · 다름. 세로로 쌓인 후보 글 안에서 늘어나지 않게 왼쪽에 붙인다. */
+.strength-match {
+  align-self: flex-start;
+  margin-block: var(--space-4);
+}

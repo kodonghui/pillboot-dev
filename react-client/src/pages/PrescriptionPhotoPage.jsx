@@ -12,6 +12,8 @@ import PhotoFailure from '../components/PhotoFailure.jsx'
 import PhotoHead from '../components/PhotoHead.jsx'
 import { PhotoChange, PhotoDrop, PhotoPreview } from '../components/PhotoPick.jsx'
 import PhotoSaveBar from '../components/PhotoSaveBar.jsx'
+import StrengthMatchBadge from '../components/StrengthMatchBadge.jsx'
+import StrengthName from '../components/StrengthName.jsx'
 import { useManagedProfile } from '../components/useManagedProfile.js'
 import { paths, prescriptionResultLink, prescriptionSearchLink } from '../paths.js'
 import { photoMessages, photoProblem, photoProblemOf, photoSize } from '../photoFile.js'
@@ -46,6 +48,18 @@ function FixActions({ group, photoId, onRetake }) {
   )
 }
 
+// 미리 고른 후보(autoSelectItemSeq)를 사용자가 아직 그대로 두었는지. 다른 후보로 바꾸면 미리 고름 안내를 내린다.
+function autoPicked(group, value) {
+  return Boolean(group.autoSelectItemSeq) && value?.source === 'PRESCRIPTION_PHOTO' && value.itemSeq === group.autoSelectItemSeq
+}
+
+// 처방전에서 함량을 읽지 못한 이름: 함량이 있는 후보까지 모두 '확인 불가'(UNKNOWN)면 읽은 이름 쪽에 함량이 없던 것이다.
+// 후보에도 함량이 없으면 어느 쪽 탓인지 알 수 없어 안내하지 않는다.
+function strengthUnread(group) {
+  const candidates = group.candidates
+  return candidates.some((candidate) => candidate.strengthText) && candidates.every((candidate) => candidate.strengthMatch === 'UNKNOWN')
+}
+
 // 목업 .bdg-br: 체크 아이콘이 붙은 초록 배지
 function CheckBadge({ children }) {
   return (
@@ -56,11 +70,15 @@ function CheckBadge({ children }) {
   )
 }
 
-// 후보 · 고른 약 한 개의 이름, 성분, 제조사 · 품목기준코드
+// 후보 · 고른 약 한 개의 이름(기본 이름 · 함량), 함량 일치 · 다름, 성분, 제조사 · 품목기준코드.
+// 이름 검색으로 고른 약은 함량 칸이 없어 이름 하나만 보인다.
 function DrugLines({ drug, ingredient }) {
   return (
     <>
-      <span className="prescription-photo__cand-name">{drug.name}</span>
+      <span className="prescription-photo__cand-name">
+        <StrengthName name={drug.name} baseName={drug.baseName} strengthText={drug.strengthText} />
+      </span>
+      <StrengthMatchBadge match={drug.strengthMatch} />
       <DrugIngredient value={ingredient} />
       <span className="screen-caption prescription-photo__meta">
         {drug.maker && <span>{drug.maker}</span>}
@@ -233,7 +251,7 @@ function PrescriptionResult({ profile, color, draft, onRetake, onLeave, onExpire
         <div className="prescription-photo__top">
           {summaryBar}
           <p className="screen-caption prescription-photo__muted">
-            이름마다 사진에서 읽은 이름과 공식 이름을 비교해 맞는 약을 직접 골라 주세요. 아무것도 미리 골라 두지 않아요.
+            이름마다 사진에서 읽은 이름과 공식 이름을 비교해 주세요. 함량까지 맞는 약이 하나뿐이면 미리 골라 두었고, 바꿀 수 있어요.
           </p>
         </div>
       )}
@@ -310,6 +328,17 @@ function PrescriptionResult({ profile, color, draft, onRetake, onLeave, onExpire
               {read(badge)}
               <fieldset className="prescription-photo__choices" disabled={saving}>
                 <legend className="screen-label prescription-photo__neutral">찾은 후보 {group.candidates.length}개</legend>
+                {autoPicked(group, value) && (
+                  <p className="screen-caption prescription-photo__muted prescription-photo__auto-note">
+                    <Icon name="check" size="s" />
+                    처방전 함량과 맞는 약이 하나라 미리 골라 뒀어요. 맞는지 확인해 주세요.
+                  </p>
+                )}
+                {!group.autoSelectItemSeq && !value && strengthUnread(group) && (
+                  <p className="screen-caption prescription-photo__muted prescription-photo__auto-note">
+                    처방전에서 함량을 읽지 못해 미리 고르지 않았어요. 직접 골라 주세요.
+                  </p>
+                )}
                 <div className="prescription-photo__grid">
                   {value?.source === 'SEARCH' && (
                     <label className="prescription-photo__cand prescription-photo__cand--checked">

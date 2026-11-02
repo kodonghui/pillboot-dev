@@ -1,0 +1,30 @@
+/* TASK-007 목업: 기본 이름·함량 나눠 보여 주기와 함량 상태(V3-DRUG-004, V3-REG-002). 토큰만 씀. */
+
+/* 이름 한 칸: 기본 이름은 굵게, 함량은 옆에 따로 */
+.v3-name { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-8); row-gap: var(--space-4); }
+.v3-name__base { font-weight: 700; }
+
+/* A안: 함량을 회색 배지로 */
+.v3-name--a { align-items: center; }
+.v3-name--a .v3-name__strength { font-weight: 600; }
+
+/* B안: 함량을 같은 줄 보통 굵기 글자로 */
+.v3-name--b .v3-name__strength { font-weight: 500; color: var(--label-neutral); }
+
+.v3-fullname { margin-top: var(--space-6); }
+
+/* 후보의 함량 상태 */
+.v3-status { display: flex; flex-wrap: wrap; gap: var(--space-6); margin: var(--space-4) 0; }
+.v3-match { gap: var(--space-4); }
+.v3-diff {
+  display: inline-flex; align-items: flex-start; gap: var(--space-6);
+  padding: var(--space-6) var(--space-10); border-radius: var(--radius-sm);
+  background: var(--background-status-cautionary); border: 1px solid var(--line-status-cautionary);
+  color: var(--label-status-cautionary);
+}
+.v3-diff .icon { flex: none; margin-top: var(--space-2); }
+
+/* 처방전 결과: 미리 골랐는지 알림 줄 */
+.v3-auto-note { display: flex; align-items: center; gap: var(--space-6); margin: var(--space-4) 0 var(--space-8); }
+.v3-auto-note .icon { color: var(--primary-on-weak); }
+.v3-sort-note { margin-top: var(--space-6); }

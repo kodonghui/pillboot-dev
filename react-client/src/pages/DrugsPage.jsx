@@ -7,6 +7,7 @@ import ErrorScreen from '../components/ErrorScreen.jsx'
 import Icon from '../components/Icon.jsx'
 import Notice from '../components/Notice.jsx'
 import ProfileTag from '../components/ProfileTag.jsx'
+import StrengthName from '../components/StrengthName.jsx'
 import { useManagedProfile } from '../components/useManagedProfile.js'
 import { drugSourceLabel, hasSchedule } from '../drugInfo.js'
 import { paths, scheduleLink } from '../paths.js'
@@ -160,7 +161,7 @@ function DrugsPage() {
                                 className="screen-item drugs-page__name"
                                 to={generatePath(paths.drugDetail, { myDrugId: String(drug.myDrugId) })}
                               >
-                                {drug.name}
+                                <StrengthName name={drug.name} baseName={drug.baseName} strengthText={drug.strengthText} />
                               </Link>
                               {savedIds.has(drug.myDrugId) && <span className="mt-badge mt-badge--primary">새로 저장</span>}
                             </div>

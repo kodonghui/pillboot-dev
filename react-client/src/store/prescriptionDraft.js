@@ -5,9 +5,15 @@ import { useAuthStore } from './auth.js'
 // 메모리에만 두어 새로고침하면 고른 약이 풀린다. 사진 파일 · 토큰 · 회원 정보는 담지 않는다.
 // draft: { profileId, photoId(사진 번호 문자열, 모두 0건이면 null), result(PhotoIdentificationResponse), picks, done }
 // picks[readNo]: 'none'(이 중에 없음) · { source: 'PRESCRIPTION_PHOTO', itemSeq } · { source: 'SEARCH', itemSeq, name, maker, material }
+// 함량이 맞는 후보가 하나뿐인 이름은 서버가 준 autoSelectItemSeq 를 미리 고른다(V3-REG-002, DEC-006). 저장은 사용자가 누를 때만 한다.
+function autoPicks(result) {
+  const groups = (result?.drugs ?? []).filter((group) => group.autoSelectItemSeq)
+  return Object.fromEntries(groups.map((group) => [group.readNo, { source: 'PRESCRIPTION_PHOTO', itemSeq: group.autoSelectItemSeq }]))
+}
+
 export const usePrescriptionDraft = create((set) => ({
   draft: null,
-  start: (draft) => set({ draft: { ...draft, picks: {} } }),
+  start: (draft) => set({ draft: { ...draft, picks: autoPicks(draft.result) } }),
   // 후보를 다시 받으면(저장 실패 뒤) 결과만 바꾸고 고른 약은 둔다.
   replaceResult: (result) => set(({ draft }) => (draft ? { draft: { ...draft, result } } : {})),
   // 한 이름에는 약 하나만 고른다. 다른 이름에서 고른 약은 그대로 둔다.

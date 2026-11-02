@@ -10,6 +10,7 @@ import Icon from '../components/Icon.jsx'
 import NoValue from '../components/NoValue.jsx'
 import Notice from '../components/Notice.jsx'
 import ProfileTag from '../components/ProfileTag.jsx'
+import StrengthName from '../components/StrengthName.jsx'
 import { useDrugGuide } from '../components/useDrugGuide.js'
 import { useManagedProfile } from '../components/useManagedProfile.js'
 import { drugSourceLabel, guideProvider, guideSections, hasSchedule } from '../drugInfo.js'
@@ -134,12 +135,18 @@ function DrugDetailPage() {
           <Icon name="chevronLeft" size="s" />약 목록으로
         </Link>
         <div className="drug-detail__title">
-          <h1 className="screen-title">{drug.name}</h1>
+          <h1 className="screen-title">
+            <StrengthName name={drug.name} baseName={drug.drug?.baseName} strengthText={drug.drug?.strengthText} />
+          </h1>
           <div className="drug-detail__meta">
             <ProfileTag color={color}>{name}</ProfileTag>
             {drug.drug?.maker && <span className="screen-body drug-detail__neutral">{drug.drug.maker}</span>}
             {material && <span className="screen-caption drug-detail__muted">성분 {material}</span>}
           </div>
+          {/* 이름을 나눠 보여 줄 때는 품목명 원문을 한 줄 더 둔다(V3-DRUG-004) */}
+          {drug.drug?.baseName && drug.drug.strengthText && (
+            <p className="screen-caption drug-detail__muted">품목명 {drug.drug.name ?? drug.name}</p>
+          )}
         </div>
       </div>
 

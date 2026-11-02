@@ -11,6 +11,8 @@ import NoValue from '../components/NoValue.jsx'
 import Notice from '../components/Notice.jsx'
 import ProfileDot from '../components/ProfileDot.jsx'
 import PhotoSaveBar from '../components/PhotoSaveBar.jsx'
+import StrengthMatchBadge from '../components/StrengthMatchBadge.jsx'
+import StrengthName from '../components/StrengthName.jsx'
 import { useDrugGuide } from '../components/useDrugGuide.js'
 import { useManagedProfile } from '../components/useManagedProfile.js'
 import { guideProvider, guideSections } from '../drugInfo.js'
@@ -325,6 +327,10 @@ function DrugSearchPage() {
           <h2 className="screen-section drug-search__results-title" id={resultsId} ref={resultsTitleRef} tabIndex={-1}>
             &apos;{query}&apos; 검색 결과
           </h2>
+          {/* 검색어에 함량이 있으면 서버가 함량 일치 후보를 앞에 둔다(V3-REG-001). 검색어에 함량이 없으면 모두 UNKNOWN 이라 안내하지 않는다. */}
+          {items.some((item) => item.strengthMatch === 'MATCH' || item.strengthMatch === 'DIFFERENT') && (
+            <p className="screen-caption drug-search__muted">함량이 맞는 약을 맨 위에 두었어요. 함량이 다른 약도 고를 수 있어요.</p>
+          )}
           <div className="drug-search__columns">
             <div className="mt-card drug-search__list-card">
               <ul>
@@ -374,7 +380,10 @@ function DrugSearchPage() {
                     >
                       <DrugThumb imageUrl={item.imageUrl} dim={item.registered} />
                       <div className="drug-search__item-text">
-                        <p className="screen-item drug-search__item-name">{item.name}</p>
+                        <p className="screen-item drug-search__item-name">
+                          <StrengthName name={item.name} baseName={item.baseName} strengthText={item.strengthText} />
+                        </p>
+                        <StrengthMatchBadge match={item.strengthMatch} />
                         {item.maker && <p className="screen-caption drug-search__muted">{item.maker}</p>}
                       </div>
                       {action}
