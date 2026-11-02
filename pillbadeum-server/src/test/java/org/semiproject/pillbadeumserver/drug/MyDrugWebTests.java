@@ -16,6 +16,8 @@ import org.semiproject.pillbadeumserver.common.security.SecurityConfig;
 import org.semiproject.pillbadeumserver.drug.controller.MyDrugController;
 import org.semiproject.pillbadeumserver.drug.domain.DrugSource;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrug;
+import org.semiproject.pillbadeumserver.drug.dto.MyDrugBulkDeleteRequest;
+import org.semiproject.pillbadeumserver.drug.dto.MyDrugBulkDeleteResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
@@ -198,6 +200,44 @@ class MyDrugWebTests {
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 
+    /* 목차. 4-1. 여러 개 삭제 (V3-DRUG-003) */
+    @Test
+    void bulkDeleteReturnsTheDeletedCountAndPassesTheChosenIds() throws Exception {
+        ArgumentCaptor<MyDrugBulkDeleteRequest> request = ArgumentCaptor.forClass(MyDrugBulkDeleteRequest.class);
+        when(service.deleteMyDrugs(eq(2L), any(MyDrugBulkDeleteRequest.class))).thenReturn(new MyDrugBulkDeleteResponse(2));
+
+        mvc.perform(post("/api/profiles/2/drugs/bulk-delete").header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"myDrugIds\":[35,36]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deletedCount").value(2));
+        verify(service).deleteMyDrugs(eq(2L), request.capture());
+        assertThat(request.getValue().myDrugIds()).containsExactly(35L, 36L);
+    }
+
+    @Test
+    void bulkDeleteRejectsAnInvalidListBeforeTheService() throws Exception {
+        var fiftyOne = new ArrayList<String>();
+        for (long id = 1; id <= 51; id++) fiftyOne.add(Long.toString(id));
+        for (String body : List.of("{\"myDrugIds\":[]}", "{\"myDrugIds\":[" + String.join(",", fiftyOne) + "]}",
+                "{\"myDrugIds\":[35,35]}", "{\"myDrugIds\":[35,null]}", "{}", "{\"myDrugIds\":[\"abc\"]}", "")) {
+            mvc.perform(post("/api/profiles/2/drugs/bulk-delete").header("Authorization", auth())
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        }
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void bulkDeleteNotFoundUsesTheCommonErrorCode() throws Exception {
+        when(service.deleteMyDrugs(eq(2L), any(MyDrugBulkDeleteRequest.class)))
+                .thenThrow(new NotFoundException("고른 약 중 이미 없거나 이 프로필에 없는 약이 있습니다. 목록을 다시 불러와 주세요."));
+
+        mvc.perform(post("/api/profiles/2/drugs/bulk-delete").header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"myDrugIds\":[35,99]}"))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
     /* 목차. 5. 로그인 */
     @Test
     void everyMyDrugApiNeedsLogin() throws Exception {
@@ -207,6 +247,8 @@ class MyDrugWebTests {
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/profiles/2/drugs/35")).andExpect(status().isUnauthorized());
         mvc.perform(delete("/api/profiles/2/drugs/35")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/profiles/2/drugs/bulk-delete").contentType(MediaType.APPLICATION_JSON).content("{\"myDrugIds\":[35]}"))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         verifyNoInteractions(service);
     }
 

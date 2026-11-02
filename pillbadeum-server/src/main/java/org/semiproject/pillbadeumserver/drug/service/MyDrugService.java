@@ -5,6 +5,8 @@ import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrug;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
+import org.semiproject.pillbadeumserver.drug.dto.MyDrugBulkDeleteRequest;
+import org.semiproject.pillbadeumserver.drug.dto.MyDrugBulkDeleteResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
@@ -24,12 +26,14 @@ import java.util.Set;
  *  ----------------------------------------------------------------------------------
  *  모든 공개 메서드는 맨 앞에서 ProfileAccessChecker.checkOwner(profileId) 를 호출한다.
  *  (없는 프로필 404, 남의 프로필 403, 비로그인 401)
+ *  v3 여러 개 삭제만 checkOwnerHidingOthers 로 남의 프로필도 404 로 보인다. (V3-COMMON-003)
  *  ----------------------------------------------------------------------------------
  *  지금 구현된 기능
  *  - getMyDrugs     : 내 약 목록 (GET /api/profiles/{profileId}/drugs)
  *  - registerAll    : 확인한 약 저장 (POST /api/profiles/{profileId}/drugs)
  *  - getMyDrug      : 내 약 상세 (GET /api/profiles/{profileId}/drugs/{myDrugId})
  *  - deleteMyDrug   : 내 약 삭제 (DELETE /api/profiles/{profileId}/drugs/{myDrugId})
+ *  - deleteMyDrugs  : 약목록 여러 개 삭제 (POST /api/profiles/{profileId}/drugs/bulk-delete)
  *  복용정보 수정은 범위에서 빠졌다. 기간 · 시각 · 1회 개수 수정은 복약 일정 PUT .../schedule 이 맡는다.
  *  ----------------------------------------------------------------------------------
  *  - 엔티티는 트랜잭션 안에서 DTO 로 바꿔서 돌려준다. (open-in-view: false)
@@ -179,5 +183,27 @@ public class MyDrugService {
                 .orElseThrow(() -> new NotFoundException("등록된 약을 찾을 수 없습니다."));
 
         myDrugRepository.delete(myDrug);
+    }
+
+    /* 목차. 5. 약목록 여러 개 삭제 (V3-DRUG-003)
+     *  ----------------------------------------------------------------------------------
+     *  1) 프로필 소유권 확인. 없는 프로필 · 남의 프로필 모두 404 (V3-COMMON-003, 한 건 삭제의 403 과 다름)
+     *  2) 이 프로필의 고른 행만 한 문장으로 지운다. 지운 수가 고른 수와 다르면
+     *     (다른 프로필의 약 · 이미 없는 약 · 동시에 먼저 지운 요청) 404 를 던져 트랜잭션 전체를 되돌린다.
+     *  ----------------------------------------------------------------------------------
+     *  - 일정 · 알림은 한 건 삭제와 같이 my_drug 행에서 나오므로 행과 함께 없어진다.
+     *  - 목록 형식(1~50개, 중복 없음)은 요청 DTO 가 먼저 막는다.
+     * */
+    @Transactional
+    public MyDrugBulkDeleteResponse deleteMyDrugs(Long profileId, MyDrugBulkDeleteRequest request) {
+
+        profileAccessChecker.checkOwnerHidingOthers(profileId);
+
+        List<Long> myDrugIds = request.myDrugIds();
+        int deleted = myDrugRepository.deleteAllInProfile(profileId, myDrugIds);
+        if (deleted != myDrugIds.size()) {
+            throw new NotFoundException("고른 약 중 이미 없거나 이 프로필에 없는 약이 있습니다. 목록을 다시 불러와 주세요.");
+        }
+        return new MyDrugBulkDeleteResponse(deleted);
     }
 }

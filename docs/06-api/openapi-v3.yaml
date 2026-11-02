@@ -89,6 +89,36 @@ paths:
               schema: { $ref: '#/components/schemas/MyDrugDetailResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/profiles/{profileId}/drugs/bulk-delete:
+    post:
+      tags: [내 약]
+      operationId: bulkDeleteMyDrugs
+      summary: 약목록 여러 개 삭제(V3-DRUG-003)
+      description: |
+        고른 약목록 약 1~50개를 한 트랜잭션에서 지움. 복약 일정·알림은 약목록 약 행의 일정 칸에서 나오므로 약과 함께 없어짐.
+        하나라도 이 프로필의 약이 아니거나 이미 없으면 404이고 아무것도 지우지 않음. 같은 요청을 다시 보내면 첫 요청이
+        지웠으므로 404임(화면은 목록을 다시 불러옴). 다른 회원의 프로필도 없는 프로필처럼 404임(V3-COMMON-003).
+        본문 있는 DELETE는 중간 장치가 본문을 버릴 수 있어 POST로 둠. 한 건 삭제 `DELETE .../drugs/{myDrugId}`는 그대로임.
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MyDrugBulkDeleteRequest' }
+      responses:
+        '200':
+          description: 고른 약을 모두 지움
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyDrugBulkDeleteResponse' }
+        '400':
+          description: 본문 없음·빈 목록·51개 이상·빈 ID·중복 ID(`VALIDATION_FAILED`). 아무것도 지우지 않음
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: 없는 프로필·다른 회원의 프로필, 또는 고른 약 중 하나라도 이 프로필에 없음(`NOT_FOUND`). 아무것도 지우지 않음
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
   /api/profiles/{profileId}/photo-identifications:
     post:
       tags: [사진 판독]
@@ -202,6 +232,26 @@ components:
           oneOf:
             - $ref: '#/components/schemas/DrugInfoResponse'
             - type: 'null'
+    MyDrugBulkDeleteRequest:
+      type: object
+      required: [myDrugIds]
+      properties:
+        myDrugIds:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items: { type: integer, format: int64 }
+          description: 지울 약목록 약 ID(`myDrugId`). 1~50개, 같은 ID는 한 번만
+    MyDrugBulkDeleteResponse:
+      type: object
+      required: [deletedCount]
+      properties:
+        deletedCount:
+          type: integer
+          minimum: 1
+          maximum: 50
+          description: 지운 약 수. 성공하면 늘 고른 수와 같음
     PrescriptionPhotoResponse:
       type: object
       description: 기존 PhotoIdentificationResponse 모양(openapi.json). 처방전의 drugs 칸만 늘어남
