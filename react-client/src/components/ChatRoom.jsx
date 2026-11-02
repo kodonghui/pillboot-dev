@@ -8,10 +8,10 @@ import ChatAnswer from './ChatAnswer.jsx'
 import ChatComposer from './ChatComposer.jsx'
 import Icon from './Icon.jsx'
 import Notice from './Notice.jsx'
+import { slowWaitText, useElapsedSeconds, waitShowAfter, waitSlowAfter } from './useElapsedSeconds.js'
+import WaitSeconds from './WaitSeconds.jsx'
 import './ChatRoom.css'
 
-// 10초가 지나도 답이 없으면 기다림 문구를 바꾼다(목업 CHT-02-02).
-const slowAfter = 10_000
 // 저장 여부를 아직 알 수 없으면 이 간격으로 대화를 다시 불러온다(목업 CHT-02-11).
 const checkEvery = 5_000
 // 서버의 답변 한도(85초)와 전달 여유. 보낸 뒤 이 시간이 지나도 질문이 대화에 없으면 저장되지 않은 것이다.
@@ -137,16 +137,33 @@ function BlockedNote({ note }) {
   )
 }
 
-// 답을 기다리는 말풍선(목업 CHT-02-02)
-function Waiting({ slow }) {
+// 답을 기다리는 말풍선(목업 CHT-02-02). 기다림 표시(v3-1-wait-indicator): 2초부터 "답변 만드는 중 · N초",
+// 15초부터 오래 걸린다는 안내를 더한다. 질문을 보낼 때 나타나므로 나타난 때부터 센다.
+// onGrow: 글이 바뀌어 말풍선 높이가 달라질 수 있을 때 부른다(맨 아래를 보고 있었으면 따라 내려가게).
+function Waiting({ onGrow }) {
+  const seconds = useElapsedSeconds()
+  const shown = seconds >= waitShowAfter
+  const slow = seconds >= waitSlowAfter
+
+  useLayoutEffect(() => {
+    if (shown || slow) onGrow()
+  }, [shown, slow, onGrow])
+
   return (
     <div className="chat-msg chat-msg--answer">
       <p className="visually-hidden">약봉이의 답변</p>
       <div className="chat-msg__answer chat-room__waiting" role="status">
         <Icon name="loader" className="icon--spin" />
         <p className="screen-body chat-room__strong">
-          {slow ? '답변을 준비하는 데 시간이 걸리고 있어요. 잠시만 기다려 주세요.' : '답변을 만드는 중…'}
+          {shown ? (
+            <>
+              답변 만드는 중 <WaitSeconds seconds={seconds} />
+            </>
+          ) : (
+            '답변을 만드는 중…'
+          )}
         </p>
+        {slow && <p className="screen-caption wait-slow chat-room__slow">{slowWaitText}</p>}
       </div>
     </div>
   )
@@ -202,7 +219,7 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   const [room, setRoom] = useState(null)
   const [draft, setDraft] = useState('')
   const [notSaved, setNotSaved] = useState(false)
-  // 답을 기다리는 질문. { kind: 'ask', content, at, slow } · { kind: 'retry', messageId }
+  // 답을 기다리는 질문. { kind: 'ask', content, at } · { kind: 'retry', messageId }
   const [pending, setPending] = useState(null)
   // 저장되지 않은 질문과 안내. afterTurn: 보낼 때의 마지막 턴(그 뒤에 보인다)
   const [notes, setNotes] = useState([])
@@ -212,7 +229,7 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   // 이전 대화: null(아직 안 불러옴) · 'loading' · 'failed' · 'loaded'
   const [older, setOlder] = useState(null)
   const aliveRef = useRef(false)
-  const timersRef = useRef({ slow: 0, check: 0 })
+  const timersRef = useRef({ check: 0 })
   const msgsRef = useRef(null)
   // 메시지 영역 스크롤. follow: 맨 아래를 보고 있음(처음에는 맨 아래부터 보여 준다) · top: 마지막 위치 · shown: 처음 맨 아래로 내렸음
   const scrollRef = useRef({ follow: true, top: 0, shown: false })
@@ -224,7 +241,6 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
     const timers = timersRef.current
     return () => {
       aliveRef.current = false
-      clearTimeout(timers.slow)
       clearTimeout(timers.check)
     }
   }, [])
@@ -256,19 +272,23 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
     }
   }, [room, pending, notes, check, empty])
 
-  // 메시지 영역 크기가 바뀌어도(입력창 안내 줄 · 화면 크기) 맨 아래를 보고 있었으면 맨 아래에 둔다.
+  // 맨 아래를 보고 있었으면 맨 아래에 둔다. 메시지 영역 크기(입력창 안내 줄 · 화면 크기)나
+  // 기다림 말풍선 높이(오래 걸린다는 안내)가 바뀔 때 부른다. 대화가 바뀐 뒤는 위 useLayoutEffect 가 맡는다.
+  const followEnd = useCallback(() => {
+    const box = msgsRef.current
+    const state = scrollRef.current
+    if (box && state.shown && state.follow) scrollToEnd(box, true)
+  }, [])
+
   const watchMsgs = useCallback((box) => {
     msgsRef.current = box
-    const observer = new ResizeObserver(() => {
-      const state = scrollRef.current
-      if (state.shown && state.follow) scrollToEnd(box, true)
-    })
+    const observer = new ResizeObserver(followEnd)
     observer.observe(box)
     return () => {
       observer.disconnect()
       msgsRef.current = null
     }
-  }, [])
+  }, [followEnd])
 
   // 위로 올리면 따라 내려가지 않고, 맨 아래 가까이 돌아오면 다시 따라 내려간다. 내려가는 중(부드러운 스크롤)에는 그대로 둔다.
   const onMsgsScroll = (event) => {
@@ -360,17 +380,11 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
   const ask = (content, baseTurn) => {
     const text = content.trim()
     const { at, ms: sentAt } = sendTime()
-    setPending({ kind: 'ask', content: text, at, slow: false })
+    setPending({ kind: 'ask', content: text, at })
     setNotSaved(false)
-    clearTimeout(timersRef.current.slow)
-    timersRef.current.slow = setTimeout(
-      () => setPending((current) => (current?.kind === 'ask' ? { ...current, slow: true } : current)),
-      slowAfter,
-    )
     askQuestion(sessionId, text)
       .then((result) => {
         if (!aliveRef.current) return
-        clearTimeout(timersRef.current.slow)
         setPending(null)
         if (result.result === 'BLOCKED') {
           // 막힌 질문은 저장되지 않아 안내와 함께 이 화면에만 남긴다. 입력창에는 돌려놓지 않는다.
@@ -390,7 +404,6 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
       })
       .catch((error) => {
         if (!aliveRef.current) return
-        clearTimeout(timersRef.current.slow)
         setPending(null)
         if (leaveIfGone(error)) return
         const { status } = errorOf(error)
@@ -706,7 +719,7 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
         {pending?.kind === 'ask' && (
           <div className="chat-room__turn">
             <Question content={pending.content} time={messageTime(pending.at)} />
-            <Waiting slow={pending.slow} />
+            <Waiting onGrow={followEnd} />
           </div>
         )}
         {check && !check.messageId && (

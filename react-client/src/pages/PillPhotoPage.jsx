@@ -360,6 +360,8 @@ function PillPhotoPage() {
   const [rejected, setRejected] = useState(noPhotos)
   const [sendError, setSendError] = useState(null)
   const [busy, setBusy] = useState(false)
+  // 사진을 다 올렸음(기다림 표시의 단계: 올리는 중 → 읽고 약 찾는 중)
+  const [uploaded, setUploaded] = useState(false)
   const [serverError, setServerError] = useState(false)
   // 주소의 식별 ID 로 불러온 결과: { id, data } · { id, problem: 'expired' | 'failed' }
   // 새 결과 보이기 · 다시 찍기는 결과를 바로 바꾸지만 주소는 한 박자 늦게 바뀐다. 그사이 주소에 남은 앞 ID(before)는 다시 읽지 않는다.
@@ -421,10 +423,11 @@ function PillPhotoPage() {
 
   const find = async () => {
     setBusy(true)
+    setUploaded(false)
     setServerError(false)
     setSendError(null)
     try {
-      show(await identifyPhoto(profile.profileId, 'PILL', { front: files.front, back: files.back }))
+      show(await identifyPhoto(profile.profileId, 'PILL', { front: files.front, back: files.back }, () => setUploaded(true)))
     } catch (error) {
       // 서버가 사진을 거절하면(형식 · 크기) 고르기 화면에 알리고, 그 밖의 실패는 서버 오류 화면으로 보낸다.
       const problem = photoProblemOf(errorOf(error).code)
@@ -590,6 +593,7 @@ function PillPhotoPage() {
             photos={sides.map((side) => ({ file: files[side.key], caption: `${side.name} · ${files[side.key].name}` }))}
             steps={steps}
             size="sm"
+            uploaded={uploaded}
           />
         </div>
       )}

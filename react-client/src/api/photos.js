@@ -1,10 +1,16 @@
 import client from './client.js'
 
 // PhotoIdentificationController.identify — POST /api/profiles/{profileId}/photo-identifications
-export async function identifyPhoto(profileId, kind, files) {
+// onUploaded: 사진을 다 올렸을 때(업로드 진행이 끝까지 오거나 전체 크기를 모를 때) 부른다. 기다림 표시의 단계를 바꾸는 데 쓴다.
+export async function identifyPhoto(profileId, kind, files, onUploaded) {
   const form = new FormData()
   Object.entries(files).forEach(([name, file]) => form.append(name, file))
-  const { data } = await client.post(`/api/profiles/${profileId}/photo-identifications`, form, { params: { kind } })
+  const { data } = await client.post(`/api/profiles/${profileId}/photo-identifications`, form, {
+    params: { kind },
+    onUploadProgress: (event) => {
+      if (onUploaded && (!event.total || event.loaded >= event.total)) onUploaded()
+    },
+  })
   return data
 }
 

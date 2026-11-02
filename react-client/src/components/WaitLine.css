@@ -1,0 +1,13 @@
+/* 목업 v3-1 wait-indicator search-a: 검색 버튼 아래 한 줄 */
+.wait-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  margin: 0;
+  color: var(--label-neutral);
+}
+
+.wait-line .icon {
+  flex: none;
+  color: var(--primary-on-weak);
+}

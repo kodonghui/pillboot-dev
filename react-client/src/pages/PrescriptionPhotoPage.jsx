@@ -463,6 +463,8 @@ function PrescriptionPhotoPage() {
   const [file, setFile] = useState(null)
   const [rejected, setRejected] = useState(null)
   const [busy, setBusy] = useState(false)
+  // 사진을 다 올렸음(기다림 표시의 단계: 올리는 중 → 읽고 약 찾는 중)
+  const [uploaded, setUploaded] = useState(false)
   const [failure, setFailure] = useState(null)
   // 주소의 사진 번호로 후보를 다시 불러오지 못한 결과: { photoId, expired } · { photoId, failed }
   // 다시 찍기는 결과를 바로 비우지만 주소는 한 박자 늦게 바뀐다. 그사이 주소에 남은 앞 번호(before)는 다시 읽지 않는다.
@@ -526,9 +528,10 @@ function PrescriptionPhotoPage() {
   // 서버가 판독 · 조회를 마칠 때까지 기다린다. 화면에서 시간을 끊거나 사진을 저절로 다시 보내지 않는다.
   const find = async () => {
     setBusy(true)
+    setUploaded(false)
     setFailure(null)
     try {
-      const response = await identifyPhoto(profile.profileId, 'PRESCRIPTION', { image: file })
+      const response = await identifyPhoto(profile.profileId, 'PRESCRIPTION', { image: file }, () => setUploaded(true))
       // 기다리는 사이 다른 화면으로 갔으면(결과는 저장되지 않는다고 안내함) 결과를 버리고 사진도 지운다.
       if (!aliveRef.current) {
         if (response.photoId) forgetPhoto(response.photoId)
@@ -672,7 +675,7 @@ function PrescriptionPhotoPage() {
       <div className="prescription-photo">
         <PhotoHead title={pageTitle} profile={profile} color={color} />
         <div className="prescription-photo__body">
-          <PhotoBusy photos={[{ file, caption: file.name }]} steps={steps} />
+          <PhotoBusy photos={[{ file, caption: file.name }]} steps={steps} uploaded={uploaded} />
         </div>
       </div>
     )

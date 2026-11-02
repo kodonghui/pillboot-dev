@@ -13,6 +13,7 @@ import ProfileDot from '../components/ProfileDot.jsx'
 import PhotoSaveBar from '../components/PhotoSaveBar.jsx'
 import StrengthMatchBadge from '../components/StrengthMatchBadge.jsx'
 import StrengthName from '../components/StrengthName.jsx'
+import WaitLine from '../components/WaitLine.jsx'
 import { useDrugGuide } from '../components/useDrugGuide.js'
 import { useManagedProfile } from '../components/useManagedProfile.js'
 import { guideProvider, guideSections } from '../drugInfo.js'
@@ -279,6 +280,10 @@ function DrugSearchPage() {
             2글자 이상 입력해 주세요.
           </p>
         )}
+        {/* 기다림 표시(v3-1-wait-indicator A안). 읽어 주는 자리는 늘 두고, 검색마다 key 로 초를 새로 센다. */}
+        <div className="drug-search__wait" role="status">
+          {loading && <WaitLine key={key} label="공공데이터에서 찾는 중" />}
+        </div>
       </section>
 
       {current?.failed && (

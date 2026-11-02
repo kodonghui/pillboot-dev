@@ -1,0 +1,32 @@
+/* TASK-015 목업: 기다림 표시(V3-COMMON-001, V3-FL-20). 2초가 지나면 지금 단계와 경과 초를 보여 줌. 토큰만 씀. */
+
+/* 경과 초: 숫자 폭을 고정해 초가 바뀌어도 글자가 흔들리지 않게 함 */
+.v3-wait-sec { color: var(--label-alternative); font-variant-numeric: tabular-nums; }
+.v3-wait-sec::before { content: '· '; }
+.v3-wait-muted { color: var(--label-alternative); }
+
+/* A안(검색): 검색 버튼 아래 한 줄 */
+.v3-wait-line { display: flex; align-items: center; gap: var(--space-6); margin-top: var(--space-8); color: var(--label-neutral); }
+.v3-wait-line .icon { color: var(--primary-on-weak); }
+
+/* B안(검색): 결과가 올 자리의 카드 */
+.v3-wait-card { flex-direction: row; align-items: center; gap: var(--space-16); }
+.v3-wait-card > .icon { color: var(--primary-on-weak); }
+.v3-wait-card__text { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* B안(사진): 진행 단계 목록 */
+.v3-steps { display: flex; flex-direction: column; gap: var(--space-8); margin: 0; padding: 0; list-style: none; }
+.v3-steps__item { display: flex; align-items: center; gap: var(--space-10); }
+.v3-steps__item .screen-body { color: var(--label-neutral); }
+.v3-steps__item--done .icon { color: var(--primary-on-weak); }
+.v3-steps__item--now .icon { color: var(--primary-on-weak); }
+.v3-steps__item--now .screen-body { color: var(--label-normal); font-weight: 600; }
+.v3-steps__item--next .screen-body { color: var(--label-alternative); }
+.v3-steps__item .v3-wait-muted::before { content: '· '; }
+.v3-steps__item .v3-wait-sec::before { content: '· '; }
+.v3-steps__dot { flex: none; width: 18px; height: 18px; border: 2px solid var(--line-normal); border-radius: var(--radius-full); box-sizing: border-box; }
+
+/* 15초가 지나면: 평소보다 오래 걸린다는 안내 */
+.v3-slow { color: var(--label-status-cautionary); }
+.chat-room__waiting:has(.v3-slow) { flex-wrap: wrap; }
+.chat-room__waiting .v3-slow { flex: 1 1 100%; margin: 0; }

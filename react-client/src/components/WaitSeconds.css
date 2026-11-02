@@ -1,0 +1,12 @@
+/* 기다림 경과 초: 숫자 폭을 고정해 초가 바뀌어도 글자가 흔들리지 않게 한다. */
+.wait-seconds {
+  color: var(--label-alternative);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 15초부터 붙는 "평소보다 오래 걸리고 있어요" 안내(노랑 글자) */
+.wait-slow {
+  margin: 0;
+  color: var(--label-status-cautionary);
+}

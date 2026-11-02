@@ -186,9 +186,15 @@
 /* 답 기다림(목업 CHT-02-02) */
 .chat-room__waiting {
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-10);
   color: var(--label-neutral);
+}
+
+/* 15초부터 기다림 줄 아래 한 줄 전체로 붙는 안내(v3-1-wait-indicator) */
+.chat-room__slow {
+  flex: 1 1 100%;
 }
 
 /* 다른 곳에서 답하는 중(목업 CHT-02-02) */
