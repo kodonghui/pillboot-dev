@@ -243,6 +243,17 @@ class PrescriptionDrugLookupTests {
     }
 
     @Test
+    void completeBaseResultWithoutAMatchStillLooksUpTheReadSpelling() {
+        // 함량이 이름 가운데 있으면 함량 뗀 이름('합성정')으로는 실제 품목 '합성20mg정'이 나오지 않음
+        var queries = recordQueries(Map.of("합성정", List.of("합성정10mg"), "합성20mg정", List.of("합성20mg정")));
+
+        assertThat(lookup.findWithStrength("합성20mg정", null))
+                .extracting(c -> c.row().path("ITEM_NAME").asString() + "=" + c.strength())
+                .containsExactly("합성정10mg=DIFFERENT", "합성20mg정=MATCH");
+        assertThat(queries).containsExactly("합성정", "합성20mg정");
+    }
+
+    @Test
     void clippedBaseResultWithOneMatchStillCollectsTheOtherMatchingProducts() {
         // 첫 페이지에 일치 품목이 하나뿐이어도 뒤쪽 페이지에 같은 함량 품목이 더 있을 수 있음(자동 선택은 유일할 때만)
         var queries = new ArrayList<String>();

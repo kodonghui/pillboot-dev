@@ -37,7 +37,7 @@ public final class PrescriptionDrugLookup {
 
     /**
      * V3-REG-002(REG-003 변경): 판독 이름에 질량 함량이 있으면 함량 뗀 기본 이름으로 먼저 조회해, 기본 이름(제형 · 서방 · 장용 포함)이
-     * 같고 함량만 다른 품목도 '함량 다름'으로 남김. 기본 이름 결과가 비었거나 잘렸으면 원래 표기로 일치 품목을 더함.
+     * 같고 함량만 다른 품목도 '함량 다름'으로 남김. 기본 이름 결과에 일치 품목이 없거나 결과가 잘렸으면 원래 표기로 일치 품목을 더함.
      * 농도 · 활성 단위 · 잘린 이름 · 함량 없는 이름은 기존 대조(find)와 같은 후보를 돌려줌. 순서는 호출자가 정함.
      */
     public List<Candidate> findWithStrength(String name, String maker) {
@@ -53,8 +53,10 @@ public final class PrescriptionDrugLookup {
             var strength = clue.strengthOf(text(row, "ITEM_NAME"));
             if (strength != null) found.add(new Candidate(row, strength));
         }
-        // 잘린 결과는 첫 페이지에 일치 품목이 하나 보여도 뒤쪽에 더 있을 수 있음. 자동 선택이 유일하다고 보지 않게 원래 표기로 일치 품목을 다시 모음.
-        if (found.isEmpty() || PublicDataClient.totalCount(body) > items.size()) {
+        // 일치 품목이 없으면 원래 표기로 찾음('합성20mg정'처럼 함량을 떼면 이어지지 않는 이름). 잘린 결과는 첫 페이지에
+        // 일치 품목이 하나 보여도 뒤쪽에 더 있을 수 있어, 자동 선택이 유일하다고 보지 않게 원래 표기로 일치 품목을 다시 모음.
+        boolean matched = found.stream().anyMatch(candidate -> candidate.strength() == StrengthMatch.MATCH);
+        if (!matched || PublicDataClient.totalCount(body) > items.size()) {
             var seen = new HashSet<String>();
             found.forEach(candidate -> seen.add(text(candidate.row(), "ITEM_SEQ")));
             for (String query : clue.exactQueries()) {
