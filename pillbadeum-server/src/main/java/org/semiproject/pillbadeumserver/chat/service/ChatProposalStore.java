@@ -43,13 +43,15 @@ public class ChatProposalStore {
     private static final Logger log = LoggerFactory.getLogger(ChatProposalStore.class);
     static final Duration LIFETIME = Duration.ofMinutes(30);
     private static final int EXPIRE_BATCH = 500;
-    // 대기 카드의 '이미 등록됨'은 읽는 때 약목록도 본다. 카드를 만든 뒤 다른 경로로 저장된 약을 고를 수 없게 보이려는 것이다.
-    // 확정·취소·만료된 카드는 만들 때 값 그대로다(확정한 약은 이제 약목록에 있으므로).
+    // 대기 카드의 '이미 등록됨'은 읽는 때 약목록 값이다. 카드를 만든 뒤 다른 경로로 저장된 약은 고를 수 없고,
+    // 만들 때 있던 약을 회원이 그 뒤 지웠으면 다시 고를 수 있다. 확정·취소·만료된 카드는 만들 때 값 그대로다
+    // (확정한 약은 이제 약목록에 있으므로).
     private static final String SELECT = """
             SELECT p.proposal_id, p.kind, p.status, p.profile_id, p.message_id, p.created_at, p.expires_at, p.decided_at,
                    i.item_no, i.item_seq, i.mention, i.strength_match, i.chosen, i.my_drug_id,
-                   (i.already_registered OR (p.status = 'PENDING' AND EXISTS (SELECT 1 FROM my_drug m
-                       WHERE m.profile_id = p.profile_id AND m.item_seq = i.item_seq))) AS registered,
+                   CASE WHEN p.status = 'PENDING' THEN EXISTS (SELECT 1 FROM my_drug m
+                       WHERE m.profile_id = p.profile_id AND m.item_seq = i.item_seq)
+                   ELSE i.already_registered END AS registered,
                    d.name, d.maker, d.image_url, d.base_name, d.strength_text
             FROM chat_proposal p
             JOIN profile f ON f.profile_id = p.profile_id AND f.member_id = p.member_id
@@ -81,6 +83,7 @@ public class ChatProposalStore {
                                                       QuestionResponse.Question question, String content,
                                                       List<RegistrationCandidates.Candidate> picked,
                                                       ChatDeadline deadline, boolean retry) {
+        lockMember(memberId);
         var answer = questions.saveNotice(sessionId, memberId, profileId, question, content, deadline, retry);
         for (var candidate : picked) drugCache.cache(candidate.drug(), "PERMIT");
         return answer.withProposal(insertRegister(memberId, profileId, answer.messageId(), picked));
@@ -93,10 +96,19 @@ public class ChatProposalStore {
     @Transactional(timeout = 5)
     public QuestionResponse savePhotoTurn(Long sessionId, Long memberId, Long profileId, String turn, String content,
                                           List<RegistrationCandidates.Candidate> picked, ChatDeadline deadline) {
+        lockMember(memberId);
         var question = questions.save(sessionId, memberId, profileId, turn);
         var answer = questions.saveNotice(sessionId, memberId, profileId, question, content, deadline, false);
         if (!picked.isEmpty()) answer = answer.withProposal(insertRegister(memberId, profileId, answer.messageId(), picked));
         return QuestionResponse.answered(question, answer);
+    }
+
+    /**
+     * 확정(confirmRegister)·세션 만들기와 같은 회원 → 프로필 순서로 잠근다. 답변 저장이 프로필을 먼저 잠그고 제안 행의
+     * 회원 FK 확인에서 회원을 기다리면, 회원을 먼저 잠근 확정과 서로 기다려 한쪽이 되돌려진다.
+     */
+    private void lockMember(Long memberId) {
+        jdbc.queryForList("SELECT member_id FROM member WHERE member_id=? FOR UPDATE", Long.class, memberId);
     }
 
     private ChatProposalResponse insertRegister(Long memberId, Long profileId, Long messageId,
@@ -160,7 +172,9 @@ public class ChatProposalStore {
                 statement.setObject(5, now);
                 return statement;
             }, key);
-            jdbc.update("UPDATE chat_proposal_item SET chosen = TRUE, my_drug_id = ? WHERE proposal_id = ? AND item_no = ?",
+            // 만들 때 있던 약을 회원이 지운 뒤 고른 항목이면 저장된 '이미 등록됨'도 내린다(SQL 16: 고른 항목은 이미 등록됨일 수 없음).
+            jdbc.update("UPDATE chat_proposal_item SET chosen = TRUE, my_drug_id = ?, already_registered = FALSE "
+                            + "WHERE proposal_id = ? AND item_no = ?",
                     Objects.requireNonNull(key.getKey()).longValue(), proposalId, item.itemNo());
         }
         events.publishEvent(new DrugRegistered(codes));
