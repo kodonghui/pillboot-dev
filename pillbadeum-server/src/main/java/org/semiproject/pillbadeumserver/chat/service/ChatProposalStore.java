@@ -43,9 +43,13 @@ public class ChatProposalStore {
     private static final Logger log = LoggerFactory.getLogger(ChatProposalStore.class);
     static final Duration LIFETIME = Duration.ofMinutes(30);
     private static final int EXPIRE_BATCH = 500;
+    // 대기 카드의 '이미 등록됨'은 읽는 때 약목록도 본다. 카드를 만든 뒤 다른 경로로 저장된 약을 고를 수 없게 보이려는 것이다.
+    // 확정·취소·만료된 카드는 만들 때 값 그대로다(확정한 약은 이제 약목록에 있으므로).
     private static final String SELECT = """
             SELECT p.proposal_id, p.kind, p.status, p.profile_id, p.message_id, p.created_at, p.expires_at, p.decided_at,
-                   i.item_no, i.item_seq, i.mention, i.strength_match, i.already_registered, i.chosen, i.my_drug_id,
+                   i.item_no, i.item_seq, i.mention, i.strength_match, i.chosen, i.my_drug_id,
+                   (i.already_registered OR (p.status = 'PENDING' AND EXISTS (SELECT 1 FROM my_drug m
+                       WHERE m.profile_id = p.profile_id AND m.item_seq = i.item_seq))) AS registered,
                    d.name, d.maker, d.image_url, d.base_name, d.strength_text
             FROM chat_proposal p
             JOIN profile f ON f.profile_id = p.profile_id AND f.member_id = p.member_id
@@ -239,7 +243,7 @@ public class ChatProposalStore {
         Long myDrug = row.wasNull() ? null : myDrugId;
         return new ChatProposalResponse.Item(itemNo, row.getString("item_seq"), row.getString("name"),
                 row.getString("maker"), row.getString("image_url"), row.getString("mention"),
-                StrengthMatch.valueOf(row.getString("strength_match")), row.getBoolean("already_registered"),
+                StrengthMatch.valueOf(row.getString("strength_match")), row.getBoolean("registered"),
                 row.getBoolean("chosen"), myDrug, row.getString("base_name"), row.getString("strength_text"));
     }
 

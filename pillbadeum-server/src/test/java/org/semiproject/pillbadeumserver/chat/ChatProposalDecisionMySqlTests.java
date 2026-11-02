@@ -130,11 +130,18 @@ class ChatProposalDecisionMySqlTests {
 
     @Test
     void invalidChoicesAreRejectedWithoutSavingAnything() {
-        for (var request : List.of(new ChatProposalConfirmRequest(List.of()), choose(1), choose(9), choose(2, 2))) {
+        for (var request : List.of(new ChatProposalConfirmRequest(List.of()), choose(9), choose(2, 2), choose(1, 9))) {
             assertThatThrownBy(() -> service.confirm(proposalId, request)).isInstanceOfSatisfying(BusinessException.class,
                     error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
         }
         assertThatThrownBy(() -> service.confirm(proposalId, null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.confirm(proposalId, choose(1, 2)))
+                .as("'이미 등록됨'을 고르면 지금 카드를 붙인 409")
+                .isInstanceOfSatisfying(ChatProposalConflictException.class, conflict -> {
+                    assertThat(conflict.getCode()).isEqualTo(ChatProposalConflictException.Code.CONFLICT);
+                    assertThat(conflict.getProposal().items()).extracting(ChatProposalResponse.Item::alreadyRegistered)
+                            .containsExactly(true, false, false);
+                });
         assertThat(storedStatus()).isEqualTo("PENDING");
         assertThat(drugCount()).isEqualTo(1);
         verify(lookup, after(150).never()).collectForPrefetch(any(), anySet(), any());
@@ -186,14 +193,31 @@ class ChatProposalDecisionMySqlTests {
     @Test
     void drugSavedElsewhereAfterTheCardKeepsItPendingWithAConflict() {
         insert("INSERT INTO my_drug(profile_id,item_seq,dose_per_time,source) VALUES(?,?,1,'SEARCH')", profile, first);
+        assertThat(service.get(proposalId).items()).as("대기 카드는 지금 약목록을 보고 '이미 등록됨'을 보여 줌")
+                .extracting(ChatProposalResponse.Item::alreadyRegistered).containsExactly(true, true, false);
         assertThatThrownBy(() -> service.confirm(proposalId, choose(2, 3)))
                 .isInstanceOfSatisfying(ChatProposalConflictException.class, conflict -> {
                     assertThat(conflict.getCode()).isEqualTo(ChatProposalConflictException.Code.CONFLICT);
                     assertThat(conflict.getProposal().status()).isEqualTo(ChatProposalResponse.Status.PENDING);
+                    assertThat(conflict.getProposal().items().get(1).alreadyRegistered()).isTrue();
                 });
         assertThat(storedStatus()).isEqualTo("PENDING");
         assertThat(drugCount()).as("두 번째 약도 저장하지 않음").isEqualTo(2);
         assertThat(service.confirm(proposalId, choose(3)).status()).isEqualTo(ChatProposalResponse.Status.CONFIRMED);
+        assertThat(service.get(proposalId).items()).as("확정한 카드는 만들 때 값 그대로")
+                .extracting(ChatProposalResponse.Item::alreadyRegistered).containsExactly(true, false, false);
+    }
+
+    @Test
+    void drugSavedBetweenReadingAndLockingIsStillAConflict() {
+        // 회원이 카드를 읽은 뒤 잠금 전에 다른 경로 저장이 끼어든 경우. 저장소 쪽 검사가 막는다.
+        var card = service.get(proposalId);
+        insert("INSERT INTO my_drug(profile_id,item_seq,dose_per_time,source) VALUES(?,?,1,'SEARCH')", profile, first);
+        assertThatThrownBy(() -> store.confirmRegister(proposalId, member, profile, List.of(card.items().get(1))))
+                .isInstanceOfSatisfying(ChatProposalConflictException.class,
+                        conflict -> assertThat(conflict.getCode()).isEqualTo(ChatProposalConflictException.Code.CONFLICT));
+        assertThat(storedStatus()).isEqualTo("PENDING");
+        assertThat(drugCount()).isEqualTo(2);
     }
 
     @Test

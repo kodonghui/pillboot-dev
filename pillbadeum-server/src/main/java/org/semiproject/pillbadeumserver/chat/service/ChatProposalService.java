@@ -81,7 +81,10 @@ public class ChatProposalService {
         throw new IllegalStateException("대기 제안을 취소하지 못함");
     }
 
-    /** 카드와 맞춰 본 고른 항목(카드 순서). 빈 목록·중복·카드에 없는 번호·'이미 등록됨'은 400이다. */
+    /**
+     * 카드와 맞춰 본 고른 항목(카드 순서). 빈 목록·중복·카드에 없는 번호는 400이다. '이미 등록됨'을 고르면 지금 카드를 붙인
+     * 409 CONFLICT다. 대기 카드의 '이미 등록됨'은 읽는 때 약목록 값이라, 화면이 오래된 카드를 보고 있었을 수 있어서다.
+     */
     static List<ChatProposalResponse.Item> chosen(ChatProposalResponse card, ChatProposalConfirmRequest request) {
         if (request == null || request.itemNos() == null || request.itemNos().isEmpty())
             throw invalid("약목록에 넣을 약을 하나 이상 골라 주세요.");
@@ -92,9 +95,10 @@ public class ChatProposalService {
             if (itemNo == null || !seen.add(itemNo)) throw invalid("같은 항목은 한 번만 골라 주세요.");
             var item = byNo.get(itemNo);
             if (item == null) throw invalid("카드에 있는 항목 번호를 골라 주세요.");
-            if (item.alreadyRegistered()) throw invalid("이미 약목록에 있는 약은 고를 수 없어요.");
             chosen.add(item);
         }
+        if (chosen.stream().anyMatch(ChatProposalResponse.Item::alreadyRegistered))
+            throw conflict(ChatProposalConflictException.Code.CONFLICT, card);
         chosen.sort(Comparator.comparingInt(ChatProposalResponse.Item::itemNo));
         return chosen;
     }

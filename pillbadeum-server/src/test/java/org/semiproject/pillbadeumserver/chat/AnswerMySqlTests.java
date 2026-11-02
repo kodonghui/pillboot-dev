@@ -747,6 +747,11 @@ class AnswerMySqlTests {
                 respond(exchange, 200, completed("{\"mode\":\"RECORD\",\"choice\":0,\"names\":[]}"));
                 return;
             }
+            // '등록'이 든 기록 질문은 의도 가르기(V3-CHAT-001)를 먼저 거친다. 약 질문으로 돌려 답변 생성만 센다.
+            if ("question_intent".equals(input.path("text").path("format").path("name").asString())) {
+                respond(exchange, 200, completed("{\"intent\":\"QUESTION\",\"drugMentions\":[],\"targetMyDrugName\":\"\"}"));
+                return;
+            }
             generations.incrementAndGet();
             requests.add(input);
             duringGeneration.get().run();

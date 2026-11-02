@@ -417,8 +417,8 @@ paths:
               schema: { $ref: '#/components/schemas/ChatProposal' }
         '400':
           description: |
-            `VALIDATION_FAILED`. 등록 제안에서 `itemNos`가 없거나 비었거나 11개 이상·중복이거나, 제안에 없는 번호이거나,
-            '이미 등록됨'(`alreadyRegistered`) 항목을 고름. 일정 제안에 `itemNos`를 보냄. 아무것도 저장하지 않음
+            `VALIDATION_FAILED`. 등록 제안에서 `itemNos`가 없거나 비었거나 11개 이상·중복이거나, 제안에 없는 번호임.
+            일정 제안에 `itemNos`를 보냄. 아무것도 저장하지 않음
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -428,7 +428,8 @@ paths:
             - `PROPOSAL_ALREADY_CONFIRMED`: 이미 확정된 제안. `proposal`이 처음 확정 결과임(V3-REQ-49)
             - `PROPOSAL_CANCELLED`: 취소된 제안
             - `PROPOSAL_EXPIRED`: 만든 지 30분이 지남
-            - `CONFLICT`: 등록 제안을 만든 뒤 고른 약이 다른 경로로 약목록에 먼저 저장됨. 제안은 대기 그대로임
+            - `CONFLICT`: 고른 약이 이미 약목록에 있음(카드를 만든 뒤 다른 경로로 먼저 저장된 경우 포함). 제안은 대기 그대로이고,
+              `proposal`에서 그 항목이 `alreadyRegistered: true`로 보임
             - `SCHEDULE_CHANGED`: 일정 제안을 만든 뒤 대상 약의 일정이 바뀌었거나 대상 약이 지워짐. 새 카드를 받아야 함
           content:
             application/json:
@@ -728,7 +729,7 @@ components:
             strengthMatch: { $ref: '#/components/schemas/StrengthMatch' }
             alreadyRegistered:
               type: boolean
-              description: 제안을 만들 때 이미 이 프로필 약목록에 있었음. 고를 수 없음(V3-REQ-50)
+              description: 이 프로필 약목록에 이미 있음. 고를 수 없음(V3-REQ-50). 대기 카드는 읽는 때 약목록 값이고, 확정·취소·만료된 카드는 만들 때 값임
             chosen: { type: boolean, description: 확정 때 고른 항목 }
             myDrugId:
               type: [integer, 'null']
