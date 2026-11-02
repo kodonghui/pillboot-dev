@@ -79,6 +79,24 @@ public class ChatProposalStore {
                                                       ChatDeadline deadline, boolean retry) {
         var answer = questions.saveNotice(sessionId, memberId, profileId, question, content, deadline, retry);
         for (var candidate : picked) drugCache.cache(candidate.drug(), "PERMIT");
+        return answer.withProposal(insertRegister(memberId, profileId, answer.messageId(), picked));
+    }
+
+    /**
+     * V3-CHAT-006: 상담방 사진 한 장의 회원 턴과 답변(고른 후보가 있으면 등록 제안까지)을 한 트랜잭션에 저장한다.
+     * 사진 후보는 판독 때 약 캐시에 들어간 품목이라(ocr_candidate FK) 다시 넣지 않는다. 약목록에는 저장하지 않는다.
+     */
+    @Transactional(timeout = 5)
+    public QuestionResponse savePhotoTurn(Long sessionId, Long memberId, Long profileId, String turn, String content,
+                                          List<RegistrationCandidates.Candidate> picked, ChatDeadline deadline) {
+        var question = questions.save(sessionId, memberId, profileId, turn);
+        var answer = questions.saveNotice(sessionId, memberId, profileId, question, content, deadline, false);
+        if (!picked.isEmpty()) answer = answer.withProposal(insertRegister(memberId, profileId, answer.messageId(), picked));
+        return QuestionResponse.answered(question, answer);
+    }
+
+    private ChatProposalResponse insertRegister(Long memberId, Long profileId, Long messageId,
+                                                List<RegistrationCandidates.Candidate> picked) {
         var registered = new HashSet<>(medications.findItemSeqsByProfileId(profileId));
         LocalDateTime now = now();
         var key = new GeneratedKeyHolder();
@@ -88,7 +106,7 @@ public class ChatProposalStore {
                     Statement.RETURN_GENERATED_KEYS);
             statement.setLong(1, memberId);
             statement.setLong(2, profileId);
-            statement.setLong(3, answer.messageId());
+            statement.setLong(3, messageId);
             statement.setObject(4, now);
             statement.setObject(5, now.plus(LIFETIME));
             return statement;
@@ -102,7 +120,7 @@ public class ChatProposalStore {
         }
         jdbc.batchUpdate("INSERT INTO chat_proposal_item(proposal_id, item_no, item_seq, mention, strength_match, "
                 + "already_registered) VALUES(?,?,?,?,?,?)", rows);
-        return answer.withProposal(find(proposalId, memberId).orElseThrow());
+        return find(proposalId, memberId).orElseThrow();
     }
 
     /**

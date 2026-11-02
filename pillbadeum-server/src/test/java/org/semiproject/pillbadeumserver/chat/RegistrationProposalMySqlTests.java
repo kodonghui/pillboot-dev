@@ -156,6 +156,34 @@ class RegistrationProposalMySqlTests {
                 Integer.class, session)).isEqualTo(1);
     }
 
+    @Test
+    void photoTurnSavesTheMemberTurnAnswerAndCardTogetherWithoutTouchingTheDrugList() {
+        // V3-CHAT-006: 사진 후보는 판독 때 약 캐시에 들어간 품목임.
+        jdbc.update("INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,shape,color,form,material,synced_at) "
+                + "VALUES(?,'가상약정10밀리그램','시험제약','OTC','synthetic','ROUND','WHITE','TABLET','synthetic',CURRENT_TIMESTAMP)", fresh);
+        var turn = proposals.savePhotoTurn(session, member, profile, "처방전·약봉투 사진을 보냈어요", "등록할 약 후보를 찾았어요.",
+                List.of(candidate("가상혈압정", owned, "가상혈압정5밀리그램", StrengthMatch.UNKNOWN),
+                        candidate("가상약정10mg", fresh, "가상약정10밀리그램", StrengthMatch.MATCH)),
+                ChatDeadline.after(Duration.ofSeconds(30)));
+        assertThat(turn.result()).isEqualTo(org.semiproject.pillbadeumserver.chat.dto.QuestionResponse.Result.ANSWERED);
+        assertThat(turn.answer().turnNo()).isEqualTo(turn.question().turnNo());
+        var card = turn.answer().proposal();
+        assertThat(card.status()).isEqualTo(ChatProposalResponse.Status.PENDING);
+        assertThat(card.items()).extracting(ChatProposalResponse.Item::alreadyRegistered).containsExactly(true, false);
+        assertThat(card.items()).extracting(ChatProposalResponse.Item::mention).containsExactly("가상혈압정", "가상약정10mg");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM my_drug WHERE profile_id=?", Integer.class, profile)).isEqualTo(1);
+
+        var notice = proposals.savePhotoTurn(session, member, profile, "처방전·약봉투 사진을 보냈어요", "다시 찍어 주세요.",
+                List.of(), ChatDeadline.after(Duration.ofSeconds(30)));
+        assertThat(notice.answer().proposal()).isNull();
+        login(member);
+        var messages = history.read(session, null, 30).messages();
+        assertThat(messages).extracting(MessageHistoryResponse.Message::content)
+                .containsExactly("처방전·약봉투 사진을 보냈어요", "등록할 약 후보를 찾았어요.", "처방전·약봉투 사진을 보냈어요", "다시 찍어 주세요.");
+        assertThat(messages.get(1).proposal().proposalId()).isEqualTo(card.proposalId());
+        assertThat(messages.get(3).proposal()).isNull();
+    }
+
     private static RegistrationCandidates.Candidate candidate(String mention, String code, String name, StrengthMatch strength) {
         var drug = new PhotoCandidateData(code, name, "시험제약", "OTC", "synthetic", null, null, null, "ROUND", "WHITE",
                 null, null, "TABLET", "synthetic", null, false);

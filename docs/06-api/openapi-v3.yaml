@@ -334,6 +334,47 @@ paths:
         '409':
           description: 같은 상담방의 이전 질문에 답하는 중(REQUEST_IN_PROGRESS)
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+  /api/chat-sessions/{sessionId}/photos:
+    post:
+      tags: [약봉이 제안]
+      operationId: submitChatPhoto
+      summary: 상담방 사진으로 등록 제안(V3-CHAT-006)
+      description: |
+        처방전·약봉투 사진 1장을 상담방의 프로필로 판독함. 판독·후보 찾기는 `POST /api/profiles/{profileId}/photo-identifications`
+        (`kind=PRESCRIPTION`)와 같은 처리이며 형식·크기·장수 제한도 같음. 사진 속 글자는 데이터로만 다룸(V3-REQ-62).
+        처리가 끝나면 회원 턴('처방전·약봉투 사진을 보냈어요')과 약봉이 답변을 한 번에 저장하고, 결과는 질문 보내기와 같은
+        `ANSWERED` 모양임. 읽은 약의 후보가 있으면 `answer.proposal`에 등록 제안 카드(읽은 이름마다 최대 5개, 모두 최대 10항목)가
+        오고 약목록에는 저장하지 않음. 읽지 못함 → 다시 찍기 안내, 후보 없음 → 이름·함량을 글로 알려 달라는 안내, 판독·공공데이터
+        장애 → 잠시 뒤 다시 보내 달라는 안내를 답변 글로 주고 `proposal`은 null임. 사진은 처리 뒤 바로 지우므로 다시 보내기는 없음.
+        스트림 경로는 없음(화면이 기다림 표시를 함).
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, format: binary, description: 처방전·약봉투 사진 1장 }
+      responses:
+        '200':
+          description: 회원 턴과 답변을 저장함(`result`는 늘 ANSWERED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuestionResponse' }
+        '400':
+          description: 사진 없음·2장 이상·형식(UNSUPPORTED_FILE_TYPE)·크기(FILE_TOO_LARGE). 아무것도 저장하지 않음
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: 다른 회원의 상담방(질문 보내기와 같음)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 같은 상담방의 이전 질문·사진에 답하는 중(REQUEST_IN_PROGRESS). 아무것도 저장하지 않음
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
   /api/chat-proposals/{proposalId}:
     get:
       tags: [약봉이 제안]
