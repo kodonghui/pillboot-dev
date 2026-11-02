@@ -41,4 +41,17 @@ public class ProfileAccessChecker {
 
         SecurityUtil.checkOwner(profile.getMember().getMemberId());
     }
+
+    /* 목차. 2. v3 새 대상(V3-COMMON-003): 남의 프로필도 없는 프로필처럼 404 로 보여 있는지 알려 주지 않는다.
+     *  복약 일정 API 와 같은 규칙이다. 기존 내 약 API 는 위 checkOwner(403)를 그대로 쓴다.
+     * */
+    @Transactional(readOnly = true)
+    public void checkOwnerHidingOthers(Long profileId) {
+
+        Long memberId = SecurityUtil.getCurrentMemberId();
+
+        if (profileId == null || profileRepository.findByProfileIdAndMember_MemberId(profileId, memberId).isEmpty()) {
+            throw new NotFoundException("존재하지 않는 프로필입니다.");
+        }
+    }
 }

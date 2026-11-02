@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.semiproject.pillbadeumserver.drug.dto.MyDrugBulkDeleteRequest;
+import org.semiproject.pillbadeumserver.drug.dto.MyDrugBulkDeleteResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugCreateRequest;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugDetailResponse;
 import org.semiproject.pillbadeumserver.drug.dto.MyDrugListResponse;
@@ -35,6 +37,7 @@ import java.util.List;
  *  - POST   /api/profiles/{profileId}/drugs              확인한 약 저장 (201, 저장된 상세 배열)
  *  - GET    /api/profiles/{profileId}/drugs/{myDrugId}   약 상세 (다른 프로필의 약이면 404)
  *  - DELETE /api/profiles/{profileId}/drugs/{myDrugId}   약 삭제 (204, 본문 없음)
+ *  - POST   /api/profiles/{profileId}/drugs/bulk-delete  약목록 여러 개 삭제 (200, 지운 수)
  *  복용정보 수정은 범위에서 빠졌다. → 복약 일정 PUT /api/profiles/{profileId}/drugs/{myDrugId}/schedule
  * */
 @Tag(name = "내 약", description = "프로필별 내 약 목록 · 상세 · 등록 · 삭제")
@@ -93,5 +96,15 @@ public class MyDrugController {
     public void deleteMyDrug(@PathVariable Long profileId,
                              @PathVariable Long myDrugId) {
         myDrugService.deleteMyDrug(profileId, myDrugId);
+    }
+
+    /* 목차. 5. 약목록 여러 개 삭제 (V3-DRUG-003. 본문 있는 DELETE 는 중간 장치가 본문을 버릴 수 있어 POST 로 둔다) */
+    @Operation(summary = "약목록 여러 개 삭제",
+            description = "고른 약 1~50개와 그 복약 일정 · 알림을 한 번에 지우고 지운 수를 돌려줍니다. "
+                    + "하나라도 이 프로필에 없으면 404 이고 아무것도 지우지 않습니다. 남의 프로필도 404 입니다.")
+    @PostMapping("/bulk-delete")
+    public MyDrugBulkDeleteResponse deleteMyDrugs(@PathVariable Long profileId,
+                                                  @Valid @RequestBody MyDrugBulkDeleteRequest request) {
+        return myDrugService.deleteMyDrugs(profileId, request);
     }
 }
