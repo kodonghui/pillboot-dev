@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -79,6 +80,33 @@ public class Drug {
     @Column(name = "cancelled")
     private Boolean cancelled;
 
+    // V3-DRUG-001: 품목명에서 뗀 기본 이름·함량 (sql/14). 품목명(name)은 그대로 둔다.
+    @Column(name = "base_name", length = 50)
+    private String baseName;            // 함량 · 괄호 성분명을 뗀 기본 이름 (NULL 이면 아직 채우지 않은 행)
+
+    @Column(name = "strength_text", length = 50)
+    private String strengthText;        // 품목명의 함량 원문 (예: 10mg, 500/125mg)
+
+    @Column(name = "strength_ug", precision = 20, scale = 4)
+    private BigDecimal strengthMicrograms; // 단일 성분 질량 함량의 μg 값 (복합 · 농도 함량은 NULL)
+
+    @Column(name = "strength_unit", length = 10)
+    private String strengthUnit;        // 표시 단위 (mg · μg · g)
+
+    /** V3-DRUG-001·002: 품목명에서 뗀 함량을 저장함. 기본 이름은 늘 채워 '채운 행'으로 남김. */
+    public void recordStrength(DrugStrength strength) {
+        baseName = strength.baseName() == null ? name : strength.baseName();
+        strengthText = strength.text();
+        strengthMicrograms = strength.micrograms();
+        strengthUnit = strength.unit();
+    }
+
+    /** V3-DRUG-004: 아직 채우지 않은 기존 행은 품목명에서 바로 뗀 값을 돌려줌. */
+    public DrugStrength strength() {
+        return baseName == null ? DrugStrength.parse(name)
+                : new DrugStrength(baseName, strengthText, strengthMicrograms, strengthUnit);
+    }
+
     /** 신규 허가/낱알 자료의 출처만 기록하며 과거 출처를 추측하지 않음. */
     public void recordMetadataSource(String source, Boolean cancellation) {
         if (!java.util.Set.of("UNKNOWN", "GRAIN", "PERMIT", "MIXED").contains(source))
@@ -127,6 +155,7 @@ public class Drug {
         }
 
         this.name = name;
+        recordStrength(DrugStrength.parse(name));
         this.maker = maker;
         this.etcOtc = etcOtc;
         this.className = className;

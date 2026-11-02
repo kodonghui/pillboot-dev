@@ -1,0 +1,167 @@
+openapi: 3.1.0
+info:
+  title: 필받음 v3 신규·변경 API
+  version: v3-draft
+  description: |
+    v3에서 새로 생기거나 응답이 바뀌는 경로만 둠. 나머지 경로와 스키마는 실행 서버 사본
+    `pillbadeum-server/docs/openapi.json`이 기준임. 구현 뒤 사본을 다시 받아 맞춤.
+    기존 JSON 칸과 물리명은 바꾸지 않고, 새 칸은 기존 칸 뒤에 더함(V3-DRUG-004).
+    오류 응답은 기존 공통 오류 모양(`ErrorResponse`)과 오류 코드를 그대로 씀.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+tags:
+  - name: 약 검색
+  - name: 내 약
+paths:
+  /api/drugs/search:
+    get:
+      tags: [약 검색]
+      operationId: searchDrugs
+      summary: 약 이름 검색(V3-REG-001 변경)
+      description: |
+        검색어에 함량이 있고 함량을 뗀 기본 이름이 2자 이상이면 기본 이름으로 허가정보를 조회함.
+        기본 이름 결과가 없으면 원래 검색어로 한 번 더 조회함. 기본 이름으로 조회할 때는 결과 앞 100개 안에서
+        함량 일치 후보를 앞에 두고 그 순서로 페이지를 나눔. 함량이 없는 검색어는 기존과 같음.
+      parameters:
+        - { name: name, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 50 } }
+        - { name: profileId, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 20, default: 10 } }
+      responses:
+        '200':
+          description: 검색 결과
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PageResponseDrugSearchResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/drugs/{itemSeq}:
+    get:
+      tags: [약 검색]
+      operationId: getDrug
+      summary: 약 정보(V3-DRUG-004 칸 추가)
+      parameters:
+        - { name: itemSeq, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 약 정보
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DrugInfoResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/profiles/{profileId}/drugs:
+    get:
+      tags: [내 약]
+      operationId: listMyDrugs
+      summary: 내 약 목록(V3-DRUG-004 칸 추가)
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: 최근 등록순 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MyDrugListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/profiles/{profileId}/drugs/{myDrugId}:
+    get:
+      tags: [내 약]
+      operationId: getMyDrug
+      summary: 내 약 상세(V3-DRUG-004, drug 안의 칸 추가)
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: myDrugId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: 내 약 상세. `drug`는 DrugInfoResponse와 같은 모양
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyDrugDetailResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  responses:
+    BadRequest:
+      description: 입력 오류(INVALID_INPUT 등)
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    Unauthorized:
+      description: 로그인 필요
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    NotFound:
+      description: 없음 또는 다른 회원의 대상(있는지 알려 주지 않음)
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    ServiceUnavailable:
+      description: 공공데이터 키 없음·호출 실패·시간 초과
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+  schemas:
+    ErrorResponse:
+      description: 기존 공통 오류 모양. 칸 정의는 openapi.json과 GlobalExceptionHandler를 따름
+      type: object
+    StrengthMatch:
+      type: string
+      enum: [MATCH, DIFFERENT, UNKNOWN]
+      description: |
+        검색어 함량과 후보 함량의 비교. MATCH는 질량 함량이 같거나(μg로 비교) 복합·비질량 함량의 원문 글자가 같음.
+        DIFFERENT는 둘 다 함량이 있지만 다름. UNKNOWN은 검색어나 후보에 함량이 없음.
+    DrugStrengthFields:
+      type: object
+      properties:
+        baseName:
+          type: [string, 'null']
+          maxLength: 50
+          description: 함량과 괄호 성분명을 뗀 기본 이름. 예) '알프람정'
+        strengthText:
+          type: [string, 'null']
+          maxLength: 50
+          description: 품목명에 적힌 함량 원문. 예) '0.25밀리그램', '500/125mg'. 없으면 null
+    DrugSearchResponse:
+      allOf:
+        - type: object
+          required: [itemSeq, name, registered]
+          properties:
+            itemSeq: { type: string }
+            name: { type: string }
+            maker: { type: [string, 'null'] }
+            imageUrl: { type: [string, 'null'] }
+            registered: { type: boolean }
+        - $ref: '#/components/schemas/DrugStrengthFields'
+        - type: object
+          required: [strengthMatch]
+          properties:
+            strengthMatch: { $ref: '#/components/schemas/StrengthMatch' }
+    PageResponseDrugSearchResponse:
+      type: object
+      description: 기존 PageResponse 모양. content의 칸만 늘어남
+      properties:
+        content:
+          type: array
+          items: { $ref: '#/components/schemas/DrugSearchResponse' }
+    DrugInfoResponse:
+      description: 기존 칸(openapi.json의 DrugInfoResponse) 뒤에 baseName·strengthText를 더함
+      allOf:
+        - type: object
+        - $ref: '#/components/schemas/DrugStrengthFields'
+    MyDrugListResponse:
+      description: 기존 칸 뒤에 baseName·strengthText를 더함. 직접 입력한 약은 둘 다 null
+      allOf:
+        - type: object
+        - $ref: '#/components/schemas/DrugStrengthFields'
+    MyDrugDetailResponse:
+      description: 기존 모양 그대로이며, drug(DrugInfoResponse)에 baseName·strengthText가 생김
+      type: object
+      properties:
+        drug:
+          oneOf:
+            - $ref: '#/components/schemas/DrugInfoResponse'
+            - type: 'null'

@@ -93,10 +93,12 @@ public class ImageKeywordRegistrationService {
     var enrich = List.of("class_name", "image_url", "print_front", "print_back", "shape", "color", "line_front", "line_back", "form", "material")
         .stream().map(column -> column + "=IF(" + column + " IS NULL OR " + column + "='미확인',COALESCE(VALUES(" + column + ")," + column + ")," + column + ")")
         .collect(java.util.stream.Collectors.joining(","));
+    // V3-DRUG-001: 새 행은 함량 칸도 함께 넣음. 기존 행은 이름을 바꾸지 않으므로 함량 칸도 그대로 둠.
+    var strength = org.semiproject.pillbadeumserver.drug.domain.DrugStrength.parse(c.name());
     jdbc.update(
         """
-        INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,image_url,print_front,print_back,shape,color,line_front,line_back,form,material,synced_at,metadata_source,cancelled)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
+        INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,image_url,print_front,print_back,shape,color,line_front,line_back,form,material,synced_at,metadata_source,cancelled,base_name,strength_text,strength_ug,strength_unit)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
         """ + enrich + ",metadata_source=CASE WHEN metadata_source='UNKNOWN' THEN VALUES(metadata_source) WHEN metadata_source=VALUES(metadata_source) THEN metadata_source ELSE 'MIXED' END,synced_at=VALUES(synced_at),cancelled=COALESCE(VALUES(cancelled),cancelled)",
         c.itemSeq(),
         c.name(),
@@ -112,7 +114,8 @@ public class ImageKeywordRegistrationService {
         c.lineBack(),
         c.form(),
         org.semiproject.pillbadeumserver.drug.domain.DrugIngredient.forStorage(c.material()),
-        LocalDateTime.now(TimeZoneConfig.ZONE), source, c.cancelled());
+        LocalDateTime.now(TimeZoneConfig.ZONE), source, c.cancelled(),
+        strength.baseName() == null ? c.name() : strength.baseName(), strength.text(), strength.micrograms(), strength.unit());
   }
 
   private void insertCandidate(

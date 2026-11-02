@@ -1,7 +1,7 @@
 # MySQL 설치와 기존 DB 갱신
 
-- 앱 SQL은 00~13의 **14개**임. 새 설치 구조00·01, 선택 샘플02, 기존 구조 변경03~12, 기본 가입 약관13으로 구성함.
-- 최신01은 18개 테이블·146개 컬럼과 승인된 제약을 포함함. 성분명은 material TEXT NOT NULL임. 새 DB는 구조 패치03~12를 거칠 필요가 없음.
+- 앱 SQL은 00~14의 **15개**임. 새 설치 구조00·01, 선택 샘플02, 기존 구조 변경03~12·14, 기본 가입 약관13으로 구성함.
+- 최신01은 18개 테이블·150개 컬럼과 승인된 제약을 포함함. 성분명은 material TEXT NOT NULL임. 새 DB는 구조 패치03~12·14를 거칠 필요가 없음.
 - **신규 설치는00 → 01 → 13이며02는 선택임.** 약관은 샘플 계정과 분리되어13으로 준비함. 기존 DB는 누락된 구조 패치와13을 적용함.
 
 ## 처음 설치
@@ -37,9 +37,9 @@
 
 ## 기존 데이터를 보존하며 갱신할 때
 
-00~11을 모두 적용한 기존 DB는12 → 13만 대상 DB에서 실행함. ingredient_text_status와 base_consent_status의 READY를 확인함. 최신01을 다시 실행해 기존 컬럼이 바뀌기를 기대하지 않음.
+00~11을 모두 적용한 기존 DB는12 → 13 → 14만 대상 DB에서 실행함. ingredient_text_status·base_consent_status·drug_strength_status의 READY를 확인함. 최신01을 다시 실행해 기존 컬럼이 바뀌기를 기대하지 않음.
 
-일부 변경이 빠진 기존 팀 DB는 아래 명령으로03~12 → 13을 순서대로 적용함. 01·02는 실행하지 않음.
+일부 변경이 빠진 기존 팀 DB는 아래 명령으로03~12 → 13 → 14를 순서대로 적용함. 01·02는 실행하지 않음.
 
 ```powershell
 .\scripts\setup-local-db.ps1 -UpgradeExisting
@@ -55,7 +55,7 @@
 | 파일 | 용도 |
 | --- | --- |
 | `00_PILLBADEUM_DB_CREAT.sql` | 개발 DB·계정 준비임. 기존 계정 비밀번호는 바꾸지 않음. |
-| `01_PILLBADEUM_DB_SCRIPT.sql` | 새 설치용 최신 전체 구조임. 18표·146열·PK18·FK21·UNIQUE5·CHECK6임. |
+| `01_PILLBADEUM_DB_SCRIPT.sql` | 새 설치용 최신 전체 구조임. 18표·150열·PK18·FK21·UNIQUE5·CHECK6임. |
 | `02_PILLBADEUM_TEST_DATA.sql` | 빈 개발 DB의 선택 샘플임. |
 | `03_MEDICATION_UPDATE.sql` | 기존 DB의 컬럼명 오타·직접 입력 약·일정 NULL·푸시 구조 갱신임. |
 | `04_MY_DRUG_COMPOSITE_UNIQUE.sql` | 동일 프로필·품목 중복 방지임. item_seq=NULL인 직접 입력 약은 허용함. |
@@ -68,9 +68,19 @@
 | `11_DRUG_INGREDIENT_LENGTH.sql` | 기존 material 30자→100자 확장임. 기존 값을 자르지 않으며 과거 손실 문자열을 복원하지 않음. |
 | `12_DRUG_INGREDIENT_TEXT.sql` | material을TEXT NOT NULL로 확장해100자를 넘는 공식 성분도 보존함. |
 | `13_BASE_CONSENT.sql` | 가입 약관4종만 준비함. 기존 약관과 사용자 동의 선택을 보존함. |
+| `14_DRUG_STRENGTH.sql` | V3-DRUG-001: drug에 기본 이름·함량 원문·μg 값·표시 단위 칸을 더함. 기존 행 값은 바꾸지 않고 빈 칸으로 둠. |
 
 - 01의 CREATE TABLE IF NOT EXISTS는 같은 최신 구조 재실행에서 기존 값을 보존함. 기존 컬럼 변경·다른 10/15개 테이블 설계의 자동 이관 기능은 아님.
-- 03~11의 순서와 파일명은 기존 적용 이력을 위해 유지함. 새 변경12·13을 뒤에 추가함.
+- 03~11의 순서와 파일명은 기존 적용 이력을 위해 유지함. 새 변경12·13·14를 뒤에 추가함.
+
+## 14 적용 뒤 함량 채우기 (V3-DRUG-002)
+
+- 14는 칸만 더하고 기존 행의 함량은 비워 둠. 서버를 한 번 `--drug.strength-backfill.enabled=true`로 띄우면 빈 행을 500행씩 채우고 로그에 `filled`(값까지)·`textOnly`(원문만)·`none`(함량 없음) 수를 남김.
+- 다시 실행하면 이미 채운 행은 건너뛰어 수가 모두 0임. 중간에 멈추면 다음 실행이 남은 행부터 함. 채우지 않은 행도 응답에서는 품목명에서 바로 뗀 값을 보여 줌.
+
+```powershell
+.\gradlew.bat bootRun --args='--drug.strength-backfill.enabled=true'
+```
 
 ## 이전 검증 결과 · 2026-10-22 기준
 

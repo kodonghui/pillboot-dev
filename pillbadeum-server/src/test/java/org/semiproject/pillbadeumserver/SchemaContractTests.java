@@ -29,7 +29,7 @@ class SchemaContractTests {
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
             org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(146);
+                    .isEqualTo(150);
             assertConstraintCount(connection, "PRIMARY KEY", 18);
             assertConstraintCount(connection, "FOREIGN KEY", 21);
             assertConstraintCount(connection, "UNIQUE", 5);
@@ -51,6 +51,14 @@ class SchemaContractTests {
             assertColumn(connection, "chat_message", "dur_notice", "json", null, "YES", null);
             assertColumn(connection, "drug", "metadata_source", "varchar", 20L, "NO", "UNKNOWN");
             assertColumn(connection, "drug", "cancelled", "tinyint", null, "YES", null);
+            // V3-DRUG-001: 함량 칸은 모두 NULL 허용이며, 14를 최신01 위에 다시 적용해도 READY이고 구조가 그대로다.
+            assertColumn(connection, "drug", "base_name", "varchar", 50L, "YES", null);
+            assertColumn(connection, "drug", "strength_text", "varchar", 50L, "YES", null);
+            assertColumn(connection, "drug", "strength_ug", "decimal", null, "YES", null);
+            assertColumn(connection, "drug", "strength_unit", "varchar", 10L, "YES", null);
+            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/14_DRUG_STRENGTH.sql"));
+            assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
+                    .isEqualTo(150);
             assertColumn(connection, "my_drug", "dose_confirmed", "tinyint", null, "NO", "1");
             assertColumn(connection, "chat_session", "snap_birth_year", "bigint", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_pregnant", "tinyint", null, "YES", null);

@@ -3,7 +3,9 @@ package org.semiproject.pillbadeumserver.drug.service;
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ErrorCode;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
+import org.semiproject.pillbadeumserver.drug.domain.DrugStrength;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
+import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.drug.dto.DrugSearchResponse;
 import org.semiproject.pillbadeumserver.image.service.PillCatalog;
 import org.springframework.data.domain.Page;
@@ -13,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +48,7 @@ public class DrugSearchService {
     public static final int MAX_NAME_LENGTH = 50;
     public static final int DEFAULT_PAGE_SIZE = 10;
     public static final int MAX_PAGE_SIZE = 20;
+    public static final int STRENGTH_RANK_ROWS = 100;
 
     private final PublicDataClient publicDataClient;
     private final MyDrugRepository myDrugRepository;
@@ -71,18 +75,27 @@ public class DrugSearchService {
         }
 
         Set<String> registeredItemSeqs = new HashSet<>(myDrugRepository.findItemSeqsByProfileId(profileId));
-        return result.map(item -> DrugSearchResponse.of(item.itemSeq(), item.name(), item.maker(),
-                item.imageUrl(), registeredItemSeqs.contains(item.itemSeq())));
+        return result.map(item -> item.withRegistered(registeredItemSeqs.contains(item.itemSeq())));
     }
 
     /* 목차. 2. 순수 이름 검색 (이미지 팀 공유)
      *  @param name     약 이름 일부 (앞뒤 공백 제거 후 2~50자)
      *  @param pageable 페이지 번호 · 크기 (크기는 최대 20, 없으면 1페이지 10개)
+     *  V3-REG-001: 검색어에 함량이 있으면 함량을 뗀 기본 이름으로 조회하고 함량 일치 후보를 앞에 둔다.
      * */
     public Page<DrugSearchResponse> search(String name, Pageable pageable) {
 
         String keyword = normalizeName(name);
         Pageable page = limitPage(pageable);
+
+        DrugStrength wanted = DrugStrength.parse(keyword);
+        if (wanted.text() != null && wanted.baseName() != null && wanted.baseName().length() >= MIN_NAME_LENGTH) {
+            List<DrugSearchResponse> ranked = rankedByStrength(wanted.baseName(), wanted);
+            if (ranked.isEmpty()) ranked = rankedByStrength(keyword, wanted);   // 기본 이름 결과가 없으면 원래 검색어로
+            int from = (int) Math.min(page.getOffset(), ranked.size());
+            int to = Math.min(from + page.getPageSize(), ranked.size());
+            return new PageImpl<>(withCachedImages(ranked.subList(from, to)), page, ranked.size());
+        }
 
         JsonNode body = publicDataClient.get(SEARCH_PATH, Map.of(
                 "item_name", keyword,
@@ -95,6 +108,20 @@ public class DrugSearchService {
                 .toList();
 
         return new PageImpl<>(withCachedImages(content), page, PublicDataClient.totalCount(body));
+    }
+
+    /** 결과 앞 100개(공공데이터 한 페이지 최대)만 받아 함량 일치 후보를 앞으로 옮긴다. 나머지 순서는 그대로 둔다. */
+    private List<DrugSearchResponse> rankedByStrength(String query, DrugStrength wanted) {
+        JsonNode body = publicDataClient.get(SEARCH_PATH, Map.of(
+                "item_name", query,
+                "pageNo", 1,
+                "numOfRows", STRENGTH_RANK_ROWS));
+        return PublicDataClient.items(body).stream()
+                .map(DrugSearchService::toResponse)
+                .filter(item -> item.itemSeq() != null)
+                .map(item -> item.withStrengthMatch(wanted))
+                .sorted(Comparator.comparing((DrugSearchResponse item) -> item.strengthMatch() != StrengthMatch.MATCH))
+                .toList();
     }
 
     /** 품목코드가 같은 공식 카탈로그의 사진만 보강함. 추가 HTTP·DB 쓰기·식별 자료 준비 대기는 없음. */
@@ -110,8 +137,8 @@ public class DrugSearchService {
             String image = text(row, "ITEM_IMAGE");
             if (image != null && !image.isBlank()) images.putIfAbsent(code, image);
         }
-        return content.stream().map(item -> DrugSearchResponse.of(item.itemSeq(), item.name(), item.maker(),
-                missing.contains(item.itemSeq()) ? images.get(item.itemSeq()) : item.imageUrl(), item.registered())).toList();
+        return content.stream().map(item -> missing.contains(item.itemSeq())
+                ? item.withImageUrl(images.get(item.itemSeq())) : item).toList();
     }
 
     /** REG-003 보조 경로도 함량 대조를 공유함. 일반 이름 검색의 페이지네이션은 변경하지 않음. */
