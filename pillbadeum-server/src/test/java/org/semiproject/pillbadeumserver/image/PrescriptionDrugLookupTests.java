@@ -282,6 +282,21 @@ class PrescriptionDrugLookupTests {
         assertThat(PrescriptionDrugLookup.strengthMatch(readName, candidate)).isEqualTo(expected);
     }
 
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "합성정20mg | 합성정20밀리그램 | MATCH",
+        "합성정20mg | 합성정10밀리그램 | DIFFERENT",
+        "합성정20mg | 합성서방정20밀리그램 | UNKNOWN",
+    })
+    void candidateNameClippedInsideItsIngredientDescriptionKeepsTheLookupState(String readName, String product, StrengthMatch expected) {
+        // 후보 이름은 50자로 잘려 저장되고(PhotoCandidateLookup) 다시 보기는 잘린 이름으로 대조함
+        String full = product + "(아주긴성분이름염산염수화물과또다른성분이름의복합체를설명하는아주긴괄호안의글자가오십자를넘어감)";
+        String stored = full.substring(0, full.offsetByCodePoints(0, 50));
+        assertThat(stored).doesNotContain(")");
+        assertThat(PrescriptionDrugLookup.strengthMatch(readName, full)).isEqualTo(expected);
+        assertThat(PrescriptionDrugLookup.strengthMatch(readName, stored)).isEqualTo(expected);
+    }
+
     private List<String> recordQueries(Map<String, List<String>> results) {
         var queries = new ArrayList<String>();
         when(client.get(anyString(), anyMap())).thenAnswer(call -> {

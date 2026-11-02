@@ -201,10 +201,13 @@ public final class PrescriptionDrugLookup {
         return bare(value).replace("캅셀", "캡슐").toUpperCase(Locale.ROOT);
     }
 
-    /** 함량과 괄호 설명만 뗀 이름. 조회어로 쓰므로 표기(캅셀 · 대소문자)는 바꾸지 않음. */
+    /**
+     * 함량과 괄호 설명만 뗀 이름. 조회어로 쓰므로 표기(캅셀 · 대소문자)는 바꾸지 않음.
+     * 후보 이름은 50자로 잘려 저장되므로 닫히지 않은 끝 괄호도 성분 설명으로 봄(다시 보기에서도 같은 대조).
+     */
     private static String bare(String value) {
         String withoutStrength = MASS.matcher(value).replaceAll("");
-        return withoutStrength.replaceAll("\\([^)]*\\)", "").replaceAll("[/+]+$", "");
+        return withoutStrength.replaceAll("\\([^)]*\\)", "").replaceAll("\\([^)]*$", "").replaceAll("[/+]+$", "");
     }
 
     private static Map<String, Object> params(String query, String maker) {
