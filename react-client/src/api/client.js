@@ -4,7 +4,8 @@ import { useAuthStore } from '../store/auth.js'
 // 필받음 백엔드 개발 서버. 환경마다 주소가 달라지면 환경 변수로 바꾼다.
 // 백엔드 주소. 비워 두면 화면과 같은 주소로 보내고, 개발 서버에서는 vite.config.js 의 프록시가 localhost:8080 으로 넘긴다.
 // 화면과 백엔드 주소가 다른 곳에서는 VITE_API_BASE_URL 로 정한다. fetch 로 보내는 요청(chat.js)도 이 주소를 쓴다.
-export const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
+// 끝의 / 는 지운다. axios 는 주소와 경로 사이를 알아서 잇지만 fetch 는 그대로 붙여 //api/... 가 되기 때문이다.
+export const apiBase = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '')
 const client = axios.create({ baseURL: apiBase })
 
 // 저장된 토큰의 Bearer 헤더 값. 토큰이 없으면 비어 있다.
