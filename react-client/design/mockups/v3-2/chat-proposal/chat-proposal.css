@@ -1,0 +1,55 @@
+/* TASK-027 목업: 대화 속 등록 제안 카드(V3-CHAT-002~006, V3-FL-22). 답변 말풍선 안에 붙음. 토큰만 씀. */
+/* 이름·함량 배지·함량 일치/다름·약 사진 칸은 1차 부품(StrengthName·StrengthMatchBadge·DrugThumb)을 그대로 씀. */
+
+.chat-proposal { display: flex; flex-direction: column; gap: var(--space-12); padding-top: var(--space-14); border-top: 1px solid var(--line-neutral); }
+.chat-proposal__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-4) var(--space-12); }
+.chat-proposal__until { display: inline-flex; align-items: center; gap: var(--space-4); color: var(--label-alternative); white-space: nowrap; }
+.chat-proposal__muted { color: var(--label-alternative); }
+.chat-proposal__note { display: flex; align-items: flex-start; gap: var(--space-6); color: var(--label-alternative); }
+.chat-proposal__note .icon { flex: none; margin-top: 2px; color: var(--primary-on-weak); }
+
+/* 이름 묶음: 대화·사진에서 읽은 이름 원문(mention)마다 */
+.chat-proposal__group { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; margin: 0; padding: 0; border: 0; }
+.chat-proposal__mention { padding: 0; color: var(--label-neutral); }
+
+/* 후보 한 줄 공통: 고르는 칸 · 사진 · 이름과 정보 */
+.chat-proposal__item { display: flex; align-items: flex-start; gap: var(--space-12); min-width: 0; cursor: pointer; }
+.chat-proposal__item input { flex: none; width: 22px; height: 22px; margin: var(--space-10) 0 0; accent-color: var(--primary-normal); }
+.chat-proposal__spacer { flex: none; width: 22px; }
+.chat-proposal__body { display: flex; flex: 1; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.chat-proposal__name { font-weight: 700; overflow-wrap: anywhere; }
+.chat-proposal__registered { display: inline-flex; align-items: center; gap: var(--space-4); color: var(--label-alternative); font-weight: 500; }
+.chat-proposal__item--registered { cursor: not-allowed; }
+.chat-proposal__item--registered .chat-proposal__name { color: var(--label-alternative); font-weight: 600; }
+.chat-proposal__item--now-registered { border-radius: var(--radius-md); box-shadow: 0 0 0 2px var(--line-status-negative); }
+
+/* A안: 한 목록(구분선) · 체크 상자로 여러 개 고르기 */
+.chat-proposal__list { display: flex; flex-direction: column; margin: 0; padding: 0; border: 0; }
+.chat-proposal__list .chat-proposal__mention { margin-top: var(--space-12); }
+.chat-proposal__list .chat-proposal__mention:first-of-type { margin-top: 0; }
+.chat-proposal__list .chat-proposal__item { padding: var(--space-10) var(--space-12); border-radius: var(--radius-md); }
+.chat-proposal__list .chat-proposal__item--checked { background: var(--primary-weak); }
+.chat-proposal__list .chat-proposal__item--registered { background: var(--background-alternative); }
+
+/* B안: 이름마다 하나 고르기(처방전 사진 IMG-04와 같은 칸 모양) · '넣지 않음'으로 되돌림 */
+.chat-proposal__groups { display: flex; flex-direction: column; gap: var(--space-16); }
+.chat-proposal__tile { padding: var(--space-10) var(--space-12); border: 1px solid var(--line-normal); border-radius: var(--radius-lg); background: var(--background-elevated); }
+.chat-proposal__tile.chat-proposal__item--checked { border-color: var(--primary-normal); background: var(--primary-weak); }
+.chat-proposal__tile.chat-proposal__item--registered { background: var(--background-alternative); }
+.chat-proposal__skip { align-items: center; }
+.chat-proposal__skip input { margin-top: 0; }
+
+.chat-proposal__actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.chat-proposal__actions .mt-btn--solid { flex: 1 1 180px; }
+
+/* 확정 · 취소 · 만료된 카드 */
+.chat-proposal__result { display: flex; align-items: center; gap: var(--space-8); }
+.chat-proposal__result .icon { flex: none; }
+.chat-proposal--done .chat-proposal__result .icon { color: var(--primary-on-weak); }
+.chat-proposal--closed .chat-proposal__result { color: var(--label-neutral); }
+.chat-proposal__done-list { display: flex; flex-direction: column; gap: var(--space-8); margin: 0; padding: 0; list-style: none; }
+.chat-proposal__done-list li { display: flex; align-items: center; gap: var(--space-12); min-width: 0; }
+.chat-proposal--done .mt-btn { align-self: flex-start; }
+
+/* 입력창 왼쪽 사진 보내기(V3-CHAT-006). 입력칸 높이(52px)에 맞춘 정사각 버튼 */
+.chat-composer__photo { flex: none; width: 52px; min-height: 52px; padding: 0; }
