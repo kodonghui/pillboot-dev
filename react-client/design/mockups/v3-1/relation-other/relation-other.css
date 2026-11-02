@@ -1,0 +1,4 @@
+/* TASK-020 목업: 관계 '지인·기타'(V3-COMMON-004, DEC-012). 기존 칩·선택 목록 모양을 그대로 써서 새 스타일이 거의 없음. */
+
+/* B안: 상세 관계 목록에서 고른 항목의 체크 아이콘 간격 */
+.select-menu__option .icon { margin-right: var(--space-6); vertical-align: middle; }

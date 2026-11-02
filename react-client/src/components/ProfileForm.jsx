@@ -28,6 +28,9 @@ function yearOptions() {
   return Array.from({ length: thisYear - firstYear + 1 }, (_, index) => String(thisYear - index))
 }
 
+// 관계 칩(kind)과 서버 relationshipType: 본인 SELF, 지인·기타 OTHER, 가족은 상세 관계 값(v3-1-relation-other A안).
+const kindOf = (relationshipType) => ({ SELF: 'self', OTHER: 'other' })[relationshipType] ?? 'family'
+
 // 만들기는 아무것도 골라 두지 않는다(목업 PRF-02-01 · 1). 본인 프로필이 이미 있으면 "가족"을 골라 둔다.
 // 수정할 프로필의 출생연도가 선택지 밖이면(서버에 직접 넣은 값 등) 고르지 않은 채로 열어 다시 고르게 한다.
 function valuesOf(profile, selfTaken, years) {
@@ -35,11 +38,11 @@ function valuesOf(profile, selfTaken, years) {
     const kind = selfTaken ? 'family' : null
     return { kind, relation: null, name: '', birthYear: '', gender: null, pregnant: null, height: '', weight: '' }
   }
-  const self = profile.relationshipType === 'SELF'
+  const kind = kindOf(profile.relationshipType)
   const birthYear = String(profile.profileBirthYear)
   return {
-    kind: self ? 'self' : 'family',
-    relation: self ? null : profile.relationshipType,
+    kind,
+    relation: kind === 'family' ? profile.relationshipType : null,
     name: profile.profileName,
     birthYear: years.includes(birthYear) ? birthYear : '',
     gender: profile.profileGender,
@@ -72,7 +75,7 @@ function check(values) {
 function requestOf(values) {
   return {
     profileName: values.name.trim(),
-    relationshipType: values.kind === 'self' ? 'SELF' : values.relation,
+    relationshipType: { self: 'SELF', other: 'OTHER' }[values.kind] ?? values.relation,
     profileBirthYear: Number(values.birthYear),
     profileGender: values.gender,
     profileHeight: values.height.trim() ? Number(values.height.trim()) : null,
@@ -153,10 +156,11 @@ function ProfileForm({ titleId, profile, selfTaken, cancelTo, onSubmit, children
         options={[
           { value: 'self', label: '본인', disabled: selfTaken, describedBy: selfTaken ? `${fieldId}-self` : undefined },
           { value: 'family', label: '가족' },
+          { value: 'other', label: relationLabels.OTHER },
         ]}
         value={values.kind}
         onChange={chooseKind}
-        describedBy={describe(errorId('kind'))}
+        describedBy={describe(`${fieldId}-kind-help`, errorId('kind'))}
         firstRef={kindRef}
       >
         {selfTaken && (
@@ -164,6 +168,9 @@ function ProfileForm({ titleId, profile, selfTaken, cancelTo, onSubmit, children
             본인 프로필은 하나만 만들 수 있어요.
           </p>
         )}
+        <p className="mt-field__help" id={`${fieldId}-kind-help`}>
+          가족이 아닌 사람(친구·이웃·돌봐 드리는 분 등)이면 지인·기타를 골라 주세요.
+        </p>
         {errors.kind && <FieldError id={errorId('kind')}>{errors.kind}</FieldError>}
       </ChipGroup>
 

@@ -9,6 +9,8 @@ export const relationLabels = {
   GRANDMA: '할머니',
   GRANDPA: '할아버지',
   SPOUSE: '배우자',
+  // 가족이 아닌 사람(v3-1-relation-other A안, V3-COMMON-004). 관계 칩 '지인·기타'로 고른다.
+  OTHER: '지인·기타',
 }
 
 // "가족"을 고르면 펼치는 상세 관계(목업 순서)
