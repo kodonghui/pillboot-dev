@@ -1,0 +1,47 @@
+/* TASK-011 목업: 약목록 선택 모드와 여러 개 삭제 확인 창(V3-DRUG-003, V3-FL-17). 토큰만 씀. */
+
+/* 제목 줄 버튼 묶음(A안: 선택 + 약 등록) */
+.v3-head-actions { display: flex; flex-wrap: wrap; gap: var(--space-12); }
+
+/* 체크 칸: 상자는 22px, 누르는 범위는 44px */
+.v3-check { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+.v3-check input { width: 22px; height: 22px; margin: 0; accent-color: var(--primary-normal); }
+.v3-check--text { justify-content: flex-start; gap: var(--space-8); padding-right: var(--space-8); }
+
+.drugs-page__table th.v3-col-check,
+.drugs-page__table td.v3-col-check { width: 44px; padding-right: 0; text-align: center; }
+.drugs-page__table tr.v3-row--picked td { background: var(--primary-weak); }
+
+/* 선택 모드에서는 행 안 버튼(일정 등록)을 숨겨 잘못 누르지 않게 함 */
+.v3-selecting .drugs-page__no-schedule .mt-btn { display: none; }
+
+/* A안: 아래 고정 바(찾은 약 확인 화면 저장 줄과 같은 모양) */
+.v3-select-bar {
+  position: sticky; bottom: 0; z-index: 5;
+  flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--space-12); padding: var(--space-16) var(--space-24); background: var(--background-elevated);
+}
+.v3-select-bar__text { display: flex; flex: 1 1 240px; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.v3-select-bar__actions { display: flex; flex-wrap: wrap; gap: var(--space-12); }
+
+/* B안: 표 카드 맨 위 도구 줄 */
+.v3-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-12);
+  padding: var(--space-10) var(--space-16); border-bottom: 1px solid var(--line-normal);
+}
+.v3-toolbar--on { background: var(--primary-weak); }
+.drugs-page__card:has(.v3-toolbar) { gap: 0; }
+.v3-toolbar__text { flex: 1 1 160px; margin: 0; }
+.v3-toolbar__actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+
+/* 확인 창의 고른 약 이름 목록 */
+.v3-confirm-list {
+  display: flex; flex-direction: column; gap: var(--space-4);
+  margin: 0; padding: var(--space-12) var(--space-16) var(--space-12) var(--space-32); list-style: disc;
+  border: 1px solid var(--line-neutral); border-radius: var(--radius-lg); background: var(--background-alternative);
+  color: var(--label-normal);
+}
+
+@media (max-width: 720px) {
+  .v3-select-bar { padding: var(--space-16); }
+}

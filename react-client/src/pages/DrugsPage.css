@@ -167,3 +167,89 @@
   justify-content: space-between;
   gap: var(--space-12);
 }
+
+/* 제목 줄 버튼 묶음: 선택 + 약 등록(목업 v3-1/bulk-delete A안) */
+.drugs-page__head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+/* 선택 모드 체크 칸: 상자는 22px, 누르는 범위는 44px */
+.drugs-page__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.drugs-page__check input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--primary-normal);
+}
+
+.drugs-page__table .drugs-page__col-check {
+  width: 44px;
+  padding-right: 0;
+  text-align: center;
+}
+
+.drugs-page__row--picked td {
+  background: var(--primary-weak);
+}
+
+label.drugs-page__name {
+  cursor: pointer;
+}
+
+/* 선택 모드 아래 고정 바. 찾은 약 확인 화면의 저장 줄과 같은 모양이다. */
+.drugs-page__select-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-16) var(--space-24);
+  background: var(--background-elevated);
+}
+
+.drugs-page__select-text {
+  display: flex;
+  flex: 1 1 240px;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.drugs-page__select-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+/* 확인 창의 고른 약 이름 목록 */
+.drugs-page__confirm-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-12) var(--space-16) var(--space-12) var(--space-32);
+  border: 1px solid var(--line-neutral);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+  color: var(--label-normal);
+  list-style: disc;
+}
+
+@media (max-width: 720px) {
+  .drugs-page__select-bar {
+    padding: var(--space-16);
+  }
+}

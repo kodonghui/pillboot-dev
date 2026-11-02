@@ -23,6 +23,12 @@ export async function deleteMyDrug(profileId, myDrugId) {
   await client.delete(`/api/profiles/${profileId}/drugs/${myDrugId}`)
 }
 
+// MyDrugController.deleteMyDrugs — POST /api/profiles/{profileId}/drugs/bulk-delete
+export async function deleteMyDrugs(profileId, myDrugIds) {
+  const { data } = await client.post(`/api/profiles/${profileId}/drugs/bulk-delete`, { myDrugIds })
+  return data
+}
+
 // DrugController.search — GET /api/drugs/search
 export async function searchDrugs({ name, profileId, page, size }) {
   // page 는 1부터 센다(서버 one-indexed-parameters). OpenAPI 의 pageable 은 page · size 쿼리로 받는다.
