@@ -52,7 +52,7 @@
 | TASK-016 | 프론트: 기다림 표시 | V3-COMMON-001 | 위 화면 | TASK-015 | Claude(CT) | 1일 | 2초 뒤 단계 이름·경과 초가 보이고, 화면 읽기 알림이 단계가 바뀔 때만 나며 lint·build가 통과함 |
 | TASK-017 | 화면정의서·목업: 금기 표시 설명 | V3-COMMON-002 | 금기 표시가 있는 화면 | 없음 | Claude(CT) | 0.5일 | PM이 캡처를 보고 승인함 |
 | TASK-018 | 프론트: 금기 표시 설명 | V3-COMMON-002 | 위 화면(`chatInfo.js` 이름과 같게) | TASK-017 | Claude(CT) | 0.5일 | 누름·키보드로 열고 Esc·바깥 누름으로 닫히며 lint·build가 통과함 |
-| TASK-019 | 서버: 관계 값 `OTHER` | V3-COMMON-004 | `POST /api/profiles`, `PUT /api/profiles/{profileId}`, 필요하면 `sql/15` | 없음 | Claude(CT) | 0.5일 | `OTHER` 저장 200과 목록 밖 값 400 시험이 통과함 |
+| TASK-019 | 서버: 관계 값 `OTHER` | V3-COMMON-004 | `POST /api/profiles`, `PUT /api/profiles/{profileId}`. `relationship_type`이 varchar(10)이고 제약이 없어 `sql/15`는 필요 없음 | 없음 | Claude(CT) | 0.5일 | `OTHER` 저장(만들기 201·고치기 200)과 목록 밖 값 400 시험이 통과함 |
 | TASK-020 | 프론트: 관계 선택 '지인·기타' | V3-COMMON-004 | 프로필 화면(정의서 한 줄 고침) | TASK-019 | Claude(CT) | 0.5일 | 선택하고 저장되며 lint·build가 통과함 |
 | TASK-021 | 등록·일정 제안 SQL 패치 16과 등록 방법 `CHAT` | V3-CHAT-002·003·005·007 | 제안 테이블(H-10은 여기서 정함), `my_drug.source` | 없음 | Claude(CT) | 1일 | 새 DB·기존 DB에 적용되고, 한 제안이 두 번 확정되지 않게 DB 제약이 있음 |
 | TASK-022 | 제안 API 계약: 조회·확정·취소 | V3-CHAT-002~005·007 | `openapi-v3.yaml` | TASK-021 | Claude(CT) | 0.5일 | 200·400·401·404·409 응답이 계약에 있음 |

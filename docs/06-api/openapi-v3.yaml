@@ -14,6 +14,7 @@ security:
 tags:
   - name: 약 검색
   - name: 내 약
+  - name: 프로필
 paths:
   /api/drugs/search:
     get:
@@ -86,6 +87,47 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MyDrugDetailResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/profiles:
+    post:
+      tags: [프로필]
+      operationId: createProfile
+      summary: 프로필 만들기(V3-COMMON-004, 관계 값 OTHER 추가)
+      description: 기존 요청·응답 모양 그대로이며 relationshipType에 `OTHER`('지인·기타')를 받음. 목록 밖 값은 기존처럼 400임
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileRequest' }
+      responses:
+        '201':
+          description: 만든 프로필
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/profiles/{profileId}:
+    put:
+      tags: [프로필]
+      operationId: updateProfile
+      summary: 프로필 고치기(V3-COMMON-004, 관계 값 OTHER 추가)
+      description: 기존 요청·응답 모양 그대로이며 relationshipType에 `OTHER`를 받음. 다른 회원의 프로필은 기존처럼 404임
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileRequest' }
+      responses:
+        '200':
+          description: 고친 프로필
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 components:
@@ -165,3 +207,22 @@ components:
           oneOf:
             - $ref: '#/components/schemas/DrugInfoResponse'
             - type: 'null'
+    RelationshipType:
+      type: string
+      enum: [SELF, MOTHER, FATHER, DAUGHTER, SON, GRANDMA, GRANDPA, SPOUSE, OTHER]
+      description: 회원과 프로필의 관계. v3에서 `OTHER`(화면 이름 '지인·기타')를 더함. 저장 칸 `relationship_type` varchar(10)에 들어가 SQL 변경 없음
+    ProfileRequest:
+      description: 기존 ProfileCreateRequest·ProfileUpdateRequest(openapi.json)와 같은 칸이며 relationshipType 값 목록만 늘어남
+      allOf:
+        - type: object
+        - type: object
+          required: [relationshipType]
+          properties:
+            relationshipType: { $ref: '#/components/schemas/RelationshipType' }
+    ProfileResponse:
+      description: 기존 ProfileResponse(openapi.json)와 같은 칸이며 relationshipType에 OTHER가 올 수 있음
+      allOf:
+        - type: object
+        - type: object
+          properties:
+            relationshipType: { $ref: '#/components/schemas/RelationshipType' }
