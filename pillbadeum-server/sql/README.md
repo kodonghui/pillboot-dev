@@ -1,7 +1,7 @@
 # MySQL 설치와 기존 DB 갱신
 
-- 앱 SQL은 00~14의 **15개**임. 새 설치 구조00·01, 선택 샘플02, 기존 구조 변경03~12·14, 기본 가입 약관13으로 구성함.
-- 최신01은 18개 테이블·150개 컬럼과 승인된 제약을 포함함. 성분명은 material TEXT NOT NULL임. 새 DB는 구조 패치03~12·14를 거칠 필요가 없음.
+- 앱 SQL은 00~14·16의 **16개**임. 새 설치 구조00·01, 선택 샘플02, 기존 구조 변경03~12·14·16, 기본 가입 약관13으로 구성함. 15(관계 값)는 SQL 변경이 필요 없어 비워 둠.
+- 최신01은 21개 테이블·171개 컬럼과 승인된 제약을 포함함. 성분명은 material TEXT NOT NULL임. 새 DB는 구조 패치03~12·14·16을 거칠 필요가 없음.
 - **신규 설치는00 → 01 → 13이며02는 선택임.** 약관은 샘플 계정과 분리되어13으로 준비함. 기존 DB는 누락된 구조 패치와13을 적용함.
 
 ## 처음 설치
@@ -37,9 +37,9 @@
 
 ## 기존 데이터를 보존하며 갱신할 때
 
-00~11을 모두 적용한 기존 DB는12 → 13 → 14만 대상 DB에서 실행함. ingredient_text_status·base_consent_status·drug_strength_status의 READY를 확인함. 최신01을 다시 실행해 기존 컬럼이 바뀌기를 기대하지 않음.
+00~11을 모두 적용한 기존 DB는12 → 13 → 14 → 16만 대상 DB에서 실행함. ingredient_text_status·base_consent_status·drug_strength_status·chat_proposal_status의 READY를 확인함. 최신01을 다시 실행해 기존 컬럼이 바뀌기를 기대하지 않음.
 
-일부 변경이 빠진 기존 팀 DB는 아래 명령으로03~12 → 13 → 14를 순서대로 적용함. 01·02는 실행하지 않음.
+일부 변경이 빠진 기존 팀 DB는 아래 명령으로03~12 → 13 → 14 → 16을 순서대로 적용함. 01·02는 실행하지 않음.
 
 ```powershell
 .\scripts\setup-local-db.ps1 -UpgradeExisting
@@ -55,7 +55,7 @@
 | 파일 | 용도 |
 | --- | --- |
 | `00_PILLBADEUM_DB_CREAT.sql` | 개발 DB·계정 준비임. 기존 계정 비밀번호는 바꾸지 않음. |
-| `01_PILLBADEUM_DB_SCRIPT.sql` | 새 설치용 최신 전체 구조임. 18표·150열·PK18·FK21·UNIQUE5·CHECK6임. |
+| `01_PILLBADEUM_DB_SCRIPT.sql` | 새 설치용 최신 전체 구조임. 21표·171열·PK21·FK29·UNIQUE8·CHECK13임. |
 | `02_PILLBADEUM_TEST_DATA.sql` | 빈 개발 DB의 선택 샘플임. |
 | `03_MEDICATION_UPDATE.sql` | 기존 DB의 컬럼명 오타·직접 입력 약·일정 NULL·푸시 구조 갱신임. |
 | `04_MY_DRUG_COMPOSITE_UNIQUE.sql` | 동일 프로필·품목 중복 방지임. item_seq=NULL인 직접 입력 약은 허용함. |
@@ -69,9 +69,19 @@
 | `12_DRUG_INGREDIENT_TEXT.sql` | material을TEXT NOT NULL로 확장해100자를 넘는 공식 성분도 보존함. |
 | `13_BASE_CONSENT.sql` | 가입 약관4종만 준비함. 기존 약관과 사용자 동의 선택을 보존함. |
 | `14_DRUG_STRENGTH.sql` | V3-DRUG-001: drug에 기본 이름·함량 원문·μg 값·표시 단위 칸을 더함. 기존 행 값은 바꾸지 않고 빈 칸으로 둠. |
+| `16_CHAT_PROPOSAL.sql` | V3-CHAT-002~005·007: 대화 속 등록 제안·일정 제안 표 3개(chat_proposal·chat_proposal_item·chat_proposal_schedule)를 더함. 기존 표·값은 바꾸지 않음. 등록 방법 값 `CHAT`은 my_drug.source varchar(30)에 들어가 구조 변경 없음. |
 
 - 01의 CREATE TABLE IF NOT EXISTS는 같은 최신 구조 재실행에서 기존 값을 보존함. 기존 컬럼 변경·다른 10/15개 테이블 설계의 자동 이관 기능은 아님.
-- 03~11의 순서와 파일명은 기존 적용 이력을 위해 유지함. 새 변경12·13·14를 뒤에 추가함.
+- 03~11의 순서와 파일명은 기존 적용 이력을 위해 유지함. 새 변경12·13·14·16을 뒤에 추가함.
+
+## 16 제안 표의 규칙 (H-10)
+
+- 제안을 상담 메시지 JSON이 아닌 별도 표에 둠. 만료·확정 상태와 중복 확정 방지를 DB 제약으로 지키기 위함임(도메인 H-10 추천을 TASK-021에서 정함).
+- `chat_proposal`은 제안 하나임. 카드를 보여 주는 약봉이 메시지와 1:1(`uq_chat_proposal_message`)이고, 메시지·프로필·회원을 지우면 함께 지워짐(프로필 삭제는 약목록 약 → 상담 메시지 → 상담방 순으로 지우며 막히지 않음).
+- 상태는 PENDING → CONFIRMED·CANCELLED·EXPIRED 한 방향임. 대기일 때만 `decided_at`이 NULL임(CHECK). 서버는 `status='PENDING' AND expires_at > 지금`인 행만 바꾸는 조건부 UPDATE로 상태를 바꾸고, 바뀐 행이 0이면 409로 답함. 동시에 두 번 확정하면 InnoDB 행 잠금 때문에 뒤 요청은 바뀐 행이 0임.
+- `chat_proposal_item`은 등록 제안의 항목(최대 10개, 같은 품목 한 번)임. 확정으로 만든 약목록 약은 항목마다 하나(`uq_chat_proposal_item_my_drug`)이고, 같은 프로필·품목은 my_drug의 UNIQUE가 다시 막음. '이미 등록됨' 항목은 고를 수 없음(CHECK).
+- 확정으로 만든 약을 약목록에서 지우면 항목의 `my_drug_id`만 NULL이 됨(ON DELETE SET NULL, DEC-019 ERD 묶음 Q3). 여러 개 삭제가 제안 기록 때문에 막히지 않음.
+- `chat_proposal_schedule`은 일정 제안의 '지금'·'바뀐 뒤' 일정(JSON)과 대상 약임. 대상 약을 지우면 `my_drug_id`가 NULL이 되고 확정할 수 없음. JSON 칸 모양은 V3-CHAT-007 구현(TASK-029)에서 정함.
 
 ## 14 적용 뒤 함량 채우기 (V3-DRUG-002)
 

@@ -29,11 +29,11 @@ class SchemaContractTests {
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
             org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(150);
-            assertConstraintCount(connection, "PRIMARY KEY", 18);
-            assertConstraintCount(connection, "FOREIGN KEY", 21);
-            assertConstraintCount(connection, "UNIQUE", 5);
-            assertConstraintCount(connection, "CHECK", 6);
+                    .isEqualTo(171);
+            assertConstraintCount(connection, "PRIMARY KEY", 21);
+            assertConstraintCount(connection, "FOREIGN KEY", 29);
+            assertConstraintCount(connection, "UNIQUE", 8);
+            assertConstraintCount(connection, "CHECK", 13);
             assertColumn(connection, "pill_identification_session", "identification_id", "char", 36L, "NO", null);
             assertColumn(connection, "pill_identification_session", "photo_id", "bigint", null, "YES", null);
             assertColumn(connection, "pill_identification_session", "snapshot", "json", null, "YES", null);
@@ -57,8 +57,14 @@ class SchemaContractTests {
             assertColumn(connection, "drug", "strength_ug", "decimal", null, "YES", null);
             assertColumn(connection, "drug", "strength_unit", "varchar", 10L, "YES", null);
             ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/14_DRUG_STRENGTH.sql"));
+            // V3-CHAT-002~005·007: 제안 표 3개는 최신01에 있고, 16을 다시 적용해도 구조가 그대로다.
+            ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/16_CHAT_PROPOSAL.sql"));
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(150);
+                    .isEqualTo(171);
+            assertColumn(connection, "chat_proposal", "status", "varchar", 12L, "NO", "PENDING");
+            assertColumn(connection, "chat_proposal", "decided_at", "datetime", null, "YES", null);
+            assertColumn(connection, "chat_proposal_item", "my_drug_id", "bigint", null, "YES", null);
+            assertColumn(connection, "chat_proposal_schedule", "proposed_schedule", "json", null, "NO", null);
             assertColumn(connection, "my_drug", "dose_confirmed", "tinyint", null, "NO", "1");
             assertColumn(connection, "chat_session", "snap_birth_year", "bigint", null, "NO", null);
             assertColumn(connection, "chat_session", "snap_pregnant", "tinyint", null, "YES", null);

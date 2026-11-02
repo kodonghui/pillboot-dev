@@ -6,6 +6,7 @@ package org.semiproject.pillbadeumserver.drug.domain;
  *  - SEARCH             : 약 이름 검색으로 찾은 약
  *  - PILL_PHOTO         : 알약 사진(앞 · 뒤)으로 식별한 약
  *  - PRESCRIPTION_PHOTO : 처방전 · 약봉투 사진에서 읽은 약
+ *  - CHAT               : 약봉이 대화의 등록 제안을 확정한 약(V3-CHAT-003). 제안 확정으로만 저장한다.
  *  ----------------------------------------------------------------------------------
  *  DB 에는 이름 그대로 문자열로 저장한다. (MyDrug 에서 @Enumerated(EnumType.STRING))
  *  my_drug.source 는 VARCHAR(30) 이므로 새 값을 추가할 때 30자를 넘기지 않는다.
@@ -17,7 +18,8 @@ public enum DrugSource {
     PILL_PHOTO("알약 사진"),
     PILL_CLUES("알약 정보 입력"),
     PRESCRIPTION_PHOTO("처방전 사진"),
-    MANUAL("직접 입력");
+    MANUAL("직접 입력"),
+    CHAT("대화");
 
     private final String description;   // 화면 · 응답에 보여줄 한글 이름
 

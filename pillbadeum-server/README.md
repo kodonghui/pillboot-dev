@@ -58,13 +58,13 @@ Python: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 
 ### 신규 DB: 설치된 MySQL / Workbench
 
-처음 설치는 서버 폴더에서 아래 명령 한 번으로 준비함. 00이 개발 DB/계정,01이 최신18개 테이블·150개 컬럼,13이 가입 약관을 준비함. 성분명은TEXT이며 구조 패치03~12·14는 신규 설치에 필요하지 않음.
+처음 설치는 서버 폴더에서 아래 명령 한 번으로 준비함. 00이 개발 DB/계정,01이 최신21개 테이블·171개 컬럼,13이 가입 약관을 준비함. 성분명은TEXT이며 구조 패치03~12·14·16은 신규 설치에 필요하지 않음.
 
 ```powershell
 .\scripts\setup-local-db.ps1
 ```
 
-기존 DB는 `.\scripts\setup-local-db.ps1 -UpgradeExisting`으로 누락된03~12와13·14를 적용함. 00~11까지 적용한 DB는12→13→14만 실행해도 됨. 최신01은 기존 컬럼을 업그레이드하는 파일이 아님. 클라이언트를 못 찾으면 `-MySqlClient 'C:\...\mysql.exe'`를 지정함. [신규/기존 DB별 안내](sql/README.md)에 파일 역할과 READY 확인을 정리함.
+기존 DB는 `.\scripts\setup-local-db.ps1 -UpgradeExisting`으로 누락된03~12와13·14·16을 적용함. 00~11까지 적용한 DB는12→13→14→16만 실행해도 됨. 최신01은 기존 컬럼을 업그레이드하는 파일이 아님. 클라이언트를 못 찾으면 `-MySqlClient 'C:\...\mysql.exe'`를 지정함. [신규/기존 DB별 안내](sql/README.md)에 파일 역할과 READY 확인을 정리함.
 
 일정 API·삭제 동작은 [복약 일정 안내](docs/MEDICATION_SCHEDULE.md)를 참고하세요.
 실시간 음성 대화 테스트는 [GPT-Live 안내](docs/MEDICATION_LIVE.md)를 참고하세요. local 실행 후 `/dev/medication-live`에서 시작합니다.

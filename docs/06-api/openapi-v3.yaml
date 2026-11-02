@@ -16,6 +16,7 @@ tags:
   - name: 내 약
   - name: 프로필
   - name: 사진 판독
+  - name: 약봉이 제안
 paths:
   /api/drugs/search:
     get:
@@ -74,6 +75,20 @@ paths:
                 items: { $ref: '#/components/schemas/MyDrugListResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [내 약]
+      operationId: registerMyDrugs
+      summary: 내 약 저장(V3-CHAT-003, 등록 방법 값 CHAT은 받지 않음)
+      description: |
+        요청·응답·다른 오류는 기존과 같음(openapi.json). 등록 방법(`DrugSource`) 값 목록에 `CHAT`이 생기지만, `CHAT`은
+        등록 제안 확정(`POST /api/chat-proposals/{proposalId}/confirm`)으로만 저장됨. 이 경로(`drugs`·`items` 방식 모두)와
+        옛 경로 `POST /api/images/profiles/{profileId}/drugs`로 `CHAT`을 보내면 400이고 아무것도 저장하지 않음.
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '400':
+          description: 기존 입력 오류와 함께, `source`가 `CHAT`이면 `VALIDATION_FAILED`
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
   /api/profiles/{profileId}/drugs/{myDrugId}:
     get:
       tags: [내 약]
@@ -197,6 +212,119 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PrescriptionPhotoResponse' }
+  /api/chat-sessions/{sessionId}/messages:
+    post:
+      tags: [약봉이 제안]
+      operationId: submitQuestion
+      summary: 질문 보내기(V3-CHAT-002·007 답변에 제안 카드 칸 추가)
+      description: |
+        요청·결과 종류·오류는 기존과 같음(openapi.json). 질문이 등록 요청·일정 요청으로 갈리고(V3-CHAT-001) 제안을 만들었으면
+        `ANSWERED` 답변의 `answer.proposal`에 카드가 옴. 답변 글(`answer.content`)은 카드를 설명하는 문장임. 후보를 찾지 못했거나
+        공공데이터 장애, 대상 약을 하나로 못 정함, 해석 값이 규칙 밖이면 제안 없이 그 안내를 답변 글로 주고 `proposal`은 null임.
+        약 질문 답변은 기존과 같고 `proposal`은 null임. 같은 칸이 `POST .../messages/{messageId}/retry` 응답에도 생김.
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: 기존 QuestionResponse에서 `answer`에 `proposal` 칸만 더함
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuestionResponse' }
+    get:
+      tags: [약봉이 제안]
+      operationId: readMessages
+      summary: 상담 기록(V3-CHAT-002·007 메시지에 제안 카드 칸 추가)
+      description: |
+        요청·오류는 기존과 같음(openapi.json). 제안 카드를 보여 주는 약봉이 메시지에 `proposal`이 오고, 상태는 읽는 때의 값임
+        (대기인데 만료 시각이 지났으면 EXPIRED). 다른 메시지의 `proposal`은 null임.
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: 기존 MessageHistoryResponse에서 `messages[]`에 `proposal` 칸만 더함
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageHistoryResponse' }
+  /api/chat-proposals/{proposalId}:
+    get:
+      tags: [약봉이 제안]
+      operationId: getChatProposal
+      summary: 제안 카드 다시 보기(V3-CHAT-002·005·007)
+      description: |
+        대화 속 등록 제안·일정 제안의 지금 상태를 돌려줌. 대기(PENDING)인데 만료 시각이 지났으면 저장된 값과 관계없이
+        만료(EXPIRED)로 돌려줌(V3-CHAT-005). 없는 제안과 다른 회원의 제안은 같은 404임(V3-COMMON-003).
+      parameters:
+        - { name: proposalId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: 제안 카드
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatProposal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/chat-proposals/{proposalId}/confirm:
+    post:
+      tags: [약봉이 제안]
+      operationId: confirmChatProposal
+      summary: 제안 확정(V3-CHAT-003·005·007)
+      description: |
+        등록 제안은 고른 항목(`itemNos`)만 등록 방법 `CHAT`으로 약목록에 저장함. 일정 제안은 본문 없이 보내며 대상 약의 일정을
+        카드의 '바뀐 뒤'로 저장함. 상태 변경과 저장은 한 트랜잭션이고, 대기이며 만료 전인 제안만 확정됨. 같은 제안을 동시에 두 번
+        확정해도 하나만 성공하고 다른 하나는 409임. 실패하면 아무것도 저장하지 않음.
+      parameters:
+        - { name: proposalId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatProposalConfirmRequest' }
+      responses:
+        '200':
+          description: 확정함. 등록 제안은 고른 항목의 `chosen`이 true이고 `myDrugId`가 생김
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatProposal' }
+        '400':
+          description: |
+            `VALIDATION_FAILED`. 등록 제안에서 `itemNos`가 없거나 비었거나 11개 이상·중복이거나, 제안에 없는 번호이거나,
+            '이미 등록됨'(`alreadyRegistered`) 항목을 고름. 일정 제안에 `itemNos`를 보냄. 아무것도 저장하지 않음
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            확정할 수 없음. 아무것도 저장하지 않으며 본문의 `proposal`은 지금 상태임.
+            - `PROPOSAL_ALREADY_CONFIRMED`: 이미 확정된 제안. `proposal`이 처음 확정 결과임(V3-REQ-49)
+            - `PROPOSAL_CANCELLED`: 취소된 제안
+            - `PROPOSAL_EXPIRED`: 만든 지 30분이 지남
+            - `CONFLICT`: 등록 제안을 만든 뒤 고른 약이 다른 경로로 약목록에 먼저 저장됨. 제안은 대기 그대로임
+            - `SCHEDULE_CHANGED`: 일정 제안을 만든 뒤 대상 약의 일정이 바뀌었거나 대상 약이 지워짐. 새 카드를 받아야 함
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatProposalConflict' }
+  /api/chat-proposals/{proposalId}/cancel:
+    post:
+      tags: [약봉이 제안]
+      operationId: cancelChatProposal
+      summary: 제안 취소(V3-CHAT-004)
+      description: |
+        대기인 제안을 취소로 바꾸고 아무것도 저장하지 않음. 이미 취소된 제안을 다시 취소하면 같은 결과로 200임.
+      parameters:
+        - { name: proposalId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: 취소함(또는 이미 취소됨)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatProposal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`PROPOSAL_ALREADY_CONFIRMED`·`PROPOSAL_EXPIRED`. 상태를 바꾸지 않음'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatProposalConflict' }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -262,14 +390,17 @@ components:
         - type: object
         - $ref: '#/components/schemas/DrugStrengthFields'
     MyDrugListResponse:
-      description: 기존 칸 뒤에 baseName·strengthText를 더함. 직접 입력한 약은 둘 다 null
+      description: 기존 칸 뒤에 baseName·strengthText를 더함. 직접 입력한 약은 둘 다 null. `source`에 `CHAT`이 올 수 있음
       allOf:
         - type: object
+          properties:
+            source: { $ref: '#/components/schemas/DrugSource' }
         - $ref: '#/components/schemas/DrugStrengthFields'
     MyDrugDetailResponse:
-      description: 기존 모양 그대로이며, drug(DrugInfoResponse)에 baseName·strengthText가 생김
+      description: 기존 모양 그대로이며, drug(DrugInfoResponse)에 baseName·strengthText가 생김. `source`에 `CHAT`이 올 수 있음
       type: object
       properties:
+        source: { $ref: '#/components/schemas/DrugSource' }
         drug:
           oneOf:
             - $ref: '#/components/schemas/DrugInfoResponse'
@@ -357,3 +488,136 @@ components:
               description: |
                 판독 이름의 함량과 비교. 판독 이름에 함량이 없거나 잘려 읽혔으면 UNKNOWN.
                 복합 함량(500/125mg)은 성분별 질량이 순서대로 같을 때, 농도는 단위 표기만 맞춘 원문이 같을 때만 MATCH.
+    DrugSource:
+      type: string
+      enum: [SEARCH, PILL_PHOTO, PILL_CLUES, PRESCRIPTION_PHOTO, MANUAL, CHAT]
+      description: |
+        약목록 약의 등록 방법(`my_drug.source`). v3에서 `CHAT`('대화')을 더함. 저장 칸 varchar(30)에 들어가 SQL 구조 변경 없음.
+        내 약 목록·상세 응답의 `source`에 `CHAT`이 올 수 있음.
+    QuestionResponse:
+      description: 기존 QuestionResponse(openapi.json)와 같은 칸이며 `answer`에 `proposal`이 생김
+      type: object
+      properties:
+        answer:
+          oneOf:
+            - type: object
+              properties:
+                proposal:
+                  oneOf:
+                    - $ref: '#/components/schemas/ChatProposal'
+                    - type: 'null'
+            - type: 'null'
+    MessageHistoryResponse:
+      description: 기존 MessageHistoryResponse(openapi.json)와 같은 칸이며 `messages[]`에 `proposal`이 생김
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              proposal:
+                oneOf:
+                  - $ref: '#/components/schemas/ChatProposal'
+                  - type: 'null'
+    ChatProposal:
+      type: object
+      required: [proposalId, kind, status, profileId, messageId, createdAt, expiresAt, items]
+      properties:
+        proposalId: { type: integer, format: int64 }
+        kind:
+          type: string
+          enum: [REGISTER, SCHEDULE]
+          description: REGISTER는 등록 제안(V3-CHAT-002·006), SCHEDULE은 일정 제안(V3-CHAT-007)
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, CANCELLED, EXPIRED]
+          description: 대기 → 확정·취소·만료 한 방향. 대기인데 만료 시각이 지났으면 EXPIRED로 줌
+        profileId: { type: integer, format: int64 }
+        messageId:
+          type: integer
+          format: int64
+          description: 카드를 보여 주는 약봉이 메시지
+        createdAt: { type: string, format: date-time, description: '기존 메시지 시각처럼 +09:00' }
+        expiresAt: { type: string, format: date-time, description: 만든 뒤 30분 }
+        decidedAt:
+          type: [string, 'null']
+          format: date-time
+          description: 확정·취소·만료된 시각. 읽을 때 만료로 본 제안은 만료 시각
+        items:
+          type: array
+          maxItems: 10
+          items: { $ref: '#/components/schemas/ChatProposalItem' }
+          description: 등록 제안의 항목. 일정 제안은 빈 배열
+        schedule:
+          oneOf:
+            - $ref: '#/components/schemas/ChatProposalSchedule'
+            - type: 'null'
+          description: 일정 제안의 내용. 등록 제안은 null
+    ChatProposalItem:
+      allOf:
+        - type: object
+          required: [itemNo, itemSeq, name, strengthMatch, alreadyRegistered, chosen]
+          properties:
+            itemNo: { type: integer, minimum: 1, maximum: 10, description: 카드 안 순서. 확정 때 이 번호로 고름 }
+            itemSeq: { type: string }
+            name: { type: string, description: 품목명 }
+            maker: { type: [string, 'null'] }
+            imageUrl: { type: [string, 'null'] }
+            mention:
+              type: [string, 'null']
+              maxLength: 100
+              description: 대화·사진에서 읽은 이름·함량 원문. 예) '타이레놀 500'
+            strengthMatch: { $ref: '#/components/schemas/StrengthMatch' }
+            alreadyRegistered:
+              type: boolean
+              description: 제안을 만들 때 이미 이 프로필 약목록에 있었음. 고를 수 없음(V3-REQ-50)
+            chosen: { type: boolean, description: 확정 때 고른 항목 }
+            myDrugId:
+              type: [integer, 'null']
+              format: int64
+              description: 확정으로 만든 약목록 약. 고르지 않았거나, 그 약을 뒤에 지웠으면 null
+        - $ref: '#/components/schemas/DrugStrengthFields'
+    ChatProposalSchedule:
+      type: object
+      required: [current, proposed]
+      properties:
+        myDrugId:
+          type: [integer, 'null']
+          format: int64
+          description: 일정을 바꿀 약목록 약. 제안 뒤 그 약을 지웠으면 null이고 확정할 수 없음
+        drugName: { type: [string, 'null'], description: 카드에 보일 약 이름 }
+        current: { $ref: '#/components/schemas/ScheduleValues' }
+        proposed: { $ref: '#/components/schemas/ScheduleValues' }
+    ScheduleValues:
+      type: object
+      description: 카드의 '지금'·'바뀐 뒤' 일정. 칸 이름은 기존 복약 일정 응답과 같음. 일정이 없으면 날짜·시각이 null
+      properties:
+        startDate: { type: [string, 'null'], format: date }
+        endDate: { type: [string, 'null'], format: date }
+        doseTimes:
+          type: [array, 'null']
+          maxItems: 3
+          items: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        dosePerTime: { type: integer, minimum: 1, maximum: 10 }
+        timing: { type: [string, 'null'] }
+    ChatProposalConfirmRequest:
+      type: object
+      properties:
+        itemNos:
+          type: array
+          minItems: 1
+          maxItems: 10
+          uniqueItems: true
+          items: { type: integer, minimum: 1, maximum: 10 }
+          description: 등록 제안에서 고른 항목 번호. 일정 제안에는 보내지 않음
+    ChatProposalConflict:
+      description: 기존 공통 오류 모양(`code`·`message`)에 지금 제안 상태 `proposal`을 더함
+      type: object
+      required: [code, message, proposal]
+      properties:
+        code:
+          type: string
+          enum: [PROPOSAL_ALREADY_CONFIRMED, PROPOSAL_CANCELLED, PROPOSAL_EXPIRED, CONFLICT, SCHEDULE_CHANGED]
+        message: { type: string }
+        proposal: { $ref: '#/components/schemas/ChatProposal' }

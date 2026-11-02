@@ -107,6 +107,9 @@ public class MyDrugService {
         if (request.source() == org.semiproject.pillbadeumserver.drug.domain.DrugSource.PILL_PHOTO
                 || request.source() == org.semiproject.pillbadeumserver.drug.domain.DrugSource.PILL_CLUES)
             throw new BusinessException(ErrorCode.INVALID_INPUT, "알약 식별은 결과 ID와 선택 후보로 저장해 주세요.");
+        // V3-CHAT-003: 등록 방법 '대화'는 등록 제안 확정으로만 저장한다.
+        if (request.source() == org.semiproject.pillbadeumserver.drug.domain.DrugSource.CHAT)
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "대화로 찾은 약은 등록 제안 카드에서 확정해 주세요.");
 
         List<MyDrugCreateRequest.Item> items = request.drugs();
         checkNoDuplicates(profileId, items);

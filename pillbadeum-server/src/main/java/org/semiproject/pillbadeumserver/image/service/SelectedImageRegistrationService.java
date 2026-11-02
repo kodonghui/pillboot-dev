@@ -38,6 +38,8 @@ public class SelectedImageRegistrationService {
         || request.items() == null
         || request.items().isEmpty()
         || request.items().size() > 10) throw invalid("저장할 약을 1~10개 선택해주세요.");
+    // V3-CHAT-003: 등록 방법 '대화'는 등록 제안 확정으로만 저장한다.
+    if (request.source() == DrugSource.CHAT) throw invalid("대화로 찾은 약은 등록 제안 카드에서 확정해 주세요.");
     boolean search = request.source() == DrugSource.SEARCH;
     boolean clues = request.source() == DrugSource.PILL_CLUES;
     boolean pill = clues || request.source() == DrugSource.PILL_PHOTO;
