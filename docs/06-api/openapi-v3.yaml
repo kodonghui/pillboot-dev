@@ -17,6 +17,7 @@ tags:
   - name: 프로필
   - name: 사진 판독
   - name: 약봉이 제안
+  - name: 약봉이 답변
 paths:
   /api/drugs/search:
     get:
@@ -245,6 +246,94 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MessageHistoryResponse' }
+  /api/chat-sessions/{sessionId}/messages/stream:
+    post:
+      tags: [약봉이 답변]
+      operationId: submitQuestionStream
+      summary: 질문 보내기 · 진행 단계를 SSE로 받기(V3-CHAT-008)
+      description: |
+        요청 본문·처리·결과는 `POST /api/chat-sessions/{sessionId}/messages`와 같음. 다른 점은 응답이 `text/event-stream`이고
+        답을 만드는 동안 서버가 실제로 들어선 단계를 `stage` 이벤트로 먼저 보내는 것임(DEC-021). 답 글은 나눠 보내지 않고
+        검증·저장을 마친 뒤 `result` 하나로 보냄. 카카오 중계는 기존 JSON 경로를 그대로 씀.
+
+        - 이벤트 순서: `stage` 0개 이상 → `result` 또는 `error` 하나 → 스트림 닫힘. 단계는 UNDERSTANDING(질문 살펴보기) →
+          FINDING_DRUG(약 찾기) → CHECKING(공식 자료·금기 확인) → WRITING(답 정리) 순서 안에서 질문에 따라 건너뜀.
+          막힌 질문은 UNDERSTANDING만, 기록 질문은 UNDERSTANDING·WRITING만 옴. 화면은 모르는 단계 값을 무시함.
+        - `result`의 data는 JSON 경로의 200 본문(`QuestionResponse`, ANSWERED·BLOCKED)과 같음.
+        - `error`의 data는 같은 실패에 JSON 경로가 주는 상태·코드·문구(`QuestionStreamError`). 질문을 저장한 뒤 답변을 만들지 못한
+          503에만 `questionMessageId`가 있음(같은 질문을 `.../retry/stream`으로 다시 보냄).
+        - 스트림을 열기 전 오류(401 로그인, 400 입력, 403·404 상담방, 409 이미 답하는 중)는 기존과 같은 JSON 오류 응답임.
+        - 이벤트가 없는 동안 15초마다 주석 줄(`: keep-alive`)이 옴. 화면 연결이 끊겨도 서버는 답을 끝까지 만들어 저장하고,
+          화면은 기존처럼 상담 기록으로 저장 여부를 확인함. 서버 처리 한도 85초, 스트림 한도 95초.
+        - `Authorization` 헤더가 필요해 브라우저 `EventSource`가 아닌 `fetch`로 읽음. `Accept: text/event-stream, application/json`.
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuestionRequest' }
+      responses:
+        '200':
+          description: SSE 스트림. 이벤트 이름별 data 모양은 `QuestionStreamStage`·`QuestionResponse`·`QuestionStreamError`
+          headers:
+            X-Accel-Buffering:
+              description: 중간 프록시가 이벤트를 모아 두지 않게 함
+              schema: { type: string, enum: ['no'] }
+          content:
+            text/event-stream:
+              schema: { type: string }
+              example: |
+                event:stage
+                data:{"stage":"UNDERSTANDING"}
+
+                event:stage
+                data:{"stage":"FINDING_DRUG"}
+
+                event:stage
+                data:{"stage":"CHECKING"}
+
+                event:stage
+                data:{"stage":"WRITING"}
+
+                event:result
+                data:{"result":"ANSWERED","question":{"messageId":100,"turnNo":3},"answer":{"messageId":101,"turnNo":3,"content":"…","durNotice":null,"createdAt":"2026-11-02T19:30:00+09:00","proposal":null},"notice":null}
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: 다른 회원의 상담방(기존과 같음)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 같은 상담방의 이전 질문에 답하는 중(REQUEST_IN_PROGRESS). 질문을 저장하지 않음
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+  /api/chat-sessions/{sessionId}/messages/{messageId}/retry/stream:
+    post:
+      tags: [약봉이 답변]
+      operationId: retryQuestionStream
+      summary: 다시 보내기 · 진행 단계를 SSE로 받기(V3-CHAT-008)
+      description: |
+        `POST /api/chat-sessions/{sessionId}/messages/{messageId}/retry`(본문 없음)와 같은 처리를 하고, 응답 모양은
+        `.../messages/stream`과 같음. 다시 보낼 수 없는 질문(RETRY_NOT_ALLOWED 400)은 스트림 안의 `error` 이벤트로 옴.
+        스트림을 열기 전 오류는 401·400(ID 형식)·403·404·409 JSON 오류임.
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: messageId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: SSE 스트림(`.../messages/stream`과 같은 이벤트)
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: 다른 회원의 상담방(기존과 같음)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 같은 상담방의 이전 질문에 답하는 중(REQUEST_IN_PROGRESS)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
   /api/chat-proposals/{proposalId}:
     get:
       tags: [약봉이 제안]
@@ -494,6 +583,33 @@ components:
       description: |
         약목록 약의 등록 방법(`my_drug.source`). v3에서 `CHAT`('대화')을 더함. 저장 칸 varchar(30)에 들어가 SQL 구조 변경 없음.
         내 약 목록·상세 응답의 `source`에 `CHAT`이 올 수 있음.
+    QuestionRequest:
+      description: 기존 질문 본문. 회원 번호는 받지 않음
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, description: '앞뒤 공백을 뗀 뒤 1~1,000자' }
+    QuestionStreamStage:
+      description: '`stage` 이벤트의 data. 서버가 실제로 들어선 단계'
+      type: object
+      required: [stage]
+      properties:
+        stage:
+          type: string
+          enum: [UNDERSTANDING, FINDING_DRUG, CHECKING, WRITING]
+    QuestionStreamError:
+      description: '`error` 이벤트의 data. 같은 실패에 JSON 경로가 주는 HTTP 상태·오류 코드·문구'
+      type: object
+      required: [status, code, message, questionMessageId]
+      properties:
+        status: { type: integer, examples: [503] }
+        code: { type: string, examples: [EXTERNAL_TIMEOUT] }
+        message: { type: string }
+        questionMessageId:
+          description: 질문을 저장한 뒤 답변을 만들지 못한 503에만 값이 있음
+          oneOf:
+            - { type: integer, format: int64 }
+            - type: 'null'
     QuestionResponse:
       description: 기존 QuestionResponse(openapi.json)와 같은 칸이며 `answer`에 `proposal`이 생김
       type: object

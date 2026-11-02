@@ -197,6 +197,35 @@
   flex: 1 1 100%;
 }
 
+/* 답변 진행 단계 목록(v3-2-chat-progress B안): 지나온 단계는 체크와 흐린 글, 지금 단계는 도는 아이콘과 경과 초 */
+.chat-room__steps {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-room__step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+.chat-room__step--done {
+  color: var(--label-alternative);
+}
+
+.chat-room__step--done .icon {
+  color: var(--primary-on-weak);
+}
+
+.chat-room__step--now {
+  color: var(--label-neutral);
+}
+
 /* 다른 곳에서 답하는 중(목업 CHT-02-02) */
 .chat-room__elsewhere {
   gap: var(--space-12);

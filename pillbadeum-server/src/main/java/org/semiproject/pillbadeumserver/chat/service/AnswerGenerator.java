@@ -101,6 +101,7 @@ public class AnswerGenerator {
         deadline.check();
         if (plan.purpose() == QuestionPlan.Purpose.RECORD
                 && !(ChatQuestionPurpose.formatting(input.question()) && drugLookup.formattingFollowup(input))) return recordAnswer(input, deadline);
+        deadline.stage(ChatStage.FINDING_DRUG);
         var selection = drugLookup.resolve(input, deadline);
         if (selection.reply() != null)
             return new GeneratedAnswer(sources.append(selection.reply(), selection.sources()), null, null, List.of());
@@ -123,6 +124,7 @@ public class AnswerGenerator {
                 && input.question().matches("\\s*(?:[1-5]번.*|(?:첫|두|세|네|다섯)\\s*번째.*|왜.*|그\\s*약.*)"))
             documentQuestion += " " + input.recentTurns().stream().max(Comparator.comparingInt(AnswerInput.Turn::turnNo)).orElseThrow().question();
         String documentScope = documentQuestion;
+        deadline.stage(ChatStage.CHECKING);
         Future<OfficialDrugEvidence.Evidence> officialTask = executor.submit(() -> official.collect(evidenceMedications, deadline, documentScope));
         Future<List<DurLookup>> durTask = executor.submit(() -> durLookup.collect(durInput, deadline));
         OfficialDrugEvidence.Evidence evidence;
@@ -152,6 +154,7 @@ public class AnswerGenerator {
         } else {
             var messages = messages(answerInput, medications, evidence, notice);
             deadline.check();
+            deadline.stage(ChatStage.WRITING);
             // effort max의 긴 정리 답변이 30초를 넘어 60초까지 기다림(CHK-42). 전체 85초 마감이 먼저 오면 그때 끊음.
             AiTextResult generated = deadline.within(Duration.ofSeconds(60)).await(executor.submit(() -> {
                 deadline.check();
@@ -185,6 +188,7 @@ public class AnswerGenerator {
             return new GeneratedAnswer(sources.append("등록된 약이 없어요.", List.of()), null, null, List.of());
         var evidence = new OfficialDrugEvidence.Evidence(List.of());
         var messages = messages(input, records, evidence, null);
+        deadline.stage(ChatStage.WRITING);
         AiTextResult generated = deadline.within(Duration.ofSeconds(60)).await(executor.submit(() ->
                 openAi.createTextResult(RULES, messages, 1600)));
         var provenance = records.stream().filter(m -> m.itemSeq() != null && !m.itemSeq().isBlank())

@@ -32,6 +32,21 @@ public class QuestionService {
      */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public QuestionResponse submit(Long sessionId, String content) {
+        return startSubmit(sessionId, content).run(ChatProgress.NONE);
+    }
+
+    /** 마지막 미응답 질문만 복구한다. 새 질문과 같은 표식을 공유하고 분류·질문 저장·질문 임베딩은 반복하지 않는다. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public QuestionResponse retry(Long sessionId, Long messageId) {
+        return startRetry(sessionId, messageId).run(ChatProgress.NONE);
+    }
+
+    /**
+     * V3-CHAT-008: 권한·입력 검사와 진행 표식은 호출(요청) 스레드에서 끝내고, 나머지 처리를 돌려준다.
+     * 스트림 질문은 여기서 난 오류를 기존과 같은 HTTP 오류로 답하고, 돌려받은 처리를 다른 스레드에서 실행한다.
+     * 돌려받은 쪽은 run 또는 abandon 중 하나를 꼭 불러 진행 표식을 반납해야 한다.
+     */
+    public Turn startSubmit(Long sessionId, String content) {
         Long memberId = SecurityUtil.getCurrentMemberId();
         // 90초 응답 한도에 전달 여유를 남긴 외부 작업 예산이다. 취소 후 늦은 답변 쓰기를 막는다.
         var deadline = ChatDeadline.after(Duration.ofSeconds(85));
@@ -41,37 +56,66 @@ public class QuestionService {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "앞뒤 공백을 제거한 질문은 1자 이상 1,000자 이하여야 합니다.");
         }
-        if (!inProgress.add(sessionId)) {
-            throw new BusinessException(ErrorCode.DUPLICATE_REQUEST, "이전 질문에 답하는 중이에요.");
-        }
-        try {
-            deadline.check();
+        lock(sessionId);
+        return new Turn(sessionId, deadline, reported -> {
+            reported.check();
+            reported.stage(ChatStage.UNDERSTANDING);
             var plan = classifier.plan(question, store.classificationContext(sessionId, memberId, profileId));
             if (!plan.category().isPassed()) return QuestionResponse.blocked(plan.category());
-            deadline.check();
+            reported.check();
             var saved = store.save(sessionId, memberId, profileId, question);
-            return QuestionResponse.answered(saved, answers.complete(sessionId, memberId, profileId, saved, deadline, plan));
-        } finally {
-            inProgress.remove(sessionId);
-        }
+            return QuestionResponse.answered(saved, answers.complete(sessionId, memberId, profileId, saved, reported, plan));
+        });
     }
 
-    /** 마지막 미응답 질문만 복구한다. 새 질문과 같은 표식을 공유하고 분류·질문 저장·질문 임베딩은 반복하지 않는다. */
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public QuestionResponse retry(Long sessionId, Long messageId) {
+    /** V3-CHAT-008: retry의 앞부분(권한·진행 표식)만 호출 스레드에서 한다. 나머지는 startSubmit과 같다. */
+    public Turn startRetry(Long sessionId, Long messageId) {
         Long memberId = SecurityUtil.getCurrentMemberId();
         var deadline = ChatDeadline.after(Duration.ofSeconds(85));
         Long profileId = store.checkAccess(sessionId, memberId);
+        lock(sessionId);
+        return new Turn(sessionId, deadline, reported -> {
+            reported.check();
+            reported.stage(ChatStage.UNDERSTANDING);
+            var question = store.retryQuestion(sessionId, memberId, profileId, messageId);
+            return QuestionResponse.answered(question, answers.retry(sessionId, memberId, profileId, question, reported));
+        });
+    }
+
+    private void lock(Long sessionId) {
         if (!inProgress.add(sessionId)) {
             throw new BusinessException(ErrorCode.DUPLICATE_REQUEST, "이전 질문에 답하는 중이에요.");
         }
-        try {
-            deadline.check();
-            var question = store.retryQuestion(sessionId, memberId, profileId, messageId);
-            return QuestionResponse.answered(question, answers.retry(sessionId, memberId, profileId, question, deadline));
-        } finally {
-            inProgress.remove(sessionId);
+    }
+
+    /** 검사를 마치고 진행 표식을 잡은 질문 하나. 실행이 성공·차단·예외로 끝나거나 버려지면 표식을 반납한다. */
+    public final class Turn {
+        private final Long sessionId;
+        private final ChatDeadline deadline;
+        private final Work work;
+
+        private Turn(Long sessionId, ChatDeadline deadline, Work work) {
+            this.sessionId = sessionId;
+            this.deadline = deadline;
+            this.work = work;
         }
+
+        /** 분류·저장·답변을 실행한다. 단계에 들어설 때마다 progress에 알린다. */
+        public QuestionResponse run(ChatProgress progress) {
+            try {
+                return work.run(deadline.reporting(progress));
+            } finally {
+                inProgress.remove(sessionId);
+            }
+        }
+
+        /** 실행하지 못하게 됐을 때(작업 제출 실패 등) 진행 표식만 반납한다. */
+        public void abandon() { inProgress.remove(sessionId); }
+    }
+
+    @FunctionalInterface
+    private interface Work {
+        QuestionResponse run(ChatDeadline deadline);
     }
 
     /** CHAT-003: 단일 JVM의 진행 상태만 읽는다. 실제 retry 자격은 API에서 DB와 함께 다시 확인한다. */
