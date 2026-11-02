@@ -48,6 +48,8 @@ class DrugStrengthTests {
         "후시딘연고2%(퓨시드산나트륨)              | 후시딘연고                 | 2%            | -       | -",
         "인슐린주100단위/mL                       | 인슐린주                  | 100단위/mL     | -       | -",
         "게보린정(아세트아미노펜,카페인무수물)      | 게보린정                  | -             | -       | -",
+        "합성정1,000mg                           | 합성정1,000mg             | -             | -       | -",
+        "합성정.5mg                              | 합성정.5mg                | -             | -       | -",
         "판콜에이내복액                           | 판콜에이내복액              | -             | -       | -",
     })
     void separatesBaseNameAndStrengthFromItemName(String name, String base, String text, String micrograms, String unit) {
@@ -77,6 +79,8 @@ class DrugStrengthTests {
         "합성정10mg       | 합성시럽10mg/5mL        | DIFFERENT",
         "합성정          | 합성정10mg             | UNKNOWN",
         "합성정10mg       | 합성정                 | UNKNOWN",
+        "합성정0mg        | 합성정1,000mg          | UNKNOWN",
+        "합성정5mg        | 합성정.5mg             | UNKNOWN",
     })
     void comparesStrengthByMicrogramsOrCanonicalText(String wanted, String candidate, StrengthMatch expected) {
         assertThat(DrugStrength.parse(wanted).matchOf(DrugStrength.parse(candidate))).isEqualTo(expected);

@@ -303,6 +303,10 @@ class PhotoFlowHttpMySqlTests {
     assertThat(lookups).noneMatch(s -> s.contains("...") || s.contains("…"));
     assertThat(jdbc.queryForList("SELECT read_name FROM ocr_candidate WHERE photo_id=? ORDER BY read_no",
         String.class, id)).containsExactly(firstName, secondName);
+    // V3-DRUG-001: 후보로 새로 넣은 약 행도 함량 칸이 채워짐(복합 함량은 원문만)
+    assertThat(jdbc.queryForMap("SELECT name, base_name, strength_text, strength_ug FROM drug WHERE item_seq=?", code1))
+        .containsEntry("name", "슈가메트서방정5/1000밀리그램").containsEntry("base_name", "슈가메트서방정")
+        .containsEntry("strength_text", "5/1000밀리그램").containsEntry("strength_ug", null);
     assertThat(json("GET", "/api/photos/" + id + "/candidates", null, token, 200).path("drugs"))
         .isEqualTo(result.path("drugs"));
     var saved = json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code1, code2), token, 201);

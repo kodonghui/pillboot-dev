@@ -26,7 +26,8 @@ public record DrugStrength(String baseName, String text, BigDecimal micrograms, 
     /** 농도·활성 단위처럼 값으로 비교하지 않는 표기. */
     public static final Pattern COMPLEX = Pattern.compile("(?:%|퍼센트|mEq|IU|국제단위|단위|/(?:" + NUMBER + ")?(?:mL|L|그램|그람|g))",
             Pattern.CASE_INSENSITIVE);
-    private static final Pattern TOKEN = Pattern.compile(NUMBER + "(?:\\s*[/+]\\s*" + NUMBER + ")*\\s*"
+    // 숫자 중간(1,000mg의 000mg, .5mg의 5mg)에서 시작하지 않음. 읽지 못하는 숫자 표기는 함량 없음으로 둠.
+    private static final Pattern TOKEN = Pattern.compile("(?<![0-9.,])" + NUMBER + "(?:\\s*[/+]\\s*" + NUMBER + ")*\\s*"
             + "(?:" + MASS_UNIT + "|%|퍼센트|mEq|IU|국제단위|단위|mL|L)"
             + "(?:\\s*/\\s*(?:" + NUMBER + ")?\\s*(?:mL|L|그램|그람|g))?(?![a-zA-Z])", Pattern.CASE_INSENSITIVE);
     private static final Pattern PARENTHESES = Pattern.compile("\\([^)]*\\)?");
