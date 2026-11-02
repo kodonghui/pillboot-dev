@@ -1,0 +1,9 @@
+/* TASK-048 목업: 답변 진행 단계 표시(V3-CHAT-008, DEC-021). 서버가 보낸 실제 단계를 2초부터 보여 줌. 토큰만 씀. */
+/* 경과 초·오래 걸림 안내는 1차 기다림 표시(../../v3-1/wait-indicator/wait-indicator.css)를 그대로 씀. */
+
+/* B안: 지나온 단계에 체크, 지금 단계에 도는 아이콘과 경과 초. 앞으로 올 단계는 미리 보이지 않음(질문마다 건너뛰는 단계가 있어서) */
+.v3-progress__steps { flex: 1 1 100%; display: flex; flex-direction: column; gap: var(--space-8); margin: 0; padding: 0; list-style: none; }
+.v3-progress__step { display: flex; align-items: center; gap: var(--space-10); }
+.v3-progress__step--done { color: var(--label-alternative); }
+.v3-progress__step--done .icon { color: var(--primary-on-weak); }
+.v3-progress__step--now { color: var(--label-neutral); }
