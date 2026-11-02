@@ -39,7 +39,7 @@
 | TASK-003 | 기존 약 함량 채우기 실행기 | V3-DRUG-002 | `drug` | TASK-002 | Claude(CT) | 0.5일 | 빈 행을 채우고 수를 출력하며, 두 번째 실행의 채운 수가 0인 시험이 통과함 |
 | TASK-004 | 응답에 기본 이름·함량 칸 추가 | V3-DRUG-004 | `GET /api/drugs/search`, `GET /api/drugs/{itemSeq}`, `GET /api/profiles/{profileId}/drugs`, `GET /api/profiles/{profileId}/drugs/{myDrugId}` | TASK-002 | Claude(CT) | 0.5일 | 기존 칸이 그대로이고 새 칸이 더해진 응답 시험이 통과함 |
 | TASK-005 | 함량 뗀 이름 검색과 일치 후보 앞으로 | V3-REG-001 | `GET /api/drugs/search` | TASK-001 | Claude(CT) | 1일 | 수용 기준과 2자 미만·결과 없음 재조회·공공데이터 장애 오류 시험이 통과함 |
-| TASK-006 | 후보 함량 상태(일치·다름·확인 불가)와 자동 선택(REG-003 변경) | V3-REG-002 | 처방전 판독 후보(`POST /api/images/identify`, `GET /api/photos/{photoId}/candidates`, 후보의 기본 이름·함량 칸 포함) | TASK-001 | Claude(CT) | 1일 | 수용 기준과 복합제 원문 일치 시험이 통과하고 기존 판독 시험이 깨지지 않음 |
+| TASK-006 | 후보 함량 상태(일치·다름·확인 불가)와 자동 선택(REG-003 변경) | V3-REG-002 | 처방전 판독 후보(`POST /api/profiles/{profileId}/photo-identifications` 처방전, `GET /api/photos/{photoId}/candidates`, 후보의 기본 이름·함량 칸과 자동 선택 칸 포함) | TASK-001 | Claude(CT) | 1일 | 수용 기준과 복합제 원문 일치 시험이 통과하고 기존 판독 시험이 깨지지 않음 |
 | TASK-007 | 화면정의서·목업: 이름·함량 표시와 '함량 다름' 후보 | V3-DRUG-004, V3-REG-002 | 약 검색·판독 후보·약목록·약 상세 화면 | TASK-004·006의 계약 | Claude(CT) | 0.5일 | PM이 캡처를 보고 승인함 |
 | TASK-008 | 프론트: 이름·함량 표시와 '함량 다름' 후보 | V3-DRUG-004, V3-REG-002 | 위 화면 | TASK-004·006·007 | Claude(CT) | 1일 | 화면이 정의서 상태대로 보이고 lint·build가 통과함 |
 | TASK-009 | 여러 개 삭제 API 계약 | V3-DRUG-003 | `openapi-v3.yaml`(경로는 계약에서 정함) | 없음 | Claude(CT) | 0.5일 | 200·400·401·404 응답과 오류 모양이 계약에 있음 |
