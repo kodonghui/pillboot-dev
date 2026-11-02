@@ -6,6 +6,9 @@ import java.util.*;
 import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
 import org.semiproject.pillbadeumserver.common.exception.*;
 import org.semiproject.pillbadeumserver.common.security.SecurityUtil;
+import org.semiproject.pillbadeumserver.drug.domain.DrugStrength;
+import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
+import org.semiproject.pillbadeumserver.drug.service.PrescriptionDrugLookup;
 import org.semiproject.pillbadeumserver.image.domain.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -94,7 +97,7 @@ public class ImageKeywordRegistrationService {
         .stream().map(column -> column + "=IF(" + column + " IS NULL OR " + column + "='미확인',COALESCE(VALUES(" + column + ")," + column + ")," + column + ")")
         .collect(java.util.stream.Collectors.joining(","));
     // V3-DRUG-001: 새 행은 함량 칸도 함께 넣음. 기존 행은 이름을 바꾸지 않으므로 함량 칸도 그대로 둠.
-    var strength = org.semiproject.pillbadeumserver.drug.domain.DrugStrength.parse(c.name());
+    var strength = DrugStrength.parse(c.name());
     jdbc.update(
         """
         INSERT INTO drug(item_seq,name,maker,etc_otc,class_name,image_url,print_front,print_back,shape,color,line_front,line_back,form,material,synced_at,metadata_source,cancelled,base_name,strength_text,strength_ug,strength_unit)
@@ -213,9 +216,17 @@ public class ImageKeywordRegistrationService {
       String lookup = (String) first.get("lookup_status");
       if (candidates.isEmpty() && "OK".equals(lookup))
         lookup = "FAILED"; // 05 이전 키워드 행을 실제 품목 후보로 오인하지 않는다.
+      String readName = (String) first.get("read_name");
+      String autoSelect = null;
+      if (p.kind() == ImagePhotoKind.PRESCRIPTION) {
+        // V3-REG-002: 함량 상태는 저장된 판독 이름과 후보 품목명으로 다시 계산해 판독 응답과 같게 둠.
+        candidates.replaceAll(c -> c.withStrength(DrugStrength.parse(c.name()),
+            PrescriptionDrugLookup.strengthMatch(readName, c.name())));
+        autoSelect = autoSelect(candidates);
+      }
       groups.add(
           new PhotoIdentificationResponse.DrugGroup(
-              entry.getKey(), (String) first.get("read_name"), lookup, List.copyOf(candidates)));
+              entry.getKey(), readName, lookup, List.copyOf(candidates), autoSelect));
     }
     var candidates =
         p.kind() == ImagePhotoKind.PILL
@@ -234,6 +245,12 @@ public class ImageKeywordRegistrationService {
         matched,
         List.copyOf(groups),
         candidates);
+  }
+
+  /** V3-REG-002: 함량 일치 후보가 하나뿐이고 아직 등록하지 않은 약일 때만 그 품목을 미리 고른다. 저장은 사용자가 확정할 때 한다. */
+  static String autoSelect(List<PhotoIdentificationResponse.Candidate> candidates) {
+    var matched = candidates.stream().filter(c -> c.strengthMatch() == StrengthMatch.MATCH).toList();
+    return matched.size() == 1 && !matched.getFirst().alreadyRegistered() ? matched.getFirst().itemSeq() : null;
   }
 
   /** 같은 프로필 선택 저장을 직렬화한다. 다른 회원의 ID로 잠금을 얻거나 행을 만들지 않는다. */

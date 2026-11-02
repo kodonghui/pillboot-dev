@@ -15,6 +15,7 @@ tags:
   - name: 약 검색
   - name: 내 약
   - name: 프로필
+  - name: 사진 판독
 paths:
   /api/drugs/search:
     get:
@@ -160,6 +161,42 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/profiles/{profileId}/photo-identifications:
+    post:
+      tags: [사진 판독]
+      operationId: identifyPhoto
+      summary: 처방전·약봉투 사진 판독(V3-REG-002 후보 칸 추가)
+      description: |
+        요청과 오류는 기존과 같음(openapi.json). 처방전·약봉투(`kind=PRESCRIPTION`, 기본값)일 때만 응답이 늘어남.
+        판독 이름에 함량이 있고 함량을 뗀 기본 이름이 2자 이상이면 기본 이름으로 먼저 조회해, 기본 이름(제형·서방·장용 포함)이
+        같고 함량만 다른 품목도 '함량 다름'(DIFFERENT)으로 후보에 남김. 후보는 일치·확인 불가·다름 순이며 이름마다 최대 5개임.
+        농도·활성 단위 표기나 잘린 이름은 기존 대조(REG-003)를 그대로 씀. 알약(`kind=PILL`) 응답은 바꾸지 않음.
+        같은 처리의 옛 경로 `POST /api/images/profiles/{profileId}/prescription-photo/identify`도 같은 응답임.
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: kind, in: query, required: false, schema: { type: string, enum: [PRESCRIPTION, PILL], default: PRESCRIPTION } }
+      responses:
+        '200':
+          description: 판독 결과. 처방전은 읽은 이름마다 후보 묶음(drugs)을 돌려줌
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PrescriptionPhotoResponse' }
+  /api/photos/{photoId}/candidates:
+    get:
+      tags: [사진 판독]
+      operationId: getPhotoCandidates
+      summary: 저장된 사진 후보 다시 보기(V3-REG-002 후보 칸 추가)
+      description: |
+        처방전 사진은 판독 때 저장한 후보를 다시 돌려주며, 함량 상태와 자동 선택은 저장된 판독 이름과 후보 품목명으로 다시 계산함
+        (판독 응답과 같은 값). 알약 사진 응답은 바꾸지 않음.
+      parameters:
+        - { name: photoId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: 저장된 후보
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PrescriptionPhotoResponse' }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -276,3 +313,47 @@ components:
         - type: object
           properties:
             relationshipType: { $ref: '#/components/schemas/RelationshipType' }
+    PrescriptionPhotoResponse:
+      type: object
+      description: 기존 PhotoIdentificationResponse 모양(openapi.json). 처방전의 drugs 칸만 늘어남
+      properties:
+        kind: { type: string, enum: [PRESCRIPTION, PILL] }
+        photoId: { type: [integer, 'null'], format: int64 }
+        status: { type: string }
+        drugs:
+          type: array
+          items: { $ref: '#/components/schemas/PhotoDrugGroup' }
+    PhotoDrugGroup:
+      type: object
+      required: [readNo, readName, lookup, candidates]
+      properties:
+        readNo: { type: integer }
+        readName: { type: string, description: 사진에서 읽은 이름 원문 }
+        lookup: { type: string, enum: [OK, PARTIAL, NOT_FOUND, FAILED] }
+        candidates:
+          type: array
+          maxItems: 5
+          items: { $ref: '#/components/schemas/PhotoCandidate' }
+        autoSelectItemSeq:
+          type: string
+          description: |
+            함량 일치(MATCH) 후보가 정확히 하나이고 그 후보가 이 프로필에 아직 등록되지 않았을 때만 그 품목코드를 줌.
+            그 밖에는 칸이 없음(자동 선택하지 않음). 화면은 이 값을 미리 고른 상태로만 쓰고, 저장은 사용자가 확정할 때 함.
+    PhotoCandidate:
+      allOf:
+        - type: object
+          description: 기존 Candidate 칸(itemSeq·name·maker·etcOtc·imageUrl·cancelled·alreadyRegistered·printMatched 등)은 그대로임
+          required: [itemSeq, name, alreadyRegistered]
+          properties:
+            itemSeq: { type: string }
+            name: { type: string }
+            alreadyRegistered: { type: boolean }
+        - $ref: '#/components/schemas/DrugStrengthFields'
+        - type: object
+          required: [strengthMatch]
+          properties:
+            strengthMatch:
+              $ref: '#/components/schemas/StrengthMatch'
+              description: |
+                판독 이름의 함량과 비교. 판독 이름에 함량이 없거나 잘려 읽혔으면 UNKNOWN.
+                복합 함량(500/125mg)은 성분별 질량이 순서대로 같을 때, 농도는 단위 표기만 맞춘 원문이 같을 때만 MATCH.

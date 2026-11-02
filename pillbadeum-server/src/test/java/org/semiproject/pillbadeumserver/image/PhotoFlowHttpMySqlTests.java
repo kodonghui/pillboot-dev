@@ -315,6 +315,42 @@ class PhotoFlowHttpMySqlTests {
   }
 
   @Test
+  void prescriptionKeepsOtherStrengthAsDifferentAndPreselectsOnlyAnUnregisteredSingleMatch() throws Exception {
+    // V3-REG-002 수용 기준: 판독 '합성약정 20mg', 후보 10mg·20mg → 20mg만 자동 선택, 10mg은 '함량 다름'으로 남아 고를 수 있음
+    String otherForm = code1 + "2";
+    officialRows = List.of(row(code1, "합성약정10mg", "A", "B"), row(code2, "합성약정20밀리그램(성분)", "X", "Y"),
+        row(otherForm, "합성약서방정20mg", "C", "D"));
+    vision = prescription("합성약정 20mg");
+
+    var result = identify("PRESCRIPTION", token, 200, "image");
+    long id = result.path("photoId").asLong();
+    var group = result.path("drugs").path(0);
+    assertThat(group.path("readName").asString()).isEqualTo("합성약정 20mg");
+    assertThat(group.path("autoSelectItemSeq").asString()).isEqualTo(code2);
+    assertThat(group.path("candidates")).hasSize(2);
+    assertThat(group.path("candidates").path(0).path("itemSeq").asString()).isEqualTo(code2);
+    assertThat(group.path("candidates").path(0).path("strengthMatch").asString()).isEqualTo("MATCH");
+    assertThat(group.path("candidates").path(0).path("baseName").asString()).isEqualTo("합성약정");
+    assertThat(group.path("candidates").path(0).path("strengthText").asString()).isEqualTo("20밀리그램");
+    assertThat(group.path("candidates").path(1).path("itemSeq").asString()).isEqualTo(code1);
+    assertThat(group.path("candidates").path(1).path("strengthMatch").asString()).isEqualTo("DIFFERENT");
+    assertThat(lookups).anyMatch(s -> s.matches(".*item_name=합성약정(&.*)?"));
+    assertThat(json("GET", "/api/photos/" + id + "/candidates", null, token, 200).path("drugs"))
+        .isEqualTo(result.path("drugs"));
+    json("POST", drugs(profileId), selection(id, "PRESCRIPTION_PHOTO", code2), token, 201);
+
+    // 일치 후보를 이미 등록했으면 미리 고르지 않고, '함량 다름' 후보는 그대로 골라 저장할 수 있음
+    var again = identify("PRESCRIPTION", token, 200, "image");
+    var regrouped = again.path("drugs").path(0);
+    assertThat(regrouped.has("autoSelectItemSeq")).isFalse();
+    assertThat(regrouped.path("candidates").path(0).path("alreadyRegistered").asBoolean()).isTrue();
+    var saved = json("POST", drugs(profileId), selection(again.path("photoId").asLong(), "PRESCRIPTION_PHOTO", code1), token, 201);
+    assertThat(saved.path("saved").size()).isEqualTo(1);
+    assertThat(jdbc.queryForList("SELECT item_seq FROM my_drug WHERE profile_id=? ORDER BY item_seq", String.class, profileId))
+        .containsExactly(code1, code2);
+  }
+
+  @Test
   void prescriptionReloadSelectionAndReplayUseOfficialCodesAndCleanOnlyAfterCommit()
       throws Exception {
     JsonNode result = identify("PRESCRIPTION", token, 200, "image");
