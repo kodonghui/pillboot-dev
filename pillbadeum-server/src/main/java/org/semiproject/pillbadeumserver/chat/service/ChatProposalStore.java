@@ -83,6 +83,7 @@ public class ChatProposalStore {
                                                       QuestionResponse.Question question, String content,
                                                       List<RegistrationCandidates.Candidate> picked,
                                                       ChatDeadline deadline, boolean retry) {
+        lockMember(memberId);
         var answer = questions.saveNotice(sessionId, memberId, profileId, question, content, deadline, retry);
         for (var candidate : picked) drugCache.cache(candidate.drug(), "PERMIT");
         return answer.withProposal(insertRegister(memberId, profileId, answer.messageId(), picked));
@@ -95,10 +96,19 @@ public class ChatProposalStore {
     @Transactional(timeout = 5)
     public QuestionResponse savePhotoTurn(Long sessionId, Long memberId, Long profileId, String turn, String content,
                                           List<RegistrationCandidates.Candidate> picked, ChatDeadline deadline) {
+        lockMember(memberId);
         var question = questions.save(sessionId, memberId, profileId, turn);
         var answer = questions.saveNotice(sessionId, memberId, profileId, question, content, deadline, false);
         if (!picked.isEmpty()) answer = answer.withProposal(insertRegister(memberId, profileId, answer.messageId(), picked));
         return QuestionResponse.answered(question, answer);
+    }
+
+    /**
+     * 확정(confirmRegister)·세션 만들기와 같은 회원 → 프로필 순서로 잠근다. 답변 저장이 프로필을 먼저 잠그고 제안 행의
+     * 회원 FK 확인에서 회원을 기다리면, 회원을 먼저 잠근 확정과 서로 기다려 한쪽이 되돌려진다.
+     */
+    private void lockMember(Long memberId) {
+        jdbc.queryForList("SELECT member_id FROM member WHERE member_id=? FOR UPDATE", Long.class, memberId);
     }
 
     private ChatProposalResponse insertRegister(Long memberId, Long profileId, Long messageId,

@@ -184,6 +184,40 @@ class RegistrationProposalMySqlTests {
         assertThat(messages.get(3).proposal()).isNull();
     }
 
+    @Test
+    void savingACardLocksTheMemberBeforeTheProfileLikeConfirming() throws Exception {
+        // 확정(confirmRegister)은 회원 → 프로필 순서로 잠근다. 카드 저장이 프로필을 먼저 잡으면 둘이 서로 기다려 교착한다.
+        var items = List.of(candidate("가상약정", fresh, "가상약정10밀리그램", StrengthMatch.UNKNOWN));
+        var question = questions.save(session, member, profile, "가상약정 등록해 줘");
+        waitsForTheMemberWithoutHoldingTheProfile(() -> proposals.saveRegisterAnswer(session, member, profile, question,
+                "후보", items, ChatDeadline.after(Duration.ofSeconds(30)), false));
+        waitsForTheMemberWithoutHoldingTheProfile(() -> proposals.savePhotoTurn(session, member, profile,
+                "처방전·약봉투 사진을 보냈어요", "후보", items, ChatDeadline.after(Duration.ofSeconds(30))));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM chat_proposal WHERE profile_id=?", Integer.class, profile)).isEqualTo(2);
+    }
+
+    private void waitsForTheMemberWithoutHoldingTheProfile(java.util.concurrent.Callable<?> save) throws Exception {
+        try (var confirming = dataSource.getConnection(); var probe = dataSource.getConnection();
+             var worker = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            confirming.setAutoCommit(false);
+            try (var lock = confirming.prepareStatement("SELECT member_id FROM member WHERE member_id=? FOR UPDATE")) {
+                lock.setLong(1, member);
+                lock.executeQuery().close();
+            }
+            var saving = worker.submit(save);
+            Thread.sleep(500);
+            assertThat(saving.isDone()).as("회원 잠금을 기다림").isFalse();
+            probe.setAutoCommit(false);
+            try (var lock = probe.prepareStatement("SELECT profile_id FROM profile WHERE profile_id=? FOR UPDATE NOWAIT")) {
+                lock.setLong(1, profile);
+                lock.executeQuery().close(); // 저장이 프로필을 먼저 잡았다면 여기서 3572(NOWAIT)
+            }
+            probe.rollback();
+            confirming.rollback();
+            saving.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        }
+    }
+
     private static RegistrationCandidates.Candidate candidate(String mention, String code, String name, StrengthMatch strength) {
         var drug = new PhotoCandidateData(code, name, "시험제약", "OTC", "synthetic", null, null, null, "ROUND", "WHITE",
                 null, null, "TABLET", "synthetic", null, false);
