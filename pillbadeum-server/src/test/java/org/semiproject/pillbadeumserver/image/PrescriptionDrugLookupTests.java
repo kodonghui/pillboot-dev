@@ -243,6 +243,24 @@ class PrescriptionDrugLookupTests {
     }
 
     @Test
+    void clippedBaseResultWithOneMatchStillCollectsTheOtherMatchingProducts() {
+        // 첫 페이지에 일치 품목이 하나뿐이어도 뒤쪽 페이지에 같은 함량 품목이 더 있을 수 있음(자동 선택은 유일할 때만)
+        var queries = new ArrayList<String>();
+        when(client.get(anyString(), anyMap())).thenAnswer(call -> {
+            Map<String, ?> params = call.getArgument(1);
+            String query = (String) params.get("item_name");
+            queries.add(query);
+            if (query.equals("합성정")) return rows(List.of("합성정10mg", "합성정20mg"), 250);
+            return rows(query.equals("합성정20mg") ? List.of("합성정20mg", "합성정20밀리그램(성분)") : List.of());
+        });
+
+        assertThat(lookup.findWithStrength("합성정20mg", null))
+                .extracting(c -> c.row().path("ITEM_NAME").asString() + "=" + c.strength())
+                .containsExactly("합성정10mg=DIFFERENT", "합성정20mg=MATCH", "합성정20밀리그램(성분)=MATCH");
+        assertThat(queries).containsExactly("합성정", "합성정20mg");
+    }
+
+    @Test
     void publicDataFailureDuringStrengthLookupIsNotHiddenAsNoCandidates() {
         var failure = ExternalApiException.failed("공공데이터", "시험 실패", null);
         when(client.get(anyString(), anyMap())).thenThrow(failure);
@@ -277,13 +295,18 @@ class PrescriptionDrugLookupTests {
 
     private tools.jackson.databind.JsonNode rows(List<String> names, int totalCount) {
         var items = new ArrayList<Map<String, String>>();
-        for (int i = 0; i < names.size(); i++) items.add(Map.of("ITEM_SEQ", "90000" + i, "ITEM_NAME", names.get(i)));
+        for (int i = 0; i < names.size(); i++) items.add(Map.of("ITEM_SEQ", seq(names.get(i)), "ITEM_NAME", names.get(i)));
         return json.valueToTree(Map.of("items", items, "totalCount", totalCount));
+    }
+
+    // 같은 품목은 어느 조회에서 나와도 같은 품목기준코드를 가짐
+    private static String seq(String name) {
+        return "9" + Math.floorMod(name.hashCode(), 100_000_000);
     }
 
     private tools.jackson.databind.JsonNode rows(List<String> names) {
         var items = new ArrayList<Map<String, String>>();
-        for (int i = 0; i < names.size(); i++) items.add(Map.of("ITEM_SEQ", "90000" + i, "ITEM_NAME", names.get(i)));
+        for (int i = 0; i < names.size(); i++) items.add(Map.of("ITEM_SEQ", seq(names.get(i)), "ITEM_NAME", names.get(i)));
         return json.valueToTree(Map.of("items", items));
     }
 }
