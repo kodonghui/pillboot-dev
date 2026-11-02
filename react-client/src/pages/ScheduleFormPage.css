@@ -44,6 +44,18 @@
   gap: var(--space-12);
 }
 
+/* 저장 잠금 안내(v3-1-time-input): 버튼 줄 위 한 줄 전체. 넓은 화면은 버튼 쪽(오른쪽), 720px 이하는 왼쪽 */
+.schedule-form-page__foot > .mt-field__help {
+  flex: 1 1 100%;
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .schedule-form-page__foot > .mt-field__help {
+    justify-content: flex-start;
+  }
+}
+
 /* 수정: 바꿀 수 없는 약 · 프로필(목업 .fixed) */
 .schedule-form-page__fixed {
   display: flex;

@@ -9,6 +9,7 @@ import DoseTimesField from '../components/DoseTimesField.jsx'
 import DrugName from '../components/DrugName.jsx'
 import DrugThumb from '../components/DrugThumb.jsx'
 import ErrorScreen from '../components/ErrorScreen.jsx'
+import FieldError from '../components/FieldError.jsx'
 import Icon from '../components/Icon.jsx'
 import Notice from '../components/Notice.jsx'
 import PeriodField from '../components/PeriodField.jsx'
@@ -19,7 +20,7 @@ import { useManagedProfile } from '../components/useManagedProfile.js'
 import { addDays, addMonths, monthOf, todayKst } from '../dates.js'
 import { paths } from '../paths.js'
 import { profileColor } from '../profileInfo.js'
-import { checkForm, errorNames, initialForm, requestOf } from '../scheduleForm.js'
+import { checkForm, errorNames, initialForm, requestOf, typedTimesError } from '../scheduleForm.js'
 import './ScheduleFormPage.css'
 
 // 복용 달력에서 열 달: 일정이 이번 달에 걸치면 이번 달(달력을 처음 여는 달), 아니면 시작한 달
@@ -40,6 +41,7 @@ function ScheduleEditPage() {
   const myDrugId = Number(searchParams.get('drug')) || null
   const { status, profiles, retry: retryProfiles } = useManagedProfile()
   const targetId = useId()
+  const saveNoteId = useId()
   const formRef = useRef(null)
   const [attempt, setAttempt] = useState(0)
   const [loaded, setLoaded] = useState(null)
@@ -138,6 +140,8 @@ function ScheduleEditPage() {
   }
 
   const invalidNames = Object.keys(errorNames).filter((name) => errors[name])
+  // 칸을 벗어난 복용 시각이 틀린 동안 저장을 잠근다(v3-1-time-input).
+  const typedTimes = typedTimesError(form.slots)
 
   return (
     <>
@@ -210,7 +214,7 @@ function ScheduleEditPage() {
           slots={form.slots}
           intro="지금 일정의 시간이에요. 시간을 눌러 바꾸거나 빼고, 필요하면 더할 수 있어요."
           addHint="order"
-          error={errors.times}
+          error={errors.times ?? typedTimes}
           onChange={(slots) => change('times', { slots })}
         />
 
@@ -227,10 +231,16 @@ function ScheduleEditPage() {
         </Notice>
 
         <div className="schedule-form-page__foot">
+          {typedTimes && <FieldError id={saveNoteId}>복용 시간을 고치면 저장할 수 있어요.</FieldError>}
           <Link className="mt-btn mt-btn--assistive" to={backTo}>
             취소
           </Link>
-          <button className="mt-btn mt-btn--solid" type="submit" disabled={saving}>
+          <button
+            className="mt-btn mt-btn--solid"
+            type="submit"
+            disabled={saving || Boolean(typedTimes)}
+            aria-describedby={typedTimes ? saveNoteId : undefined}
+          >
             {saving && <Icon name="loader" size="s" className="icon--spin" />}
             {saving ? '저장 중…' : saveError ? '다시 저장' : '수정 저장'}
           </button>

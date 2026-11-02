@@ -7,6 +7,7 @@ import { getScheduleChoices, saveSchedule } from '../api/schedules.js'
 import DoseCountField from '../components/DoseCountField.jsx'
 import DoseTimesField from '../components/DoseTimesField.jsx'
 import DrugPicker from '../components/DrugPicker.jsx'
+import FieldError from '../components/FieldError.jsx'
 import Icon from '../components/Icon.jsx'
 import Notice from '../components/Notice.jsx'
 import PeriodField from '../components/PeriodField.jsx'
@@ -15,7 +16,7 @@ import TimingField from '../components/TimingField.jsx'
 import { useManagedProfile } from '../components/useManagedProfile.js'
 import { isDate, monthOf, todayKst } from '../dates.js'
 import { paths } from '../paths.js'
-import { checkForm, drugValues, errorNames, initialForm, pickName, requestOf } from '../scheduleForm.js'
+import { checkForm, drugValues, errorNames, initialForm, pickName, requestOf, typedTimesError } from '../scheduleForm.js'
 import { eunAfter, periodText } from '../text.js'
 import './ScheduleFormPage.css'
 
@@ -38,6 +39,7 @@ function ScheduleNewPage() {
   const { status, profiles, profile, retry: retryProfiles } = useManagedProfile()
   const whoId = useId()
   const drugTitleId = useId()
+  const saveNoteId = useId()
   const formRef = useRef(null)
   const [chosenProfileId, setChosenProfileId] = useState(null)
   const [choicesAttempt, setChoicesAttempt] = useState(0)
@@ -183,6 +185,8 @@ function ScheduleNewPage() {
   }
 
   const invalidNames = Object.keys(errorNames).filter((key) => errors[key])
+  // 칸을 벗어난 복용 시각이 틀린 동안 저장을 잠근다(v3-1-time-input).
+  const typedTimes = typedTimesError(form.slots)
   let submitLabel = replacing ? '새 일정으로 바꿔 저장' : '일정 저장'
   if (saveError === 'failed') submitLabel = '다시 저장'
 
@@ -271,7 +275,7 @@ function ScheduleNewPage() {
           slots={form.slots}
           intro={replacing ? null : '아침·점심·저녁이 기본으로 들어가 있어요. 시간을 눌러 바꾸거나 필요 없는 때는 빼 주세요.'}
           addHint="count"
-          error={errors.times}
+          error={errors.times ?? typedTimes}
           onChange={(slots) => change('times', { slots })}
         />
 
@@ -293,10 +297,16 @@ function ScheduleNewPage() {
         />
 
         <div className="schedule-form-page__foot">
+          {typedTimes && <FieldError id={saveNoteId}>복용 시간을 고치면 저장할 수 있어요.</FieldError>}
           <Link className="mt-btn mt-btn--assistive" to={backTo}>
             취소
           </Link>
-          <button className="mt-btn mt-btn--solid" type="submit" disabled={saving}>
+          <button
+            className="mt-btn mt-btn--solid"
+            type="submit"
+            disabled={saving || Boolean(typedTimes)}
+            aria-describedby={typedTimes ? saveNoteId : undefined}
+          >
             {saving && <Icon name="loader" size="s" className="icon--spin" />}
             {saving ? '저장 중…' : submitLabel}
           </button>

@@ -1,0 +1,27 @@
+/* TASK-013 목업: 복약 시각 +/−(V3-SCHED-001)와 숫자만 입력(V3-SCHED-002). 토큰만 씀. */
+
+.v3-time-help { margin-top: calc(var(--space-4) * -1); }
+
+/* A안: 칸 이름 · 시각 칸 · 시/분 스테퍼 · 빼기 */
+.v3-times--a .dose-times__row { grid-template-columns: 64px minmax(0, 140px) auto auto; justify-content: start; }
+.v3-steppers { display: flex; flex-wrap: wrap; gap: var(--space-12); }
+.v3-stepper { display: inline-flex; align-items: center; gap: var(--space-4); }
+.v3-stepper__label { min-width: var(--space-16); color: var(--label-alternative); text-align: center; }
+.v3-step { width: 44px; padding: 0; }
+
+/* B안: 시각 칸 아래 글자 버튼 줄 */
+.v3-quick { display: flex; flex-wrap: wrap; gap: var(--space-8); grid-column: 2 / -1; justify-self: start; }
+.v3-times--b .dose-times__row { row-gap: var(--space-8); justify-content: start; }
+.v3-times--b .dose-times__list { gap: var(--space-16); }
+
+/* 오류 때 저장 줄 안내 */
+.v3-save-note { flex: 1 1 100%; justify-content: flex-end; margin: 0; }
+
+/* 좁은 화면: 조절 버튼 줄은 칸 이름 아래부터 한 줄 전체를 씀(360 폭에서 한 줄에 들어가게) */
+@media (max-width: 720px) {
+  .v3-times--a .dose-times__row { grid-template-columns: 56px minmax(0, 1fr) auto; row-gap: var(--space-8); }
+  .v3-times--a .v3-steppers { grid-column: 1 / -1; grid-row: 2; justify-content: flex-end; }
+  .v3-quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-column: 1 / -1; gap: var(--space-6); }
+  .v3-quick .mt-btn { padding: 0 var(--space-4); }
+  .v3-save-note { justify-content: flex-start; }
+}

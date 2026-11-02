@@ -84,9 +84,28 @@ export function defaultSlots() {
   return doseSlots.map((slot) => ({ on: true, time: slot.time }))
 }
 
-// 'HH:mm' 으로 맞춘 시각. '7:5' 처럼 모양이 틀리면 null
+function timeOf(minutes) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+}
+
+// 'HH:mm' 으로 맞춘 시각(V3-SCHED-002). 830 · 0830 · 8:30 · 08:30 · 8시30분 · 8시를 받는다(3자리는 H:MM, 4자리는 HH:MM).
+// '7:5' 처럼 모양이 틀리거나 00:00~23:59 밖이면 null
 export function normalizeTime(text) {
-  const match = text.trim().match(/^(\d{1,2}):(\d{2})$/)
-  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return null
-  return `${match[1].padStart(2, '0')}:${match[2]}`
+  const value = text.replace(/\s/g, '')
+  const match = value.match(/^(\d{1,2}):(\d{2})$/) ?? value.match(/^(\d{1,2})(\d{2})$/) ?? value.match(/^(\d{1,2})시(?:(\d{1,2})분)?$/)
+  if (!match) return null
+  const hour = Number(match[1])
+  const minute = Number(match[2] ?? 0)
+  if (hour > 23 || minute > 59) return null
+  return timeOf(hour * 60 + minute)
+}
+
+// 시각 +/− (V3-SCHED-001): 시는 1시간, 분은 5분씩 바꾸고 하루를 돈다(23시 + → 0시, 00:00 분 − → 23:55).
+// 5분 단위가 아닌 분은 누른 쪽의 가까운 5분 칸으로 맞춘다(08:32 + → 08:35, − → 08:30).
+// 칸이 비었거나 모양이 틀리면 고치지 않고 그 칸의 기본 시각(from)에서 한 번 바꾼다.
+export function stepTime(text, unit, direction, from) {
+  const minutes = minutesOf(normalizeTime(text) ?? from)
+  const next = unit === 'hour' ? minutes + direction * 60 : (direction > 0 ? Math.floor(minutes / 5) + 1 : Math.ceil(minutes / 5) - 1) * 5
+  const day = 24 * 60
+  return timeOf(((next % day) + day) % day)
 }

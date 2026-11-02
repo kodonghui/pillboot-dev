@@ -1,5 +1,5 @@
 // 일정 추가 · 수정 입력값(목업 SCH-03 · 06)과 저장 요청. 서버 규칙: 복용 시각 1~3개, 1회 개수 1~10, 복용 때 20자까지.
-import { defaultSlots, normalizeTime, slotsOf } from './scheduleInfo.js'
+import { defaultSlots, doseSlots, normalizeTime, slotsOf } from './scheduleInfo.js'
 
 export const timingLimit = 20
 export const doseMin = 1
@@ -25,12 +25,24 @@ export function validDose(text) {
   return /^\d+$/.test(text.trim()) && Number(text) >= doseMin && Number(text) <= doseMax
 }
 
+// 모양이 틀린 칸(index 를 붙인 칸 목록)의 오류. 칸 이름을 넣어 어느 칸인지 알린다(V3-SCHED-002). 없으면 null
+function malformedError(slots) {
+  if (slots.length === 0) return null
+  const names = slots.map((slot) => doseSlots[slot.index].name).join('·')
+  return { message: `${names} 시각을 00:00~23:59 사이로 적어 주세요. 830처럼 숫자만 써도 돼요.`, slots: slots.map((slot) => slot.index) }
+}
+
+// 칸을 한 번 벗어난 뒤(checked) 모양이 틀린 칸의 오류. 이 오류가 있는 동안 저장을 잠그고, 칸을 고치면 바로 사라진다.
+export function typedTimesError(slots) {
+  return malformedError(slots.map((slot, index) => ({ ...slot, index })).filter((slot) => slot.on && slot.checked && !normalizeTime(slot.time)))
+}
+
 // 복용 시간 오류와 표시할 칸. 모양이 틀린 칸이 먼저, 그다음 같은 시각이 두 번 들어간 뒤쪽 칸이다.
 function timesError(slots) {
   const on = slots.map((slot, index) => ({ ...slot, index })).filter((slot) => slot.on)
   if (on.length === 0) return { message: '복용 시간을 하나 이상 정해 주세요.', slots: [] }
-  const malformed = on.filter((slot) => !normalizeTime(slot.time))
-  if (malformed.length) return { message: '시간을 07:30처럼 써 주세요.', slots: malformed.map((slot) => slot.index) }
+  const malformed = malformedError(on.filter((slot) => !normalizeTime(slot.time)))
+  if (malformed) return malformed
   const seen = new Set()
   const repeated = []
   for (const slot of on) {

@@ -4,18 +4,24 @@
   gap: var(--space-10);
 }
 
-/* 목업 .trow: 칸 이름 64px · 시각 220px 까지 · 빼기. 720px 이하에서는 56px · 남는 폭 · 빼기 */
-.dose-times__row {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 220px) auto;
-  align-items: center;
-  gap: var(--space-12);
+/* 기존 안내 바로 아래 붙는 숫자 입력 · +/− 안내 */
+.mt-field__help + .dose-times__help {
+  margin-top: calc(var(--space-4) * -1);
 }
 
-@media (max-width: 720px) {
-  .dose-times__row {
-    grid-template-columns: 56px minmax(0, 1fr) auto;
-  }
+/* "+/−"가 줄 끝에서 "+/"와 "−"로 갈리지 않게 한다. */
+.dose-times__nowrap {
+  white-space: nowrap;
+}
+
+/* 목업 v3-1 time-input A안: 칸 이름 64px · 시각 140px 까지 · 시/분 +/− · 빼기.
+   720px 이하에서는 56px · 남는 폭 · 빼기, +/− 묶음은 칸 아래 한 줄을 오른쪽에 붙여 쓴다. */
+.dose-times__row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 140px) auto auto;
+  justify-content: start;
+  align-items: center;
+  gap: var(--space-12);
 }
 
 .dose-times__label {
@@ -24,6 +30,46 @@
 
 .dose-times__input {
   font-variant-numeric: tabular-nums;
+}
+
+.dose-times__steppers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+.dose-times__stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.dose-times__unit {
+  min-width: var(--space-16);
+  color: var(--label-alternative);
+  text-align: center;
+}
+
+/* 44px 네모. 길게 누를 때 글자 선택 · 확대 · 길게 누름 메뉴가 끼어들지 않게 한다. */
+.dose-times__step {
+  width: 44px;
+  padding: 0;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media (max-width: 720px) {
+  .dose-times__row {
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    row-gap: var(--space-8);
+  }
+
+  .dose-times__steppers {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-end;
+  }
 }
 
 .dose-times__add {
