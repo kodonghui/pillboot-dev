@@ -1,6 +1,6 @@
 # 필받음 v3 WBS
 
-- 상태: 초안(2026-11-02). 입력은 [v3 기능 명세](../04-functional-spec/spec-v3.md) 38행과 REG-003 변경, [v3 요구사항](../02-prd/requirements-v3.md), [v3 사용자 흐름](../03-user-flow/user-flow-v3.md).
+- 상태: 초안(2026-11-02). 입력은 [v3 기능 명세](../04-functional-spec/spec-v3.md) 39행(2026-11-02 V3-CHAT-008 추가)과 REG-003 변경, [v3 요구사항](../02-prd/requirements-v3.md), [v3 사용자 흐름](../03-user-flow/user-flow-v3.md).
 - 개발 방식은 DEC-017을 따름: v3 범위(1~4차)를 모두 개발하고, 기능마다 브랜치를 따서 작업한 뒤 PR로 `develop`에 병합함. `main` 반영은 따로 정함.
 - 담당 칸은 CT 배정 초안임. 팀원이 브랜치를 맡으면 담당 칸만 바꿈. 예상은 한 사람 기준 작업일임.
 
@@ -16,6 +16,7 @@
 | `feature/v3-relation-other` | 공통 | V3-COMMON-004 | 바로 |
 | `feature/v3-chat-registration` | 2차 | V3-CHAT-001~006 | `feature/v3-drug-strength` 병합 뒤 |
 | `feature/v3-chat-schedule` | 2차 | V3-CHAT-007 | `feature/v3-chat-registration` 병합 뒤 |
+| `feature/v3-chat-progress` | 2차 | V3-CHAT-008 | 바로(서버), 화면 승인 뒤(프론트). DEC-021 |
 | `feature/v3-kakao-server` | 3차 | V3-KAKAO-002·005·006·010의 서버 쪽 | 11/5 이후 H-14 확인 뒤 |
 | `카톡 다리` 저장소 | 3차 | V3-KAKAO-001~010의 다리 쪽 | 위와 같음. 그 저장소의 브랜치 규칙은 시작 때 확인함 |
 | `feature/v3-appointment` | 4차 | V3-APPT-001~007, V3-COMMON-003 | 바로(서버), 화면 승인 뒤(프론트) |
@@ -80,12 +81,15 @@
 | TASK-044 | 사전 알림 SQL 패치 18과 알림 시각 계산 | V3-NOTI-001, V3-APPT-001·002 | 사전 알림 테이블(선점 키: 진료 일정·알림 종류·진료 시각) | TASK-040 | Claude(CT) | 1일 | 11/20 14:00·10:00 예시와 지난 시각·미룬 진료 시험이 통과함 |
 | TASK-045 | 사전 알림 선점과 웹 푸시 발송 | V3-NOTI-002 | 스케줄러, 웹 푸시 | TASK-044 | Claude(CT) | 1.5일 | 실행 둘이 같은 알림을 한 번만 보내고, 구독·동의 없음은 보내지 않는 시험이 통과함 |
 | TASK-046 | v3 QA 시험 계획과 흐름 점검 | V3-FL-17~29 | 12 QA | 차수마다 병합 뒤 | Claude(CT) | 차수마다 0.5일 | 흐름마다 시험 사례가 있고 결과가 기록됨 |
+| TASK-047 | 답변 진행 단계 SSE 계약과 서버 | V3-CHAT-008 | `POST /api/chat-sessions/{sessionId}/messages/stream`, `.../{messageId}/retry/stream`, `QuestionService`·`AnswerGenerator` | 없음 | Claude(CT) | 1일 | 단계·result·error 이벤트와 열기 전 JSON 오류(400·401·404·409) 시험이 통과하고 기존 JSON 질문 시험이 그대로 통과함 |
+| TASK-048 | 화면정의서·목업: 답변 진행 단계 표시 | V3-CHAT-008, V3-COMMON-001 | 상담 화면(CHT-02 답 기다림) | TASK-047의 계약 | Claude(CT) | 0.5일 | PM이 캡처를 보고 승인함 |
+| TASK-049 | 프론트: fetch로 SSE 읽기와 단계 표시 | V3-CHAT-008 | 상담 화면, `api/chat.js` | TASK-047·048 | Claude(CT) | 1일 | 실제 서버로 단계가 바뀌어 보이고, 503·409·연결 끊김이 기존 안내대로 가며 lint·build가 통과함 |
 
 ## 4. 점검
 
 | 점검 | 결과 |
 | --- | --- |
-| 명세 행마다 작업이 있는가 | 38행 모두 작업에 있음(스크립트 대조) |
+| 명세 행마다 작업이 있는가 | 39행 모두 작업에 있음(스크립트 대조, V3-CHAT-008 추가 뒤 다시 대조) |
 | 작업마다 담당 하나와 다른 사람이 확인할 수 있는 끝난 조건이 있는가 | 있음 |
 | 의존에 순환이 없는가 | 없음(스크립트 대조) |
 | API를 건드린 작업의 끝난 조건에 응답별 시험이 있는가 | 있음(2장 규칙과 각 행) |
