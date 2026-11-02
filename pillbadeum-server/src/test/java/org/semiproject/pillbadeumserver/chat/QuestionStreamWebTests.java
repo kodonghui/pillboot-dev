@@ -19,6 +19,7 @@ import org.semiproject.pillbadeumserver.chat.service.ChatStage;
 import org.semiproject.pillbadeumserver.chat.service.QuestionClassifier;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntent;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntentReader;
+import org.semiproject.pillbadeumserver.chat.service.RegistrationProposalService;
 import org.semiproject.pillbadeumserver.chat.service.QuestionPlan;
 import org.semiproject.pillbadeumserver.chat.service.QuestionService;
 import org.semiproject.pillbadeumserver.chat.service.QuestionStore;
@@ -75,6 +76,7 @@ class QuestionStreamWebTests {
     @MockitoBean QuestionClassifier classifier;
     @MockitoBean ChatAnswerService answers;
     @MockitoBean QuestionIntentReader intents;
+    @MockitoBean RegistrationProposalService registrations;
 
     @TestConfiguration
     static class Threads {

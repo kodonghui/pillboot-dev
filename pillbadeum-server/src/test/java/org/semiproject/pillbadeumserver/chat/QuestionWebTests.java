@@ -5,8 +5,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.semiproject.pillbadeumserver.chat.service.QuestionClassifier;
+import java.util.List;
+import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
+import org.semiproject.pillbadeumserver.chat.dto.ChatProposalResponse;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntent;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntentReader;
+import org.semiproject.pillbadeumserver.chat.service.RegistrationProposalService;
 import org.semiproject.pillbadeumserver.chat.service.QuestionPlan;
 import org.semiproject.pillbadeumserver.chat.service.ChatAnswerService;
 import org.semiproject.pillbadeumserver.chat.service.AnswerFailedException;
@@ -56,6 +60,7 @@ class QuestionWebTests {
     @MockitoBean QuestionClassifier classifier;
     @MockitoBean ChatAnswerService answers;
     @MockitoBean QuestionIntentReader intents;
+    @MockitoBean RegistrationProposalService registrations;
 
     @BeforeEach
     void ownedRoom() {
@@ -80,7 +85,9 @@ class QuestionWebTests {
                 .andExpect(jsonPath("$.question", aMapWithSize(2)))
                 .andExpect(jsonPath("$.question.messageId").value(100))
                 .andExpect(jsonPath("$.question.turnNo").value(1))
-                .andExpect(jsonPath("$.answer", aMapWithSize(5)))
+                // v3: 제안 카드 칸(proposal)이 생김. 약 질문 답변은 null(openapi-v3 submitQuestion)
+                .andExpect(jsonPath("$.answer", aMapWithSize(6)))
+                .andExpect(jsonPath("$.answer.proposal").value(nullValue()))
                 .andExpect(jsonPath("$.answer.messageId").value(101))
                 .andExpect(jsonPath("$.answer.turnNo").value(1))
                 .andExpect(jsonPath("$.answer.createdAt").value("2026-10-19T19:00:00+09:00"))
@@ -170,6 +177,57 @@ class QuestionWebTests {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"fixture\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result").value("BLOCKED"));
         verify(store, never()).save(anyLong(), anyLong(), anyLong(), any());
+    }
+
+    @Test
+    void registrationRequestAnswersWithTheProposalCardInsteadOfTheModelAnswer() throws Exception {
+        when(classifier.plan(eq("타이레놀 500 등록해 줘"), any())).thenReturn(plan(QuestionCategory.PASS));
+        when(store.classificationContext(42L, 7L, 10L)).thenReturn(new QuestionClassifier.Context(List.of(), List.of(),
+                List.of("가상혈압정")));
+        when(intents.read(eq("타이레놀 500 등록해 줘"), eq(List.of("가상혈압정")), any())).thenReturn(
+                new QuestionIntent(QuestionIntent.Kind.REGISTER_DRUG, List.of("타이레놀 500"), null));
+        var question = new QuestionResponse.Question(100L, 1);
+        when(store.save(42L, 7L, 10L, "타이레놀 500 등록해 줘")).thenReturn(question);
+        var created = java.time.LocalDateTime.of(2026, 11, 2, 19, 0);
+        var card = ChatProposalResponse.of(500L, ChatProposalResponse.Kind.REGISTER, ChatProposalResponse.Status.PENDING,
+                10L, 101L, created, created.plusMinutes(30), null, List.of(new ChatProposalResponse.Item(1, "199900002",
+                        "타이레놀정500밀리그람(아세트아미노펜)", "시험제약", null, "타이레놀 500", StrengthMatch.MATCH, false, false,
+                        null, "타이레놀정", "500밀리그람")), created.plusMinutes(1));
+        when(registrations.propose(eq(42L), eq(7L), eq(10L), eq(question), eq(List.of("타이레놀 500")), any(), eq(false)))
+                .thenReturn(new QuestionResponse.Answer(101L, 1, "등록할 약 후보를 찾았어요.", null,
+                        java.time.OffsetDateTime.parse("2026-11-02T19:00:00+09:00"), card));
+        mvc.perform(post("/api/chat-sessions/42/messages").header("Authorization", authorization())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"타이레놀 500 등록해 줘\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result").value("ANSWERED"))
+                .andExpect(jsonPath("$.answer.proposal.proposalId").value(500))
+                .andExpect(jsonPath("$.answer.proposal.kind").value("REGISTER"))
+                .andExpect(jsonPath("$.answer.proposal.status").value("PENDING"))
+                .andExpect(jsonPath("$.answer.proposal.expiresAt").value("2026-11-02T19:30:00+09:00"))
+                .andExpect(jsonPath("$.answer.proposal.decidedAt").value(nullValue()))
+                .andExpect(jsonPath("$.answer.proposal.schedule").value(nullValue()))
+                .andExpect(jsonPath("$.answer.proposal.items[0].itemNo").value(1))
+                .andExpect(jsonPath("$.answer.proposal.items[0].mention").value("타이레놀 500"))
+                .andExpect(jsonPath("$.answer.proposal.items[0].strengthMatch").value("MATCH"))
+                .andExpect(jsonPath("$.answer.proposal.items[0].alreadyRegistered").value(false))
+                .andExpect(jsonPath("$.answer.proposal.items[0].myDrugId").value(nullValue()))
+                .andExpect(jsonPath("$.answer.proposal.items[0].baseName").value("타이레놀정"));
+        verifyNoInteractions(answers);
+    }
+
+    @Test
+    void retryOfARegistrationRequestAnswersWithAProposalAgain() throws Exception {
+        var question = new QuestionResponse.Question(100L, 1);
+        when(store.retryQuestion(42L, 7L, 10L, 100L)).thenReturn(question);
+        when(store.questionContent(42L, question)).thenReturn("타이레놀 등록해 줘");
+        when(intents.read(eq("타이레놀 등록해 줘"), any(), any())).thenReturn(
+                new QuestionIntent(QuestionIntent.Kind.REGISTER_DRUG, List.of("타이레놀"), null));
+        when(registrations.propose(eq(42L), eq(7L), eq(10L), eq(question), eq(List.of("타이레놀")), any(), eq(true)))
+                .thenReturn(new QuestionResponse.Answer(101L, 1, "후보 없음", null,
+                        java.time.OffsetDateTime.parse("2026-11-02T19:00:00+09:00")));
+        mvc.perform(post("/api/chat-sessions/42/messages/100/retry").header("Authorization", authorization()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.answer.content").value("후보 없음"))
+                .andExpect(jsonPath("$.answer.proposal").value(nullValue()));
+        verifyNoInteractions(answers);
     }
 
     private String authorization() {

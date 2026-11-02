@@ -18,14 +18,16 @@ public class QuestionService {
     private final QuestionClassifier classifier;
     private final ChatAnswerService answers;
     private final QuestionIntentReader intents;
+    private final RegistrationProposalService registrations;
     private final Set<Long> inProgress = ConcurrentHashMap.newKeySet();
 
     public QuestionService(QuestionStore store, QuestionClassifier classifier, ChatAnswerService answers,
-                           QuestionIntentReader intents) {
+                           QuestionIntentReader intents, RegistrationProposalService registrations) {
         this.store = store;
         this.classifier = classifier;
         this.answers = answers;
         this.intents = intents;
+        this.registrations = registrations;
     }
 
     /**
@@ -66,11 +68,14 @@ public class QuestionService {
             var context = store.classificationContext(sessionId, memberId, profileId);
             var plan = classifier.plan(question, context);
             if (!plan.category().isPassed()) return QuestionResponse.blocked(plan.category());
-            // V3-CHAT-001: 통과한 질문만 의도를 가른다. 등록 제안(V3-CHAT-002)·일정 제안(V3-CHAT-007)을 붙이기 전까지는
-            // 모든 의도가 기존 답변 흐름을 탄다.
-            intents.read(question, context.myDrugNames(), reported);
+            // V3-CHAT-001: 통과한 질문만 의도를 가른다. 등록 요청은 제안 카드(V3-CHAT-002)로 답하고,
+            // 일정 요청은 일정 제안(V3-CHAT-007)을 붙이기 전까지 기존 답변 흐름을 탄다.
+            var intent = intents.read(question, context.myDrugNames(), reported);
             reported.check();
             var saved = store.save(sessionId, memberId, profileId, question);
+            if (intent.kind() == QuestionIntent.Kind.REGISTER_DRUG)
+                return QuestionResponse.answered(saved, registrations.propose(sessionId, memberId, profileId, saved,
+                        intent.drugMentions(), reported, false));
             return QuestionResponse.answered(saved, answers.complete(sessionId, memberId, profileId, saved, reported, plan));
         });
     }
@@ -85,6 +90,13 @@ public class QuestionService {
             reported.check();
             reported.stage(ChatStage.UNDERSTANDING);
             var question = store.retryQuestion(sessionId, memberId, profileId, messageId);
+            // 등록 요청이었던 질문은 다시 보내도 제안 카드로 답한다(V3-CHAT-002).
+            var intent = intents.read(store.questionContent(sessionId, question),
+                    store.classificationContext(sessionId, memberId, profileId).myDrugNames(), reported);
+            reported.check();
+            if (intent.kind() == QuestionIntent.Kind.REGISTER_DRUG)
+                return QuestionResponse.answered(question, registrations.propose(sessionId, memberId, profileId, question,
+                        intent.drugMentions(), reported, true));
             return QuestionResponse.answered(question, answers.retry(sessionId, memberId, profileId, question, reported));
         });
     }
