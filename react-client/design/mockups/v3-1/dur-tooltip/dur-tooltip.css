@@ -1,0 +1,30 @@
+/* TASK-017 목업: 금기 표시 설명(V3-COMMON-002, V3-FL-21). 토큰만 씀. */
+
+/* 배지를 버튼으로: 모양은 그대로, 누르는 범위는 위아래로 넓혀 44px */
+.v3-dur-badge { position: relative; gap: var(--space-4); font-family: inherit; cursor: pointer; }
+.v3-dur-badge::after { content: ''; position: absolute; inset: calc(var(--space-10) * -1) calc(var(--space-4) * -1); }
+.v3-dur-badge:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: var(--space-2); }
+.v3-dur-badge .icon { width: 16px; height: 16px; }
+
+/* A안: 배지 아래 작은 설명 상자 */
+.v3-dur-anchor { position: relative; display: inline-flex; }
+.v3-dur-pop {
+  position: absolute; top: calc(100% + var(--space-8)); left: 0; z-index: 10;
+  display: flex; flex-direction: column; gap: var(--space-6);
+  width: max-content; max-width: min(320px, calc(100vw - 96px)); padding: var(--space-12) var(--space-14) var(--space-14);
+  border: 1px solid var(--line-normal); border-radius: var(--radius-lg);
+  background: var(--background-elevated); box-shadow: var(--shadow-large); color: var(--label-normal);
+  box-sizing: border-box;
+}
+.v3-dur-pop__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); margin: calc(var(--space-4) * -1) calc(var(--space-6) * -1) 0 0; }
+.v3-dur-pop__close {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; margin: calc(var(--space-10) * -1) calc(var(--space-10) * -1) calc(var(--space-10) * -1) 0;
+  border: 0; border-radius: var(--radius-full); background: transparent; color: var(--label-neutral); cursor: pointer;
+}
+.v3-dur-pop__source { color: var(--label-alternative); }
+
+/* B안: 카드 안에 펼치는 설명 줄 */
+.v3-dur-explain {
+  padding: var(--space-10) var(--space-12); border-radius: var(--radius-sm);
+  background: var(--background-elevated); color: var(--label-normal);
+}
