@@ -6,6 +6,7 @@ import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
 import org.semiproject.pillbadeumserver.drug.service.DrugSyncService;
 import org.semiproject.pillbadeumserver.drug.service.PrescriptionDrugLookup;
 import org.semiproject.pillbadeumserver.drug.domain.DrugRegulatoryType;
+import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.image.domain.PhotoCandidateData;
 import org.semiproject.pillbadeumserver.image.domain.PillIdentification;
 import org.springframework.stereotype.Service;
@@ -30,11 +31,14 @@ public class PhotoCandidateLookup {
     return prescriptionResult(name, maker).candidates();
   }
 
+  /** V3-REG-002: 함량 일치 · 확인 불가 · 다름 순을 먼저 두고, 그 안에서 기존 순서(취하 뒤로, 같은 이름 · 제약사 앞으로)를 씀. */
   public Result prescriptionResult(String name, String maker) {
-    var rows = new PrescriptionDrugLookup(client).find(name, maker);
-    var ordered = rows.stream().sorted(Comparator.<JsonNode>comparingInt(row -> Boolean.TRUE.equals(org.semiproject.pillbadeumserver.drug.domain.DrugCancellation.parse(row)) ? 1 : 0)
-        .thenComparingInt(row -> exact(name, text(row, "ITEM_NAME")) ? 0 : 1)
-        .thenComparingInt(row -> exact(maker, text(row, "ENTP_NAME")) ? 0 : 1)).toList();
+    var found = new PrescriptionDrugLookup(client).findWithStrength(name, maker);
+    var ordered = found.stream().sorted(Comparator.<PrescriptionDrugLookup.Candidate>comparingInt(c -> strengthRank(c.strength()))
+        .thenComparingInt(c -> Boolean.TRUE.equals(org.semiproject.pillbadeumserver.drug.domain.DrugCancellation.parse(c.row())) ? 1 : 0)
+        .thenComparingInt(c -> exact(name, text(c.row(), "ITEM_NAME")) ? 0 : 1)
+        .thenComparingInt(c -> exact(maker, text(c.row(), "ENTP_NAME")) ? 0 : 1))
+        .map(PrescriptionDrugLookup.Candidate::row).toList();
     var missingImages = ordered.stream().filter(row -> !present(first(row, "ITEM_IMAGE", "ITEM_IMAGE_URL")))
         .map(row -> text(row, "ITEM_SEQ")).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
     return validated(ordered, null, catalog.cachedImageUrls(missingImages));
@@ -155,6 +159,14 @@ public class PhotoCandidateLookup {
         material == null ? "미확인" : material,
         matched,
         cancelled);
+  }
+
+  private static int strengthRank(StrengthMatch strength) {
+    return switch (strength) {
+      case MATCH -> 0;
+      case UNKNOWN -> 1;
+      case DIFFERENT -> 2;
+    };
   }
 
   private static boolean exact(String a, String b) {

@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.semiproject.pillbadeumserver.drug.domain.DrugSource;
+import org.semiproject.pillbadeumserver.drug.domain.DrugStrength;
+import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 
 /** REG-003/004/007: 처방전 외피를 유지하고 낱알 결과에만 v1 상세 필드를 추가함. */
 public record PhotoIdentificationResponse(
@@ -34,7 +36,14 @@ public record PhotoIdentificationResponse(
   @Schema(name = "PillRegistrationReceipt", description = "최초 등록의 HTTP 상태와 saved/skipped 본문. 재전송 시 같은 영수증을 사용함.")
   public record RegistrationReceipt(int httpStatus, PhotoDrugSelectionRequest.Result body) {}
 
-  public record DrugGroup(int readNo, String readName, String lookup, List<Candidate> candidates) {}
+  /** V3-REG-002: autoSelectItemSeq는 처방전에서 함량 일치 후보가 하나이고 아직 등록되지 않았을 때만 있음. */
+  public record DrugGroup(int readNo, String readName, String lookup, List<Candidate> candidates,
+      @JsonInclude(JsonInclude.Include.NON_NULL) String autoSelectItemSeq) {
+    public DrugGroup(int readNo, String readName, String lookup, List<Candidate> candidates) {
+      this(readNo, readName, lookup, candidates, null);
+    }
+  }
+  /** V3-REG-002: 함량 칸(baseName · strengthText · strengthMatch)은 처방전 후보에만 있음. 알약 응답은 그대로임. */
   public record Candidate(
       String itemSeq, String name, String maker, String etcOtc, String imageUrl,
       Boolean cancelled, boolean alreadyRegistered, Boolean printMatched,
@@ -42,13 +51,30 @@ public record PhotoIdentificationResponse(
       @JsonInclude(JsonInclude.Include.NON_NULL) String orientation,
       @JsonInclude(JsonInclude.Include.NON_NULL) Integer evidenceRank,
       @JsonInclude(JsonInclude.Include.NON_NULL) List<PillMatchDetail> matchDetails,
-      String ingredientName) {
+      String ingredientName,
+      @JsonInclude(JsonInclude.Include.NON_NULL) String baseName,
+      @JsonInclude(JsonInclude.Include.NON_NULL) String strengthText,
+      @JsonInclude(JsonInclude.Include.NON_NULL) StrengthMatch strengthMatch) {
+    public Candidate(String itemSeq, String name, String maker, String etcOtc, String imageUrl,
+        Boolean cancelled, boolean alreadyRegistered, Boolean printMatched,
+        String printFront, String printBack, String shape, String color,
+        String orientation, Integer evidenceRank, List<PillMatchDetail> matchDetails,
+        String ingredientName) {
+      this(itemSeq, name, maker, etcOtc, imageUrl, cancelled, alreadyRegistered, printMatched,
+          printFront, printBack, shape, color, orientation, evidenceRank, matchDetails, ingredientName,
+          null, null, null);
+    }
     public Candidate(String itemSeq, String name, String maker, String etcOtc, String imageUrl,
         Boolean cancelled, boolean alreadyRegistered, Boolean printMatched,
         String printFront, String printBack, String shape, String color,
         String orientation, Integer evidenceRank, List<PillMatchDetail> matchDetails) {
       this(itemSeq, name, maker, etcOtc, imageUrl, cancelled, alreadyRegistered, printMatched,
           printFront, printBack, shape, color, orientation, evidenceRank, matchDetails, null);
+    }
+    public Candidate withStrength(DrugStrength strength, StrengthMatch match) {
+      return new Candidate(itemSeq, name, maker, etcOtc, imageUrl, cancelled, alreadyRegistered, printMatched,
+          printFront, printBack, shape, color, orientation, evidenceRank, matchDetails, ingredientName,
+          strength.baseName(), strength.text(), match);
     }
     public Candidate(String itemSeq, String name, String maker, String etcOtc, String imageUrl,
         Boolean cancelled, boolean alreadyRegistered, Boolean printMatched,

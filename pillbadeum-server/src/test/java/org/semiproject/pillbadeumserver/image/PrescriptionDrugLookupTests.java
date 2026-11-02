@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
+import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.drug.service.PrescriptionDrugLookup;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -71,7 +72,11 @@ class PrescriptionDrugLookupTests {
         "합성액5mg/5mL | 합성액1mg/mL | false",
         "합성액5mg/5mL | 합성액5밀리그램/5mL | true",
         "합성정5mg | 합성액5mg/mL | false",
-        "합성5000IU | 합성5000IU/mL | false"
+        "합성5000IU | 합성5000IU/mL | false",
+        "합성액100mg/5밀리리터 | 합성액100mg/5mL | true",
+        "합성액100밀리그램/밀리리터 | 합성액100mg/mL | true",
+        "합성액100밀리그램/밀리리터 | 합성액100mg | false",
+        "합성액100mg | 합성액100밀리그램/밀리리터 | false"
     })
     void comparesProductStrengthAndFormWithoutDoseGuessing(String input, String candidate, boolean accepted) {
         when(client.get(anyString(), anyMap())).thenReturn(rows(List.of(candidate)));
@@ -160,6 +165,120 @@ class PrescriptionDrugLookupTests {
         });
         assertThat(lookup.find("합성액5mg/5mL", null)).isEmpty();
         assertThat(queries).containsExactly("합성액5mg/5mL", "합성액5밀리그램/5mL");
+    }
+
+    // ---- V3-REG-002 처방전 후보 함량 상태(REG-003 변경) ----
+
+    @Test
+    void readStrengthKeepsTheSameProductWithOtherStrengthsAsDifferent() {
+        var queries = recordQueries(Map.of("합성정", List.of("합성정10mg", "합성정20밀리그램(성분)", "합성서방정20mg",
+                "합성캡슐20mg", "합성정", "합성정20mg/5mL", "다른합성정20mg")));
+
+        var found = lookup.findWithStrength("합성정 20mg", null);
+
+        assertThat(queries).containsExactly("합성정");
+        assertThat(found).extracting(c -> c.row().path("ITEM_NAME").asString() + "=" + c.strength()).containsExactly(
+                "합성정10mg=DIFFERENT", "합성정20밀리그램(성분)=MATCH", "합성정=UNKNOWN");
+    }
+
+    @Test
+    void compoundStrengthMatchesOnlyTheSameIngredientAmountsInOrder() {
+        recordQueries(Map.of("합성정", List.of("합성정500/125밀리그램", "합성정500/250mg", "합성정125/500mg")));
+
+        assertThat(lookup.findWithStrength("합성정500/125mg", null))
+                .extracting(c -> c.row().path("ITEM_NAME").asString() + "=" + c.strength())
+                .containsExactly("합성정500/125밀리그램=MATCH", "합성정500/250mg=DIFFERENT", "합성정125/500mg=DIFFERENT");
+    }
+
+    @Test
+    void readNameWithoutStrengthKeepsTheExistingCandidatesAsUnknown() {
+        var queries = recordQueries(Map.of("합성정", List.of("합성정30밀리그램", "합성정60밀리그램", "합성서방정60mg")));
+
+        assertThat(lookup.findWithStrength("합성정", null))
+                .extracting(c -> c.row().path("ITEM_NAME").asString() + "=" + c.strength())
+                .containsExactly("합성정30밀리그램=UNKNOWN", "합성정60밀리그램=UNKNOWN");
+        assertThat(queries).containsExactly("합성정");
+    }
+
+    @Test
+    void concentrationAndClippedNamesKeepTheExistingComparison() {
+        var queries = recordQueries(Map.of("합성액5mg/5mL", List.of("합성액5밀리그램/5mL", "합성액1mg/mL"),
+                "합성정60", List.of("합성정60밀리그램", "합성정600밀리그램", "합성정6밀리그램")));
+
+        assertThat(lookup.findWithStrength("합성액5mg/5mL", null))
+                .extracting(c -> c.row().path("ITEM_NAME").asString() + "=" + c.strength())
+                .containsExactly("합성액5밀리그램/5mL=MATCH");
+        // 숫자가 잘린 이름은 함량을 확인할 수 없어 일치로 보지 않음
+        assertThat(lookup.findWithStrength("합성정60...", null))
+                .extracting(c -> c.row().path("ITEM_NAME").asString() + "=" + c.strength())
+                .containsExactly("합성정60밀리그램=UNKNOWN", "합성정600밀리그램=UNKNOWN");
+        assertThat(queries).containsExactly("합성액5mg/5mL", "합성정60");
+    }
+
+    @Test
+    void emptyBaseResultFallsBackToTheReadSpelling() {
+        var queries = recordQueries(Map.of("합성캅셀60mg", List.of(), "합성캅셀60밀리그램", List.of("합성캅셀60밀리그램")));
+
+        assertThat(lookup.findWithStrength("합성캅셀60mg", "보령"))
+                .extracting(c -> c.row().path("ITEM_NAME").asString() + "=" + c.strength())
+                .containsExactly("합성캅셀60밀리그램=MATCH");
+        assertThat(queries).containsExactly("합성캅셀", "합성캅셀60mg", "합성캅셀60밀리그램");
+    }
+
+    @Test
+    void clippedBaseResultWithoutAMatchLooksUpTheExactProductOnce() {
+        var queries = new ArrayList<String>();
+        when(client.get(anyString(), anyMap())).thenAnswer(call -> {
+            Map<String, ?> params = call.getArgument(1);
+            String query = (String) params.get("item_name");
+            queries.add(query);
+            if (query.equals("합성정")) return rows(List.of("합성정10mg"), 250);
+            return rows(query.equals("합성정20mg") ? List.of("합성정20mg") : List.of());
+        });
+
+        assertThat(lookup.findWithStrength("합성정20mg", null))
+                .extracting(c -> c.row().path("ITEM_NAME").asString() + "=" + c.strength())
+                .containsExactly("합성정10mg=DIFFERENT", "합성정20mg=MATCH");
+        assertThat(queries).containsExactly("합성정", "합성정20mg");
+    }
+
+    @Test
+    void publicDataFailureDuringStrengthLookupIsNotHiddenAsNoCandidates() {
+        var failure = ExternalApiException.failed("공공데이터", "시험 실패", null);
+        when(client.get(anyString(), anyMap())).thenThrow(failure);
+        assertThatThrownBy(() -> lookup.findWithStrength("합성정20mg", null)).isSameAs(failure);
+        verify(client, times(1)).get(anyString(), anyMap());
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "합성정20mg       | 합성정20밀리그램     | MATCH",
+        "합성정20mg       | 합성정10mg         | DIFFERENT",
+        "합성정20mg       | 합성정             | UNKNOWN",
+        "합성정20mg       | 합성서방정20mg      | UNKNOWN",
+        "합성정          | 합성정10mg         | UNKNOWN",
+        "합성정60...      | 합성정60밀리그램     | UNKNOWN",
+        "합성액5mg/5mL    | 합성액5밀리그램/5mL  | MATCH",
+    })
+    void storedReadNameAndCandidateNameGiveTheSameStateAsTheLookup(String readName, String candidate, StrengthMatch expected) {
+        assertThat(PrescriptionDrugLookup.strengthMatch(readName, candidate)).isEqualTo(expected);
+    }
+
+    private List<String> recordQueries(Map<String, List<String>> results) {
+        var queries = new ArrayList<String>();
+        when(client.get(anyString(), anyMap())).thenAnswer(call -> {
+            Map<String, ?> params = call.getArgument(1);
+            String query = (String) params.get("item_name");
+            queries.add(query);
+            return rows(results.getOrDefault(query, List.of()));
+        });
+        return queries;
+    }
+
+    private tools.jackson.databind.JsonNode rows(List<String> names, int totalCount) {
+        var items = new ArrayList<Map<String, String>>();
+        for (int i = 0; i < names.size(); i++) items.add(Map.of("ITEM_SEQ", "90000" + i, "ITEM_NAME", names.get(i)));
+        return json.valueToTree(Map.of("items", items, "totalCount", totalCount));
     }
 
     private tools.jackson.databind.JsonNode rows(List<String> names) {

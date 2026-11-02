@@ -7,9 +7,13 @@ import java.util.*;
 import java.util.regex.Pattern;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
 import org.semiproject.pillbadeumserver.drug.domain.DrugStrength;
+import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import tools.jackson.databind.JsonNode;
 
-/** REG-003: 판독 원문을 보존하며 조회 표기만 바꾸고, 제품 함량·제형이 다른 후보를 제외함. */
+/**
+ * REG-003: 판독 원문을 보존하며 조회 표기만 바꾸고, 제품 함량·제형이 다른 후보를 제외함(find, 채팅이 씀).
+ * V3-REG-002: 처방전 사진 후보는 함량만 다른 같은 제품을 빼지 않고 '함량 다름'으로 남김(findWithStrength).
+ */
 public final class PrescriptionDrugLookup {
     // 함량 표기는 V3-DRUG-001 함량 분리(DrugStrength)와 같은 규칙을 씀.
     private static final String NUMBER = DrugStrength.NUMBER;
@@ -28,16 +32,52 @@ public final class PrescriptionDrugLookup {
         return find(name, maker, null).rows();
     }
 
+    /** V3-REG-002: 처방전 후보 한 행과 판독 이름에 대한 함량 상태. */
+    public record Candidate(JsonNode row, StrengthMatch strength) {}
+
+    /**
+     * V3-REG-002(REG-003 변경): 판독 이름에 질량 함량이 있으면 함량 뗀 기본 이름으로 먼저 조회해, 기본 이름(제형 · 서방 · 장용 포함)이
+     * 같고 함량만 다른 품목도 '함량 다름'으로 남김. 기본 이름 결과에 일치 품목이 없고 결과가 비었거나 잘렸으면 원래 표기로 찾음.
+     * 농도 · 활성 단위 · 잘린 이름 · 함량 없는 이름은 기존 대조(find)와 같은 후보를 돌려줌. 순서는 호출자가 정함.
+     */
+    public List<Candidate> findWithStrength(String name, String maker) {
+        var clue = new Clue(name);
+        if (!clue.widens()) {
+            var strength = clue.confirmed() ? StrengthMatch.MATCH : StrengthMatch.UNKNOWN;
+            return find(name, maker).stream().map(row -> new Candidate(row, strength)).toList();
+        }
+        var body = client.get(DrugSyncService.PERMIT_INFO_PATH, params(clue.bare, maker));
+        var items = PublicDataClient.items(body);
+        var found = new ArrayList<Candidate>();
+        for (var row : items) {
+            var strength = clue.strengthOf(text(row, "ITEM_NAME"));
+            if (strength != null) found.add(new Candidate(row, strength));
+        }
+        boolean matched = found.stream().anyMatch(candidate -> candidate.strength() == StrengthMatch.MATCH);
+        if (!matched && (found.isEmpty() || PublicDataClient.totalCount(body) > items.size())) {
+            for (String query : clue.exactQueries()) {
+                var exact = PublicDataClient.items(client.get(DrugSyncService.PERMIT_INFO_PATH, params(query, maker))).stream()
+                        .filter(row -> clue.matches(text(row, "ITEM_NAME"))).toList();
+                if (exact.isEmpty()) continue;
+                exact.forEach(row -> found.add(new Candidate(row, StrengthMatch.MATCH)));
+                break;
+            }
+        }
+        return List.copyOf(found);
+    }
+
+    /** V3-REG-002: 저장된 판독 이름과 후보 품목명의 함량 상태. 후보를 다시 보여 줄 때도 조회와 같은 대조를 씀. */
+    public static StrengthMatch strengthMatch(String readName, String candidateName) {
+        var strength = new Clue(readName).strengthOf(candidateName);
+        return strength == null ? StrengthMatch.UNKNOWN : strength;
+    }
+
     /** 채팅은 잘린 첫 페이지의 한 품목을 유일한 제품으로 확정하지 않음. 기존 처방전 필터를 재사용함. */
     public Matches find(String name, String maker, Duration remaining) {
         long endsAt = remaining == null ? Long.MAX_VALUE : System.nanoTime() + remaining.toNanos();
         var clue = new Clue(name);
         for (String query : clue.queries()) {
-            var params = new LinkedHashMap<String, Object>();
-            params.put("item_name", query);
-            if (maker != null && !maker.isBlank()) params.put("entp_name", maker.strip());
-            params.put("pageNo", 1);
-            params.put("numOfRows", 100);
+            var params = params(query, maker);
             var body = remaining == null ? client.get(DrugSyncService.PERMIT_INFO_PATH, params)
                     : client.get(DrugSyncService.PERMIT_INFO_PATH, params, Duration.ofNanos(Math.max(1, endsAt - System.nanoTime())));
             var items = PublicDataClient.items(body);
@@ -53,7 +93,7 @@ public final class PrescriptionDrugLookup {
     public record Matches(List<JsonNode> rows, boolean more) {}
 
     private static final class Clue {
-        final String clean, base, form;
+        final String clean, bare, base, form;
         final List<BigDecimal> strengths;
         final boolean complex, truncated, partialStrength, queryable;
 
@@ -66,6 +106,7 @@ public final class PrescriptionDrugLookup {
             clean = openDescription ? withoutEllipsis.substring(0, open) : withoutEllipsis;
             strengths = strengths(clean);
             complex = COMPLEX.matcher(clean).find();
+            bare = bare(clean);
             base = base(clean);
             form = form(base);
             // 판독 원문은 호출자가 보존한다. 잘린 숫자는 완성하지 않고 읽힌 접두어 그대로 후보만 조회한다.
@@ -85,6 +126,34 @@ public final class PrescriptionDrugLookup {
             if (!complex && !strengths.isEmpty() && base.length() >= 2) result.add(base);
             result.removeIf(String::isBlank);
             return List.copyOf(result);
+        }
+
+        /** 원래 표기와 단위만 바꾼 표기. 기본 이름 조회는 빼고 순서를 지킴. */
+        List<String> exactQueries() {
+            var result = new LinkedHashSet<>(List.of(clean, swapUnits(clean)));
+            result.removeIf(String::isBlank);
+            return List.copyOf(result);
+        }
+
+        /** 질량 함량이 온전히 읽혀 함량 뗀 이름으로 넓혀 볼 수 있는 판독 이름인지. */
+        boolean widens() {
+            return queryable && !truncated && !complex && !strengths.isEmpty() && bare.length() >= 2;
+        }
+
+        /** 판독 이름의 함량을 확인할 수 있는지. 함량이 없거나 숫자가 잘렸으면 확인 불가임. */
+        boolean confirmed() {
+            return !partialStrength && (complex || !strengths.isEmpty());
+        }
+
+        /** 같은 제품이면 함량 상태를, 다른 제품이면 null을 돌려줌. 함량만 다른 품목은 넓혀 보는 이름에서만 남김. */
+        StrengthMatch strengthOf(String candidateName) {
+            if (candidateName == null || candidateName.isBlank()) return null;
+            if (matches(candidateName)) return confirmed() ? StrengthMatch.MATCH : StrengthMatch.UNKNOWN;
+            if (!widens()) return null;
+            var candidate = clean(candidateName);
+            // 기본 이름에 제형 · 서방 · 장용이 들어 있으므로 기본 이름이 같으면 제형도 같음.
+            if (COMPLEX.matcher(candidate).find() || !base(candidate).equals(base)) return null;
+            return strengths(candidate).isEmpty() ? StrengthMatch.UNKNOWN : StrengthMatch.DIFFERENT;
         }
 
         boolean matches(String candidateName) {
@@ -126,9 +195,22 @@ public final class PrescriptionDrugLookup {
     }
 
     private static String base(String value) {
+        return bare(value).replace("캅셀", "캡슐").toUpperCase(Locale.ROOT);
+    }
+
+    /** 함량과 괄호 설명만 뗀 이름. 조회어로 쓰므로 표기(캅셀 · 대소문자)는 바꾸지 않음. */
+    private static String bare(String value) {
         String withoutStrength = MASS.matcher(value).replaceAll("");
-        return withoutStrength.replaceAll("\\([^)]*\\)", "").replaceAll("[/+]+$", "")
-                .replace("캅셀", "캡슐").toUpperCase(Locale.ROOT);
+        return withoutStrength.replaceAll("\\([^)]*\\)", "").replaceAll("[/+]+$", "");
+    }
+
+    private static Map<String, Object> params(String query, String maker) {
+        var params = new LinkedHashMap<String, Object>();
+        params.put("item_name", query);
+        if (maker != null && !maker.isBlank()) params.put("entp_name", maker.strip());
+        params.put("pageNo", 1);
+        params.put("numOfRows", 100);
+        return params;
     }
 
     private static String form(String base) {
@@ -168,7 +250,8 @@ public final class PrescriptionDrugLookup {
     private static String canonicalUnits(String value) {
         return value.replace("마이크로그램", "mcg").replace("마이크로그람", "mcg")
                 .replace("밀리그램", "mg").replace("밀리그람", "mg")
-                .replace("그램", "g").replace("그람", "g").toUpperCase(Locale.ROOT);
+                .replace("그램", "g").replace("그람", "g")
+                .replace("밀리리터", "mL").replace("리터", "L").toUpperCase(Locale.ROOT);
     }
 
     private static String text(JsonNode row, String field) {

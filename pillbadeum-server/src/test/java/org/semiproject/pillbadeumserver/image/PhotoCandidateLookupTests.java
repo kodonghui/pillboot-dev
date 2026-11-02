@@ -95,6 +95,27 @@ class PhotoCandidateLookupTests {
   }
 
   @Test
+  void prescriptionPutsMatchingStrengthFirstAndKeepsOtherStrengthsOfTheSameProduct() {
+    var different = row("900001", "합성정10mg");
+    var unknown = row("900002", "합성정");
+    var cancelledMatch = row("900003", "합성정20밀리그램"); cancelledMatch.put("CANCEL_NAME", "취하");
+    var match = row("900004", "합성정20mg");
+    var otherForm = row("900005", "합성서방정20mg");
+    when(client.get(eq(DrugSyncService.PERMIT_INFO_PATH), anyMap()))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(different, unknown, cancelledMatch, match, otherForm))));
+    when(catalog.cachedImageUrls(anySet())).thenReturn(Map.of());
+
+    var result = lookup.prescriptionResult("합성정20mg", null);
+
+    // 일치(취하는 뒤로) · 확인 불가 · 다름 순이며, 제형이 다른 서방정은 다른 제품이라 넣지 않음
+    assertThat(result.status()).isEqualTo("OK");
+    assertThat(result.candidates()).extracting(value -> value.itemSeq())
+        .containsExactly("900004", "900003", "900002", "900001");
+    verify(client).get(DrugSyncService.PERMIT_INFO_PATH, Map.of("item_name", "합성정", "pageNo", 1, "numOfRows", 100));
+    verifyNoMoreInteractions(client);
+  }
+
+  @Test
   void unknownExternalAttributesAreExplicitButDrugTypeIsNeverAssumedOtc() {
     var row = row("900001", "합성약");
     when(client.get(anyString(), anyMap()))
