@@ -18,7 +18,7 @@ public class ProfileCreateRequest {
 
     @NotBlank(message = "관계를 선택해주세요.")
     @Pattern(
-        regexp = "SELF|MOTHER|FATHER|DAUGHTER|SON|GRANDMA|GRANDPA|SPOUSE",
+        regexp = org.semiproject.pillbadeumserver.profile.domain.Profile.RELATIONSHIP_TYPES,
         message = "올바른 관계를 선택해주세요."
     )
     private String relationshipType; // 회원과 프로필과의 관계
