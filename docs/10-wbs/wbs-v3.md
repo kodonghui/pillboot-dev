@@ -42,7 +42,7 @@
 | TASK-006 | 후보 함량 상태(일치·다름·확인 불가)와 자동 선택(REG-003 변경) | V3-REG-002 | 처방전 판독 후보(`POST /api/images/identify`, `GET /api/photos/{photoId}/candidates`, 후보의 기본 이름·함량 칸 포함) | TASK-001 | Claude(CT) | 1일 | 수용 기준과 복합제 원문 일치 시험이 통과하고 기존 판독 시험이 깨지지 않음 |
 | TASK-007 | 화면정의서·목업: 이름·함량 표시와 '함량 다름' 후보 | V3-DRUG-004, V3-REG-002 | 약 검색·판독 후보·약목록·약 상세 화면 | TASK-004·006의 계약 | Claude(CT) | 0.5일 | PM이 캡처를 보고 승인함 |
 | TASK-008 | 프론트: 이름·함량 표시와 '함량 다름' 후보 | V3-DRUG-004, V3-REG-002 | 위 화면 | TASK-004·006·007 | Claude(CT) | 1일 | 화면이 정의서 상태대로 보이고 lint·build가 통과함 |
-| TASK-009 | 여러 개 삭제 API 계약 | V3-DRUG-003 | `openapi-v3.yaml`(경로는 계약에서 정함) | 없음 | Claude(CT) | 0.5일 | 200·400·401·404 응답과 오류 모양이 계약에 있음 |
+| TASK-009 | 여러 개 삭제 API 계약 | V3-DRUG-003 | `openapi-v3.yaml`의 `POST /api/profiles/{profileId}/drugs/bulk-delete` | 없음 | Claude(CT) | 0.5일 | 200·400·401·404 응답과 오류 모양이 계약에 있음 |
 | TASK-010 | 서버: 여러 개 삭제(한 트랜잭션, 일정·알림 함께) | V3-DRUG-003, V3-COMMON-003 | 위 API, `my_drug`, 복약 일정·알림 | TASK-009 | Claude(CT) | 1일 | 200·400·401·404마다 시험이 통과하고 하나라도 실패하면 아무것도 안 지워짐 |
 | TASK-011 | 화면정의서·목업: 약목록 선택 모드와 확인 창 | V3-DRUG-003 | 약목록 화면 | TASK-009 | Claude(CT) | 0.5일 | PM이 캡처를 보고 승인함 |
 | TASK-012 | 프론트: 선택과 여러 개 삭제 | V3-DRUG-003 | 약목록 화면 | TASK-010·011 | Claude(CT) | 1일 | 실제 서버로 지우고 404면 목록을 다시 불러오며 lint·build가 통과함 |

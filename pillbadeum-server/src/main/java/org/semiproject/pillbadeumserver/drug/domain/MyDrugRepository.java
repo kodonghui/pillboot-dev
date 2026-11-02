@@ -1,9 +1,11 @@
 package org.semiproject.pillbadeumserver.drug.domain;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,7 +15,7 @@ import java.util.Optional;
  *  (open-in-view: false 이므로 서비스 트랜잭션 밖에서 drug 를 꺼내면 LazyInitializationException 이 난다)
  *  ----------------------------------------------------------------------------------
  *  - 소유권 확인(프로필이 로그인 회원 것인지)은 서비스에서 먼저 하고, 여기서는 profileId 로만 거른다.
- *  - 삭제는 JpaRepository.delete(myDrug) 를 쓴다. (삭제 플래그 컬럼 없음)
+ *  - 한 건 삭제는 JpaRepository.delete(myDrug), 여러 개 삭제는 deleteAllInProfile 을 쓴다. (삭제 플래그 컬럼 없음)
  * */
 public interface MyDrugRepository extends JpaRepository<MyDrug, Long> {
 
@@ -50,4 +52,13 @@ public interface MyDrugRepository extends JpaRepository<MyDrug, Long> {
             where m.profileId = :profileId and m.drug is not null
             """)
     List<String> findItemSeqsByProfileId(@Param("profileId") Long profileId);
+
+    // 여러 개 삭제 (POST /api/profiles/{profileId}/drugs/bulk-delete)
+    // 이 프로필의 행만 한 문장으로 지우고 지운 수를 돌려준다. 고른 수와 다르면 서비스가 예외로 되돌린다.
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            delete from MyDrug m
+            where m.profileId = :profileId and m.myDrugId in :myDrugIds
+            """)
+    int deleteAllInProfile(@Param("profileId") Long profileId, @Param("myDrugIds") Collection<Long> myDrugIds);
 }
