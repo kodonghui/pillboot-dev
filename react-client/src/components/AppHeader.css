@@ -1,0 +1,54 @@
+/* 좁은 화면(720px 이하) 로그인 후 헤더(design/narrow-header-chat.md): 첫 줄 로고 · 관리할 사람 · 로그아웃, 둘째 줄 주 메뉴.
+   디자인 번들의 좁은 화면 규칙(메뉴를 맨 뒤 순서 · 가로 스크롤 · 안쪽 8px 16px) 위에 더한다. */
+@media (max-width: 720px) {
+  .mt-hd .mt-hd__nav {
+    gap: 0;
+  }
+
+  /* 링크가 줄어들며 글자가 꺾이지 않게 한다(`약/목록`). 다 들어가지 않으면 메뉴 줄이 가로로 밀린다. */
+  .mt-hd .mt-hd__nav a,
+  .mt-hd .settings-menu,
+  .mt-hd .settings-menu__toggle {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .mt-hd .mt-hd__nav a,
+  .mt-hd .settings-menu__toggle {
+    padding: 0 var(--space-10);
+  }
+
+  /* 관리할 사람 · 로그아웃은 한 묶음으로 첫 줄 오른쪽. 다 들어가지 않으면 묶음째 다음 줄로 내려간다. */
+  .mt-hd .mt-hd__r {
+    flex-wrap: nowrap;
+    gap: var(--space-8);
+    margin-left: auto;
+  }
+
+  .mt-hd__nick {
+    display: none;
+  }
+
+  /* 글자는 숨기고 버튼 이름에는 남긴다(화면 읽기는 '관리할 사람 고동희'로 읽음). */
+  .mt-hd__who-k,
+  .mt-hd__logout-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .mt-hd__who-v {
+    max-width: 6em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mt-hd .mt-hd__logout {
+    width: 44px;
+    padding: 0;
+  }
+}

@@ -5,6 +5,7 @@ import ProfileSwitcher from './ProfileSwitcher.jsx'
 import SettingsMenu from './SettingsMenu.jsx'
 import { paths } from '../paths.js'
 import { useAuthStore } from '../store/auth.js'
+import './AppHeader.css'
 
 // 모든 화면 위 헤더(디자인 시스템 AppHeader). variant: guest(로그인 전) · member(로그인 후)
 // 관리할 사람(PRF-04)은 지금 화면 라우트의 handle.profileSwitcher 에 따라 보이거나 잠그거나 숨긴다(router.js).

@@ -12,14 +12,15 @@ function LogoutButton() {
   return (
     <>
       <button
-        className="mt-btn mt-btn--assistive mt-btn--md"
+        className="mt-btn mt-btn--assistive mt-btn--md mt-hd__logout"
         type="button"
         aria-haspopup="dialog"
         aria-expanded={confirming}
         onClick={() => setConfirming(true)}
       >
         <Icon name="logout" size="s" />
-        로그아웃
+        {/* 좁은 화면에서는 글자를 숨기고 아이콘만 보인다(AppHeader.css) */}
+        <span className="mt-hd__logout-label">로그아웃</span>
       </button>
       {confirming && (
         <ConfirmDialog

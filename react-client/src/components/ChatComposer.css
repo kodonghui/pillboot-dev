@@ -52,3 +52,35 @@
   min-height: 52px;
   padding: 0;
 }
+
+/* 좁은 화면(design/narrow-header-chat.md): 입력칸을 넓히려고 보내기는 아이콘만 보이는 정사각 버튼으로,
+   면책 안내는 상자 없이 아이콘과 글만 둔다(대화 내용이 더 보이게). */
+@media (max-width: 720px) {
+  .chat-composer {
+    gap: var(--space-10);
+  }
+
+  .chat-composer__row {
+    gap: var(--space-8);
+  }
+
+  .chat-composer__send {
+    width: 52px;
+    padding: 0;
+  }
+
+  .chat-composer__send-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .chat-composer > .mt-notice {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+}
