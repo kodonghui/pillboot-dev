@@ -5,7 +5,7 @@ import { errorOf } from '../api/client.js'
 import { todayKst } from '../dates.js'
 import { paths } from '../paths.js'
 import { calendarMonth, doseText } from '../scheduleInfo.js'
-import { hourMinute, monthDay } from '../text.js'
+import { hourMinute, monthDay, yearMonthDay } from '../text.js'
 import DrugThumb from './DrugThumb.jsx'
 import Icon from './Icon.jsx'
 import NoValue from './NoValue.jsx'
@@ -29,15 +29,24 @@ const fields = [
   { key: 'timing', label: '복용 때', same: (a, b) => (a.timing ?? null) === (b.timing ?? null) },
 ]
 
-// 값 하나의 글자. 없으면 null(확인되지 않은 1회 개수 · 복용 때 없음). badges: 복용 시간을 숫자 배지로(확정 카드)
-function fieldValue(key, values, badges) {
+// 카드의 기간이 두 해에 걸치는지(시작일 · 종료일의 연도가 둘 이상). 걸치면 카드의 날짜에 연도를 붙여
+// 연도만 바뀐 기간도 다른 글자로 보인다. 오늘 연도와는 비교하지 않는다.
+function spansYears(...values) {
+  const years = values.flatMap((v) => [v.startDate, v.endDate]).filter(Boolean).map((date) => date.slice(0, 4))
+  return new Set(years).size > 1
+}
+
+// 값 하나의 글자. 없으면 null(확인되지 않은 1회 개수 · 복용 때 없음).
+// badges: 복용 시간을 숫자 배지로(확정 카드). year: 기간 날짜에 연도를 붙임(spansYears)
+function fieldValue(key, values, { badges = false, year = false } = {}) {
   if (key === 'period') {
     if (!values.startDate) return null
+    const date = year ? yearMonthDay : monthDay
     // '부터' 뒤에서만 줄을 바꾼다.
     return (
       <span>
-        <span className="chat-schedule__nowrap">{monthDay(values.startDate)}부터</span>{' '}
-        <span className="chat-schedule__nowrap">{monthDay(values.endDate)}까지</span>
+        <span className="chat-schedule__nowrap">{date(values.startDate)}부터</span>{' '}
+        <span className="chat-schedule__nowrap">{date(values.endDate)}까지</span>
       </span>
     )
   }
@@ -59,13 +68,13 @@ function fieldValue(key, values, badges) {
 }
 
 // 네 값 목록(확정 카드 · 일정이 없던 약의 새 일정)
-function ValueList({ values, badges, fresh }) {
+function ValueList({ values, badges, fresh, year }) {
   return (
     <dl className={`chat-schedule__result${fresh ? ' chat-schedule__fresh' : ''}`}>
       {fields.map((field) => (
         <div key={field.key}>
           <dt className="screen-label">{field.label}</dt>
-          <dd className="screen-body">{fieldValue(field.key, values, badges) ?? <NoValue />}</dd>
+          <dd className="screen-body">{fieldValue(field.key, values, { badges, year }) ?? <NoValue />}</dd>
         </div>
       ))}
     </dl>
@@ -80,7 +89,7 @@ function summaryOf(schedule) {
 
 // 확정한 카드: 바뀐 뒤 일정과 복용 달력 링크. notice: 다른 화면에서 이미 확정한 카드일 때 위에 두는 안내
 function DoneCard({ proposal, titleId, announce, notice }) {
-  const { myDrugId, drugName, proposed } = proposal.schedule
+  const { myDrugId, drugName, current, proposed } = proposal.schedule
   const calendarLink = `${paths.calendar}?${new URLSearchParams({
     month: calendarMonth(proposed.startDate, proposed.endDate, todayKst()),
     profile: proposal.profileId,
@@ -95,7 +104,8 @@ function DoneCard({ proposal, titleId, announce, notice }) {
           {drugName ? `${drugName} 일정을 바꿨어요` : '일정을 바꿨어요'}
         </h3>
       </div>
-      <ValueList values={proposed} badges />
+      {/* 연도는 대기 카드와 같이 '지금'까지 맞춰 봐, 연도를 보이던 카드가 확정 뒤에도 연도를 보인다. */}
+      <ValueList values={proposed} badges year={spansYears(current, proposed)} />
       <p className="screen-caption chat-proposal__muted">
         {hourMinute(proposal.decidedAt)} 확정 · 복용 알림을 켰다면 바뀐 시간에 와요.
       </p>
@@ -145,8 +155,8 @@ function ClosedCard({ proposal, reason, titleId, announce }) {
 }
 
 // 바뀌는 값 한 줄: '지금'(회색 취소선) → '바뀐 뒤'(굵게). 화면 읽기는 '지금 …' · '바뀐 뒤 …'로 읽는다.
-function ChangeRow({ field, current, proposed }) {
-  const before = fieldValue(field.key, current)
+function ChangeRow({ field, current, proposed, year }) {
+  const before = fieldValue(field.key, current, { year })
   return (
     <div className="chat-schedule__change">
       <dt className="screen-label">{field.label}</dt>
@@ -160,7 +170,7 @@ function ChangeRow({ field, current, proposed }) {
         </span>
         <span className="chat-schedule__new">
           <VisuallyHidden>바뀐 뒤 </VisuallyHidden>
-          {fieldValue(field.key, proposed) ?? <NoValue />}
+          {fieldValue(field.key, proposed, { year }) ?? <NoValue />}
         </span>
       </dd>
     </div>
@@ -217,6 +227,7 @@ function ChatSchedule({ proposal, onChange }) {
   const scheduled = current.startDate != null
   const changes = fields.filter((field) => !field.same(current, proposed))
   const kept = fields.filter((field) => field.same(current, proposed))
+  const year = spansYears(current, proposed)
 
   // 서버 상태가 바뀐 카드를 받았다. 결과 · 닫힌 카드(약을 지운 카드 포함)로 바뀌면 제목을 읽어 준다.
   const settle = (next) => {
@@ -317,7 +328,7 @@ function ChatSchedule({ proposal, onChange }) {
           <p className="screen-label chat-schedule__section">바뀌는 값</p>
           <dl className="chat-schedule__changes">
             {changes.map((field) => (
-              <ChangeRow key={field.key} field={field} current={current} proposed={proposed} />
+              <ChangeRow key={field.key} field={field} current={current} proposed={proposed} year={year} />
             ))}
           </dl>
           {kept.length > 0 && (
@@ -327,7 +338,7 @@ function ChatSchedule({ proposal, onChange }) {
                 {kept.map((field) => (
                   <div key={field.key}>
                     <dt className="screen-caption">{field.label}</dt>
-                    <dd className="screen-caption">{fieldValue(field.key, proposed) ?? <NoValue />}</dd>
+                    <dd className="screen-caption">{fieldValue(field.key, proposed, { year }) ?? <NoValue />}</dd>
                   </div>
                 ))}
               </dl>
@@ -337,7 +348,7 @@ function ChatSchedule({ proposal, onChange }) {
       ) : (
         <>
           <p className="screen-label chat-schedule__section">지금은 일정이 없어요 · 새로 넣을 일정</p>
-          <ValueList values={proposed} fresh />
+          <ValueList values={proposed} fresh year={year} />
         </>
       )}
       {!problem && (
