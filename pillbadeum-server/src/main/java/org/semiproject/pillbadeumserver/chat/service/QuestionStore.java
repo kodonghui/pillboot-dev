@@ -55,9 +55,12 @@ public class QuestionStore {
         var turns = messages.findHistoryTurns(sessionId, null, org.springframework.data.domain.PageRequest.of(0, 2));
         var previous = turns.isEmpty() ? java.util.List.<String>of() : messages.findHistoryMessages(sessionId, turns).stream()
                 .filter(message -> "user".equals(message.getRole())).map(ChatMessage::getContent).toList();
-        var drugs = medications.findAllWithDrugByProfileId(profileId).stream().filter(m -> m.getDrug() != null).toList();
+        var all = medications.findAllWithDrugByProfileId(profileId);
+        var drugs = all.stream().filter(m -> m.getDrug() != null).toList();
         var products = drugs.stream().limit(10).map(m -> m.getDrug().getItemSeq() + " " + m.getDrug().getName()).toList();
-        var names = drugs.stream().map(m -> m.getDrug().getName()).toList();
+        // 일정 요청(V3-CHAT-007)은 직접 입력한 약도 대상이라 약목록 이름에는 입력한 이름도 넣는다.
+        var names = all.stream().map(m -> m.getDrug() != null ? m.getDrug().getName() : m.getCustomName())
+                .filter(Objects::nonNull).toList();
         return new QuestionClassifier.Context(previous, products, names);
     }
 

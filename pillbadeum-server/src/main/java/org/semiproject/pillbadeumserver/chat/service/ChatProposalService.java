@@ -18,7 +18,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 /**
- * V3-CHAT-003~005 제안 카드 다시 보기·확정·취소. 없는 제안과 다른 회원의 제안은 같은 404다(V3-COMMON-003).
+ * V3-CHAT-003~005·007 제안 카드 다시 보기·확정·취소. 없는 제안과 다른 회원의 제안은 같은 404다(V3-COMMON-003).
  * 확정·취소할 수 없으면 지금 상태를 붙여 409로 답하고 아무것도 저장하지 않는다.
  */
 @Service
@@ -42,11 +42,7 @@ public class ChatProposalService {
         Long memberId = SecurityUtil.getCurrentMemberId();
         var card = load(proposalId, memberId);
         refuseDecided(card);
-        if (card.kind() == ChatProposalResponse.Kind.SCHEDULE) {
-            if (request != null && request.itemNos() != null) throw invalid("일정 제안은 항목을 고르지 않고 확정해요.");
-            // 일정 제안은 V3-CHAT-007(TASK-029)에서 만든다. 그 전에는 만들어지지 않으므로 여기에 오지 않는다.
-            throw new IllegalStateException("일정 제안 확정은 아직 없음");
-        }
+        if (card.kind() == ChatProposalResponse.Kind.SCHEDULE) return confirmSchedule(card, request, memberId);
         var chosen = chosen(card, request);
         try {
             var confirmed = proposals.confirmRegister(proposalId, memberId, card.profileId(), chosen);
@@ -62,6 +58,24 @@ public class ChatProposalService {
             var codes = chosen.stream().map(ChatProposalResponse.Item::itemSeq).toList();
             if (proposals.registeredAmong(card.profileId(), codes).isEmpty()) throw duplicate;
             throw conflict(ChatProposalConflictException.Code.CONFLICT, load(proposalId, memberId));
+        }
+    }
+
+    /**
+     * V3-CHAT-007: 일정 제안은 본문 없이 확정한다. 카드를 만든 뒤 대상 약의 일정이 바뀌었거나 그 약을 지웠으면
+     * 지금 카드를 붙인 409 SCHEDULE_CHANGED이고 카드는 대기 그대로다(새 카드를 받아야 함).
+     */
+    private ChatProposalResponse confirmSchedule(ChatProposalResponse card, ChatProposalConfirmRequest request, Long memberId) {
+        if (request != null && request.itemNos() != null) throw invalid("일정 제안은 항목을 고르지 않고 확정해요.");
+        try {
+            var confirmed = proposals.confirmSchedule(card.proposalId(), memberId, card.profileId());
+            log.info("[제안 확정] kind={}", card.kind());
+            return confirmed;
+        } catch (ChatProposalStore.NotPending changed) {
+            refuseDecided(load(card.proposalId(), memberId));
+            throw new IllegalStateException("대기 제안을 확정하지 못함", changed);
+        } catch (ChatProposalConflictException conflict) {
+            throw conflict(conflict.getCode(), load(card.proposalId(), memberId));
         }
     }
 

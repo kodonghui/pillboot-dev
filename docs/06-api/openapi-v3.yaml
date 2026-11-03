@@ -430,7 +430,8 @@ paths:
             - `PROPOSAL_EXPIRED`: 만든 지 30분이 지남
             - `CONFLICT`: 고른 약이 이미 약목록에 있음(카드를 만든 뒤 다른 경로로 먼저 저장된 경우 포함). 제안은 대기 그대로이고,
               `proposal`에서 그 항목이 `alreadyRegistered: true`로 보임
-            - `SCHEDULE_CHANGED`: 일정 제안을 만든 뒤 대상 약의 일정이 바뀌었거나 대상 약이 지워짐. 새 카드를 받아야 함
+            - `SCHEDULE_CHANGED`: 일정 제안을 만든 뒤 대상 약의 일정이 바뀌었거나(카드의 `schedule.current`와 값으로 맞춰 봄)
+              대상 약이 지워짐. 제안은 대기 그대로이고 새 카드를 받아야 함
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ChatProposalConflict' }
@@ -744,12 +745,16 @@ components:
           type: [integer, 'null']
           format: int64
           description: 일정을 바꿀 약목록 약. 제안 뒤 그 약을 지웠으면 null이고 확정할 수 없음
-        drugName: { type: [string, 'null'], description: 카드에 보일 약 이름 }
+        drugName:
+          type: [string, 'null']
+          description: 카드에 보일 약 이름. 약목록의 지금 이름(직접 입력한 약은 입력한 이름)이고, 그 약을 지웠으면 null
         current: { $ref: '#/components/schemas/ScheduleValues' }
         proposed: { $ref: '#/components/schemas/ScheduleValues' }
     ScheduleValues:
       type: object
-      description: 카드의 '지금'·'바뀐 뒤' 일정. 칸 이름은 기존 복약 일정 응답과 같음. 일정이 없으면 날짜·시각이 null
+      description: |
+        카드의 '지금'·'바뀐 뒤' 일정. 칸 이름은 기존 복약 일정 응답과 같음. 일정이 없으면 날짜·시각이 null이고, 시각은 이른 시각부터임.
+        '바뀐 뒤'에서 말하지 않은 값은 '지금'과 같음(기능 명세 8.4). '지금'의 `dosePerTime`은 저장된 값이라 확인되지 않은 1회 개수일 수 있음
       properties:
         startDate: { type: [string, 'null'], format: date }
         endDate: { type: [string, 'null'], format: date }

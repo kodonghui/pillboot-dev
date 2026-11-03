@@ -12,6 +12,7 @@ import org.semiproject.pillbadeumserver.chat.service.QuestionIntent;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntentReader;
 import org.semiproject.pillbadeumserver.chat.service.PhotoProposalService;
 import org.semiproject.pillbadeumserver.chat.service.RegistrationProposalService;
+import org.semiproject.pillbadeumserver.chat.service.ScheduleProposalService;
 import org.semiproject.pillbadeumserver.chat.service.QuestionPlan;
 import org.semiproject.pillbadeumserver.chat.service.ChatAnswerService;
 import org.semiproject.pillbadeumserver.chat.service.AnswerFailedException;
@@ -62,6 +63,7 @@ class QuestionWebTests {
     @MockitoBean ChatAnswerService answers;
     @MockitoBean QuestionIntentReader intents;
     @MockitoBean RegistrationProposalService registrations;
+    @MockitoBean ScheduleProposalService schedules;
     @MockitoBean PhotoProposalService photos;
 
     @BeforeEach
@@ -229,6 +231,33 @@ class QuestionWebTests {
         mvc.perform(post("/api/chat-sessions/42/messages/100/retry").header("Authorization", authorization()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.answer.content").value("후보 없음"))
                 .andExpect(jsonPath("$.answer.proposal").value(nullValue()));
+        verifyNoInteractions(answers);
+    }
+
+    @Test
+    void scheduleRequestAnswersWithTheScheduleCardInsteadOfTheModelAnswer() throws Exception {
+        when(classifier.plan(eq("가상혈압정 아침 8시로 바꿔 줘"), any())).thenReturn(plan(QuestionCategory.PASS));
+        when(store.classificationContext(42L, 7L, 10L)).thenReturn(new QuestionClassifier.Context(List.of(), List.of(),
+                List.of("가상혈압정5밀리그램")));
+        when(intents.read(eq("가상혈압정 아침 8시로 바꿔 줘"), eq(List.of("가상혈압정5밀리그램")), any())).thenReturn(
+                new QuestionIntent(QuestionIntent.Kind.SCHEDULE_CHANGE, List.of(), "가상혈압정5밀리그램"));
+        var question = new QuestionResponse.Question(100L, 1);
+        when(store.save(42L, 7L, 10L, "가상혈압정 아침 8시로 바꿔 줘")).thenReturn(question);
+        when(schedules.propose(eq(42L), eq(7L), eq(10L), eq(question), eq("가상혈압정 아침 8시로 바꿔 줘"),
+                eq("가상혈압정5밀리그램"), any(), eq(false))).thenReturn(new QuestionResponse.Answer(101L, 1, "카드", null,
+                        java.time.OffsetDateTime.parse("2026-11-03T09:00:00+09:00")));
+        mvc.perform(post("/api/chat-sessions/42/messages").header("Authorization", authorization())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"가상혈압정 아침 8시로 바꿔 줘\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.answer.content").value("카드"));
+        verifyNoInteractions(answers, registrations);
+
+        when(store.retryQuestion(42L, 7L, 10L, 100L)).thenReturn(question);
+        when(store.questionContent(42L, question)).thenReturn("가상혈압정 아침 8시로 바꿔 줘");
+        when(schedules.propose(eq(42L), eq(7L), eq(10L), eq(question), eq("가상혈압정 아침 8시로 바꿔 줘"),
+                eq("가상혈압정5밀리그램"), any(), eq(true))).thenReturn(new QuestionResponse.Answer(101L, 1, "다시 카드", null,
+                        java.time.OffsetDateTime.parse("2026-11-03T09:00:00+09:00")));
+        mvc.perform(post("/api/chat-sessions/42/messages/100/retry").header("Authorization", authorization()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.answer.content").value("다시 카드"));
         verifyNoInteractions(answers);
     }
 

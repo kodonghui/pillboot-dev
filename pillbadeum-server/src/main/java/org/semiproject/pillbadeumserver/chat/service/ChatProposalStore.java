@@ -5,6 +5,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import org.semiproject.pillbadeumserver.chat.dto.ChatProposalResponse;
+import org.semiproject.pillbadeumserver.chat.dto.ChatProposalResponse.ScheduleValues;
 import org.semiproject.pillbadeumserver.chat.dto.QuestionResponse;
 import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
 import org.semiproject.pillbadeumserver.drug.domain.DrugRegistered;
@@ -23,6 +25,7 @@ import org.semiproject.pillbadeumserver.drug.domain.DrugSource;
 import org.semiproject.pillbadeumserver.drug.domain.MyDrugRepository;
 import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.image.service.ImageKeywordRegistrationService;
+import org.semiproject.pillbadeumserver.medication.service.MedicationScheduleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,9 +35,10 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 /**
- * V3-CHAT-002~005: 제안 표(SQL 16)를 읽고 쓴다. 카드를 보여 주는 약봉이 메시지와 같은 트랜잭션에서 만들고,
+ * V3-CHAT-002~005·007: 제안 표(SQL 16)를 읽고 쓴다. 카드를 보여 주는 약봉이 메시지와 같은 트랜잭션에서 만들고,
  * 읽을 때는 로그인 회원의 제안만 돌려준다(다른 회원 것은 없는 것과 같음, V3-COMMON-003).
  * 상태는 "대기이고 만료 전"인 행만 바꾸는 조건부 UPDATE 한 줄로 바꾼다(SQL 16). 바뀐 행이 0이면 호출자가 409로 답한다.
  */
@@ -46,17 +50,23 @@ public class ChatProposalStore {
     // 대기 카드의 '이미 등록됨'은 읽는 때 약목록 값이다. 카드를 만든 뒤 다른 경로로 저장된 약은 고를 수 없고,
     // 만들 때 있던 약을 회원이 그 뒤 지웠으면 다시 고를 수 있다. 확정·취소·만료된 카드는 만들 때 값 그대로다
     // (확정한 약은 이제 약목록에 있으므로).
+    // 일정 제안의 약 이름은 약목록의 지금 이름이고, 대상 약을 지웠으면 null이다.
     private static final String SELECT = """
             SELECT p.proposal_id, p.kind, p.status, p.profile_id, p.message_id, p.created_at, p.expires_at, p.decided_at,
                    i.item_no, i.item_seq, i.mention, i.strength_match, i.chosen, i.my_drug_id,
                    CASE WHEN p.status = 'PENDING' THEN EXISTS (SELECT 1 FROM my_drug m
                        WHERE m.profile_id = p.profile_id AND m.item_seq = i.item_seq)
                    ELSE i.already_registered END AS registered,
-                   d.name, d.maker, d.image_url, d.base_name, d.strength_text
+                   d.name, d.maker, d.image_url, d.base_name, d.strength_text,
+                   s.my_drug_id AS schedule_my_drug_id, s.current_schedule, s.proposed_schedule,
+                   COALESCE(sd.name, sm.custom_name) AS schedule_drug_name
             FROM chat_proposal p
             JOIN profile f ON f.profile_id = p.profile_id AND f.member_id = p.member_id
             LEFT JOIN chat_proposal_item i ON i.proposal_id = p.proposal_id
             LEFT JOIN drug d ON d.item_seq = i.item_seq
+            LEFT JOIN chat_proposal_schedule s ON s.proposal_id = p.proposal_id
+            LEFT JOIN my_drug sm ON sm.my_drug_id = s.my_drug_id AND sm.profile_id = p.profile_id
+            LEFT JOIN drug sd ON sd.item_seq = sm.item_seq
             """;
 
     private final JdbcTemplate jdbc;
@@ -64,14 +74,19 @@ public class ChatProposalStore {
     private final MyDrugRepository medications;
     private final ImageKeywordRegistrationService drugCache;
     private final ApplicationEventPublisher events;
+    private final MedicationScheduleService schedules;
+    private final ObjectMapper json;
 
     public ChatProposalStore(JdbcTemplate jdbc, QuestionStore questions, MyDrugRepository medications,
-                             ImageKeywordRegistrationService drugCache, ApplicationEventPublisher events) {
+                             ImageKeywordRegistrationService drugCache, ApplicationEventPublisher events,
+                             MedicationScheduleService schedules, ObjectMapper json) {
         this.jdbc = jdbc;
         this.questions = questions;
         this.medications = medications;
         this.drugCache = drugCache;
         this.events = events;
+        this.schedules = schedules;
+        this.json = json;
     }
 
     /**
@@ -111,23 +126,45 @@ public class ChatProposalStore {
         jdbc.queryForList("SELECT member_id FROM member WHERE member_id=? FOR UPDATE", Long.class, memberId);
     }
 
-    private ChatProposalResponse insertRegister(Long memberId, Long profileId, Long messageId,
-                                                List<RegistrationCandidates.Candidate> picked) {
-        var registered = new HashSet<>(medications.findItemSeqsByProfileId(profileId));
+    /**
+     * V3-CHAT-007: 일정 요청 질문의 답변 메시지와 일정 제안을 한 트랜잭션에 저장한다. 대상 약의 일정(my_drug)은 바꾸지 않는다.
+     * @param current 카드의 '지금'. 확정 때 대상 약의 그때 일정과 맞춰 본다
+     */
+    @Transactional(timeout = 5)
+    public QuestionResponse.Answer saveScheduleAnswer(Long sessionId, Long memberId, Long profileId,
+                                                      QuestionResponse.Question question, String content, long myDrugId,
+                                                      ScheduleValues current, ScheduleValues proposed,
+                                                      ChatDeadline deadline, boolean retry) {
+        lockMember(memberId);
+        var answer = questions.saveNotice(sessionId, memberId, profileId, question, content, deadline, retry);
+        long proposalId = insertHead(memberId, profileId, answer.messageId(), ChatProposalResponse.Kind.SCHEDULE);
+        jdbc.update("INSERT INTO chat_proposal_schedule(proposal_id, my_drug_id, current_schedule, proposed_schedule) "
+                + "VALUES(?,?,?,?)", proposalId, myDrugId, json.writeValueAsString(current), json.writeValueAsString(proposed));
+        return answer.withProposal(find(proposalId, memberId).orElseThrow());
+    }
+
+    private long insertHead(Long memberId, Long profileId, Long messageId, ChatProposalResponse.Kind kind) {
         LocalDateTime now = now();
         var key = new GeneratedKeyHolder();
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement("INSERT INTO chat_proposal(member_id, profile_id, "
-                    + "message_id, kind, status, created_at, expires_at) VALUES(?,?,?,'REGISTER','PENDING',?,?)",
+                    + "message_id, kind, status, created_at, expires_at) VALUES(?,?,?,?,'PENDING',?,?)",
                     Statement.RETURN_GENERATED_KEYS);
             statement.setLong(1, memberId);
             statement.setLong(2, profileId);
             statement.setLong(3, messageId);
-            statement.setObject(4, now);
-            statement.setObject(5, now.plus(LIFETIME));
+            statement.setString(4, kind.name());
+            statement.setObject(5, now);
+            statement.setObject(6, now.plus(LIFETIME));
             return statement;
         }, key);
-        long proposalId = Objects.requireNonNull(key.getKey()).longValue();
+        return Objects.requireNonNull(key.getKey()).longValue();
+    }
+
+    private ChatProposalResponse insertRegister(Long memberId, Long profileId, Long messageId,
+                                                List<RegistrationCandidates.Candidate> picked) {
+        var registered = new HashSet<>(medications.findItemSeqsByProfileId(profileId));
+        long proposalId = insertHead(memberId, profileId, messageId, ChatProposalResponse.Kind.REGISTER);
         var rows = new ArrayList<Object[]>();
         for (int i = 0; i < picked.size(); i++) {
             var candidate = picked.get(i);
@@ -179,6 +216,46 @@ public class ChatProposalStore {
         }
         events.publishEvent(new DrugRegistered(codes));
         return find(proposalId, memberId).orElseThrow();
+    }
+
+    /**
+     * V3-CHAT-007: 대기이고 만료 전인 일정 제안을 확정하고, 대상 약의 일정을 카드의 '바뀐 뒤'로 바꾼다. 저장은 기존 일정 저장
+     * (MedicationScheduleService.save)이 같은 트랜잭션에서 하므로 소유권·저장 규칙이 같다. 대상 약 행을 잠근 뒤 지금 일정이
+     * 카드의 '지금'과 다르거나 그 약을 지웠으면 상태 변경까지 모두 되돌린다.
+     *
+     * @throws NotPending 이미 확정·취소됐거나 만료돼 바꾼 행이 없음
+     * @throws ChatProposalConflictException SCHEDULE_CHANGED: 카드를 만든 뒤 일정이 바뀌었거나 대상 약을 지움
+     */
+    @Transactional(timeout = 5)
+    public ChatProposalResponse confirmSchedule(long proposalId, long memberId, long profileId) {
+        drugCache.lockProfile(profileId);
+        LocalDateTime now = now();
+        if (jdbc.update("UPDATE chat_proposal SET status = 'CONFIRMED', decided_at = ? WHERE proposal_id = ? "
+                + "AND member_id = ? AND kind = 'SCHEDULE' AND status = 'PENDING' AND expires_at > ?",
+                now, proposalId, memberId, now) == 0) throw new NotPending();
+        var card = jdbc.queryForObject("SELECT my_drug_id, current_schedule, proposed_schedule FROM chat_proposal_schedule "
+                + "WHERE proposal_id = ?", (row, rowNum) -> schedule(row, "my_drug_id", null), proposalId);
+        if (card.myDrugId() == null) throw changed();
+        var locked = jdbc.query("SELECT start_date, end_date, dose_times, dose_per_time, timing FROM my_drug "
+                + "WHERE my_drug_id = ? AND profile_id = ? FOR UPDATE", (row, rowNum) -> ScheduleDraft.stored(
+                row.getObject("start_date", LocalDate.class), row.getObject("end_date", LocalDate.class),
+                row.getString("dose_times"), row.getInt("dose_per_time"), row.getString("timing")), card.myDrugId(), profileId);
+        if (locked.isEmpty() || !locked.getFirst().equals(card.current())) throw changed();
+        schedules.save(memberId, profileId, card.myDrugId(), ScheduleDraft.request(card.proposed()));
+        return find(proposalId, memberId).orElseThrow();
+    }
+
+    private static ChatProposalConflictException changed() {
+        return new ChatProposalConflictException(ChatProposalConflictException.Code.SCHEDULE_CHANGED, null);
+    }
+
+    /** 일정 제안 행의 대상 약과 '지금'·'바뀐 뒤'(JSON 칸, ScheduleValues 모양). */
+    private ChatProposalResponse.Schedule schedule(ResultSet row, String myDrugColumn, String drugName) throws SQLException {
+        long myDrugId = row.getLong(myDrugColumn);
+        Long myDrug = row.wasNull() ? null : myDrugId;
+        return new ChatProposalResponse.Schedule(myDrug, drugName,
+                json.readValue(row.getString("current_schedule"), ScheduleValues.class),
+                json.readValue(row.getString("proposed_schedule"), ScheduleValues.class));
     }
 
     /** V3-CHAT-004: 대기이고 만료 전인 제안을 취소한다. 아무것도 저장하지 않는다. 바꾼 행이 없으면 false다. */
@@ -241,14 +318,16 @@ public class ChatProposalStore {
         var heads = new LinkedHashMap<Long, Head>();
         jdbc.query(sql, (RowCallbackHandler) row -> {
             long id = row.getLong("proposal_id");
-            var head = heads.computeIfAbsent(id, ignored -> Head.of(row));
+            var head = heads.get(id);
+            if (head == null) heads.put(id, head = Head.of(row, row.getString("current_schedule") == null ? null
+                    : schedule(row, "schedule_my_drug_id", row.getString("schedule_drug_name"))));
             int itemNo = row.getInt("item_no");
             if (!row.wasNull()) head.items.add(item(row, itemNo));
         }, args);
         LocalDateTime now = now();
         var proposals = new LinkedHashMap<Long, ChatProposalResponse>();
         heads.forEach((id, head) -> proposals.put(id, ChatProposalResponse.of(id, head.kind, head.status, head.profileId,
-                head.messageId, head.createdAt, head.expiresAt, head.decidedAt, head.items, now)));
+                head.messageId, head.createdAt, head.expiresAt, head.decidedAt, head.items, head.schedule, now)));
         return proposals;
     }
 
@@ -267,17 +346,13 @@ public class ChatProposalStore {
 
     private record Head(ChatProposalResponse.Kind kind, ChatProposalResponse.Status status, Long profileId, Long messageId,
                         LocalDateTime createdAt, LocalDateTime expiresAt, LocalDateTime decidedAt,
-                        List<ChatProposalResponse.Item> items) {
-        static Head of(ResultSet row) {
-            try {
-                return new Head(ChatProposalResponse.Kind.valueOf(row.getString("kind")),
-                        ChatProposalResponse.Status.valueOf(row.getString("status")), row.getLong("profile_id"),
-                        row.getLong("message_id"), row.getObject("created_at", LocalDateTime.class),
-                        row.getObject("expires_at", LocalDateTime.class),
-                        row.getObject("decided_at", LocalDateTime.class), new ArrayList<>());
-            } catch (SQLException exception) {
-                throw new IllegalStateException(exception);
-            }
+                        List<ChatProposalResponse.Item> items, ChatProposalResponse.Schedule schedule) {
+        static Head of(ResultSet row, ChatProposalResponse.Schedule schedule) throws SQLException {
+            return new Head(ChatProposalResponse.Kind.valueOf(row.getString("kind")),
+                    ChatProposalResponse.Status.valueOf(row.getString("status")), row.getLong("profile_id"),
+                    row.getLong("message_id"), row.getObject("created_at", LocalDateTime.class),
+                    row.getObject("expires_at", LocalDateTime.class),
+                    row.getObject("decided_at", LocalDateTime.class), new ArrayList<>(), schedule);
         }
     }
 }

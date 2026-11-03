@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS chat_proposal_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 일정 제안의 내용(제안 하나에 하나). 확정 때 대상 약의 지금 일정이 current_schedule과 다르면 확정하지 않음.
--- 대상 약을 지우면 my_drug_id가 NULL이 되고 그 제안은 확정할 수 없음. JSON 칸 모양은 V3-CHAT-007 구현에서 정함.
+-- 대상 약을 지우면 my_drug_id가 NULL이 되고 그 제안은 확정할 수 없음. JSON 칸 모양은 openapi-v3 ScheduleValues와 같음
+-- (startDate·endDate·doseTimes·dosePerTime·timing, V3-CHAT-007 구현에서 정함). 주석만 바뀌었고 구조는 그대로임.
 CREATE TABLE IF NOT EXISTS chat_proposal_schedule (
     proposal_id BIGINT NOT NULL COMMENT '일정 제안',
     my_drug_id BIGINT NULL COMMENT '일정을 바꿀 약목록 약. 그 약을 지우면 NULL',
