@@ -18,7 +18,7 @@
 | `feature/v3-chat-schedule` | 2차 | V3-CHAT-007 | `feature/v3-chat-registration` 병합 뒤 |
 | `feature/v3-chat-progress` | 2차 | V3-CHAT-008 | 바로(서버), 화면 승인 뒤(프론트). DEC-021·022(B안) |
 | `feature/v3-kakao-server` | 3차 | V3-KAKAO-002·005·006·010의 서버 쪽 | 바로(DEC-026, 2026-11-03). H-14는 11/5에 다리 연결 상태로 확인함 |
-| `카톡 다리` 저장소 | 3차 | V3-KAKAO-001~010의 다리 쪽 | 서버 쪽 병합 뒤. 그 저장소의 브랜치 규칙은 시작 때 확인함 |
+| `카톡 다리 저장소` 저장소 | 3차 | V3-KAKAO-001~010의 다리 쪽 | 서버 쪽 병합 뒤(2026-11-03 #20). 기능마다 `feature/…` 브랜치를 따 `develop`(2026-11-03 `main`에서 만듦)으로 PR·병합하고, 운영 서버 배포 기준인 `main`에는 배포 승인 때만 올림(CT가 정함, DEC-019). 말풍선은 `react-client/design/v3-3-kakao.md`(DEC-027). 디스코드 약봉이는 별도 저장소임 |
 | `feature/v3-appointment` | 4차 | V3-APPT-001~007, V3-COMMON-003 | 바로(서버), 화면 승인 뒤(프론트) |
 | `feature/v3-appointment-reminder` | 4차 | V3-NOTI-001·002 | `feature/v3-appointment` 병합 뒤 |
 

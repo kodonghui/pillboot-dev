@@ -4,7 +4,7 @@
 - 추적: V3-KAKAO-001~010, V3-REQ-53~65·78·79, V3-FL-24~26, DEC-001(확정 전에는 저장하지 않음), DEC-003·011·012·013·016, DEC-023(이름마다 하나 고르기), DEC-025(바뀌는 값 먼저). 웹 카드의 내용·상태 규칙은 `v3-2-chat-proposal.md`·`v3-2-chat-schedule.md`를 따르고, 카톡에서 달라지는 것만 여기 적음.
 - API: `POST /api/profiles`(관계 `OTHER`), `POST /api/chat-sessions/{sessionId}/messages`의 `answer.proposal`, `POST /api/chat-sessions/{sessionId}/photos`, `GET /api/chat-proposals/{proposalId}`, `POST .../confirm`(`itemNos`)·`POST .../cancel`, `POST /api/voice-transcriptions`, `DELETE /api/profiles/{profileId}`. 새 API는 없음.
 - 목업: `design/mockups/v3-3/kakao/`(`start-a`·`start-b` 첫 연결, `start-edge` 잘못된 값·30분 지남·서버 오류, `photo-a`·`photo-b` 처방전 사진 제안, `schedule` 일정 바꾸기, `notices` 음성·스위치·글자 수 안내). 캡처는 360 폭만 찍음(카카오톡 휴대폰 화면).
-- 상태: 고를 것 두 개(아래 1·2)를 PM에게 올림.
+- 상태: 1은 A안(하나씩 묻기), 2는 B안(이름마다 하나 고르기)으로 정함(DEC-027, PM 선택 버튼 "A안 하나씩 묻기 (추천)"·"B안 이름마다 하나 (추천)", 2026-11-03 11:17 KST 이 세션, 선택 페이지). 고르지 않은 안의 목업·캡처는 고른 근거로 남겨 둠. 다리 구현은 `카톡 다리 저장소`의 TASK-034~038 브랜치에서 함.
 
 ## 공통 규칙
 
