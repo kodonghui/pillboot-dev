@@ -66,6 +66,10 @@ public enum ErrorCode {
     // AI 챗봇 (CHAT)
     RETRY_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "RETRY_NOT_ALLOWED", "답변 없는 마지막 질문만 다시 보낼 수 있습니다."),
 
+    // 카카오 약봉이 음성 받아쓰기 (KAKAO)
+    AUDIO_TOO_LONG(HttpStatus.BAD_REQUEST, "AUDIO_TOO_LONG", "1분 이하 음성만 받아쓸 수 있습니다."),
+    TRANSCRIPTION_EMPTY(HttpStatus.UNPROCESSABLE_CONTENT, "TRANSCRIPTION_EMPTY", "음성에서 글을 받아쓰지 못했습니다."),
+
     ;
 
     private final HttpStatus status;
