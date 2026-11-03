@@ -1,6 +1,6 @@
 # v3 2차 · 대화 속 등록 제안 카드(TASK-027)
 
-- 범위: CHT-02 상담 화면. 등록 요청·처방전 사진 답변 말풍선 안의 제안 카드, 입력창 왼쪽 사진 보내기 버튼, 사진을 읽는 동안의 기다림 말풍선. 일정 제안 카드(V3-CHAT-007)는 TASK-029 뒤 따로 정함.
+- 범위: CHT-02 상담 화면. 등록 요청·처방전 사진 답변 말풍선 안의 제안 카드, 입력창 왼쪽 사진 보내기 버튼, 사진을 읽는 동안의 기다림 말풍선. 일정 제안 카드(V3-CHAT-007)는 `v3-2-chat-schedule.md`(TASK-030)에서 정함.
 - 추적: V3-CHAT-002~006, V3-REQ-45~51, V3-FL-22, DEC-001(확정 전에는 약목록에 저장하지 않음). 이름·함량 배지와 함량 일치·다름은 1차 V3-REG-002(v3-1-drug-strength A안), 기다림 표시는 1차 V3-COMMON-001을 그대로 따름.
 - API(`docs/06-api/openapi-v3.yaml`): 질문·다시 보내기·사진 응답의 `answer.proposal`과 상담 기록 `messages[].proposal`, `GET /api/chat-proposals/{proposalId}`, `POST .../confirm`(`itemNos`), `POST .../cancel`, `POST /api/chat-sessions/{sessionId}/photos`(multipart `image` 1장).
 - 목업: `design/mockups/v3-2/chat-proposal/`(`text-a`·`text-b` 글로 등록 요청, `photo-a`·`photo-b` 처방전 사진과 일부 이름 못 찾음, `conflict-a`·`conflict-b` 확정했는데 그사이 다른 곳에서 등록됨, `waiting` 이름 없는 요청 안내와 사진 읽는 중, `done` 확정한 카드, `closed` 취소한 카드와 시간이 지난 카드).
