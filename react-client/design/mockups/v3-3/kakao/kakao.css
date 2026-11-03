@@ -1,0 +1,71 @@
+/* 카카오톡 1:1 채팅방을 흉내 낸 목업 틀(TASK-034~038 정의서 v3-3-kakao.md). 실제 카카오톡 색·글꼴과 같지 않음.
+   필받음 앱 화면이 아니므로 앱 토큰 대신 이 파일 안 변수만 씀. */
+:root {
+  --room-bg: #b2c7da;
+  --bar-bg: #a9bfd2;
+  --fg: #1f2328;
+  --fg-muted: #4b5a68;
+  --bubble-bot: #ffffff;
+  --bubble-me: #fee500;
+  --quick-bg: #ffffff;
+  --quick-line: #c9d3dc;
+  --note-bg: rgb(0 0 0 / 0.12);
+  --photo-bg: #d7dde3;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--room-bg);
+  color: var(--fg);
+  font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.room { max-width: 480px; margin: 0 auto; min-height: 100vh; }
+.room__bar {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; background: var(--bar-bg); font-weight: 700;
+}
+.room__bar small { font-weight: 500; color: var(--fg-muted); margin-left: auto; font-size: 12px; }
+.room__msgs { display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 24px; }
+.day, .note {
+  align-self: center; background: var(--note-bg); color: #fff;
+  border-radius: 999px; padding: 2px 12px; font-size: 12px;
+}
+.note { background: transparent; color: var(--fg-muted); font-weight: 600; }
+
+.me { display: flex; flex-direction: row-reverse; align-items: flex-end; gap: 6px; }
+.me .bubble { background: var(--bubble-me); max-width: 78%; }
+
+.bot { display: flex; gap: 8px; align-items: flex-start; }
+.avatar {
+  flex: none; width: 38px; height: 38px; border-radius: 14px;
+  background: #e3f1ec; display: grid; place-items: center; font-size: 20px;
+}
+.bot__body { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: calc(100% - 46px); }
+.bot__name { font-size: 12px; color: var(--fg-muted); font-weight: 500; }
+.bot__row { display: flex; align-items: flex-end; gap: 6px; }
+.bot .bubble { background: var(--bubble-bot); }
+
+.bubble {
+  margin: 0; padding: 8px 11px; border-radius: 4px 14px 14px 14px;
+  white-space: pre-line; min-width: 0;
+}
+.me .bubble { border-radius: 14px 4px 14px 14px; }
+.bubble--photo {
+  width: 150px; height: 190px; padding: 0; background: var(--photo-bg) !important;
+  display: grid; place-items: center; color: var(--fg-muted); font-size: 13px;
+}
+.bubble--voice::before { content: "▶  "; }
+.bubble--quiet { color: var(--fg-muted); font-style: italic; }
+time { flex: none; font-size: 11px; color: var(--fg-muted); }
+
+.quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.quick span {
+  background: var(--quick-bg); border: 1px solid var(--quick-line); border-radius: 999px;
+  padding: 6px 14px; font-size: 14px; font-weight: 500; white-space: nowrap;
+}
+.quick--past { opacity: 0.5; }
