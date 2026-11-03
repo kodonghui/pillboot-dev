@@ -18,6 +18,7 @@ tags:
   - name: 사진 판독
   - name: 약봉이 제안
   - name: 약봉이 답변
+  - name: 카카오 약봉이
 paths:
   /api/drugs/search:
     get:
@@ -457,6 +458,44 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ChatProposalConflict' }
+  /api/voice-transcriptions:
+    post:
+      tags: [카카오 약봉이]
+      operationId: transcribeVoice
+      summary: 음성 받아쓰기(V3-KAKAO-006)
+      description: |
+        카카오 다리가 카톡 음성 메시지를 받아 글로 바꿀 때 씀(H-02: 키를 한 곳에 두려고 필받음 서버가 받아씀). 저장하는 것이
+        없고, 받아쓴 글로 질문을 보내는 일은 다리가 기존 질문 API로 함. 원본 음성은 요청 처리 중에만 메모리·임시 파일에 있고
+        DB·업로드 폴더·로그에 남기지 않음. 받아쓰기에는 음성만 보내고 지인 키·프로필·대화 기록은 보내지 않음(8.3).
+        받는 형식은 m4a(MP4 컨테이너)와 WAV이고 1분 이하만 받음. 실제 카톡 음성 형식을 확인하면(H-01) 형식을 더할 수 있음.
+        길이는 파일 머리의 재생 시간으로 재며, 재생 시간을 읽을 수 없는 파일은 형식 오류로 봄.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio: { type: string, format: binary, description: 음성 파일 1개(5MB 이하) }
+      responses:
+        '200':
+          description: 받아쓴 글(앞뒤 공백을 뺌, 1자 이상)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VoiceTranscription' }
+        '400':
+          description: |
+            음성 없음·빈 파일(VALIDATION_FAILED), 형식 밖이거나 재생 시간을 읽을 수 없음(UNSUPPORTED_FILE_TYPE),
+            5MB 초과(FILE_TOO_LARGE), 1분 초과(AUDIO_TOO_LONG). 받아쓰기를 부르지 않음
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422':
+          description: 받아쓴 글이 비어 있음(TRANSCRIPTION_EMPTY). 다리는 글로 보내 달라고 안내함
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '503':
+          description: 받아쓰기 모델 설정 없음·호출 실패(EXTERNAL_API_FAILED)·시간 초과(EXTERNAL_TIMEOUT)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -477,6 +516,11 @@ components:
     ErrorResponse:
       description: 기존 공통 오류 모양. 칸 정의는 openapi.json과 GlobalExceptionHandler를 따름
       type: object
+    VoiceTranscription:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, description: 받아쓴 글. 1,000자 상한은 다리가 묶음 글과 합쳐 확인함(V3-KAKAO-003) }
     StrengthMatch:
       type: string
       enum: [MATCH, DIFFERENT, UNKNOWN]
