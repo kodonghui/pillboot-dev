@@ -67,10 +67,12 @@
   padding: 0;
 }
 
-/* 목업 .tbl. position 은 화면 읽기 전용 글자가 상자 밖으로 새지 않게 한다. */
+/* 목업 .tbl. position 은 화면 읽기 전용 글자가 상자 밖으로 새지 않게 한다.
+   container 는 약 칸 글이 보이는 폭(100cqi) 안에서 줄바꿈하도록 기준을 준다(.drugs-page__drug). */
 .drugs-page__scroll {
   position: relative;
   overflow-x: auto;
+  container-type: inline-size;
 }
 
 .drugs-page__table {
@@ -106,10 +108,18 @@
   width: 20%;
 }
 
+/* 360 폭처럼 표가 가로로 밀려도 이름과 함량 배지는 스크롤 상자에 보이는 폭 안에서 줄바꿈한다(BUG-001).
+   칸 양옆 여백만큼 뺀다. 칸이 다 보이는 넓은 폭에서는 칸 너비가 더 좁아 영향이 없다. */
 .drugs-page__drug {
   display: flex;
   align-items: center;
   gap: var(--space-16);
+  max-width: calc(100cqi - 2 * var(--space-16));
+}
+
+/* 선택 모드: 앞의 체크 칸(누르는 범위 44px + 왼쪽 여백)만큼 더 뺀다. */
+.drugs-page__col-check + td .drugs-page__drug {
+  max-width: calc(100cqi - 44px - 3 * var(--space-16));
 }
 
 .drugs-page__stack {
