@@ -1,7 +1,8 @@
 import { createBrowserRouter } from 'react-router'
-import { GuestLayout, MemberLayout } from './components/Layout.jsx'
+import { GuestLayout, MemberLayout, PublicLayout } from './components/Layout.jsx'
 import SessionGate from './components/SessionGate.jsx'
 import CalendarPage from './pages/CalendarPage.jsx'
+import ChangelogPage from './pages/ChangelogPage.jsx'
 import ChatPage from './pages/ChatPage.jsx'
 import DosesPage from './pages/DosesPage.jsx'
 import DrugDetailPage from './pages/DrugDetailPage.jsx'
@@ -43,6 +44,10 @@ export const router = createBrowserRouter([
           { path: paths.login, Component: LoginPage },
           { path: paths.sessionExpired, Component: SessionExpiredPage },
         ],
+      },
+      {
+        Component: PublicLayout,
+        children: [{ path: paths.changelog, Component: ChangelogPage, handle: { footer: true } }],
       },
       // handle.profileSwitcher: 헤더 "관리할 사람"(PRF-04)을 보일 화면. 'on' 바꿀 수 있음 · 'locked' 보이지만 바꿀 수 없음.
       // 없으면 숨긴다(복용 달력 · 약 상세 · 일정 · 알림 · 프로필 관리 · 오류 화면).

@@ -6,6 +6,7 @@ export const paths = {
   signupInfo: '/signup/info', // MEM-03 회원가입 정보 입력
   login: '/login', // MEM-04 로그인
   sessionExpired: '/session-expired', // CMN-03 로그인 만료
+  changelog: '/changelog', // CMN-04 업데이트 기록(비로그인 · 로그인 모두)
   home: '/', // CMN-01 홈
   drugs: '/drugs', // MED-01 약 목록
   drugNew: '/drugs/new', // MED-02 약 등록 방법 고르기

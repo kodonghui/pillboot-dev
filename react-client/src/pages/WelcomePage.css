@@ -118,6 +118,54 @@
   color: var(--primary-on-weak);
 }
 
+/* 업데이트 기록 묶음(design/cmn-04-changelog.md). 넓은 화면은 왼쪽에 제목 · 전체 보기, 오른쪽에 최근 판. */
+.welcome__updates {
+  display: grid;
+  grid-template-areas:
+    'intro list'
+    'more list';
+  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  gap: var(--space-20) var(--space-56);
+}
+
+.welcome__updates-intro {
+  display: flex;
+  grid-area: intro;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.welcome__updates-list {
+  grid-area: list;
+}
+
+.welcome__updates-more {
+  grid-area: more;
+  align-self: start;
+  justify-self: start;
+}
+
+.welcome__update {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-20) 0;
+  border-top: 1px solid var(--line-normal);
+}
+
+.welcome__update:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.welcome__update-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
 .welcome__closing {
   display: flex;
   flex-direction: column;
@@ -143,5 +191,14 @@
 @media (max-width: 720px) {
   .welcome__feature-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .welcome__updates {
+    grid-template-areas:
+      'intro'
+      'list'
+      'more';
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
   }
 }

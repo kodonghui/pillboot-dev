@@ -1,0 +1,61 @@
+/* CMN-04 업데이트 기록(design/cmn-04-changelog.md). 판 카드를 최근 것부터 세로로 쌓는다. */
+.changelog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-32);
+  width: 100%;
+  max-width: 880px;
+}
+
+.changelog__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.changelog__neutral {
+  color: var(--label-neutral);
+}
+
+.changelog__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+}
+
+.changelog__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.changelog__date {
+  color: var(--label-alternative);
+}
+
+.changelog__title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.changelog__changes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  padding-top: var(--space-20);
+  border-top: 1px solid var(--line-neutral);
+}
+
+.changelog__change {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .changelog__release {
+    padding: var(--space-20);
+  }
+}
