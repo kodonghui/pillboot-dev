@@ -1,0 +1,55 @@
+/* TASK-030 목업: 대화로 일정 바꾸기 카드(V3-CHAT-007, V3-FL-23). 답변 말풍선 안에 붙음. 토큰만 씀. */
+/* 카드 틀(제목·마감·버튼·확정·취소·시간이 지난 카드)은 등록 제안 카드(src/components/ChatProposal.css)를 그대로 씀. */
+
+.chat-schedule { word-break: keep-all; }
+.chat-schedule__drug { display: flex; align-items: center; gap: var(--space-12); min-width: 0; }
+.chat-schedule__name { font-weight: 700; overflow-wrap: anywhere; }
+.chat-schedule__nowrap { white-space: nowrap; }
+.chat-schedule__times { display: inline-flex; flex-wrap: wrap; gap: var(--space-4); }
+.chat-schedule__times .mt-badge { font-variant-numeric: tabular-nums; }
+.chat-schedule__note { display: flex; align-items: flex-start; gap: var(--space-6); color: var(--label-alternative); }
+.chat-schedule__note .icon { flex: none; margin-top: 2px; color: var(--primary-on-weak); }
+
+/* A안: 네 값을 '지금 | 바뀐 뒤' 두 칸으로 나란히. 바뀐 칸은 연한 초록 바탕·굵은 글·'바뀜' 글자 */
+.chat-schedule__table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.chat-schedule__table th,
+.chat-schedule__table td { padding: var(--space-10) var(--space-8); border-bottom: 1px solid var(--line-neutral); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.chat-schedule__table thead th { padding-top: 0; padding-bottom: var(--space-6); color: var(--label-alternative); }
+.chat-schedule__table th[scope='row'] { width: 76px; padding-left: 0; color: var(--label-alternative); }
+.chat-schedule__table td.chat-schedule__next--changed { background: var(--primary-weak); color: var(--label-strong); font-weight: 700; }
+.chat-schedule__table td.chat-schedule__next--changed .mt-badge { font-weight: 700; }
+.chat-schedule__changed { display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-4); color: var(--primary-on-weak); }
+.chat-schedule__cell { display: flex; flex-direction: column; align-items: flex-start; }
+
+/* 좁은 폭: 항목 이름을 두 칸 위 한 줄로 올려 '지금 | 바뀐 뒤' 칸을 넓힘 */
+@media (max-width: 520px) {
+  .chat-schedule__table thead tr,
+  .chat-schedule__table tbody tr { display: grid; grid-template-columns: 1fr 1fr; }
+  .chat-schedule__table thead th:first-child { display: none; }
+  .chat-schedule__table th[scope='row'] { grid-column: 1 / -1; width: auto; padding: var(--space-10) 0 var(--space-2); border-bottom: 0; }
+  .chat-schedule__table td { padding-top: var(--space-6); }
+  .chat-schedule__table thead th { padding-left: var(--space-8); }
+}
+
+/* B안: 바뀌는 값을 위에 '지금(취소선) → 바뀐 뒤(굵게)'로, 그대로 두는 값은 아래에 작게 */
+.chat-schedule__section { margin: 0; color: var(--label-neutral); }
+.chat-schedule__changes { display: flex; flex-direction: column; gap: var(--space-8); margin: 0; }
+.chat-schedule__change { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-10) var(--space-12); border-radius: var(--radius-lg); background: var(--primary-weak); }
+.chat-schedule__change dt { color: var(--label-neutral); }
+.chat-schedule__change dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-8); margin: 0; }
+.chat-schedule__old { color: var(--label-alternative); }
+.chat-schedule__old s { text-decoration-thickness: 1px; }
+.chat-schedule__arrow { color: var(--label-alternative); }
+.chat-schedule__new { color: var(--label-strong); font-weight: 700; font-variant-numeric: tabular-nums; }
+.chat-schedule__fresh { padding: var(--space-10) var(--space-12); border-radius: var(--radius-lg); background: var(--primary-weak); }
+.chat-schedule__fresh dd { color: var(--label-strong); font-weight: 700; }
+.chat-schedule__same { display: flex; flex-direction: column; gap: var(--space-4); margin: 0; }
+.chat-schedule__same > div { display: flex; gap: var(--space-8); min-width: 0; }
+.chat-schedule__same dt { flex: none; width: 64px; color: var(--label-alternative); }
+.chat-schedule__same dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+
+/* 확정한 카드: 바뀐 뒤 일정(일정 상세와 같은 이름·값) */
+.chat-schedule__result { display: flex; flex-direction: column; gap: var(--space-4); margin: 0; }
+.chat-schedule__result > div { display: flex; align-items: baseline; gap: var(--space-8); min-width: 0; }
+.chat-schedule__result dt { flex: none; width: 64px; color: var(--label-alternative); }
+.chat-schedule__result dd { min-width: 0; margin: 0; font-weight: 600; overflow-wrap: anywhere; }

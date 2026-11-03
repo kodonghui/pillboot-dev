@@ -17,18 +17,12 @@ import ProfileTag from '../components/ProfileTag.jsx'
 import ScheduleSection from '../components/ScheduleSection.jsx'
 import TimingField from '../components/TimingField.jsx'
 import { useManagedProfile } from '../components/useManagedProfile.js'
-import { addDays, addMonths, monthOf, todayKst } from '../dates.js'
+import { todayKst } from '../dates.js'
 import { paths } from '../paths.js'
 import { profileColor } from '../profileInfo.js'
 import { checkForm, errorNames, initialForm, requestOf, typedTimesError } from '../scheduleForm.js'
+import { calendarMonth } from '../scheduleInfo.js'
 import './ScheduleFormPage.css'
-
-// 복용 달력에서 열 달: 일정이 이번 달에 걸치면 이번 달(달력을 처음 여는 달), 아니면 시작한 달
-function calendarMonth(startDate, endDate, today) {
-  const month = monthOf(today)
-  const lastDay = addDays(`${addMonths(month, 1)}-01`, -1)
-  return startDate <= lastDay && endDate >= `${month}-01` ? month : monthOf(startDate)
-}
 
 // SCH-06 일정 수정. 약과 프로필은 그대로 두고 기간 · 복용 시간 · 1회 개수 · 복용 때를 바꿔 저장한다(PUT .../schedule).
 // 주소: ?profile · drug(바꿀 일정의 사람 · 약) · from(calendar: 일정 상세에서, drug: 약 상세에서)

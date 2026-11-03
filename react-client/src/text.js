@@ -77,6 +77,11 @@ export function periodText(startDate, endDate) {
   return `${monthDay(startDate)}부터 ${monthDay(endDate)}까지`
 }
 
+// 'YYYY-MM-DDTHH:mm:ss+09:00' → 'HH:mm'. 서버가 한국 시각으로 준다.
+export function hourMinute(dateTime) {
+  return dateTime.slice(11, 16)
+}
+
 // '2026-10-20T10:12:30' → '10월 20일 10:12'
 export function monthDayTime(dateTime) {
   return `${monthDay(dateTime)} ${dateTime.slice(11, 16)}`

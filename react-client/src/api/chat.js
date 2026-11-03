@@ -121,9 +121,9 @@ export async function getChatProposal(proposalId) {
 }
 
 // ChatProposalController.confirm — POST /api/chat-proposals/{proposalId}/confirm
-// itemNos: 등록 제안에서 고른 항목 번호
+// itemNos: 등록 제안에서 고른 항목 번호. 일정 제안은 넘기지 않는다(본문 없음).
 export async function confirmChatProposal(proposalId, itemNos) {
-  const { data } = await client.post(`/api/chat-proposals/${proposalId}/confirm`, { itemNos })
+  const { data } = await client.post(`/api/chat-proposals/${proposalId}/confirm`, itemNos ? { itemNos } : undefined)
   return data
 }
 

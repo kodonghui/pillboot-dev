@@ -1,5 +1,5 @@
 // 복약 일정 응답을 화면에 맞게 바꾸는 도우미. 목업 SCH-01 · 03 · 05 · 06 기준.
-import { daysBetween } from './dates.js'
+import { addDays, addMonths, daysBetween, monthOf } from './dates.js'
 
 // 일정 하나를 가리키는 글자(프로필 번호-약 번호). 달력 막대와 열린 상세가 같은 일정인지 볼 때 쓴다.
 export function scheduleKey(profileId, myDrugId) {
@@ -11,6 +11,13 @@ export function scheduleState(schedule, today) {
   if (schedule.endDate < today) return 'ended'
   if (schedule.startDate > today) return 'notStarted'
   return 'active'
+}
+
+// 복용 달력에서 열 달: 일정이 이번 달에 걸치면 이번 달(달력을 처음 여는 달), 아니면 시작한 달
+export function calendarMonth(startDate, endDate, today) {
+  const month = monthOf(today)
+  const lastDay = addDays(`${addMonths(month, 1)}-01`, -1)
+  return startDate <= lastDay && endDate >= `${month}-01` ? month : monthOf(startDate)
 }
 
 // 1회 개수. 서버에 약 단위(정 · 캡슐)가 없어 목업의 "1정" 대신 "1개"로 쓴다.
