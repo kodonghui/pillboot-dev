@@ -85,6 +85,8 @@ openai:
     vision: ${OPENAI_VISION_MODEL:}
     prescription: ${OPENAI_PRESCRIPTION_MODEL:gpt-6-luna}
     embedding: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    # 카카오 음성 받아쓰기(V3-KAKAO-006). 2026-11-03 OpenAI 문서의 추천 받아쓰기 모델이며, 다른 받아쓰기 모델은 2027-02-26 종료 예정임.
+    transcribe: ${OPENAI_TRANSCRIBE_MODEL:gpt-transcribe}
   # 설명. 모델이 지원하는 값만 쓴다. 추론 기능이 없는 모델이면 비워 둔다.
   reasoning-effort: ${OPENAI_REASONING_EFFORT:}
   # 대화 답변 전용임. 요약·일정·낱알에는 위 공통 설정을 사용함.
