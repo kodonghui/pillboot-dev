@@ -21,6 +21,7 @@ import org.semiproject.pillbadeumserver.chat.service.QuestionIntent;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntentReader;
 import org.semiproject.pillbadeumserver.chat.service.PhotoProposalService;
 import org.semiproject.pillbadeumserver.chat.service.RegistrationProposalService;
+import org.semiproject.pillbadeumserver.chat.service.ScheduleProposalService;
 import org.semiproject.pillbadeumserver.chat.service.QuestionPlan;
 import org.semiproject.pillbadeumserver.chat.service.QuestionService;
 import org.semiproject.pillbadeumserver.chat.service.QuestionStore;
@@ -78,6 +79,7 @@ class QuestionStreamWebTests {
     @MockitoBean ChatAnswerService answers;
     @MockitoBean QuestionIntentReader intents;
     @MockitoBean RegistrationProposalService registrations;
+    @MockitoBean ScheduleProposalService schedules;
     @MockitoBean PhotoProposalService photos;
 
     @TestConfiguration

@@ -1,5 +1,6 @@
 package org.semiproject.pillbadeumserver.chat;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,36 @@ class ChatProposalWebTests {
                 .andExpect(jsonPath("$.items[0]", aMapWithSize(12)))
                 .andExpect(jsonPath("$.items[0].strengthMatch").value("MATCH"))
                 .andExpect(jsonPath("$.items[0].alreadyRegistered").value(false));
+    }
+
+    @Test
+    void scheduleCardHasNowAndAfterWithDatesAndTimesAsText() throws Exception {
+        var created = OffsetDateTime.parse("2026-11-03T09:00:00+09:00");
+        var now = new ChatProposalResponse.ScheduleValues(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30),
+                List.of("07:00", "19:00"), 2, "식후 30분");
+        var schedule = new ChatProposalResponse(6L, ChatProposalResponse.Kind.SCHEDULE, ChatProposalResponse.Status.PENDING,
+                10L, 102L, created, created.plusMinutes(30), null, List.of(), new ChatProposalResponse.Schedule(30L,
+                "가상혈압정5밀리그램", now, new ChatProposalResponse.ScheduleValues(now.startDate(), now.endDate(),
+                List.of("08:00"), 1, "식후 30분")));
+        when(proposals.get(6L)).thenReturn(schedule);
+        mvc.perform(get("/api/chat-proposals/6").header("Authorization", auth()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("SCHEDULE"))
+                .andExpect(jsonPath("$.items", hasSize(0)))
+                .andExpect(jsonPath("$.schedule", aMapWithSize(4)))
+                .andExpect(jsonPath("$.schedule.myDrugId").value(30)).andExpect(jsonPath("$.schedule.drugName").value("가상혈압정5밀리그램"))
+                .andExpect(jsonPath("$.schedule.current", aMapWithSize(5)))
+                .andExpect(jsonPath("$.schedule.current.startDate").value("2026-11-01"))
+                .andExpect(jsonPath("$.schedule.current.endDate").value("2026-11-30"))
+                .andExpect(jsonPath("$.schedule.current.doseTimes[1]").value("19:00"))
+                .andExpect(jsonPath("$.schedule.proposed.doseTimes", hasSize(1)))
+                .andExpect(jsonPath("$.schedule.proposed.dosePerTime").value(1))
+                .andExpect(jsonPath("$.schedule.proposed.timing").value("식후 30분"));
+        when(proposals.confirm(eq(6L), isNull())).thenThrow(new ChatProposalConflictException(
+                ChatProposalConflictException.Code.SCHEDULE_CHANGED, schedule));
+        mvc.perform(post("/api/chat-proposals/6/confirm").header("Authorization", auth()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SCHEDULE_CHANGED"))
+                .andExpect(jsonPath("$.proposal.status").value("PENDING"))
+                .andExpect(jsonPath("$.proposal.schedule.current.doseTimes[0]").value("07:00"));
     }
 
     @Test

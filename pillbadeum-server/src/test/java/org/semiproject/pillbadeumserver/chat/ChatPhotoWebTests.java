@@ -12,6 +12,7 @@ import org.semiproject.pillbadeumserver.chat.service.QuestionIntentReader;
 import org.semiproject.pillbadeumserver.chat.service.QuestionService;
 import org.semiproject.pillbadeumserver.chat.service.QuestionStore;
 import org.semiproject.pillbadeumserver.chat.service.RegistrationProposalService;
+import org.semiproject.pillbadeumserver.chat.service.ScheduleProposalService;
 import org.semiproject.pillbadeumserver.common.config.CorsConfig;
 import org.semiproject.pillbadeumserver.common.config.WebConfig;
 import org.semiproject.pillbadeumserver.common.exception.ForbiddenException;
@@ -48,6 +49,7 @@ class ChatPhotoWebTests {
     @MockitoBean ChatAnswerService answers;
     @MockitoBean QuestionIntentReader intents;
     @MockitoBean RegistrationProposalService registrations;
+    @MockitoBean ScheduleProposalService schedules;
     @MockitoBean PhotoProposalService photos;
     private final MockMultipartFile image = new MockMultipartFile("image", "rx.jpg", "image/jpeg", new byte[]{1, 2, 3});
 
