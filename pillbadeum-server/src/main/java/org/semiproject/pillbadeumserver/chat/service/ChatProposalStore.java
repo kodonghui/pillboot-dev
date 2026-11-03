@@ -236,10 +236,12 @@ public class ChatProposalStore {
         var card = jdbc.queryForObject("SELECT my_drug_id, current_schedule, proposed_schedule FROM chat_proposal_schedule "
                 + "WHERE proposal_id = ?", (row, rowNum) -> schedule(row, "my_drug_id", null), proposalId);
         if (card.myDrugId() == null) throw changed();
-        var locked = jdbc.query("SELECT start_date, end_date, dose_times, dose_per_time, timing FROM my_drug "
+        // 1회 개수는 확인 여부까지 맞춰 본다. 카드를 만든 뒤 다른 화면에서 개수를 확인했어도 바뀐 일정이다.
+        var locked = jdbc.query("SELECT start_date, end_date, dose_times, dose_per_time, dose_confirmed, timing FROM my_drug "
                 + "WHERE my_drug_id = ? AND profile_id = ? FOR UPDATE", (row, rowNum) -> ScheduleDraft.stored(
                 row.getObject("start_date", LocalDate.class), row.getObject("end_date", LocalDate.class),
-                row.getString("dose_times"), row.getInt("dose_per_time"), row.getString("timing")), card.myDrugId(), profileId);
+                row.getString("dose_times"), row.getBoolean("dose_confirmed") ? row.getInt("dose_per_time") : null,
+                row.getString("timing")), card.myDrugId(), profileId);
         if (locked.isEmpty() || !locked.getFirst().equals(card.current())) throw changed();
         schedules.save(memberId, profileId, card.myDrugId(), ScheduleDraft.request(card.proposed()));
         return find(proposalId, memberId).orElseThrow();

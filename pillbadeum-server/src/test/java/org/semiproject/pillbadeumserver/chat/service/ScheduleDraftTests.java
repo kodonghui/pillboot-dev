@@ -32,14 +32,14 @@ class ScheduleDraftTests {
 
     @Test
     void morningEightOnePillKeepsThePeriodAndTiming() {
-        var proposed = ScheduleDraft.proposed(said(null, null, null, List.of("08:00"), null, 1, null), MONTH, TODAY);
+        var proposed = ScheduleDraft.proposed(said(null, null, null, List.of("08:00"), null, 1, null), MONTH, 2, TODAY);
         assertThat(proposed).isEqualTo(new ScheduleValues(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30),
                 List.of("08:00"), 1, "식후 30분"));
     }
 
     @Test
     void onlyTheDoseChangesTheDoseAndKeepsTheTimes() {
-        var proposed = ScheduleDraft.proposed(said(null, null, null, null, null, 1, null), MONTH, TODAY);
+        var proposed = ScheduleDraft.proposed(said(null, null, null, null, null, 1, null), MONTH, 2, TODAY);
         assertThat(proposed.doseTimes()).containsExactly("07:00", "11:00", "17:00");
         assertThat(proposed.dosePerTime()).isEqualTo(1);
         assertThat(proposed.startDate()).isEqualTo(MONTH.startDate());
@@ -47,32 +47,43 @@ class ScheduleDraftTests {
 
     @Test
     void periodRules() {
-        assertThat(ScheduleDraft.proposed(said(null, null, 7, null, null, null, null), MONTH, TODAY))
+        assertThat(ScheduleDraft.proposed(said(null, null, 7, null, null, null, null), MONTH, 2, TODAY))
                 .as("기간만 말하면 오늘부터").extracting(ScheduleValues::startDate, ScheduleValues::endDate)
                 .containsExactly(TODAY, LocalDate.of(2026, 11, 9));
-        assertThat(ScheduleDraft.proposed(said(null, "2026-11-20", null, null, null, null, null), MONTH, TODAY))
+        assertThat(ScheduleDraft.proposed(said(null, "2026-11-20", null, null, null, null, null), MONTH, 2, TODAY))
                 .as("종료일만 말하면 시작일은 그대로").extracting(ScheduleValues::startDate, ScheduleValues::endDate)
                 .containsExactly(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 20));
-        assertThat(ScheduleDraft.proposed(said("2026-11-05", null, 3, null, null, null, null), MONTH, TODAY))
+        assertThat(ScheduleDraft.proposed(said("2026-11-05", null, 3, null, null, null, null), MONTH, 2, TODAY))
                 .extracting(ScheduleValues::startDate, ScheduleValues::endDate)
                 .containsExactly(LocalDate.of(2026, 11, 5), LocalDate.of(2026, 11, 7));
     }
 
     @Test
     void unscheduledDrugUsesTheExistingDefaults() {
-        assertThat(ScheduleDraft.proposed(said(null, null, null, List.of("21:00", "08:00"), null, null, null), NONE, TODAY))
+        assertThat(ScheduleDraft.proposed(said(null, null, null, List.of("21:00", "08:00"), null, null, null), NONE, 1, TODAY))
                 .as("오늘 하루, 말한 시각, 저장된 1회 개수")
                 .isEqualTo(new ScheduleValues(TODAY, TODAY, List.of("08:00", "21:00"), 1, null));
-        assertThat(ScheduleDraft.proposed(said(null, null, 5, null, null, 2, null), NONE, TODAY).doseTimes())
+        assertThat(ScheduleDraft.proposed(said(null, null, 5, null, null, 2, null), NONE, 1, TODAY).doseTimes())
                 .containsExactly("07:00", "11:00", "17:00");
     }
 
     @Test
+    void anUnconfirmedDoseIsEmptyNowAndTheStoredDoseAfter() {
+        var unconfirmed = ScheduleDraft.stored(MONTH.startDate(), MONTH.endDate(), "08:00", null, null);
+        assertThat(unconfirmed.dosePerTime()).as("내 약 응답처럼 확인되지 않은 개수는 비움").isNull();
+        var proposed = ScheduleDraft.proposed(said(null, null, null, List.of("08:00"), null, null, null), unconfirmed, 1, TODAY);
+        assertThat(proposed.dosePerTime()).as("말하지 않았으면 저장된 개수를 확정함").isEqualTo(1);
+        assertThat(proposed).as("개수만 확인되는 카드라도 지금과 다름").isNotEqualTo(unconfirmed);
+        assertThat(ScheduleDraft.proposed(said(null, null, null, null, null, 3, null), unconfirmed, 1, TODAY).dosePerTime())
+                .isEqualTo(3);
+    }
+
+    @Test
     void dailyCountUsesTheDefaultTimesUnlessItIsTheCurrentCount() {
-        assertThat(ScheduleDraft.proposed(said(null, null, null, null, 2, null, null), MONTH, TODAY).doseTimes())
+        assertThat(ScheduleDraft.proposed(said(null, null, null, null, 2, null, null), MONTH, 2, TODAY).doseTimes())
                 .containsExactly("07:00", "11:00");
         var twice = ScheduleDraft.stored(MONTH.startDate(), MONTH.endDate(), "08:00,20:00", 1, null);
-        assertThat(ScheduleDraft.proposed(said(null, null, null, null, 2, 2, null), twice, TODAY).doseTimes())
+        assertThat(ScheduleDraft.proposed(said(null, null, null, null, 2, 2, null), twice, 1, TODAY).doseTimes())
                 .containsExactly("08:00", "20:00");
     }
 
@@ -95,7 +106,7 @@ class ScheduleDraftTests {
                 said("2026-13-01", null, null, null, null, null, null),
                 said(null, null, null, null, null, null, "식후 30분 뒤에 물 한 컵과 함께 천천히"));
         for (var parsed : cases) {
-            assertThatThrownBy(() -> ScheduleDraft.proposed(parsed, MONTH, TODAY)).as(parsed.toString())
+            assertThatThrownBy(() -> ScheduleDraft.proposed(parsed, MONTH, 2, TODAY)).as(parsed.toString())
                     .isInstanceOf(ScheduleDraft.Rejected.class).hasMessageEndingWith("요.");
         }
     }

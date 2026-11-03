@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { cancelChatProposal, confirmChatProposal, getChatProposal } from '../api/chat.js'
 import { errorOf } from '../api/client.js'
 import { paths } from '../paths.js'
-import { iAfter } from '../text.js'
+import { hourMinute, iAfter } from '../text.js'
 import DrugThumb from './DrugThumb.jsx'
 import Icon from './Icon.jsx'
 import Notice from './Notice.jsx'
@@ -16,11 +16,6 @@ const problems = {
   notFound: '이 카드를 찾을 수 없어요. 대화를 다시 열어 주세요.',
   notSaved: '지금은 약목록에 넣지 못했어요. 잠시 뒤 다시 눌러 주세요.',
   notCancelled: '지금은 취소하지 못했어요. 잠시 뒤 다시 눌러 주세요.',
-}
-
-// 'YYYY-MM-DDTHH:mm:ss+09:00' → 'HH:mm'. 서버가 한국 시각으로 준다.
-function hourMinute(dateTime) {
-  return dateTime.slice(11, 16)
 }
 
 // 후보 요약 · 충돌 안내의 이름: 기본 이름에 함량을 붙여 쓴다(기본 이름이 없으면 품목명).
@@ -236,7 +231,8 @@ function ChatProposal({ proposal, fromPhoto, onChange }) {
           setProblem(message)
         } else if (status !== 401) {
           setProblem(problems.notSaved)
-          if (!error.response) reread()
+          // 끊김이거나 앞단(프록시)이 502 · 504로 바꿔 준 끊김이면 서버가 저장했는지 모른다.
+          if (!error.response || status >= 500) reread()
         }
       })
   }

@@ -562,7 +562,7 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
       let added = 0
       const messages = current.messages.map((message) => {
         if (message.proposal?.proposalId !== next.proposalId) return message
-        if (message.proposal.status !== 'CONFIRMED' && next.status === 'CONFIRMED') {
+        if (next.kind === 'REGISTER' && message.proposal.status !== 'CONFIRMED' && next.status === 'CONFIRMED') {
           added = next.items.filter((item) => item.chosen).length
         }
         return { ...message, proposal: next }

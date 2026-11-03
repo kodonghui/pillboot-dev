@@ -26,19 +26,24 @@ final class ScheduleDraft {
 
     private ScheduleDraft() {}
 
-    /** my_drug에 저장된 값을 카드 값으로 바꾼다. 일정이 없으면 날짜·시각이 null이고, 시각은 이른 시각부터다. */
-    static ScheduleValues stored(LocalDate start, LocalDate end, String doseTimes, int dosePerTime, String timing) {
+    /**
+     * my_drug에 저장된 값을 카드 값으로 바꾼다. 일정이 없으면 날짜·시각이 null이고, 시각은 이른 시각부터다.
+     *
+     * @param confirmedDose 확인된 1회 개수. 확인되지 않았으면 null(내 약 응답과 같은 규칙)
+     */
+    static ScheduleValues stored(LocalDate start, LocalDate end, String doseTimes, Integer confirmedDose, String timing) {
         boolean scheduled = start != null && end != null && doseTimes != null;
         var times = scheduled ? Arrays.stream(doseTimes.split(",")).map(String::strip).sorted().toList() : null;
-        return new ScheduleValues(scheduled ? start : null, scheduled ? end : null, times, dosePerTime, blankToNull(timing));
+        return new ScheduleValues(scheduled ? start : null, scheduled ? end : null, times, confirmedDose, blankToNull(timing));
     }
 
     /**
      * @param current 지금 일정(stored)
+     * @param storedDose 저장된 1회 개수. 지금 개수가 확인되지 않았고 개수를 말하지 않았을 때 쓴다(확정하면 확인됨으로 저장됨)
      * @param today 한국 날짜. 기간만 말했거나 일정 없는 약의 시작일이다
      * @throws Rejected 값이 규칙 밖임. 메시지는 회원에게 그대로 보이는 안내다
      */
-    static ScheduleValues proposed(ParsedCommand parsed, ScheduleValues current, LocalDate today) {
+    static ScheduleValues proposed(ParsedCommand parsed, ScheduleValues current, int storedDose, LocalDate today) {
         boolean scheduled = current.startDate() != null;
         try {
             if (parsed.durationDays() != null && parsed.durationDays() < 1) throw new Rejected("복용 기간은 하루 이상으로 말해 주세요.");
@@ -56,7 +61,8 @@ final class ScheduleDraft {
                 end = scheduled ? current.endDate() : start;
             }
             if (start.isAfter(end)) throw new Rejected("시작일이 종료일보다 늦어요. 종료일이나 복용 기간을 함께 말해 주세요.");
-            int dose = parsed.dosePerTime() != null ? parsed.dosePerTime() : current.dosePerTime();
+            int dose = parsed.dosePerTime() != null ? parsed.dosePerTime()
+                    : current.dosePerTime() != null ? current.dosePerTime() : storedDose;
             if (dose < 1 || dose > MyDrug.MAX_DOSE_PER_TIME) throw new Rejected("1회 개수는 1~10개로 말해 주세요.");
             String timing = parsed.timing() != null ? blankToNull(parsed.timing()) : current.timing();
             if (timing != null && timing.length() > MAX_TIMING) throw new Rejected("복용 때(식후 30분 등)는 20자 이내로 말해 주세요.");

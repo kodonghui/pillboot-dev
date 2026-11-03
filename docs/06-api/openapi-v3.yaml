@@ -754,7 +754,7 @@ components:
       type: object
       description: |
         카드의 '지금'·'바뀐 뒤' 일정. 칸 이름은 기존 복약 일정 응답과 같음. 일정이 없으면 날짜·시각이 null이고, 시각은 이른 시각부터임.
-        '바뀐 뒤'에서 말하지 않은 값은 '지금'과 같음(기능 명세 8.4). '지금'의 `dosePerTime`은 저장된 값이라 확인되지 않은 1회 개수일 수 있음
+        '바뀐 뒤'에서 말하지 않은 값은 '지금'과 같음(기능 명세 8.4). 다만 '지금' 1회 개수가 확인되지 않았으면 '바뀐 뒤'는 저장된 값을 씀
       properties:
         startDate: { type: [string, 'null'], format: date }
         endDate: { type: [string, 'null'], format: date }
@@ -762,7 +762,13 @@ components:
           type: [array, 'null']
           maxItems: 3
           items: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
-        dosePerTime: { type: integer, minimum: 1, maximum: 10 }
+        dosePerTime:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 10
+          description: |
+            1회 개수. '지금'에서 확인되지 않은 1회 개수(사진·대화로 넣고 개수를 정하지 않은 약)는 null이고, 내 약 응답의 `dosePerTime`과 같은 규칙임.
+            '바뀐 뒤'는 null이 아님(확정하면 확인됨으로 저장됨)
         timing: { type: [string, 'null'] }
     ChatProposalConfirmRequest:
       type: object

@@ -1,0 +1,156 @@
+/* 대화 속 일정 바꾸기 카드(목업 v3-2/chat-schedule B안). 카드 틀은 등록 제안 카드(ChatProposal.css)를 함께 쓴다. */
+.chat-schedule {
+  word-break: keep-all;
+}
+
+.chat-schedule__drug {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.chat-schedule__name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.chat-schedule__nowrap {
+  white-space: nowrap;
+}
+
+.chat-schedule__times {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.chat-schedule__times .mt-badge {
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-schedule__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  color: var(--label-alternative);
+}
+
+.chat-schedule__note .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--primary-on-weak);
+}
+
+/* 바뀌는 값: '지금'(회색 취소선) → '바뀐 뒤'(굵게). 그대로 두는 값은 아래에 작게 */
+.chat-schedule__section {
+  margin: 0;
+  color: var(--label-neutral);
+}
+
+.chat-schedule__changes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin: 0;
+}
+
+.chat-schedule__change {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-10) var(--space-12);
+  border-radius: var(--radius-lg);
+  background: var(--primary-weak);
+}
+
+.chat-schedule__change dt {
+  color: var(--label-neutral);
+}
+
+.chat-schedule__change dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-8);
+  margin: 0;
+}
+
+.chat-schedule__old,
+.chat-schedule__arrow {
+  color: var(--label-alternative);
+}
+
+.chat-schedule__old s {
+  text-decoration-thickness: 1px;
+}
+
+.chat-schedule__new {
+  color: var(--label-strong);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-schedule__same {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.chat-schedule__same > div {
+  display: flex;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.chat-schedule__same dt {
+  flex: none;
+  width: 64px;
+  color: var(--label-alternative);
+}
+
+.chat-schedule__same dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 네 값 목록: 확정 카드의 바뀐 뒤 일정, 일정이 없던 약의 새 일정(연한 초록 상자) */
+.chat-schedule__result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.chat-schedule__result > div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.chat-schedule__result dt {
+  flex: none;
+  width: 64px;
+  color: var(--label-alternative);
+}
+
+.chat-schedule__result dd {
+  min-width: 0;
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.chat-schedule__fresh {
+  padding: var(--space-10) var(--space-12);
+  border-radius: var(--radius-lg);
+  background: var(--primary-weak);
+}
+
+.chat-schedule__fresh dd {
+  color: var(--label-strong);
+  font-weight: 700;
+}

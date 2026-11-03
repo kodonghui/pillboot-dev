@@ -33,7 +33,7 @@ public class ScheduleProposalService {
             + "확정하기 전에는 일정이 그대로이고, 카드는 30분 동안 쓸 수 있어요.";
     static final String ASK_DRUG = "어느 약의 일정을 바꿀지 약목록에 있는 이름으로 말해 주세요. 예) 타이레놀 아침 8시로 바꿔 줘";
     static final String UNREADABLE = "바꿀 일정을 읽지 못했어요. 복용 시각·1회 개수·기간 중 바꿀 값을 말해 주세요. "
-            + "예) 아침 8시 한 알로 바꿔 줘. 일정을 그만두거나 지우는 일은 캘린더에서 할 수 있어요.";
+            + "예) 아침 8시 한 알로 바꿔 줘. 일정을 그만두거나 지우는 일은 복용 달력에서 할 수 있어요.";
     static final String SAME = "말씀하신 일정이 지금 일정과 같아요. 바꿀 복용 시각·1회 개수·기간을 말해 주세요.";
     static final String READ_FAILED = "지금은 일정을 읽을 수 없어요. 잠시 뒤 다시 말해 주세요. 일정은 바꾸지 않았어요.";
     static final String UNSAVABLE = "말씀하신 일정은 저장할 수 없어요. 복용 시각·1회 개수·기간을 다시 말해 주세요.";
@@ -93,8 +93,8 @@ public class ScheduleProposalService {
             if (!"CREATE_SCHEDULE".equals(parsed.intent()))
                 return notice(sessionId, memberId, profileId, question, UNREADABLE, deadline, retry, "unreadable");
             var current = ScheduleDraft.stored(target.startDate(), target.endDate(), target.storedDoseTimes(),
-                    target.dosePerTime(), target.timing());
-            var proposed = ScheduleDraft.proposed(parsed, current, today);
+                    target.confirmedDosePerTime(), target.timing());
+            var proposed = ScheduleDraft.proposed(parsed, current, target.dosePerTime(), today);
             if (proposed.equals(current)) return notice(sessionId, memberId, profileId, question, SAME, deadline, retry, "same");
             // 확정 때와 같은 저장 규칙(MyDrug)으로 미리 검사한다. 저장하지 않는 검증용 객체다.
             try {

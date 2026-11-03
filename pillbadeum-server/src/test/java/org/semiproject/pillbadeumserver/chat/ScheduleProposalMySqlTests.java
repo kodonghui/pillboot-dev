@@ -246,6 +246,27 @@ class ScheduleProposalMySqlTests {
                 .containsEntry("start_date", today).containsEntry("end_date", today).containsEntry("dose_times", "08:00");
     }
 
+    @Test
+    void anUnconfirmedDoseIsEmptyNowAndConfirmingItElsewhereChangesTheSchedule() {
+        jdbc.update("UPDATE my_drug SET dose_per_time=1, dose_confirmed=FALSE WHERE my_drug_id=?", drug);
+        when(interpreter.parse(any(), any(), any())).thenReturn(
+                new ParsedCommand("CREATE_SCHEDULE", null, null, null, null, List.of("08:00"), null, null, null));
+        var card = propose(NAME).proposal();
+        assertThat(card.schedule().current().dosePerTime()).as("내 약 응답처럼 확인되지 않은 개수는 비움").isNull();
+        assertThat(card.schedule().proposed().dosePerTime()).as("말하지 않았으면 저장된 개수").isEqualTo(1);
+        login(member);
+
+        // 카드를 만든 뒤 다른 화면에서 같은 개수를 확인함
+        jdbc.update("UPDATE my_drug SET dose_confirmed=TRUE WHERE my_drug_id=?", drug);
+        assertThatThrownBy(() -> service.confirm(card.proposalId(), null)).isInstanceOfSatisfying(ChatProposalConflictException.class,
+                conflict -> assertThat(conflict.getCode()).isEqualTo(ChatProposalConflictException.Code.SCHEDULE_CHANGED));
+
+        jdbc.update("UPDATE my_drug SET dose_confirmed=FALSE WHERE my_drug_id=?", drug);
+        assertThat(service.confirm(card.proposalId(), null).status()).isEqualTo(ChatProposalResponse.Status.CONFIRMED);
+        assertThat(schedule()).containsEntry("dose_times", "08:00").containsEntry("dose_per_time", 1);
+        assertThat(jdbc.queryForObject("SELECT dose_confirmed FROM my_drug WHERE my_drug_id=?", Boolean.class, drug)).isTrue();
+    }
+
     private QuestionResponse.Answer propose(String target) {
         var question = questions.save(session, member, profile, QUESTION);
         return schedules.propose(session, member, profile, question, QUESTION, target, ChatDeadline.after(Duration.ofSeconds(30)), false);
