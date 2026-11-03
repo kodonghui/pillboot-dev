@@ -2,7 +2,9 @@ import { useId } from 'react'
 import { Link } from 'react-router'
 import Icon from '../components/Icon.jsx'
 import Notice from '../components/Notice.jsx'
+import { releases } from '../changelog.js'
 import { paths } from '../paths.js'
+import { yearMonthDay } from '../text.js'
 import './WelcomePage.css'
 
 // 목업의 "화면 예시" 그림. 실제 회원 데이터가 아니며 화면에도 예시라고 적혀 있다.
@@ -31,9 +33,13 @@ const features = [
   },
 ]
 
+// '업데이트 기록' 묶음에 보일 최근 판 수(design/cmn-04-changelog.md). 전체는 CMN-04 에 있다.
+const recentReleases = releases.slice(0, 3)
+
 // MEM-01 시작 화면
 function WelcomePage() {
   const featuresId = useId()
+  const updatesId = useId()
 
   return (
     <div className="welcome">
@@ -98,6 +104,32 @@ function WelcomePage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="welcome__updates" aria-labelledby={updatesId}>
+        <div className="welcome__updates-intro">
+          <h2 className="screen-section" id={updatesId}>
+            업데이트 기록
+          </h2>
+          <p className="welcome__sub">필받음에 새로 생기거나 바뀐 기능이에요.</p>
+        </div>
+        <ol className="welcome__updates-list">
+          {recentReleases.map((release, index) => (
+            <li className="welcome__update" key={`${release.date}-${release.label}`}>
+              <div className="welcome__update-meta">
+                <time className="screen-caption welcome__muted" dateTime={release.date}>
+                  {yearMonthDay(release.date)}
+                </time>
+                <span className={index === 0 ? 'mt-badge mt-badge--primary' : 'mt-badge'}>{release.label}</span>
+              </div>
+              <h3 className="screen-item">{release.title}</h3>
+              <p className="welcome__sub">{release.summary}</p>
+            </li>
+          ))}
+        </ol>
+        <Link className="mt-btn mt-btn--assistive welcome__updates-more" to={paths.changelog}>
+          전체 기록 보기
+        </Link>
       </section>
 
       <section className="welcome__closing">

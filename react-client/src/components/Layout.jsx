@@ -35,6 +35,12 @@ export function GuestLayout() {
   return <Layout variant="guest" />
 }
 
+// 로그인 여부와 상관없이 여는 화면(CMN-04). 머리말만 로그인 여부를 따른다.
+export function PublicLayout() {
+  const signedIn = useAuthStore((state) => state.token !== null)
+  return <Layout variant={signedIn ? 'member' : 'guest'} />
+}
+
 // 로그인 후 화면. 로그인 정보가 없으면 로그아웃은 로그인, 만료는 로그인 만료 안내,
 // 처음 들어온 홈은 시작 화면, 그 밖의 주소는 로그인으로 보낸다(docs/auth-logout.md).
 export function MemberLayout() {
