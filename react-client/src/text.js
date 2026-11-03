@@ -57,9 +57,14 @@ export function monthDay(date) {
   return `${Number(month)}월 ${Number(day)}일`
 }
 
+// '2027-11-01' → '2027년 11월 1일'
+export function yearMonthDay(date) {
+  return `${date.slice(0, 4)}년 ${monthDay(date)}`
+}
+
 // '2026-10-22' → '2026년 10월 22일(목)'
 export function fullDate(date) {
-  return `${date.slice(0, 4)}년 ${monthDay(date)}(${weekdayName(date)})`
+  return `${yearMonthDay(date)}(${weekdayName(date)})`
 }
 
 // '2026-10-22' → '10월 22일 목요일'
