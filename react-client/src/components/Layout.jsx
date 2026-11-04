@@ -43,16 +43,17 @@ export function PublicLayout() {
 
 // 로그인 후 화면. 로그인 정보가 없으면 로그아웃은 로그인, 만료는 로그인 만료 안내,
 // 처음 들어온 홈은 시작 화면, 그 밖의 주소는 로그인으로 보낸다(docs/auth-logout.md).
+// 로그인하지 않은 채 주소로 바로 들어왔으면 그 주소를 로그인 화면에 넘겨 로그인 뒤 돌아오게 한다.
 export function MemberLayout() {
   const token = useAuthStore((state) => state.token)
   const exitReason = useAuthStore((state) => state.exitReason)
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
 
   if (!token) {
-    let to = paths.login
-    if (exitReason === 'expired') to = paths.sessionExpired
-    else if (exitReason === null && pathname === paths.home) to = paths.welcome
-    return <Navigate to={to} replace />
+    if (exitReason === 'expired') return <Navigate to={paths.sessionExpired} replace />
+    if (exitReason === null && pathname === paths.home) return <Navigate to={paths.welcome} replace />
+    const state = exitReason === null ? { from: `${pathname}${search}` } : undefined
+    return <Navigate to={paths.login} replace state={state} />
   }
   return <Layout variant="member" />
 }
