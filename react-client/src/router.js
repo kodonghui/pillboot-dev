@@ -10,6 +10,7 @@ import DrugRegisterPage from './pages/DrugRegisterPage.jsx'
 import DrugSearchPage from './pages/DrugSearchPage.jsx'
 import DrugsPage from './pages/DrugsPage.jsx'
 import HomePage from './pages/HomePage.jsx'
+import KakaoLinkPage from './pages/KakaoLinkPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 import NotificationsPage from './pages/NotificationsPage.jsx'
@@ -50,7 +51,7 @@ export const router = createBrowserRouter([
         children: [{ path: paths.changelog, Component: ChangelogPage, handle: { footer: true } }],
       },
       // handle.profileSwitcher: 헤더 "관리할 사람"(PRF-04)을 보일 화면. 'on' 바꿀 수 있음 · 'locked' 보이지만 바꿀 수 없음.
-      // 없으면 숨긴다(복용 달력 · 약 상세 · 일정 · 알림 · 프로필 관리 · 오류 화면).
+      // 없으면 숨긴다(복용 달력 · 약 상세 · 일정 · 알림 · 프로필 관리 · 카카오톡 연결 · 오류 화면).
       // handle.menu(location): 헤더 주 메뉴에서 지금 위치로 표시할 주소. 없으면 화면 주소로 정한다.
       {
         Component: MemberLayout,
@@ -70,6 +71,7 @@ export const router = createBrowserRouter([
           { path: paths.profiles, Component: ProfilesPage },
           { path: paths.profileNew, Component: ProfileNewPage },
           { path: paths.profileEdit, Component: ProfileEditPage },
+          { path: paths.kakaoLink, Component: KakaoLinkPage },
           { path: paths.notifications, Component: NotificationsPage },
           { path: paths.doses, Component: DosesPage },
           { path: '*', Component: NotFoundPage },

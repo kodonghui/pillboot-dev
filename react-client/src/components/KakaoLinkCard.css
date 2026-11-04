@@ -1,0 +1,54 @@
+/* PRF-01 '카카오톡 약봉이' 카드(목업 v3-link link.css).
+   넓으면 설명(왼쪽)과 버튼(오른쪽)을 한 줄에, 좁으면(설명이 360px보다 좁을 때) 버튼이 설명 아래 줄로 내려간다. */
+.kakao-card__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-16) var(--space-20);
+}
+
+.kakao-card__main {
+  display: flex;
+  flex: 1 1 360px;
+  align-items: flex-start;
+  gap: var(--space-14);
+  min-width: 0;
+}
+
+/* 대화 시작 안내(ChatPage.css chat-intro__feature)와 같은 모양, 44px */
+.kakao-card__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+.kakao-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.kakao-card__desc {
+  color: var(--label-neutral);
+}
+
+.kakao-card__busy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.kakao-card__sub {
+  color: var(--label-alternative);
+}
+
+.kakao-card__row > .mt-btn {
+  flex: none;
+}

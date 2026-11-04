@@ -9,13 +9,18 @@ const items = [
   { to: paths.notifications, icon: 'bell', label: '알림' },
 ]
 
+// 펼친 목록에는 없지만 "설정"을 지금 메뉴로 보일 화면(PRF-06 카카오톡 연결은 프로필 관리에서 들어간다).
+const otherPaths = [paths.kakaoLink]
+
 // 주 메뉴의 "설정". 화면이 아니라 프로필 관리 · 알림 두 줄을 펼치는 드롭다운이다.
 function SettingsMenu() {
   const location = useLocation()
   // 연 주소를 기억해 두면 다른 화면으로 옮겨 갈 때 저절로 닫힌다.
   const [openPath, setOpenPath] = useState(null)
   const open = openPath === location.pathname
-  const current = items.some((item) => matchPath({ path: item.to, end: false }, location.pathname))
+  const current = [...items.map((item) => item.to), ...otherPaths].some((path) =>
+    matchPath({ path, end: false }, location.pathname),
+  )
   const wrapperRef = useRef(null)
   const toggleRef = useRef(null)
   const panelId = useId()

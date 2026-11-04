@@ -254,7 +254,8 @@ function CheckState({ check, onRecheck }) {
 // question: 추천 질문으로 연 새 방에서 한 번만 보낼 질문 · onChange: 제목 · 순서가 바뀌었을 수 있어 목록을 다시 받는다
 // onMissing: 대화방이 없거나(chatNotFound) 권한이 없을 때(forbidden) 오류 화면으로 바꾼다
 // onReady: 불러오기가 끝났다(대화 · 불러오지 못함 안내). 대화방 높이가 정해져 ChatPage 가 페이지를 대화방 자리로 내린다
-function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, onChange, onMissing, onReady }) {
+// channel: 목록에서 받은 이 방을 연 곳(WEB · KAKAO). 카톡에서 연 방이면 머리 제목 아래에 '카톡에서 시작한 대화'를 둔다.
+function ChatRoom({ sessionId, profileId, listTitle, channel, question, onQuestionTaken, onChange, onMissing, onReady }) {
   const titleId = useId()
   const [attempt, setAttempt] = useState(0)
   const [loadFailed, setLoadFailed] = useState(-1)
@@ -782,6 +783,12 @@ function ChatRoom({ sessionId, profileId, listTitle, question, onQuestionTaken, 
             <Icon name="plus" />약 등록
           </Link>
         </div>
+        {channel === 'KAKAO' && (
+          <p className="screen-label chat-room__channel">
+            <Icon name="chat" size="s" />
+            카톡에서 시작한 대화
+          </p>
+        )}
         <p className="screen-caption chat-room__muted">
           {hasQuestion
             ? `이 대화는 첫 질문을 저장할 때의 ${name} 프로필을 기준으로 답해요.`

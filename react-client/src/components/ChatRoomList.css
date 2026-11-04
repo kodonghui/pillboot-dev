@@ -103,6 +103,24 @@
   -webkit-line-clamp: 2;
 }
 
+/* 카톡에서 연 방: 제목(두 줄까지) 옆에 보조 배지 '카톡'(목업 v3-link CHT-01) */
+.chat-list__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.chat-list__title-row .chat-list__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chat-list__badge {
+  flex: none;
+}
+
 .chat-list__room[aria-current='page'] .chat-list__title {
   font-weight: 700;
 }

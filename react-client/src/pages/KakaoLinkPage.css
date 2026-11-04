@@ -1,0 +1,208 @@
+/* PRF-06 카카오톡 연결(목업 v3-link link.css). 화면 틀은 PRF-02 · 03(ProfileFormPage.css)과 같다: 본문 너비 최대 760px, 묶음 사이 24px */
+.kakao-link-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  max-width: 760px;
+}
+
+.kakao-link-page__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 목업 "프로필 관리로": 왼쪽 여백 없는 ghost 버튼 */
+.kakao-link-page__back {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+/* 끊은 뒤 포커스를 받는 제목 · 목록은 마우스로 누른 것이 아니어서 테두리를 그리지 않는다. */
+.kakao-link-page__title:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.kakao-link__card:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* 알리는 것 목록(NotificationsPage.css 번호 목록과 같은 들여쓰기) */
+.kakao-link__points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding-left: var(--space-20);
+  color: var(--label-neutral);
+  list-style: disc;
+}
+
+.kakao-link__points li {
+  padding-left: var(--space-4);
+}
+
+/* 확인란(회원가입 약관 '모두 동의'와 같은 모양, SignupTermsPage.css terms__all · terms__check). 누를 수 있는 자리 44px */
+.kakao-link__agree {
+  padding: var(--space-2) var(--space-16);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+  font-weight: 700;
+}
+
+.kakao-link__check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+  min-height: 44px;
+  padding: var(--space-10) 0;
+  cursor: pointer;
+}
+
+.kakao-link__check input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  accent-color: var(--primary-normal);
+}
+
+/* 확인란 아래 코드 받기 자리. 위 글과 선으로 나눈다 */
+.kakao-link__action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding-top: var(--space-20);
+  border-top: 1px solid var(--line-neutral);
+}
+
+.kakao-link__action > .mt-btn {
+  align-self: flex-start;
+}
+
+.kakao-link__hint {
+  color: var(--label-alternative);
+}
+
+.kakao-link__busy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* 코드 상자: 코드 · 남은 시간 · 코드 복사. 시간이 지나면 같은 자리에 안내 한 줄 */
+.kakao-link__code-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  padding: var(--space-24) var(--space-12);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+  text-align: center;
+}
+
+/* 고정폭 글꼴 · 글자 사이 넓게(정의서). 토큰에 고정폭 글꼴이 없어 시스템 고정폭 글꼴을 쓴다.
+   글자 사이 간격이 마지막 글자 뒤에도 붙으므로 같은 만큼 왼쪽을 띄워 가운데를 맞춘다.
+   360 폭에서 코드 상자 안(264px)에 한 줄로 들어가는 간격(0.12em, 약 246px) */
+.kakao-link__code {
+  padding-left: 0.12em;
+  color: var(--label-strong);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.kakao-link__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--label-neutral);
+  font-variant-numeric: tabular-nums;
+}
+
+.kakao-link__code-box .mt-btn {
+  min-width: 160px;
+  margin-top: var(--space-8);
+}
+
+.kakao-link__expired {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--label-neutral);
+}
+
+.kakao-link__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-left: var(--space-20);
+  list-style: decimal;
+}
+
+.kakao-link__steps li {
+  padding-left: var(--space-4);
+}
+
+/* '새 코드를 받으면 지금 코드는 못 써요.'와 그 아래 버튼 */
+.kakao-link__renew {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+/* 연결된 카카오톡 목록: 한 줄에 이름 · 시각 · 지금 프로필, 오른쪽 끊기 */
+.kakao-link__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.kakao-link__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-14) 0;
+  border-top: 1px solid var(--line-neutral);
+}
+
+.kakao-link__row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.kakao-link__row:last-child {
+  padding-bottom: 0;
+}
+
+.kakao-link__row-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.kakao-link__row-name {
+  font-weight: 700;
+}
+
+.kakao-link__muted {
+  color: var(--label-alternative);
+}
+
+.kakao-link__neutral {
+  color: var(--label-neutral);
+}
+
+.kakao-link__row > .mt-btn {
+  flex: none;
+}
+
+/* '11월 4일 15:20 연결'과 '마지막 사용 15:42'는 각각 한 덩어리로 두고, 좁으면 그 사이(·)에서만 줄을 바꾼다 */
+.kakao-link__nowrap {
+  white-space: nowrap;
+}

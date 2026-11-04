@@ -83,7 +83,15 @@ function ChatRoomList({
                   preventScrollReset
                   aria-current={session.sessionId === currentId ? 'page' : undefined}
                 >
-                  <span className="chat-list__title">{session.title ?? '새 대화'}</span>
+                  {session.channel === 'KAKAO' ? (
+                    // 카톡에서 연 방은 제목 옆에 '카톡' 꼬리표(v3 DEC-029 Q5 B). 글자로 써서 색만으로 가르지 않는다.
+                    <span className="chat-list__title-row">
+                      <span className="chat-list__title">{session.title ?? '새 대화'}</span>
+                      <span className="mt-badge chat-list__badge">카톡</span>
+                    </span>
+                  ) : (
+                    <span className="chat-list__title">{session.title ?? '새 대화'}</span>
+                  )}
                   <span className="screen-caption chat-list__muted">{roomTime(session.updatedAt)}</span>
                 </Link>
               </li>
