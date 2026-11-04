@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- 목업(DEC-029 v3-link · PRF-06 카카오톡 연결 · 연결 목록(2개)). 실제 화면 CSS(src · design/components)를 그대로 불러 v3 변경(link.css)을 얹은 정적 파일임. 이름 · 코드 · 시각은 모두 지어낸 예시임. -->
+<html lang="ko"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
+<title>v3-link · PRF-06 연결 목록</title>
+<link rel="stylesheet" href="../../../../src/tokens.css">
+<link rel="stylesheet" href="../../../../design/components/bundle.css">
+<link rel="stylesheet" href="../../../../src/index.css">
+<link rel="stylesheet" href="../../../../src/components/Icon.css">
+<link rel="stylesheet" href="../../../../src/components/VisuallyHidden.css">
+<link rel="stylesheet" href="../../../../src/components/FieldError.css">
+<link rel="stylesheet" href="../../../../src/components/Notice.css">
+<link rel="stylesheet" href="../../../../src/components/ConfirmDialog.css">
+<link rel="stylesheet" href="../../../../src/profileColors.css">
+<link rel="stylesheet" href="../../../../src/components/ProfileDot.css">
+<link rel="stylesheet" href="../../../../src/components/ProfileTag.css">
+<link rel="stylesheet" href="../../../../src/components/ProfileSwitcher.css">
+<link rel="stylesheet" href="../../../../src/components/SettingsMenu.css">
+<link rel="stylesheet" href="../../../../src/components/AppHeader.css">
+<link rel="stylesheet" href="../../../../src/components/Layout.css">
+<link rel="stylesheet" href="../../../../src/components/ChatAnswer.css">
+<link rel="stylesheet" href="../../../../src/components/ChatComposer.css">
+<link rel="stylesheet" href="../../../../src/components/ChatRoom.css">
+<link rel="stylesheet" href="../../../../src/components/ChatRoomList.css">
+<link rel="stylesheet" href="../../../../src/pages/ChatPage.css">
+<link rel="stylesheet" href="../../../../src/pages/ProfilesPage.css">
+<link rel="stylesheet" href="../../../../src/pages/ProfileFormPage.css">
+<link rel="stylesheet" href="../../../../src/pages/SignupTermsPage.css">
+<link rel="stylesheet" href="link.css">
+</head>
+<body>
+<div id="root"><div class="screen-body"><header class="mt-hd"><div class="mt-hd__in"><a class="mt-hd__logo" href="/"><span class="mt-hd__mark"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"></path><path d="m8.5 8.5 7 7"></path></svg></span>필받음</a><nav class="mt-hd__nav" aria-label="주 메뉴"><a href="/">홈</a><a href="/drugs">약 목록</a><a href="/calendar">복용 달력</a><a href="/chat">약봉이</a><div class="settings-menu"><button class="settings-menu__toggle" type="button" aria-expanded="false" aria-current="page">설정<svg class="icon icon--s" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg></button></div></nav><div class="mt-hd__r"><span class="mt-hd__nick">필받음 예시님</span><button class="mt-btn mt-btn--assistive mt-btn--md mt-hd__logout" type="button" aria-haspopup="dialog" aria-expanded="false"><svg class="icon icon--s" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg><span class="mt-hd__logout-label">로그아웃</span></button></div></div></header><main class="layout-main">
+<div class="kakao-link-page"><div class="kakao-link-page__head"><a class="mt-btn mt-btn--ghost kakao-link-page__back" href="/profiles"><svg class="icon icon--s" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"></path></svg>프로필 관리로</a><h1 class="screen-title">카카오톡 연결</h1></div>
+<section class="mt-card" aria-labelledby="kl-t"><h2 class="screen-item" id="kl-t">카카오톡에서도 이 계정의 프로필 약으로 답해 드려요</h2><ul class="screen-body kakao-link__points"><li>연결한 카카오톡은 이 계정의 모든 프로필(엄마·아빠 …)의 약목록·복약 일정·출생연도·성별·임신 여부를 볼 수 있어요. 카톡에서 ‘프로필 바꾸기’로 골라요.</li><li>가족 본인의 카카오톡에 이으면 그 가족도 이 계정의 모든 프로필 약을 볼 수 있어요.</li><li>카톡에서 한 상담은 이 계정의 상담 기록에 남아, 이 계정으로 로그인한 사람은 누구나 볼 수 있어요.</li><li>카톡 대화는 카카오 서버를 거쳐요. 휴대폰을 같이 쓰는 사람이 카톡에서 약 이름을 볼 수 있어요.</li><li>카톡에서 확정한 약 등록·일정 바꾸기는 그 프로필에 바로 저장돼요.</li><li>카톡으로 복약 알림은 보내지 않아요. 알림은 지금처럼 웹 푸시로 와요.</li><li>언제든 이 화면이나 카톡 ‘연결 끊기’로 끊을 수 있어요. 끊어도 약목록·상담 기록은 지워지지 않아요.</li></ul><div class="terms__all"><label class="terms__check"><input type="checkbox">위 내용을 확인했어요</label></div><div class="kakao-link__action"><p class="screen-caption kakao-link__hint" id="kl-hint">확인란을 골라야 코드를 받을 수 있어요.</p><button class="mt-btn mt-btn--solid" type="button" disabled aria-describedby="kl-hint">연결 코드 받기</button></div></section>
+<section class="mt-card" aria-labelledby="kl-list-t"><h2 class="screen-item" id="kl-list-t">연결된 카카오톡</h2><ul class="kakao-link__rows"><li class="kakao-link__row"><div class="kakao-link__row-text"><p class="screen-body kakao-link__row-name">카카오톡 1</p><p class="screen-caption kakao-link__muted"><span class="kakao-link__nowrap">11월 4일 15:20 연결</span> · <span class="kakao-link__nowrap">마지막 사용 15:42</span></p><p class="screen-caption kakao-link__neutral">지금 보는 프로필: 엄마</p></div><button class="mt-btn mt-btn--danger-outlined mt-btn--md" type="button" aria-haspopup="dialog" aria-label="카카오톡 1 연결 끊기" id="kl-unlink-1">끊기</button></li><li class="kakao-link__row"><div class="kakao-link__row-text"><p class="screen-body kakao-link__row-name">카카오톡 2</p><p class="screen-caption kakao-link__muted"><span class="kakao-link__nowrap">11월 4일 16:05 연결</span> · <span class="kakao-link__nowrap">마지막 사용 16:12</span></p><p class="screen-caption kakao-link__neutral">지금 보는 프로필: 아빠</p></div><button class="mt-btn mt-btn--danger-outlined mt-btn--md" type="button" aria-haspopup="dialog" aria-label="카카오톡 2 연결 끊기">끊기</button></li></ul></section></div>
+</main></div></div>
+</body></html>

@@ -1,0 +1,252 @@
+/* v3-link 목업(DEC-029, 정의서 v3-kakao-web-link.md): PRF-01 '카카오톡 약봉이' 카드, PRF-06 카카오톡 연결, CHT-01·02 '카톡' 꼬리표.
+   색은 토큰, 글자 크기는 타입 클래스, 간격은 --space-* 만 씀. 실제 화면 CSS(src)를 먼저 불러 그 위에 더함. */
+
+/* ── PRF-01: 표 위 '카카오톡 약봉이' 카드 ── */
+/* 넓으면 설명(왼쪽)과 버튼(오른쪽)을 한 줄에, 좁으면(설명 360px보다 좁을 때) 버튼이 설명 아래 줄로 내려감 */
+.kakao-card__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-16) var(--space-20);
+}
+
+.kakao-card__main {
+  display: flex;
+  flex: 1 1 360px;
+  align-items: flex-start;
+  gap: var(--space-14);
+  min-width: 0;
+}
+
+/* 대화 시작 안내(ChatPage.css chat-intro__feature)와 같은 모양, 44px */
+.kakao-card__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  background: var(--primary-weak);
+  color: var(--primary-on-weak);
+}
+
+.kakao-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.kakao-card__desc {
+  color: var(--label-neutral);
+}
+
+.kakao-card__sub {
+  color: var(--label-alternative);
+}
+
+.kakao-card__row > .mt-btn {
+  flex: none;
+}
+
+/* ── PRF-06 카카오톡 연결 ── */
+/* 화면 틀은 PRF-02·03(ProfileFormPage.css)과 같음: 본문 너비 최대 760px, 묶음 사이 24px */
+.kakao-link-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  max-width: 760px;
+}
+
+.kakao-link-page__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.kakao-link-page__back {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+/* 알리는 것 목록(NotificationsPage.css 번호 목록과 같은 들여쓰기) */
+.kakao-link__points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding-left: var(--space-20);
+  color: var(--label-neutral);
+  list-style: disc;
+}
+
+.kakao-link__points li {
+  padding-left: var(--space-4);
+}
+
+/* 확인란 아래 코드 받기 자리. 위 글과 선으로 나눔 */
+.kakao-link__action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding-top: var(--space-20);
+  border-top: 1px solid var(--line-neutral);
+}
+
+.kakao-link__action > .mt-btn {
+  align-self: flex-start;
+}
+
+.kakao-link__hint {
+  color: var(--label-alternative);
+}
+
+/* 코드 상자: 코드 · 남은 시간 · 코드 복사. 시간이 지나면 같은 자리에 안내 한 줄 */
+.kakao-link__code-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  padding: var(--space-24) var(--space-12);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius-lg);
+  background: var(--background-alternative);
+  text-align: center;
+}
+
+/* 고정폭 글꼴 · 글자 사이 넓게(정의서). 토큰에 고정폭 글꼴이 없어 시스템 고정폭 글꼴을 씀.
+   글자 사이 간격이 마지막 글자 뒤에도 붙으므로 같은 만큼 왼쪽을 띄워 가운데를 맞춤.
+   360 폭에서 코드 상자 안(264px)에 한 줄로 들어가는 간격(0.12em, 약 246px) */
+.kakao-link__code {
+  padding-left: 0.12em;
+  color: var(--label-strong);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.kakao-link__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--label-neutral);
+  font-variant-numeric: tabular-nums;
+}
+
+.kakao-link__code-box .mt-btn {
+  min-width: 160px;
+  margin-top: var(--space-8);
+}
+
+.kakao-link__expired {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--label-neutral);
+}
+
+.kakao-link__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-left: var(--space-20);
+  list-style: decimal;
+}
+
+.kakao-link__steps li {
+  padding-left: var(--space-4);
+}
+
+/* '새 코드를 받으면 지금 코드는 못 써요.'와 그 아래 버튼 */
+.kakao-link__renew {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+/* 연결된 카카오톡 목록: 한 줄에 이름 · 시각 · 지금 프로필, 오른쪽 끊기 */
+.kakao-link__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.kakao-link__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-14) 0;
+  border-top: 1px solid var(--line-neutral);
+}
+
+.kakao-link__row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.kakao-link__row:last-child {
+  padding-bottom: 0;
+}
+
+.kakao-link__row-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.kakao-link__row-name {
+  font-weight: 700;
+}
+
+.kakao-link__muted {
+  color: var(--label-alternative);
+}
+
+.kakao-link__neutral {
+  color: var(--label-neutral);
+}
+
+.kakao-link__row > .mt-btn {
+  flex: none;
+}
+
+/* '11월 4일 15:20 연결'과 '마지막 사용 15:42'는 각각 한 덩어리로 두고, 좁으면 그 사이(·)에서만 줄을 바꿈 */
+.kakao-link__nowrap {
+  white-space: nowrap;
+}
+
+/* ── CHT-01·02 '카톡' 꼬리표 ── */
+/* 대화방 목록 줄: 제목(두 줄까지) 옆에 보조 배지 */
+.chat-link__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.chat-link__title-row .chat-list__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chat-link__badge {
+  flex: none;
+}
+
+/* 대화방 머리 제목 아래 '카톡에서 시작한 대화' */
+.chat-link__channel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--label-neutral);
+}
+
+/* ── 목업 전용: 확인 창이 열리며 '취소'에 초점이 간 모습(실제 화면은 :focus-visible) ── */
+.mock-focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: var(--space-2);
+}
