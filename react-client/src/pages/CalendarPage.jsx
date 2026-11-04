@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Link, Navigate, useSearchParams } from 'react-router'
+import { generatePath, Link, Navigate, useNavigate, useSearchParams } from 'react-router'
+import { createChatSession } from '../api/chat.js'
 import { errorOf } from '../api/client.js'
 import { getMyDrug } from '../api/drugs.js'
 import { getNotificationSettings } from '../api/notifications.js'
@@ -9,6 +10,7 @@ import Icon from '../components/Icon.jsx'
 import IconButton from '../components/IconButton.jsx'
 import Notice from '../components/Notice.jsx'
 import ScheduleDetailPanel from '../components/ScheduleDetailPanel.jsx'
+import ScheduleHistory from '../components/ScheduleHistory.jsx'
 import { useManagedProfile } from '../components/useManagedProfile.js'
 import VoiceOrb from '../components/VoiceOrb.jsx'
 import VoiceScheduleDialog from '../components/VoiceScheduleDialog.jsx'
@@ -16,7 +18,8 @@ import { addMonths, isMonth, monthOf, monthWeeks, todayKst } from '../dates.js'
 import { LiveConversation } from '../liveConversation.js'
 import { paths, scheduleLink } from '../paths.js'
 import { profileColor } from '../profileInfo.js'
-import { scheduleKey } from '../scheduleInfo.js'
+import { calendarMonth, scheduleKey } from '../scheduleInfo.js'
+import { useAuthStore } from '../store/auth.js'
 import { monthTitle } from '../text.js'
 import './CalendarPage.css'
 
@@ -34,6 +37,7 @@ function calendarSearch(month, schedule) {
 // 날짜를 누르면 그날부터 일정 추가(SCH-03), 막대를 누르면 오른쪽에 일정 상세(SCH-05),
 // 구슬을 누르면 AI 복약도우미 음성 대화(SCH-04)가 열린다. 달과 열린 상세는 주소 쿼리에 둔다.
 function CalendarPage() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const today = todayKst()
   const monthParam = searchParams.get('month')
@@ -56,6 +60,7 @@ function CalendarPage() {
   // 음성 대화를 연 횟수. "다시 시작"하면 대화 창을 새로 띄운다(포커스도 처음부터).
   const [voiceRun, setVoiceRun] = useState(0)
   const [newKey, setNewKey] = useState(null)
+  const movingToChatRef = useRef(false)
 
   const weeks = monthWeeks(month)
   const from = weeks[0][0]
@@ -171,6 +176,23 @@ function CalendarPage() {
     orbRef.current?.focus()
   }
 
+  // 마이크 · 음성을 못 쓸 때 "약봉이에게 글로 말하기": 상세를 연 일정의 사람(없으면 관리할 사람)으로 새 대화방을 연다.
+  // 상세를 연 일정의 약 이름은 입력창에 넣어 두기만 하고 보내지 않는다. 방을 못 만들면 대화방 목록으로 간다.
+  const moveToChat = async () => {
+    if (movingToChatRef.current) return
+    movingToChatRef.current = true
+    const owner = openProfileId ?? profile?.profileId ?? profiles[0].profileId
+    const drugName = panelData?.key === panelKey ? panelData.drug?.name : null
+    useAuthStore.getState().setProfileId(owner)
+    try {
+      const session = await createChatSession(owner)
+      const state = { voiceHandoff: { draft: drugName ? `${drugName} ` : '' } }
+      navigate(generatePath(paths.chatRoom, { sessionId: String(session.sessionId) }), { state })
+    } catch {
+      navigate(paths.chat)
+    }
+  }
+
   // 저장 · 그만 먹기 뒤 "일정 상세": 대화를 닫고 그 일정의 상세를 연다(보이는 달에 없으면 시작한 달로).
   const showVoiceSchedule = (schedule) => {
     conversation.end()
@@ -233,6 +255,7 @@ function CalendarPage() {
         {!loadFailed && (
           <div className="calendar-page__actions">
             <VoiceOrb ref={orbRef} label="말로 일정 추가하기" onClick={startVoice} />
+            <p className="screen-caption calendar-page__orb-hint">말로도 일정을 등록할 수 있어요</p>
           </div>
         )}
       </div>
@@ -301,6 +324,14 @@ function CalendarPage() {
             </section>
             {panel}
           </div>
+
+          <ScheduleHistory
+            profiles={profiles}
+            today={today}
+            reloadKey={attempt}
+            rowLink={(profileId, drug) => calendarSearch(calendarMonth(drug.startDate, drug.endDate, today), { profileId, myDrugId: drug.myDrugId })}
+            onRowClick={() => setBarClicked(true)}
+          />
         </>
       )}
 
@@ -312,6 +343,7 @@ function CalendarPage() {
           onClose={closeVoice}
           onRestart={startVoice}
           onShowSchedule={showVoiceSchedule}
+          onUseChat={moveToChat}
         />
       )}
     </>

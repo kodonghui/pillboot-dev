@@ -42,6 +42,11 @@
   grid-row: span 2;
 }
 
+.pill-candidate__registered .mt-btn {
+  margin-left: var(--space-8);
+  cursor: pointer;
+}
+
 /* 이미 등록한 약(목업 IMG-04 .cand.off) */
 .pill-candidate--registered {
   background: var(--background-alternative);

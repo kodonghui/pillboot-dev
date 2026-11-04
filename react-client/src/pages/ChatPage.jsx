@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
-import { generatePath, Navigate, useNavigate, useParams } from 'react-router'
+import { generatePath, Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { createChatSession, getChatSessions } from '../api/chat.js'
 import { getMyDrugs } from '../api/drugs.js'
 import { exampleQuestions } from '../chatInfo.js'
@@ -82,6 +82,7 @@ function ChatIntro({ name, drugCount, locked, onAsk }) {
 function ChatPage() {
   const { sessionId: sessionParam } = useParams()
   const navigate = useNavigate()
+  const voiceHandoff = useLocation().state?.voiceHandoff ?? null
   const { status, profile, color, retry: retryProfiles } = useManagedProfile()
   const profileId = profile?.profileId
   const sessionId = sessionParam === undefined ? null : toSessionId(sessionParam)
@@ -265,6 +266,7 @@ function ChatPage() {
             listTitle={sessions?.find((session) => session.sessionId === sessionId)?.title}
             channel={sessions?.find((session) => session.sessionId === sessionId)?.channel}
             question={queued?.sessionId === sessionId ? queued.question : null}
+            voiceHandoff={voiceHandoff}
             onQuestionTaken={() => setQueued(null)}
             onChange={() => setListKey((key) => key + 1)}
             onMissing={(kind) => setMissing({ sessionId, kind })}

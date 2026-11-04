@@ -15,7 +15,9 @@ import StrengthMatchBadge from '../components/StrengthMatchBadge.jsx'
 import StrengthName from '../components/StrengthName.jsx'
 import WaitLine from '../components/WaitLine.jsx'
 import { useDrugGuide } from '../components/useDrugGuide.js'
+import RegisteredDrugLink from '../components/RegisteredDrugLink.jsx'
 import { useManagedProfile } from '../components/useManagedProfile.js'
+import { useMyDrugIndex } from '../components/useMyDrugIndex.js'
 import { guideProvider, guideSections } from '../drugInfo.js'
 import { paths, prescriptionResultLink } from '../paths.js'
 import { usePrescriptionDraft } from '../store/prescriptionDraft.js'
@@ -47,6 +49,7 @@ function DrugSearchPage() {
   const pickMode = pickParam !== null
   const { status, profile, color, retry: retryProfiles } = useManagedProfile()
   const profileId = profile?.profileId
+  const { index: myDrugs, refresh: refreshMyDrugs } = useMyDrugIndex(profileId)
   const draft = usePrescriptionDraft((state) => state.draft)
   const pickDraft = usePrescriptionDraft((state) => state.pick)
   // 고른 약이 들어갈 읽은 이름. 새로고침으로 임시 상태가 없거나 다른 결과면 없다.
@@ -187,10 +190,12 @@ function DrugSearchPage() {
   }
 
   // 다른 곳에서 먼저 등록된 약이면 목록에서도 "이미 등록한 약"으로 바꾼다.
-  const markRegistered = (itemSeq) =>
+  const markRegistered = (itemSeq) => {
+    refreshMyDrugs()
     setResult((previous) =>
       previous?.items ? { ...previous, items: previous.items.map((item) => (item.itemSeq === itemSeq ? { ...item, registered: true } : item)) } : previous,
     )
+  }
 
   const save = async () => {
     setSaving(true)
@@ -350,9 +355,12 @@ function DrugSearchPage() {
                   )
                   if (item.registered) {
                     action = (
-                      <span className="screen-caption drug-search__registered">
-                        <Icon name="check" size="s" />
-                        이미 등록한 약이에요
+                      <span className="drug-search__registered-action">
+                        <span className="screen-caption drug-search__registered">
+                          <Icon name="check" size="s" />
+                          이미 등록한 약이에요
+                        </span>
+                        <RegisteredDrugLink profileId={profileId} drug={myDrugs.get(item.itemSeq)} />
                       </span>
                     )
                   } else if (pickMode) {
@@ -405,7 +413,7 @@ function DrugSearchPage() {
                   {more?.failed && <FieldError>더 불러오지 못했어요. 잠시 후 다시 눌러 주세요.</FieldError>}
                 </div>
               )}
-              <p className="screen-caption drug-search__note">복용 일정은 저장 후 약 상세에서 등록해 주세요.</p>
+              <p className="screen-caption drug-search__note">복용 일정은 저장한 뒤 약 목록에서 바로 정할 수 있어요.</p>
             </div>
 
             {pick ? (
@@ -465,7 +473,11 @@ function DrugSearchPage() {
                   </section>
                 )}
 
-                {pick.registered && <Notice variant="info">이미 등록한 약이에요.</Notice>}
+                {pick.registered && (
+                  <Notice variant="info" action={<RegisteredDrugLink profileId={profileId} drug={myDrugs.get(pick.itemSeq)} className="mt-btn mt-btn--assistive mt-btn--md" />}>
+                    이미 등록한 약이에요. 약 하나에는 일정을 하나만 둘 수 있어요.
+                  </Notice>
+                )}
                 {saveError && (
                   <Notice variant="negative" role="alert">
                     <b>저장하지 못했어요.</b> 잠시 후 다시 저장해 주세요.

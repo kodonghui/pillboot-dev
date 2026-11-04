@@ -102,6 +102,8 @@ function DrugsPage() {
   const list = current?.list ?? null
   const saved = state?.profileId === profileId ? (state.saved ?? []) : []
   const savedIds = new Set(saved.map((drug) => drug.myDrugId))
+  // 일정을 저장하고 돌아오면 달력으로 잇는다(design/v3-dec-034-web-ux.md 6).
+  const scheduleSavedMonth = state?.profileId === profileId ? state.scheduleSavedMonth : null
   const name = profile.profileName
 
   // 고른 약은 지금 목록에 남은 것만 센다(다시 불러온 목록에서 빠진 약은 저절로 풀린다).
@@ -217,18 +219,40 @@ function DrugsPage() {
           variant="positive"
           role="status"
           action={
-            <Link
-              className="mt-btn mt-btn--assistive mt-btn--md"
-              to={scheduleLink(paths.scheduleNew, { profileId, myDrugId: saved.length === 1 ? saved[0].myDrugId : null, from: 'drugs' })}
-            >
-              <Icon name="calendar" size="s" />
-              일정 추가
-            </Link>
+            <span className="drugs-page__saved-actions">
+              <Link className="mt-btn mt-btn--assistive mt-btn--md" to={paths.chat}>
+                <Icon name="chat" size="s" />
+                같이 먹어도 되는지 묻기
+              </Link>
+              <Link
+                className="mt-btn mt-btn--assistive mt-btn--md"
+                to={scheduleLink(paths.scheduleNew, { profileId, myDrugId: saved.length === 1 ? saved[0].myDrugId : null, from: 'drugs' })}
+              >
+                <Icon name="calendar" size="s" />
+                일정 추가
+              </Link>
+            </span>
           }
         >
           <b>약 {saved.length}개를 저장했어요.</b>
           <br />
           새로 저장한 약은 아직 복약 일정이 없어요. 일정을 등록하면 복용 달력에서 복용 시간을 볼 수 있어요.
+        </Notice>
+      )}
+      {scheduleSavedMonth && (
+        <Notice
+          variant="positive"
+          role="status"
+          action={
+            <Link className="mt-btn mt-btn--assistive mt-btn--md" to={`${paths.calendar}?month=${scheduleSavedMonth}`}>
+              <Icon name="calendar" size="s" />
+              복용 달력 보기
+            </Link>
+          }
+        >
+          <b>일정을 저장했어요.</b>
+          <br />
+          복용 달력에서 먹는 날과 시간을 볼 수 있어요.
         </Notice>
       )}
 

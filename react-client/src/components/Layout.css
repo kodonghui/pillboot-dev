@@ -25,6 +25,21 @@
   padding: var(--space-24) var(--space-48);
 }
 
+.layout-footer__end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+}
+
+/* 시작 화면 바닥의 업데이트 기록 링크(design/v3-dec-034-web-ux.md 1). 누르는 범위 44px */
+.layout-footer__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: calc(var(--space-12) * -1) 0;
+  color: var(--primary-on-weak);
+}
+
 @media (max-width: 720px) {
   .layout-main {
     padding: var(--space-24) var(--space-16) var(--space-48);

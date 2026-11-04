@@ -15,6 +15,7 @@ import PillCandidate from '../components/PillCandidate.jsx'
 import PillClueList from '../components/PillClueList.jsx'
 import PillRefinePanel from '../components/PillRefinePanel.jsx'
 import { useManagedProfile } from '../components/useManagedProfile.js'
+import { useMyDrugIndex } from '../components/useMyDrugIndex.js'
 import { paths } from '../paths.js'
 import { photoMessages, photoProblem, photoProblemOf, photoSize } from '../photoFile.js'
 import { eulAfter } from '../text.js'
@@ -129,6 +130,7 @@ function PillResult({ profile, color, result, files, focusTitle, onRefine, onRet
   const [pick, setPick] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
+  const { index: myDrugs } = useMyDrugIndex(profile.profileId)
 
   useEffect(() => {
     if (focusTitle) titleRef.current?.focus()
@@ -305,6 +307,8 @@ function PillResult({ profile, color, result, files, focusTitle, onRefine, onRet
                     key={candidate.itemSeq}
                     candidate={candidate}
                     clues={result.clues}
+                    profileId={profile.profileId}
+                    myDrug={myDrugs.get(candidate.itemSeq)}
                     name={`${id}-pick`}
                     checked={picked?.itemSeq === candidate.itemSeq}
                     onChange={() => {

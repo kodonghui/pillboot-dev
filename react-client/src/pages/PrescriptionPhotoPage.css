@@ -207,6 +207,11 @@
   stroke-width: 2.6;
 }
 
+.prescription-photo__registered .mt-btn {
+  margin-left: var(--space-8);
+  cursor: pointer;
+}
+
 .prescription-photo__cand--registered {
   background: var(--background-alternative);
   color: var(--label-alternative);
