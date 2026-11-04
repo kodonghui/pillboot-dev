@@ -496,9 +496,207 @@ paths:
         '503':
           description: 받아쓰기 모델 설정 없음·호출 실패(EXTERNAL_API_FAILED)·시간 초과(EXTERNAL_TIMEOUT)
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+  /api/profiles/{profileId}/chat-sessions:
+    get:
+      tags: [약봉이 답변]
+      operationId: listChatSessions
+      summary: 상담방 목록(V3-KAKAO-014 변경, 9.2 Q5 B안)
+      description: 기존 응답의 `sessions[]` 칸 뒤에 `channel`을 더함. 나머지는 기존 그대로임
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: 상담방 목록
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatSessionListResponse' }
+    post:
+      tags: [약봉이 답변]
+      operationId: createChatSession
+      summary: 상담방 열기(V3-KAKAO-014 변경, 9.2 Q5 B안)
+      description: |
+        기존처럼 빈 상담방이 있으면 그것을 다시 씀. 요청한 곳을 `channel`에 남김: 다리 인증(`kakaoBridge`)으로 연 방이나
+        머리글 `X-Pill-Channel: KAKAO`를 보낸 요청(약봉이 운영 계정의 자동 프로필)은 `KAKAO`, 그 밖은 `WEB`. 빈 방을 다시 쓸 때도
+        이번 요청의 값으로 바꿈. 응답 칸 뒤에 `channel`을 더함
+      security: [{ bearerAuth: [] }, { kakaoBridge: [] }]
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: X-Pill-Channel, in: header, required: false, schema: { type: string, enum: [KAKAO] } }
+      responses:
+        '201':
+          description: 새 상담방
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatSessionResponse' }
+        '200':
+          description: 다시 쓴 빈 상담방(기존 그대로)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatSessionResponse' }
+  /api/kakao-links:
+    get:
+      tags: [카카오 약봉이]
+      operationId: listKakaoLinks
+      summary: 내 카카오톡 연결 목록(V3-KAKAO-012·015, PRF-01·PRF-06)
+      description: 로그인 회원의 연결을 연결한 순서로 줌. 카카오 사용자 키는 주지 않음. 다리 인증으로는 부를 수 없음(403)
+      responses:
+        '200':
+          description: 연결 목록(없으면 빈 배열)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/KakaoLink' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/kakao-links/{linkId}:
+    delete:
+      tags: [카카오 약봉이]
+      operationId: deleteKakaoLink
+      summary: 웹에서 카카오톡 연결 끊기(V3-KAKAO-015)
+      description: |
+        연결을 바로 지움. 그 뒤 들어온 다리 요청부터 `KAKAO_LINK_NOT_FOUND`(404)임. 프로필·약목록·상담 기록은 지우지 않음.
+        다른 회원의 연결이나 이미 끊긴 연결은 404 `KAKAO_LINK_NOT_FOUND`(있는지 알려 주지 않음)
+      parameters:
+        - { name: linkId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: 끊음 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/kakao-link-codes:
+    post:
+      tags: [카카오 약봉이]
+      operationId: createKakaoLinkCode
+      summary: 카카오톡 연결 코드 받기(V3-KAKAO-012)
+      description: |
+        회원이 연결 안내를 확인했을 때만 코드를 만듦. 코드는 `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`에서 8자를 뽑고 숫자를
+        하나 이상 넣어 `XXXX-XXXX`로 보임. 서버는 하이픈을 뺀 대문자 8자의 SHA-256만 저장하고 원문은 이 응답에서 한 번만 줌.
+        10분 동안 한 번만 쓸 수 있고, 새 코드를 만들면 그 회원의 쓰지 않은 앞 코드는 못 쓰게 됨.
+        회원마다 10분에 5번까지 만듦. 다리 인증으로는 부를 수 없음(403)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KakaoLinkCodeRequest' }
+      responses:
+        '201':
+          description: 새 코드
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KakaoLinkCode' }
+        '400':
+          description: '`agreed`가 true가 아님(`KAKAO_LINK_NOT_AGREED`). 코드를 만들지 않음'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: 이미 카카오톡 5개가 연결됨(`KAKAO_LINK_LIMIT`)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '429':
+          description: 10분 안에 5번 넘게 받음(`KAKAO_LINK_CODE_RATE_LIMITED`)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+  /api/kakao-bridge/links:
+    post:
+      tags: [카카오 약봉이]
+      operationId: bridgeCreateKakaoLink
+      summary: 카톡에서 받은 코드로 연결 마치기(다리 전용, V3-KAKAO-013)
+      description: |
+        다리가 코드 모양 글을 받으면 부름. 코드가 있고 10분 안이며 쓰지 않았고 새 코드로 막히지 않았을 때만, 한 트랜잭션에서
+        코드를 쓴 것으로 바꾸고 연결(회원·카카오 키 HMAC·동의 판·시각)을 만듦. 그 회원의 프로필이 하나면 그 프로필을 지금
+        프로필로 두고, 여럿이면 `currentProfileId`가 null이라 다리가 고르게 함.
+        틀림·시간 지남·이미 씀·막힘은 모두 같은 404 `KAKAO_LINK_CODE_NOT_FOUND`이고, 카카오 사용자마다 틀린 코드가 5번이면
+        그때부터 1시간 동안 맞는 코드도 429 `KAKAO_LINK_LOCKED`임(서버 메모리, 서버를 다시 켜면 처음부터 셈). 서버 전체 코드
+        확인은 1분에 60번까지(넘으면 429 `KAKAO_LINK_BUSY`, 틀린 횟수에 세지 않음). 코드 원문·카카오 키는 로그에 남기지 않음
+      security: [{ kakaoBridge: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KakaoBridgeLinkRequest' }
+      responses:
+        '201':
+          description: 연결됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KakaoBridgeLink' }
+        '400':
+          description: 코드 모양이 아님(`VALIDATION_FAILED`). 틀린 횟수에 셈
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '401':
+          description: 다리 키가 없거나 틀림·카카오 키 머리글 모양이 다름(`UNAUTHENTICATED`)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '404':
+          description: '`KAKAO_LINK_CODE_NOT_FOUND`'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '409':
+          description: 이 카카오 사용자는 이미 연결됨(`KAKAO_ALREADY_LINKED`, 코드는 쓰지 않은 채 둠)·그 회원은 이미 5개 연결됨(`KAKAO_LINK_LIMIT`)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '429':
+          description: '`KAKAO_LINK_LOCKED`·`KAKAO_LINK_BUSY`'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+  /api/kakao-bridge/links/current:
+    get:
+      tags: [카카오 약봉이]
+      operationId: bridgeGetKakaoLink
+      summary: 이 카카오 사용자의 연결과 고를 수 있는 프로필(다리 전용, V3-KAKAO-014)
+      description: 연결이 없거나 웹에서 끊겼으면 404 `KAKAO_LINK_NOT_FOUND`. 마지막 사용 시각을 남김(1분 단위)
+      security: [{ kakaoBridge: [] }]
+      responses:
+        '200':
+          description: 연결
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KakaoBridgeLink' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [카카오 약봉이]
+      operationId: bridgeDeleteKakaoLink
+      summary: 카톡에서 연결 끊기(다리 전용, V3-KAKAO-015)
+      description: 연결을 지움. 이미 없으면 404 `KAKAO_LINK_NOT_FOUND`(다리는 '이미 끊겨 있어요'로 답함). 웹 기록은 지우지 않음
+      security: [{ kakaoBridge: [] }]
+      responses:
+        '204': { description: 끊음 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/kakao-bridge/links/current/profile:
+    put:
+      tags: [카카오 약봉이]
+      operationId: bridgeSelectKakaoLinkProfile
+      summary: 카톡에서 볼 프로필 바꾸기(다리 전용, 9.2 Q4 B안)
+      description: 그 회원의 프로필이 아니거나 없으면 404 `NOT_FOUND`. 연결이 없으면 404 `KAKAO_LINK_NOT_FOUND`
+      security: [{ kakaoBridge: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profileId]
+              properties:
+                profileId: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: 바꾼 연결
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KakaoBridgeLink' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    kakaoBridge:
+      type: apiKey
+      in: header
+      name: X-Bridge-Key
+      description: |
+        카카오 다리 전용(V3-KAKAO-014, DEC-029). 다리 키 원문(32바이트 무작위, Base64URL)을 `X-Bridge-Key`에, 카카오 사용자 키의
+        HMAC-SHA256 16진값(소문자 64자)을 `X-Kakao-User`에 함께 보냄. 서버는 다리 키의 SHA-256만 설정에 둠(두 개까지, 바꿀 때 씀).
+        `Authorization`과 함께 보내면 401(`UNAUTHENTICATED`). 회원 JWT로 `/api/kakao-bridge/**`를 부르면 403. `/api/kakao-bridge/**` 밖에서는 연결된 회원으로 처리하고 아래 목록만 받음(그 밖은 403
+        `KAKAO_BRIDGE_FORBIDDEN`, 연결 없음은 404 `KAKAO_LINK_NOT_FOUND`): `POST /api/profiles/{id}/chat-sessions`,
+        `POST /api/chat-sessions/{id}/messages`, `POST /api/chat-sessions/{id}/photos`, `POST /api/voice-transcriptions`,
+        `GET /api/chat-proposals/{id}`, `POST /api/chat-proposals/{id}/confirm`, `POST /api/chat-proposals/{id}/cancel`,
+        `GET /api/profiles/{id}/drugs`. 프로필이 그 회원의 것인지는 기존 소유권 검사가 그대로 함.
+        공개 주소(Caddy)에서는 `/api/kakao-bridge/*`를 404로 막고 두 머리글을 지운 뒤 넘김
   responses:
     BadRequest:
       description: 입력 오류(INVALID_INPUT 등)
@@ -834,3 +1032,75 @@ components:
           enum: [PROPOSAL_ALREADY_CONFIRMED, PROPOSAL_CANCELLED, PROPOSAL_EXPIRED, CONFLICT, SCHEDULE_CHANGED]
         message: { type: string }
         proposal: { $ref: '#/components/schemas/ChatProposal' }
+    ChatChannel:
+      type: string
+      enum: [WEB, KAKAO]
+      description: 상담방을 연 곳(9.2 Q5 B안). 17 이전의 방은 WEB
+    ChatSessionResponse:
+      type: object
+      description: 기존 칸 뒤에 `channel`을 더함
+      required: [sessionId, createdAt, channel]
+      properties:
+        sessionId: { type: integer, format: int64 }
+        title: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        channel: { $ref: '#/components/schemas/ChatChannel' }
+    ChatSessionListResponse:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            type: object
+            description: 기존 칸 뒤에 `channel`을 더함
+            required: [sessionId, updatedAt, channel]
+            properties:
+              sessionId: { type: integer, format: int64 }
+              title: { type: [string, 'null'] }
+              updatedAt: { type: string, format: date-time }
+              channel: { $ref: '#/components/schemas/ChatChannel' }
+    KakaoLink:
+      type: object
+      required: [linkId, linkedAt]
+      properties:
+        linkId: { type: integer, format: int64 }
+        currentProfileId: { type: [integer, 'null'], format: int64, description: 카톡에서 지금 보는 프로필. 고르기 전이면 null }
+        currentProfileName: { type: [string, 'null'] }
+        linkedAt: { type: string, format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time, description: 쓴 적 없으면 null }
+    KakaoLinkCodeRequest:
+      type: object
+      required: [agreed]
+      properties:
+        agreed: { type: boolean, description: 연결 안내(PRF-06)를 확인함. true만 받음 }
+    KakaoLinkCode:
+      type: object
+      required: [code, expiresAt]
+      properties:
+        code: { type: string, pattern: '^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$', example: 7K3Q-M9XA }
+        expiresAt: { type: string, format: date-time }
+    KakaoBridgeLinkRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          description: 카톡에서 받은 글. 앞뒤 공백·가운데 하이픈 또는 공백 하나를 빼고 대문자로 바꾼 8자가 코드 글자여야 함
+    KakaoBridgeProfile:
+      type: object
+      required: [profileId, profileName, relationshipType]
+      properties:
+        profileId: { type: integer, format: int64 }
+        profileName: { type: string }
+        relationshipType: { $ref: '#/components/schemas/RelationshipType' }
+    KakaoBridgeLink:
+      type: object
+      required: [linkId, profiles]
+      properties:
+        linkId: { type: integer, format: int64 }
+        currentProfileId: { type: [integer, 'null'], format: int64 }
+        profiles:
+          type: array
+          description: 그 회원의 프로필 전부(만든 순서). 9.2 Q4 B안이라 모두 고를 수 있음
+          items: { $ref: '#/components/schemas/KakaoBridgeProfile' }

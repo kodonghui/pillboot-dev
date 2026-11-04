@@ -19,6 +19,11 @@ web-push:
     private-key: ""
     subject: ""
 
+# V3-KAKAO-014: 공개된 테스트 전용 다리 키 'pillbadeum-test-only-bridge-key'의 SHA-256. 실제 다리 키가 아님.
+kakao:
+  bridge:
+    key-sha256: 7cf553cff9be18219e6f7c71b7239c77d5836da26f0fd6b2df0ada19a8ca90f7
+
 # V3-COMMON-005: 테스트는 개발자 환경변수의 실제 Claude 키를 쓰지 않는다(백업 꺼짐).
 anthropic:
   api-key: ""

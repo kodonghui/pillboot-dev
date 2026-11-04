@@ -3,6 +3,7 @@ package org.semiproject.pillbadeumserver.chat;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.semiproject.pillbadeumserver.chat.domain.ChatChannel;
 import org.semiproject.pillbadeumserver.chat.service.ChatSessionService;
 import org.semiproject.pillbadeumserver.chat.dto.ChatSessionListResponse;
 import org.semiproject.pillbadeumserver.chat.dto.ChatSessionResponse;
@@ -44,13 +45,15 @@ class ChatSessionWebTests {
     @Test
     void listUses200AndOnlyTheSpecifiedFieldsWithKoreanTimeOffset() throws Exception {
         when(sessions.list(10L)).thenReturn(new ChatSessionListResponse(List.of(
-                new ChatSessionListResponse.Session(42L, null, OffsetDateTime.parse("2026-10-19T08:00:00+09:00")))));
+                new ChatSessionListResponse.Session(42L, null, OffsetDateTime.parse("2026-10-19T08:00:00+09:00"),
+                        ChatChannel.KAKAO))));
 
         mvc.perform(get("/api/profiles/10/chat-sessions").header("Authorization", authorization()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", aMapWithSize(1)))
                 .andExpect(jsonPath("$.sessions.length()").value(1))
-                .andExpect(jsonPath("$.sessions[0]", aMapWithSize(3)))
+                .andExpect(jsonPath("$.sessions[0]", aMapWithSize(4)))
+                .andExpect(jsonPath("$.sessions[0].channel").value("KAKAO"))
                 .andExpect(jsonPath("$.sessions[0].sessionId").value(42))
                 .andExpect(jsonPath("$.sessions[0].title").value(nullValue()))
                 .andExpect(jsonPath("$.sessions[0].updatedAt").value("2026-10-19T08:00:00+09:00"))
@@ -88,11 +91,12 @@ class ChatSessionWebTests {
     }
 
     @Test
-    void newRoomUses201AndOnlyTheThreeResponseFields() throws Exception {
-        when(sessions.createOrReuse(10L)).thenReturn(result(true));
+    void newRoomUses201AndOnlyTheFourResponseFields() throws Exception {
+        when(sessions.createOrReuse(10L, ChatChannel.WEB)).thenReturn(result(true));
         mvc.perform(post("/api/profiles/10/chat-sessions").header("Authorization", authorization()))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$", aMapWithSize(3)))
+                .andExpect(jsonPath("$", aMapWithSize(4)))
+                .andExpect(jsonPath("$.channel").value("WEB"))
                 .andExpect(jsonPath("$.sessionId").value(42))
                 .andExpect(jsonPath("$.title").value(nullValue()))
                 .andExpect(jsonPath("$.createdAt").value("2026-10-19T08:00:00+09:00"))
@@ -101,9 +105,34 @@ class ChatSessionWebTests {
 
     @Test
     void reusedRoomUses200() throws Exception {
-        when(sessions.createOrReuse(10L)).thenReturn(result(false));
+        when(sessions.createOrReuse(10L, ChatChannel.WEB)).thenReturn(result(false));
         mvc.perform(post("/api/profiles/10/chat-sessions").header("Authorization", authorization()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.sessionId").value(42));
+    }
+
+    @Test
+    void kakaoChannelHeaderOpensAKakaoRoomAndAnyOtherValueOpensAWebRoom() throws Exception {
+        // 9.2 Q5 B안: 약봉이 운영 계정으로 방을 여는 다리는 X-Pill-Channel: KAKAO를 보냄. 다른 값·없음은 웹 방임.
+        when(sessions.createOrReuse(10L, ChatChannel.KAKAO)).thenReturn(result(true));
+        mvc.perform(post("/api/profiles/10/chat-sessions").header("Authorization", authorization())
+                        .header("X-Pill-Channel", "kakao"))
+                .andExpect(status().isCreated());
+        when(sessions.createOrReuse(10L, ChatChannel.WEB)).thenReturn(result(false));
+        mvc.perform(post("/api/profiles/10/chat-sessions").header("Authorization", authorization())
+                        .header("X-Pill-Channel", "SMS"))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verify(sessions).createOrReuse(10L, ChatChannel.KAKAO);
+        org.mockito.Mockito.verify(sessions).createOrReuse(10L, ChatChannel.WEB);
+    }
+
+    @Test
+    void bridgeHeadersWithoutTheLinkServiceAreRejectedBeforeTheService() throws Exception {
+        // MVC 조각에는 연결 서비스가 없음. 다리 머리글은 그때 JWT 없이도 들어가지 못하고 401임(닫힌 쪽으로 실패).
+        mvc.perform(post("/api/profiles/10/chat-sessions").header("X-Bridge-Key", "pillbadeum-test-only-bridge-key")
+                        .header("X-Kakao-User", "a".repeat(64)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        verifyNoInteractions(sessions);
     }
 
     @Test
@@ -127,7 +156,7 @@ class ChatSessionWebTests {
 
     private ChatSessionService.Creation result(boolean created) {
         return new ChatSessionService.Creation(new ChatSessionResponse(42L, null,
-                OffsetDateTime.parse("2026-10-19T08:00:00+09:00")), created);
+                OffsetDateTime.parse("2026-10-19T08:00:00+09:00"), ChatChannel.WEB), created);
     }
 
     private String authorization() {

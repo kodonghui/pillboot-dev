@@ -70,6 +70,17 @@ public enum ErrorCode {
     AUDIO_TOO_LONG(HttpStatus.BAD_REQUEST, "AUDIO_TOO_LONG", "1분 이하 음성만 받아쓸 수 있습니다."),
     TRANSCRIPTION_EMPTY(HttpStatus.UNPROCESSABLE_CONTENT, "TRANSCRIPTION_EMPTY", "음성에서 글을 받아쓰지 못했습니다."),
 
+    // 카카오톡 약봉이와 웹 계정 연결 (KAKAO, V3-KAKAO-012~016·DEC-029)
+    KAKAO_LINK_NOT_AGREED(HttpStatus.BAD_REQUEST, "KAKAO_LINK_NOT_AGREED", "연결 안내를 확인해야 코드를 받을 수 있습니다."),
+    KAKAO_LINK_NOT_FOUND(HttpStatus.NOT_FOUND, "KAKAO_LINK_NOT_FOUND", "카카오톡 연결을 찾을 수 없습니다."),
+    KAKAO_LINK_CODE_NOT_FOUND(HttpStatus.NOT_FOUND, "KAKAO_LINK_CODE_NOT_FOUND", "연결 코드가 맞지 않거나 시간이 지났습니다."),
+    KAKAO_ALREADY_LINKED(HttpStatus.CONFLICT, "KAKAO_ALREADY_LINKED", "이미 웹 계정과 연결된 카카오톡입니다."),
+    KAKAO_LINK_LIMIT(HttpStatus.CONFLICT, "KAKAO_LINK_LIMIT", "카카오톡은 5개까지 연결할 수 있습니다."),
+    KAKAO_LINK_CODE_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "KAKAO_LINK_CODE_RATE_LIMITED", "코드를 너무 자주 받았습니다. 10분 뒤 다시 받아 주세요."),
+    KAKAO_LINK_LOCKED(HttpStatus.TOO_MANY_REQUESTS, "KAKAO_LINK_LOCKED", "코드를 여러 번 잘못 보냈습니다. 1시간 뒤 다시 보내 주세요."),
+    KAKAO_LINK_BUSY(HttpStatus.TOO_MANY_REQUESTS, "KAKAO_LINK_BUSY", "지금은 코드를 확인할 수 없습니다. 잠시 뒤 다시 보내 주세요."),
+    KAKAO_BRIDGE_FORBIDDEN(HttpStatus.FORBIDDEN, "KAKAO_BRIDGE_FORBIDDEN", "카카오톡 약봉이로는 부를 수 없는 요청입니다."),
+
     ;
 
     private final HttpStatus status;

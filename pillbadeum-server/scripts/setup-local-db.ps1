@@ -30,6 +30,8 @@ $sqlFiles += '13_BASE_CONSENT.sql'
 if ($UpgradeExisting) { $sqlFiles += '14_DRUG_STRENGTH.sql' }
 # V3-CHAT-002: the chat proposal tables are already in 01; existing databases add them after 14.
 if ($UpgradeExisting) { $sqlFiles += '16_CHAT_PROPOSAL.sql' }
+# V3-KAKAO-012: the KakaoTalk link tables and chat_session.channel are already in 01; existing databases add them after 16.
+if ($UpgradeExisting) { $sqlFiles += '17_KAKAO_LINK.sql' }
 if ($IncludeTestData) { $sqlFiles += '02_PILLBADEUM_TEST_DATA.sql' }
 $sqlPaths = $sqlFiles | ForEach-Object { Join-Path $projectRoot "sql/$_" }
 foreach ($sqlPath in $sqlPaths) {

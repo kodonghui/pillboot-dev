@@ -2,6 +2,8 @@ package org.semiproject.pillbadeumserver.chat.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -50,6 +52,11 @@ public class ChatSession {
     @Column(name = "snap_pregnant")
     private Boolean snapPregnant;
 
+    /** 상담방을 연 곳(V3-KAKAO-014, 9.2 Q5 B안). 빈 방을 다시 쓸 때는 이번에 연 곳으로 바꾼다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "channel", nullable = false, length = 10)
+    private ChatChannel channel = ChatChannel.WEB;
+
     protected ChatSession() {}
 
     /**
@@ -59,7 +66,14 @@ public class ChatSession {
      */
     public static ChatSession create(Long memberId, Long profileId, int birthYear,
                                      String gender, boolean pregnant, LocalDateTime now) {
+        return create(memberId, profileId, birthYear, gender, pregnant, now, ChatChannel.WEB);
+    }
+
+    /** 연 곳(웹·카톡)을 함께 남기는 새 방. */
+    public static ChatSession create(Long memberId, Long profileId, int birthYear, String gender,
+                                     boolean pregnant, LocalDateTime now, ChatChannel channel) {
         ChatSession session = new ChatSession();
+        session.channel = channel;
         session.memberId = memberId;
         session.profileId = profileId;
         session.snapBirthYear = (long) birthYear;
@@ -73,6 +87,12 @@ public class ChatSession {
     /** 빈 방의 활동 시각만 갱신한다. 생성 시각·초기 사본은 재사용 때 보존한다. */
     public void reopen(LocalDateTime now) {
         recordActivity(now);
+    }
+
+    /** 빈 방을 다시 쓸 때 이번에 연 곳으로 바꾼다(빈 방이라 그 안의 대화는 아직 없음). */
+    public void reopen(LocalDateTime now, ChatChannel channel) {
+        recordActivity(now);
+        this.channel = channel;
     }
 
     /** 첫 USER 질문일 때만 호출한다. 현재 프로필 사본과 질문 앞 20자의 제목을 함께 확정한다. */
@@ -106,4 +126,5 @@ public class ChatSession {
     public String getTitle() { return title; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public ChatChannel getChannel() { return channel; }
 }
