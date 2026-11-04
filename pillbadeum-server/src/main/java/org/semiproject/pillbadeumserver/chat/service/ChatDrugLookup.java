@@ -170,7 +170,10 @@ public class ChatDrugLookup {
     private Resolution restore(List<AnswerSource> oldSources, AnswerInput input, ChatDeadline deadline) {
         var codes = oldSources.stream().filter(s -> s.source()==AnswerSource.Type.PERMIT).map(AnswerSource::itemSeq).distinct().toList();
         if (codes.isEmpty()) return Resolution.none();
-        if (codes.size()>2) return new Resolution(List.of(),"어느 제품을 말씀하시는지 정확한 약 이름을 알려주세요.",List.of());
+        // 직전 답변이 등록 약만 근거로 썼으면 개수와 상관없이 그 약을 이어받음(CHAT-007 질문·직전 1턴의 내 약, 최대 10개).
+        // 검색으로 찾은 미등록 제품이 섞여 셋 이상이면 공공 재조회를 늘리지 않고 제품명을 물음.
+        boolean allOwned = codes.stream().allMatch(code -> input.medications().stream().anyMatch(m -> code.equals(m.itemSeq())));
+        if (codes.size()>2 && !allOwned) return new Resolution(List.of(),"어느 제품을 말씀하시는지 정확한 약 이름을 알려주세요.",List.of());
         var medications = codes.stream().map(code -> byCode(code,input,deadline)).toList();
         return ChatQuestionPurpose.formatting(input.question()) ? continued(medications,input)
                 : new Resolution(medications,null,List.of());
