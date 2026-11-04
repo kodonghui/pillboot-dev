@@ -1,5 +1,7 @@
 package org.semiproject.pillbadeumserver;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -29,11 +31,11 @@ class SchemaContractTests {
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
             org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(171);
-            assertConstraintCount(connection, "PRIMARY KEY", 21);
-            assertConstraintCount(connection, "FOREIGN KEY", 29);
-            assertConstraintCount(connection, "UNIQUE", 8);
-            assertConstraintCount(connection, "CHECK", 13);
+                    .isEqualTo(189);
+            assertConstraintCount(connection, "PRIMARY KEY", 23);
+            assertConstraintCount(connection, "FOREIGN KEY", 32);
+            assertConstraintCount(connection, "UNIQUE", 10);
+            assertConstraintCount(connection, "CHECK", 15);
             assertColumn(connection, "pill_identification_session", "identification_id", "char", 36L, "NO", null);
             assertColumn(connection, "pill_identification_session", "photo_id", "bigint", null, "YES", null);
             assertColumn(connection, "pill_identification_session", "snapshot", "json", null, "YES", null);
@@ -59,8 +61,25 @@ class SchemaContractTests {
             ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/14_DRUG_STRENGTH.sql"));
             // V3-CHAT-002~005·007: 제안 표 3개는 최신01에 있고, 16을 다시 적용해도 구조가 그대로다.
             ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/16_CHAT_PROPOSAL.sql"));
+            // V3-KAKAO-012~016(DEC-029): 연결 표 2개·상담방 channel은 최신01에 있고, 17을 두 번 다시 적용해도 READY이고 구조가 그대로다.
+            for (int run = 0; run < 2; run++) {
+                ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/17_KAKAO_LINK.sql"));
+            }
+            assertThat(finalStatus(connection, "sql/17_KAKAO_LINK.sql")).isEqualTo("READY");
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(171);
+                    .isEqualTo(189);
+            assertConstraintCount(connection, "CHECK", 15);
+            assertColumn(connection, "chat_session", "channel", "varchar", 10L, "NO", "WEB");
+            assertColumn(connection, "kakao_link", "kakao_user_hmac", "char", 64L, "NO", null);
+            assertColumn(connection, "kakao_link", "current_profile_id", "bigint", null, "YES", null);
+            assertColumn(connection, "kakao_link_code", "code_hash", "char", 64L, "NO", null);
+            assertColumn(connection, "kakao_link_code", "used_at", "datetime", null, "YES", null);
+            assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.referential_constraints "
+                    + "WHERE constraint_schema=DATABASE() AND constraint_name='fk_kakao_link_profile' AND delete_rule='SET NULL'"))
+                    .as("A deleted profile only clears the KakaoTalk link's current profile").isEqualTo(1);
+            assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.referential_constraints "
+                    + "WHERE constraint_schema=DATABASE() AND constraint_name IN ('fk_kakao_link_member','fk_kakao_link_code_member') "
+                    + "AND delete_rule='CASCADE'")).as("Withdrawing removes the member's links and codes").isEqualTo(2);
             assertColumn(connection, "chat_proposal", "status", "varchar", 12L, "NO", "PENDING");
             assertColumn(connection, "chat_proposal", "decided_at", "datetime", null, "YES", null);
             assertColumn(connection, "chat_proposal_item", "my_drug_id", "bigint", null, "YES", null);
@@ -186,9 +205,37 @@ class SchemaContractTests {
                 assertThat(count(connection, "SELECT COUNT(*) FROM dur_interaction WHERE item_seq2=? AND mixture_item_seq IS NULL", itemSeq))
                         .isEqualTo(1);
                 assertSqlError(connection, 1452, "INSERT INTO dur_interaction(item_seq2) VALUES(?)", "missing-" + suffix);
+
+                // 상담방은 WEB·KAKAO만 받고, 카카오 사용자 하나는 연결 하나만 가짐. 코드는 만든 시각보다 뒤에 끝나야 함.
+                assertThat(count(connection, "SELECT COUNT(*) FROM chat_session WHERE session_id=? AND channel='WEB'", room))
+                        .as("Existing and default rooms are web rooms").isEqualTo(1);
+                execute(connection, "UPDATE chat_session SET channel='KAKAO' WHERE session_id=?", room);
+                assertSqlError(connection, 3819, "UPDATE chat_session SET channel='SMS' WHERE session_id=?", room);
+                String hmac = "a".repeat(64);
+                String linkInsert = "INSERT INTO kakao_link(member_id,kakao_user_hmac,current_profile_id,notice_version,agreed_at,linked_at) "
+                        + "VALUES(?,?,?,'KAKAO-LINK-1',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)";
+                long link = insert(connection, linkInsert, member, hmac, familyProfile);
+                assertSqlError(connection, 1062, linkInsert, member, hmac, profile);
+                assertSqlError(connection, 3819, "INSERT INTO kakao_link_code(member_id,code_hash,notice_version,agreed_at,created_at,expires_at) "
+                        + "VALUES(?,?,'KAKAO-LINK-1',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", member, "b".repeat(64));
+                execute(connection, "DELETE FROM my_drug WHERE profile_id=?", familyProfile);
+                execute(connection, "DELETE FROM profile WHERE profile_id=?", familyProfile);
+                assertThat(count(connection, "SELECT COUNT(*) FROM kakao_link WHERE link_id=? AND current_profile_id IS NULL", link))
+                        .as("Deleting the current profile keeps the link and clears its profile").isEqualTo(1);
             } finally {
                 connection.rollback();
             }
+        }
+    }
+
+    /** 패치 파일 맨 끝의 상태 SELECT만 다시 실행해 그 값을 돌려준다(ScriptUtils는 SELECT 결과를 주지 않음). */
+    private static String finalStatus(Connection connection, String path) throws Exception {
+        String script = Files.readString(Path.of(path));
+        String select = script.substring(script.lastIndexOf("SELECT IF(")).strip();
+        try (var statement = connection.createStatement();
+             var rows = statement.executeQuery(select.endsWith(";") ? select.substring(0, select.length() - 1) : select)) {
+            assertThat(rows.next()).isTrue();
+            return rows.getString(1);
         }
     }
 

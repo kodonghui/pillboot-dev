@@ -16,6 +16,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.semiproject.pillbadeumserver.kakao.service.KakaoLinkService;
+import org.springframework.beans.factory.ObjectProvider;
+import tools.jackson.databind.ObjectMapper;
 
 /* 설명. Spring Security 설정 (JWT + REST API)
  *  ----------------------------------------------------------------------------------
@@ -35,18 +38,25 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtAuthenticationEntryPoint authenticationEntryPoint;
     private final JwtAccessDeniedHandler accessDeniedHandler;
+    private final ObjectProvider<KakaoLinkService> kakaoLinks;
+    private final ObjectMapper objectMapper;
 
     public SecurityConfig(JwtTokenProvider jwtTokenProvider,
                           JwtAuthenticationEntryPoint authenticationEntryPoint,
-                          JwtAccessDeniedHandler accessDeniedHandler) {
+                          JwtAccessDeniedHandler accessDeniedHandler,
+                          ObjectProvider<KakaoLinkService> kakaoLinks,
+                          ObjectMapper objectMapper) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
+        this.kakaoLinks = kakaoLinks;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
-            @Value("${springdoc.api-docs.enabled:false}") boolean docsEnabled) throws Exception {
+            @Value("${springdoc.api-docs.enabled:false}") boolean docsEnabled,
+            @Value("${kakao.bridge.key-sha256:}") String bridgeKeySha256) throws Exception {
 
         http
                 /* 목차. 1. 세션 없이 Authorization Bearer 토큰을 받는다.
@@ -100,6 +110,9 @@ public class SecurityConfig {
 
                         /* 목차. 3-8. AI 챗봇 (CHAT)       /api/chats/** */
 
+                        /* 목차. 3-8-1. 카카오 다리 (V3-KAKAO-013~015) 다리 키로 인증한 요청만. 공개 주소에서는 Caddy가 막음 */
+                        .requestMatchers("/api/kakao-bridge/**").hasRole("KAKAO_BRIDGE")
+
                         /* 목차. 3-9. 나머지 (맨 아래에 둔다) */
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated();
@@ -111,9 +124,11 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler)
                 )
 
-                /* 목차. 5. JWT 필터 등록 */
+                /* 목차. 5. JWT 필터 등록. 카카오 다리 필터는 그 앞에서 X-Bridge-Key 요청만 처리함(V3-KAKAO-014) */
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),
-                        UsernamePasswordAuthenticationFilter.class);
+                        UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new KakaoBridgeAuthFilter(bridgeKeySha256, kakaoLinks, objectMapper),
+                        JwtAuthenticationFilter.class);
 
         return http.build();
     }

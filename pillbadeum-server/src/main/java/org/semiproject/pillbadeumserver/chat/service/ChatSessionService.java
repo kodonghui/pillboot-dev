@@ -2,6 +2,7 @@ package org.semiproject.pillbadeumserver.chat.service;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import org.semiproject.pillbadeumserver.chat.domain.ChatChannel;
 import org.semiproject.pillbadeumserver.chat.domain.ChatSession;
 import org.semiproject.pillbadeumserver.chat.domain.ChatSessionRepository;
 import org.semiproject.pillbadeumserver.chat.dto.ChatSessionListResponse;
@@ -34,6 +35,12 @@ public class ChatSessionService {
 
     @Transactional
     public Creation createOrReuse(Long profileId) {
+        return createOrReuse(profileId, ChatChannel.WEB);
+    }
+
+    /** 연 곳(웹·카톡, 9.2 Q5 B안)을 남긴다. 빈 방을 다시 쓸 때도 이번에 연 곳으로 바꾼다. */
+    @Transactional
+    public Creation createOrReuse(Long profileId, ChatChannel channel) {
         Long memberId = SecurityUtil.getCurrentMemberId();
         // 프로필 삭제와 동일하게 회원 → 프로필 순서로 잠가 FK 삽입과 삭제가 교착하지 않게 함.
         sessions.lockMember(memberId).orElseThrow(() -> new NotFoundException("회원을 찾을 수 없습니다."));
@@ -46,7 +53,7 @@ public class ChatSessionService {
         var empty = sessions.findEmptySession(memberId, profileId);
         if (empty.isPresent()) {
             ChatSession session = empty.get();
-            session.reopen(now);
+            session.reopen(now, channel);
             return new Creation(ChatSessionResponse.from(session), false);
         }
 
@@ -54,7 +61,7 @@ public class ChatSessionService {
         var profile = sessions.findProfileSnapshot(profileId, memberId)
                 .orElseThrow(() -> new NotFoundException("프로필을 찾을 수 없습니다."));
         ChatSession session = ChatSession.create(memberId, profileId, profile.getBirthYear(),
-                profile.getGender(), profile.getPregnantFlag() == 1, now);
+                profile.getGender(), profile.getPregnantFlag() == 1, now, channel);
         return new Creation(ChatSessionResponse.from(sessions.save(session)), true);
     }
 

@@ -1,5 +1,5 @@
--- 최신 신규 설치용 MySQL 구조:21개 테이블·171개 컬럼임. 대상 DB를 선택한 뒤 전체 실행함.
--- 현재 적용된03~12·14·16의 구조를 통합함. drug.material은 처음부터TEXT NOT NULL임. 가입 기본 약관은13에서 준비함.
+-- 최신 신규 설치용 MySQL 구조:23개 테이블·189개 컬럼임. 대상 DB를 선택한 뒤 전체 실행함.
+-- 현재 적용된03~12·14·16·17의 구조를 통합함. drug.material은 처음부터TEXT NOT NULL임. 가입 기본 약관은13에서 준비함.
 -- 새 DB는00 → 01, 샘플이 필요할 때만02를 실행함.03~11을 다시 적용할 필요가 없음.
 -- 기존 DB는01로 업그레이드하지 않으며 필요한03~11 패치만 실행함.
 -- CREATE IF NOT EXISTS는 기존 값/테이블을 보존할 뿐 기존 컬럼 구조를 갱신하지 않음.
@@ -139,11 +139,13 @@ CREATE TABLE IF NOT EXISTS `chat_session` (
   `snap_birth_year` bigint NOT NULL COMMENT '세션 시작 첫 질문에 들어갈 정보',
   `snap_gender` varchar(10) NOT NULL COMMENT '//',
   `snap_pregnant` tinyint(1) DEFAULT NULL COMMENT '//',
+  `channel` varchar(10) NOT NULL DEFAULT 'WEB' COMMENT '상담방을 연 곳 WEB / KAKAO',
   PRIMARY KEY (`session_id`),
   KEY `member_id` (`member_id`),
   KEY `profile_id` (`profile_id`),
   CONSTRAINT `chat_session_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`),
-  CONSTRAINT `chat_session_ibfk_2` FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`)
+  CONSTRAINT `chat_session_ibfk_2` FOREIGN KEY (`profile_id`) REFERENCES `profile` (`profile_id`),
+  CONSTRAINT `ck_chat_session_channel` CHECK ((`channel` in (_utf8mb4'WEB',_utf8mb4'KAKAO')))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- chat_message 테이블을 생성함. 기존 테이블은 그대로 유지함.
@@ -354,4 +356,40 @@ CREATE TABLE IF NOT EXISTS `chat_proposal_schedule` (
   KEY `fk_chat_proposal_schedule_my_drug` (`my_drug_id`),
   CONSTRAINT `fk_chat_proposal_schedule_my_drug` FOREIGN KEY (`my_drug_id`) REFERENCES `my_drug` (`my_drug_id`) ON DELETE SET NULL,
   CONSTRAINT `fk_chat_proposal_schedule_proposal` FOREIGN KEY (`proposal_id`) REFERENCES `chat_proposal` (`proposal_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- kakao_link_code 테이블을 생성함(V3-KAKAO-012·013, 17과 같음). 기존 테이블은 그대로 유지함.
+CREATE TABLE IF NOT EXISTS `kakao_link_code` (
+  `code_id` bigint NOT NULL AUTO_INCREMENT COMMENT '연결 코드 고유 식별자',
+  `member_id` bigint NOT NULL COMMENT '코드를 받은 회원',
+  `code_hash` char(64) NOT NULL COMMENT '대문자 8자(하이픈 없음)의 SHA-256 16진값',
+  `notice_version` varchar(20) NOT NULL COMMENT '확인한 연결 안내 판(예: KAKAO-LINK-1)',
+  `agreed_at` datetime NOT NULL COMMENT '연결 안내를 확인한 시각',
+  `created_at` datetime NOT NULL COMMENT '코드를 만든 시각',
+  `expires_at` datetime NOT NULL COMMENT '만든 뒤 10분. 이 시각부터 쓸 수 없음',
+  `used_at` datetime DEFAULT NULL COMMENT '카톡에서 연결에 쓴 시각',
+  `revoked_at` datetime DEFAULT NULL COMMENT '새 코드를 받아 못 쓰게 된 시각',
+  PRIMARY KEY (`code_id`),
+  UNIQUE KEY `uq_kakao_link_code_hash` (`code_hash`),
+  KEY `ix_kakao_link_code_member` (`member_id`,`created_at`),
+  CONSTRAINT `fk_kakao_link_code_member` FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`) ON DELETE CASCADE,
+  CONSTRAINT `ck_kakao_link_code_expiry` CHECK ((`expires_at` > `created_at`))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- kakao_link 테이블을 생성함(V3-KAKAO-012~016, 17과 같음). 기존 테이블은 그대로 유지함.
+CREATE TABLE IF NOT EXISTS `kakao_link` (
+  `link_id` bigint NOT NULL AUTO_INCREMENT COMMENT '연결 고유 식별자',
+  `member_id` bigint NOT NULL COMMENT '연결된 회원',
+  `kakao_user_hmac` char(64) NOT NULL COMMENT '카카오 사용자 키의 다리 HMAC-SHA256 16진값',
+  `current_profile_id` bigint DEFAULT NULL COMMENT '카톡에서 지금 보는 프로필. 고르기 전이거나 지워지면 NULL',
+  `notice_version` varchar(20) NOT NULL COMMENT '연결 코드를 받을 때 확인한 안내 판',
+  `agreed_at` datetime NOT NULL COMMENT '연결 안내를 확인한 시각',
+  `linked_at` datetime NOT NULL COMMENT '카톡에서 코드를 보내 연결한 시각',
+  `last_used_at` datetime DEFAULT NULL COMMENT '다리가 이 연결로 마지막으로 부른 시각(1분 단위로 갱신)',
+  PRIMARY KEY (`link_id`),
+  UNIQUE KEY `uq_kakao_link_user` (`kakao_user_hmac`),
+  KEY `ix_kakao_link_member` (`member_id`,`linked_at`),
+  KEY `fk_kakao_link_profile` (`current_profile_id`),
+  CONSTRAINT `fk_kakao_link_member` FOREIGN KEY (`member_id`) REFERENCES `member` (`member_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_kakao_link_profile` FOREIGN KEY (`current_profile_id`) REFERENCES `profile` (`profile_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

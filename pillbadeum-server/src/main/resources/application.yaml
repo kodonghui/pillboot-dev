@@ -76,6 +76,12 @@ photo:
   # 처방전 OCR 대기 한도임. 낱알85초·채팅60초와 별도로 적용함.
   prescription-ocr-timeout-ms: ${PRESCRIPTION_OCR_TIMEOUT_MS:60000}
 
+# V3-KAKAO-014·DEC-029: 카카오 다리 키의 SHA-256 16진값(쉼표로 두 개까지, 키를 바꿀 때 씀). 비어 있으면 다리 요청을 모두 401로 막음.
+# 다리 키 원문은 다리 .env(PILL_BRIDGE_KEY)에만 둠.
+kakao:
+  bridge:
+    key-sha256: ${KAKAO_BRIDGE_KEY_SHA256:}
+
 # V3-COMMON-005·DEC-028: OpenAI 호출이 실패하면 같은 요청을 Claude로 한 번 다시 보냄. 키가 비어 있으면 백업하지 않음.
 # 읽기 한도는 같은 호출의 OpenAI 한도(openai.*-read-timeout-ms, photo.*-timeout-ms)를 그대로 씀.
 anthropic:
