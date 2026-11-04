@@ -163,6 +163,20 @@ class ChatDrugLookupTests {
             assertThat(lookup.resolve(same,ChatDeadline.after(Duration.ofSeconds(2))).medications()).as(said).containsExactly(owned);
         }
     }
+    // Codex 리뷰: 제형까지 말한 '가상약정10mg'가 서방정 내 약 '가상약정10mg서방정'으로 바로 답하던 것
+    @Test void anExplicitFormDoesNotMatchAnOwnedReleaseVariant() {
+        var owned=new AnswerInput.Medication("199900041","가상약정10mg서방정","시험제약","ETC",null,null,null,null,null,LocalDate.now());
+        for (String other : List.of("가상약정10mg","가상약 장용 10mg")) {
+            extraction("LOOKUP",other);results(0,List.of());
+            var input=new AnswerInput(1993,"UNKNOWN",false,other+" 효능은?",List.of(owned),List.of(),false);
+            assertThat(lookup.resolve(input,ChatDeadline.after(Duration.ofSeconds(2))).medications()).as(other).isEmpty();
+        }
+        for (String same : List.of("가상약 10mg","가상약정 10mg 서방정")) {
+            extraction("LOOKUP",same);
+            var input=new AnswerInput(1993,"UNKNOWN",false,same+" 효능은?",List.of(owned),List.of(),false);
+            assertThat(lookup.resolve(input,ChatDeadline.after(Duration.ofSeconds(2))).medications()).as(same).containsExactly(owned);
+        }
+    }
     // QA 2026-11-04: 등록은 '타이레놀 500'으로 후보를 찾는데 같은 이름으로 물으면 '찾지 못했어요'로 답함
     @Test void aBareNumberAfterTheNameIsReadAsMilligramsLikeRegistration() {
         extraction("LOOKUP","타이레놀 500");

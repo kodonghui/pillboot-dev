@@ -270,20 +270,29 @@ public class ChatDrugLookup {
     /**
      * 줄여 말한 이름('노바스크', '타이레놀 500')에 맞는 내 약. 숫자·단위를 뺀 이름이 내 약 이름(괄호 속 성분 제외)에 들어 있고
      * 말한 함량이 그 약 이름에 말한 차례대로 있을 때만이다('합성정5mg/10mg'는 '합성정10mg/5mg'가 아님). 단위까지 말했으면
-     * 단위도 같아야 하고('5mg'는 '5mcg'와 다름), 숫자만 말했으면 숫자만 맞춘다. 숫자를 뺀 이름이 두 글자 미만이면 맞추지 않는다.
+     * 단위도 같아야 하고('5mg'는 '5mcg'와 다름), 숫자만 말했으면 숫자만 맞춘다. 제형까지 말했으면('가상약정10mg') 숫자를 뺀
+     * 이름이 같아야 하고(서방정 '가상약정10mg서방정'이 아님), 서방·장용 등을 말했으면 그 표시가 있어야 한다.
+     * 숫자를 뺀 이름이 두 글자 미만이면 맞추지 않는다.
      */
     static List<AnswerInput.Medication> ownedLike(AnswerInput input, String keyword, String maker) {
         String q = micrograms(canonical(keyword));
-        String base = q.replaceAll(UNIT, "");
+        String base = q.replaceAll(UNIT, "").replaceAll("[/+]", "");  // 복합제 함량 사이의 '/'·'+'는 이름이 아님
         if (base.length() < 2) return List.of();
+        boolean form = FORM_END.matcher(base).find();
+        var releases = RELEASE.matcher(base).results().map(r -> r.group().toLowerCase(Locale.ROOT)).toList();
         var said = AMOUNT.matcher(q).results().toList();
         return input.medications().stream().filter(m -> {
             String name = micrograms(canonical(m.name().replaceAll("\\([^)]*\\)", "")));
-            if (name.isBlank() || !name.replaceAll(UNIT, "").contains(base)) return false;
+            String nameBase = name.replaceAll(UNIT, "").replaceAll("[/+]", "");
+            if (name.isBlank() || (form ? !nameBase.equals(base) : !nameBase.contains(base))
+                    || !releases.stream().allMatch(nameBase.toLowerCase(Locale.ROOT)::contains)) return false;
             return inOrder(said, AMOUNT.matcher(name).results().toList())
                     && (maker.isBlank() || canonical(m.maker()).equals(canonical(maker)));
         }).toList();
     }
+
+    private static final java.util.regex.Pattern FORM_END = java.util.regex.Pattern.compile("(?:정|캡슐|캅셀|시럽|과립|액|산)$");
+    private static final java.util.regex.Pattern RELEASE = java.util.regex.Pattern.compile("서방|장용|이알|에스알|(?i:er|sr|xr|cr)");
 
     /** 말한 함량마다 약 이름의 함량에서 앞서 맞춘 것 뒤에 같은 숫자(단위를 말했으면 같은 단위)가 있는지. */
     private static boolean inOrder(List<java.util.regex.MatchResult> said, List<java.util.regex.MatchResult> have) {
