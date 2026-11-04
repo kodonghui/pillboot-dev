@@ -32,4 +32,12 @@ public final class KakaoLinkDtos {
     /** 다리가 받는 연결(9.2 Q4 B안: 그 회원의 프로필 전부를 고를 수 있음). */
     public record KakaoBridgeLinkResponse(Long linkId, Long currentProfileId, List<KakaoBridgeProfile> profiles) {
     }
+
+    public record KakaoReminderDrug(Long myDrugId, String name) {
+    }
+
+    /** V3-KAKAO-017: 이 분에 카톡으로 알릴 연결 하나. 메모·용량·건강정보는 넣지 않는다. */
+    public record KakaoReminderTarget(String kakaoUser, Long profileId, String profileName,
+                                      List<KakaoReminderDrug> drugs) {
+    }
 }

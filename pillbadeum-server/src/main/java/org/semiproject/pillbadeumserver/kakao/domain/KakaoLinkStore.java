@@ -1,8 +1,10 @@
 package org.semiproject.pillbadeumserver.kakao.domain;
 
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -38,6 +40,28 @@ public class KakaoLinkStore {
     }
 
     public record ProfileRow(Long profileId, String profileName, String relationshipType) {
+    }
+
+    /** 카톡 복약 알림 대상 한 줄(연결 + 그 연결이 지금 고른 프로필의 약 하나). */
+    public record ReminderRow(String kakaoUserHmac, Long profileId, String profileName, Long myDrugId, String drugName) {
+    }
+
+    /**
+     * V3-KAKAO-017: 이 날짜가 복용 기간 안이고 이 시:분이 복용 시각인 약을, 연결이 지금 고른 프로필에서만 읽는다.
+     * 일정 없는 약과 프로필을 고르지 않은 연결은 빠진다. 메모·용량·건강정보는 읽지 않는다.
+     */
+    public List<ReminderRow> findReminderRows(LocalDate date, String time) {
+        return jdbc.query("""
+                        SELECT l.kakao_user_hmac, p.profile_id, p.profile_name, md.my_drug_id,
+                               COALESCE(d.name, md.custom_name, '이름 없는 약')
+                        FROM kakao_link l
+                        JOIN profile p ON p.profile_id = l.current_profile_id AND p.member_id = l.member_id
+                        JOIN my_drug md ON md.profile_id = p.profile_id
+                        LEFT JOIN drug d ON d.item_seq = md.item_seq
+                        WHERE md.start_date <= ? AND md.end_date >= ? AND FIND_IN_SET(?, md.dose_times) > 0
+                        ORDER BY l.link_id, md.my_drug_id""",
+                (rs, n) -> new ReminderRow(rs.getString(1), rs.getLong(2), rs.getString(3), rs.getLong(4), rs.getString(5)),
+                Date.valueOf(date), Date.valueOf(date), time);
     }
 
     public Optional<Link> findByUser(String kakaoUserHmac) {

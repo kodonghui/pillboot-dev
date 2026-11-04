@@ -681,6 +681,30 @@ paths:
               schema: { $ref: '#/components/schemas/KakaoBridgeLink' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/kakao-bridge/reminders:
+    get:
+      tags: [카카오 약봉이]
+      operationId: bridgeListKakaoReminders
+      summary: 이 분에 카톡으로 알릴 사람과 약(다리 전용, V3-KAKAO-017, DEC-033)
+      description: |
+        연결마다 지금 고른 프로필에서 그 날짜가 복용 기간 안이고 그 시:분이 복용 시각인 약을 줌. 기간·시각 조건은 웹 푸시와 같고
+        웹 푸시 설정은 보지 않음. 프로필을 고르지 않은 연결과 해당 약이 없는 연결은 빠짐. 메모·용량·건강정보는 주지 않음.
+        날짜·시각 모양이 틀리거나 없으면 400 `VALIDATION_FAILED`. 회원 JWT는 403
+      security: [{ kakaoBridge: [] }]
+      parameters:
+        - { name: date, in: query, required: true, schema: { type: string, format: date }, description: 'YYYY-MM-DD(한국 시각 기준 날짜)' }
+        - { name: time, in: query, required: true, schema: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }, description: 'HH:mm(한국 시각)' }
+      responses:
+        '200':
+          description: 알릴 연결 목록. 없으면 빈 배열
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/KakaoReminderTarget' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 회원 JWT로 부름 }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -1094,6 +1118,22 @@ components:
         profileId: { type: integer, format: int64 }
         profileName: { type: string }
         relationshipType: { $ref: '#/components/schemas/RelationshipType' }
+    KakaoReminderDrug:
+      type: object
+      required: [myDrugId, name]
+      properties:
+        myDrugId: { type: integer, format: int64 }
+        name: { type: string, description: '약 이름(직접 쓴 약은 쓴 이름)' }
+    KakaoReminderTarget:
+      type: object
+      required: [kakaoUser, profileId, profileName, drugs]
+      properties:
+        kakaoUser: { type: string, pattern: '^[0-9a-f]{64}$', description: '카카오 사용자 키의 HMAC. 다리가 자기 기록에서 사람을 찾을 때 씀' }
+        profileId: { type: integer, format: int64 }
+        profileName: { type: string }
+        drugs:
+          type: array
+          items: { $ref: '#/components/schemas/KakaoReminderDrug' }
     KakaoBridgeLink:
       type: object
       required: [linkId, profiles]
