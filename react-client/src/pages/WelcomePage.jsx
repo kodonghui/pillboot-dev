@@ -115,7 +115,7 @@ function WelcomePage() {
         </div>
         <ol className="welcome__updates-list">
           {recentReleases.map((release, index) => (
-            <li className="welcome__update" key={`${release.date}-${release.label}`}>
+            <li className="welcome__update" key={`${release.date}-${release.title}`}>
               <div className="welcome__update-meta">
                 <time className="screen-caption welcome__muted" dateTime={release.date}>
                   {yearMonthDay(release.date)}

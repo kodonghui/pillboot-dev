@@ -19,7 +19,7 @@ function ChangelogPage() {
         {releases.map((release, index) => {
           const titleId = `${baseId}-${index}`
           return (
-            <li key={`${release.date}-${release.label}`}>
+            <li key={`${release.date}-${release.title}`}>
               <article className="mt-card mt-card--wide changelog__release" aria-labelledby={titleId}>
                 <div className="changelog__meta">
                   <time className="screen-caption changelog__date" dateTime={release.date}>
