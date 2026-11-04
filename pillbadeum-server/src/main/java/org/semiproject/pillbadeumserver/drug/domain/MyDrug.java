@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  *    (Profile 엔티티가 생기면 @ManyToOne 으로 바꿀지 프로필 담당과 정한다)
  *  ----------------------------------------------------------------------------------
  *  - 시각 컬럼 이름이 registered_at / updated_at 이라 BaseTimeEntity 를 상속하지 않고 직접 감사(auditing)한다.
- *  - dose_times 는 '07:00,11:00,17:00' 처럼 쉼표로 이은 문자열로 저장한다. 자바에서는 List<LocalTime> 으로 다룬다.
+ *  - dose_times 는 '07:00,12:00,17:00' 처럼 쉼표로 이은 문자열로 저장한다. 자바에서는 List<LocalTime> 으로 다룬다.
  *  - 저장 · 수정 규칙(복용량, 기간, 복용 시각)은 이 엔티티 안에서 검사해 어디서 바꾸든 같은 규칙을 지킨다.
  *  - 약 삭제는 행을 지우고, 일정 삭제는 clearSchedule()로 일정 필드 세 개만 비운다.
  *  - 시작일·종료일·복용 시각이 모두 NULL이면 일정 없는 약이다. 일부만 비우는 것은 금지한다.
@@ -49,7 +49,7 @@ public class MyDrug {
 
     // 기간을 지정해 등록할 때 시각을 보내지 않으면 앱에서 이 기본값을 쓴다.
     public static final List<LocalTime> DEFAULT_DOSE_TIMES =
-            List.of(LocalTime.of(7, 0), LocalTime.of(11, 0), LocalTime.of(17, 0));
+            List.of(LocalTime.of(7, 0), LocalTime.of(12, 0), LocalTime.of(17, 0));  // 점심 12:00(2026-11-04 PM 결정, 앞서 11:00)
 
     public static final int MAX_DOSE_TIMES = 3;   // 하루 최대 복용 횟수
     public static final int MAX_DOSE_PER_TIME = 10;   // 1회 최대 개수 (팀 명세. 요청 검증이 없는 예전 경로도 막는다)

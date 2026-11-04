@@ -218,4 +218,21 @@ class ChatDrugLookupTests {
         assertThat(selected.continuationQuestion())
                 .isEqualTo("가상약 효능 알려줘\n(후보에서 고른 제품: 가상약정20밀리그램. 위 질문에 이 제품으로 답해 주세요.)");
     }
+
+    // 2026-11-04 운영 카톡: '1번 12시에 한알 먹을거라고'를 의도 가르기가 약목록 첫 약으로 읽어 다른 약의 일정 제안을 만듦
+    @Test void aCandidateNumberWithMoreWordsBecomesThatCandidateName() {
+        extraction("LOOKUP","가상약");results(2,List.of(row("199900001","가상어린이약산160밀리그램(성분)"),row("199900002","가상약정500밀리그람")));
+        var first=lookup.resolve(input("가상약 내일부터 3일간 먹을거야",List.of()),ChatDeadline.after(Duration.ofSeconds(2)));
+        String last=sources.append(first.reply(),first.sources());
+        assertThat(lookup.withChoiceNames("1번 12시에 한알 먹을거라고",last)).isEqualTo("가상어린이약산160밀리그램 12시에 한알 먹을거라고");
+        assertThat(lookup.withChoiceNames("2번 약 등록해 줘",last)).isEqualTo("가상약정500밀리그람 등록해 줘");
+        // 먹는 횟수·목록 밖 번호·번호만 보낸 글(고르기)은 그대로
+        assertThat(lookup.withChoiceNames("하루 2번 먹어도 돼?",last)).isEqualTo("하루 2번 먹어도 돼?");
+        assertThat(lookup.withChoiceNames("2번씩 먹을거야",last)).isEqualTo("2번씩 먹을거야");
+        assertThat(lookup.withChoiceNames("4번 12시에 먹을게",last)).isEqualTo("4번 12시에 먹을게");
+        assertThat(lookup.withChoiceNames("1번",last)).isEqualTo("1번");
+        // 직전 답이 후보 목록이 아니면 그대로
+        assertThat(lookup.withChoiceNames("1번 12시에 먹을게",sources.append("보통 답",List.of()))).isEqualTo("1번 12시에 먹을게");
+        assertThat(lookup.withChoiceNames("1번 12시에 먹을게",null)).isEqualTo("1번 12시에 먹을게");
+    }
 }

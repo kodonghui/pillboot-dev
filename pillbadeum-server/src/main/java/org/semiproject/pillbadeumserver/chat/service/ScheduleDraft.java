@@ -16,7 +16,7 @@ import org.semiproject.pillbadeumserver.medication.dto.MedicationVoiceDtos.Parse
 /**
  * V3-CHAT-007: 단문 일정 해석기(MedicationVoiceInterpreter)가 읽은 값으로 카드의 '바뀐 뒤' 일정을 만든다. 저장하지 않는다.
  * 일정을 바꾸는 요청이라 말하지 않은 값은 지금 일정을 그대로 둔다. 일정이 없는 약은 기존 단문 일정 명령의 기본값
- * (오늘 하루, 07:00·11:00·17:00)을 쓴다. 검사 규칙은 단문 일정 명령·일정 저장과 같고 안내만 대화체다.
+ * (오늘 하루, 07:00·12:00·17:00)을 쓴다. 검사 규칙은 단문 일정 명령·일정 저장과 같고 안내만 대화체다.
  */
 final class ScheduleDraft {
     // 일정 저장 요청(ScheduleRequest)의 복용 때 한도. 확정 때 같은 요청으로 저장하므로 여기서 먼저 막는다.

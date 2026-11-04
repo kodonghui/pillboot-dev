@@ -209,6 +209,37 @@ public class ChatDrugLookup {
                 .map(t -> sources.sources(t.answer())).orElse(List.of());
     }
 
+    // 후보 번호로 보이는 'N번'(뒤에 '약'·'거'·'제품'이 붙어도 됨). 먹는 횟수('하루 2번'·'2번씩'·'2번 먹어')는 뺀다.
+    private static final java.util.regex.Pattern CHOICE_REF = java.util.regex.Pattern.compile(
+            "(?<![0-9])([1-5])\\s*번(\\s*(?:약|거|꺼|것|제품))?(?![0-9a-zA-Z가-힣]*(?:째|시|일|분))");
+    private static final java.util.regex.Pattern TIMES_BEFORE = java.util.regex.Pattern.compile(
+            "(?:하루|매일|날마다|일주일|주|한\\s*달|달|번에|아침|점심|저녁|밤|새벽|식전|식후|자기\\s*전)\\s*(?:에|에만|마다|동안)?\\s*$");
+    private static final java.util.regex.Pattern TIMES_AFTER = java.util.regex.Pattern.compile(
+            "^\\s*(?:씩|이상|이하|넘게|넘어|까지|정도|쯤|이나|만|더|먹|복용|마시|마셔|발라|뿌려|넣어|넣으)");
+
+    /**
+     * 직전 답이 검색 후보 목록이면 질문의 후보 번호('1번 12시에 한알 먹을거라고')를 그 후보 이름으로 바꾼 글. 의도 가르기와
+     * 등록·일정 제안에만 쓰고 저장하는 질문은 그대로 둔다(2026-11-04 운영 카톡: 의도 가르기가 '1번'을 약목록 첫 약으로 읽음).
+     * 번호만 보낸 글('1번')은 지금처럼 고르기(select)로 가므로 바꾸지 않는다. 후보 목록이 아니거나 번호가 없으면 질문 그대로.
+     */
+    public String withChoiceNames(String question, String lastAnswer) {
+        if (lastAnswer == null || choice(question) > 0) return question;
+        var pending = pending(sources.body(lastAnswer), sources.sources(lastAnswer));
+        if (pending == null) return question;
+        var matcher = CHOICE_REF.matcher(question);
+        var out = new StringBuilder();
+        while (matcher.find()) {
+            int n = Integer.parseInt(matcher.group(1));
+            boolean times = TIMES_BEFORE.matcher(question.substring(0, matcher.start())).find()
+                    || matcher.group(2) == null && TIMES_AFTER.matcher(question.substring(matcher.end())).find();
+            String name = n <= pending.choices().size() && !times
+                    ? pending.choices().get(n - 1).drugName().replaceAll("\\([^)]*\\)", "").replaceAll("\\s+", "").strip() : "";
+            matcher.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(name.isEmpty() ? matcher.group() : name));
+        }
+        matcher.appendTail(out);
+        return out.toString();
+    }
+
     private Pending pending(String body, List<AnswerSource> provenance) {
         if (!body.startsWith(CHOICES)) return null;
         var permits = provenance.stream().filter(s -> s.source()==AnswerSource.Type.PERMIT).toList();

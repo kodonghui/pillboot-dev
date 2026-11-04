@@ -10,6 +10,7 @@ import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.chat.dto.ChatProposalResponse;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntent;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntentReader;
+import org.semiproject.pillbadeumserver.chat.service.ChatDrugLookup;
 import org.semiproject.pillbadeumserver.chat.service.PhotoProposalService;
 import org.semiproject.pillbadeumserver.chat.service.RegistrationProposalService;
 import org.semiproject.pillbadeumserver.chat.service.ScheduleProposalService;
@@ -65,6 +66,7 @@ class QuestionWebTests {
     @MockitoBean RegistrationProposalService registrations;
     @MockitoBean ScheduleProposalService schedules;
     @MockitoBean PhotoProposalService photos;
+    @MockitoBean ChatDrugLookup lookup;
 
     @BeforeEach
     void ownedRoom() {

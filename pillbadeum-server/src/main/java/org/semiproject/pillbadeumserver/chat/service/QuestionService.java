@@ -22,11 +22,12 @@ public class QuestionService {
     private final RegistrationProposalService registrations;
     private final ScheduleProposalService schedules;
     private final PhotoProposalService photos;
+    private final ChatDrugLookup lookup;
     private final Set<Long> inProgress = ConcurrentHashMap.newKeySet();
 
     public QuestionService(QuestionStore store, QuestionClassifier classifier, ChatAnswerService answers,
                            QuestionIntentReader intents, RegistrationProposalService registrations,
-                           ScheduleProposalService schedules, PhotoProposalService photos) {
+                           ScheduleProposalService schedules, PhotoProposalService photos, ChatDrugLookup lookup) {
         this.store = store;
         this.classifier = classifier;
         this.answers = answers;
@@ -34,6 +35,7 @@ public class QuestionService {
         this.registrations = registrations;
         this.schedules = schedules;
         this.photos = photos;
+        this.lookup = lookup;
     }
 
     /**
@@ -76,14 +78,15 @@ public class QuestionService {
             if (!plan.category().isPassed()) return QuestionResponse.blocked(plan.category());
             // V3-CHAT-001: 통과한 질문만 의도를 가른다. 등록 요청은 등록 제안 카드(V3-CHAT-002)로,
             // 일정 요청은 일정 제안 카드(V3-CHAT-007)로 답한다.
-            var intent = intents.read(question, context.myDrugNames(), reported);
+            String request = request(sessionId, question);
+            var intent = intents.read(request, context.myDrugNames(), reported);
             reported.check();
             var saved = store.save(sessionId, memberId, profileId, question);
             if (intent.kind() == QuestionIntent.Kind.REGISTER_DRUG)
                 return QuestionResponse.answered(saved, registrations.propose(sessionId, memberId, profileId, saved,
                         intent.drugMentions(), reported, false));
             if (intent.kind() == QuestionIntent.Kind.SCHEDULE_CHANGE)
-                return QuestionResponse.answered(saved, schedules.propose(sessionId, memberId, profileId, saved, question,
+                return QuestionResponse.answered(saved, schedules.propose(sessionId, memberId, profileId, saved, request,
                         intent.targetMyDrugName(), reported, false));
             return QuestionResponse.answered(saved, answers.complete(sessionId, memberId, profileId, saved, reported, plan));
         });
@@ -128,6 +131,16 @@ public class QuestionService {
                         intent.targetMyDrugName(), reported, true));
             return QuestionResponse.answered(question, answers.retry(sessionId, memberId, profileId, question, reported));
         });
+    }
+
+    /**
+     * 의도 가르기·등록·일정 제안에 보낼 글. 직전 답이 검색 후보 목록이고 질문에 'N번'이 있으면 그 후보 이름으로 바꾼다
+     * (ChatDrugLookup.withChoiceNames). 저장하는 질문과 보통 답변은 보낸 글 그대로다. 'N번'이 없으면 이전 답을 읽지 않는다.
+     */
+    private String request(Long sessionId, String question) {
+        if (!question.matches("(?s).*[1-5]\\s*번.*")) return question;
+        String named = lookup.withChoiceNames(question, store.lastAnswer(sessionId));
+        return named == null ? question : named;
     }
 
     private void lock(Long sessionId) {

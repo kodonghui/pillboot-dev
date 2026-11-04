@@ -64,7 +64,7 @@ class ScheduleDraftTests {
                 .as("오늘 하루, 말한 시각, 저장된 1회 개수")
                 .isEqualTo(new ScheduleValues(TODAY, TODAY, List.of("08:00", "21:00"), 1, null));
         assertThat(ScheduleDraft.proposed(said(null, null, 5, null, null, 2, null), NONE, 1, TODAY).doseTimes())
-                .containsExactly("07:00", "11:00", "17:00");
+                .containsExactly("07:00", "12:00", "17:00");
     }
 
     @Test
@@ -81,7 +81,7 @@ class ScheduleDraftTests {
     @Test
     void dailyCountUsesTheDefaultTimesUnlessItIsTheCurrentCount() {
         assertThat(ScheduleDraft.proposed(said(null, null, null, null, 2, null, null), MONTH, 2, TODAY).doseTimes())
-                .containsExactly("07:00", "11:00");
+                .containsExactly("07:00", "12:00");
         var twice = ScheduleDraft.stored(MONTH.startDate(), MONTH.endDate(), "08:00,20:00", 1, null);
         assertThat(ScheduleDraft.proposed(said(null, null, null, null, 2, 2, null), twice, 1, TODAY).doseTimes())
                 .containsExactly("08:00", "20:00");
