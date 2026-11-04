@@ -100,6 +100,10 @@ function KakaoLinkPage() {
   const known = useRef(null)
   const warned = useRef(false)
   const copiedTimer = useRef(null)
+  // 목록 읽기 차례. 늦게 온 앞 읽기의 답과 끊기 전에 시작한 읽기의 답(끊은 줄이 되살아남)은 버린다.
+  const readSeq = useRef(0)
+  const appliedSeq = useRef(0)
+  const staleUpTo = useRef(0)
 
   useEffect(() => {
     alive.current = true
@@ -112,23 +116,23 @@ function KakaoLinkPage() {
 
   // 연결 목록을 읽는다. quiet: 다시 읽기(실패해도 오류를 보이지 않고 전 목록을 둔다)
   const load = useCallback(async (quiet) => {
+    const seq = ++readSeq.current
+    const fresh = () => alive.current && seq > appliedSeq.current && seq > staleUpTo.current
     let data
     try {
       data = await getKakaoLinks()
     } catch {
-      if (alive.current && !quiet) setListFailed(true)
+      if (fresh() && !quiet) setListFailed(true)
       return
     }
-    if (!alive.current) return
+    if (!fresh()) return
+    appliedSeq.current = seq
     setLinks(data)
     setListFailed(false)
     if (data.length < maxKakaoLinks) setLimitHit(false)
-    if (!watching.current) return
+    // 코드는 목록을 읽은 뒤에만 받으므로 견줄 연결 번호(known)가 늘 있다.
+    if (!watching.current || known.current === null) return
     const ids = data.map((link) => link.linkId)
-    if (known.current === null) {
-      known.current = ids
-      return
-    }
     if (ids.some((id) => !known.current.includes(id))) {
       watching.current = false
       known.current = null
@@ -143,9 +147,14 @@ function KakaoLinkPage() {
   // 처음 읽기. 코드가 아직 없으니 새 연결을 견줄 것이 없다.
   useEffect(() => {
     let active = true
+    const seq = ++readSeq.current
     getKakaoLinks()
-      .then((data) => active && setLinks(data))
-      .catch(() => active && setListFailed(true))
+      .then((data) => {
+        if (!active || seq <= appliedSeq.current || seq <= staleUpTo.current) return
+        appliedSeq.current = seq
+        setLinks(data)
+      })
+      .catch(() => active && seq > appliedSeq.current && setListFailed(true))
     return () => {
       active = false
     }
@@ -188,6 +197,7 @@ function KakaoLinkPage() {
   }
 
   const requestCode = async () => {
+    if (links === null) return
     setRequesting(true)
     setCodeError(null)
     setDone(null)
@@ -214,7 +224,7 @@ function KakaoLinkPage() {
     const received = Date.now()
     const serverLeft = Date.parse(data.expiresAt) - received
     const left = Number.isFinite(serverLeft) ? Math.min(Math.max(serverLeft, 0), codeLifetimeMs) : codeLifetimeMs
-    known.current = links ? links.map((link) => link.linkId) : null
+    known.current = links.map((link) => link.linkId)
     watching.current = true
     warned.current = false
     clearTimeout(copiedTimer.current)
@@ -278,6 +288,7 @@ function KakaoLinkPage() {
       return
     }
     if (!alive.current) return
+    staleUpTo.current = readSeq.current
     flushSync(() => {
       setLinks((current) => current.filter((item) => item.linkId !== link.linkId))
       setLimitHit(false)
@@ -290,6 +301,8 @@ function KakaoLinkPage() {
   }
 
   const loading = links === null && !listFailed
+  // 목록을 한 번도 읽지 못함: 코드를 받을 때 있던 연결을 몰라 새 연결을 알아볼 수 없어 코드를 받지 않는다.
+  const noBaseline = links === null
   const full = (links?.length ?? 0) >= maxKakaoLinks || limitHit
   const seconds = issued ? Math.max(0, Math.ceil((issued.deadline - now) / 1000)) : 0
   const codeErrorLine = codeError && <FieldError id={codeErrorId}>{codeErrors[codeError]}</FieldError>
@@ -377,6 +390,10 @@ function KakaoLinkPage() {
             <Icon name="loader" size="s" className="icon--spin" />
             연결 상태를 불러오는 중이에요.
           </p>
+        ) : noBaseline ? (
+          <p className="screen-caption kakao-link__hint" id={hintId}>
+            연결 상태를 불러온 뒤 코드를 받을 수 있어요.
+          </p>
         ) : (
           !agreed && (
             <p className="screen-caption kakao-link__hint" id={hintId}>
@@ -387,8 +404,8 @@ function KakaoLinkPage() {
         <button
           className="mt-btn mt-btn--solid"
           type="button"
-          disabled={!agreed || requesting || loading}
-          aria-describedby={describedBy(!agreed && !loading && hintId)}
+          disabled={!agreed || requesting || noBaseline}
+          aria-describedby={describedBy(!loading && (noBaseline || !agreed) && hintId)}
           onClick={requestCode}
         >
           {requesting && <Icon name="loader" size="s" className="icon--spin" />}
