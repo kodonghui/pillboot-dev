@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.semiproject.pillbadeumserver.chat.controller.ChatPhotoController;
 import org.semiproject.pillbadeumserver.chat.dto.QuestionResponse;
 import org.semiproject.pillbadeumserver.chat.service.ChatAnswerService;
+import org.semiproject.pillbadeumserver.chat.service.ChatDrugLookup;
 import org.semiproject.pillbadeumserver.chat.service.PhotoProposalService;
 import org.semiproject.pillbadeumserver.chat.service.QuestionClassifier;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntentReader;
@@ -51,6 +52,7 @@ class ChatPhotoWebTests {
     @MockitoBean RegistrationProposalService registrations;
     @MockitoBean ScheduleProposalService schedules;
     @MockitoBean PhotoProposalService photos;
+    @MockitoBean ChatDrugLookup lookup;
     private final MockMultipartFile image = new MockMultipartFile("image", "rx.jpg", "image/jpeg", new byte[]{1, 2, 3});
 
     @BeforeEach

@@ -146,7 +146,7 @@ public class ScheduleProposalService {
     }
 
     /** 줄여 부르는 이름: 괄호·띄어쓰기를 빼고 첫 숫자 앞까지, 끝의 제형(정·캡슐 등)을 뺀다('노바스크정 5mg' → '노바스크'). */
-    private static String base(String name) {
+    static String base(String name) {
         String plain = name.replaceAll("\\([^)]*\\)", "").replaceAll("\\s+", "");
         int digit = 0;
         while (digit < plain.length() && !Character.isDigit(plain.charAt(digit))) digit++;

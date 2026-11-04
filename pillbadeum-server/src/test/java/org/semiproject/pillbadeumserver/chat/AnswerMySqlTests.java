@@ -366,7 +366,7 @@ class AnswerMySqlTests {
     void noMedicationAndUnavailableOfficialDataProduceStoredFallbackAnswersWithoutOpenAiGeneration() throws Exception {
         jdbc.update("DELETE FROM my_drug WHERE profile_id=?", profileId);
         var empty = body(send(sessionId, "복약 질문", 200));
-        assertThat(empty.path("answer").path("content").asString()).contains("아직 등록한 약이 없어");
+        assertThat(empty.path("answer").path("content").asString()).contains("어떤 약인지 알려 주시면");
         assertThat(generations.get()).isZero(); assertThat(publicCalls.get()).isZero();
         medication(profileId, "다시등록한약정");
         publicStatus.set(400);

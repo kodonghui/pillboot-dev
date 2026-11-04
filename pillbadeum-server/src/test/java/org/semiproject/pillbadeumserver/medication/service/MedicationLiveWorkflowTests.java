@@ -182,7 +182,7 @@ class MedicationLiveWorkflowTests {
         var result = workflow.prepare(5, selection, DATE, List.of(user("약 일정 추가해줘")));
         assertThat(result.request()).isNull();
         assertThat(result.outcome().missingFields()).containsExactly("endDate", "doseTimes", "dosePerTime");
-        assertThat(result.outcome().message()).contains("오늘부터 1일", "하루 3번", "7·11·17시", "1회 2개", "적용할까요");
+        assertThat(result.outcome().message()).contains("오늘부터 1일", "하루 3번", "7·12·17시", "1회 2개", "적용할까요");
         assertThat(result.outcome().message()).doesNotContain("어떻게", "몇 시", "며칠");
         assertThat(result.outcome().appliedDefaults()).isEmpty();
         assertThat(result.proposal().request().endDate()).isEqualTo(DATE);
@@ -196,7 +196,7 @@ class MedicationLiveWorkflowTests {
         assertThat(result.request()).isNull();
         assertThat(result.outcome().missingFields()).containsExactly("doseTimes");
         assertThat(result.outcome().message()).contains("하루 3번", "적용할까요");
-        assertThat(result.proposal().request().doseTimes()).containsExactly(LocalTime.of(7, 0), LocalTime.of(11, 0), LocalTime.of(17, 0));
+        assertThat(result.proposal().request().doseTimes()).containsExactly(LocalTime.of(7, 0), LocalTime.of(12, 0), LocalTime.of(17, 0));
         verifyNoInteractions(schedules);
     }
 
@@ -219,7 +219,7 @@ class MedicationLiveWorkflowTests {
         var result = workflow.prepare(5, selection, DATE, List.of(user("아몰라 알아서 저장해")));
         assertThat(result.request().startDate()).isEqualTo(DATE);
         assertThat(result.request().endDate()).isEqualTo(DATE);
-        assertThat(result.request().doseTimes()).containsExactly(LocalTime.of(7, 0), LocalTime.of(11, 0), LocalTime.of(17, 0));
+        assertThat(result.request().doseTimes()).containsExactly(LocalTime.of(7, 0), LocalTime.of(12, 0), LocalTime.of(17, 0));
         assertThat(result.request().dosePerTime()).isEqualTo(2);
         assertThat(result.outcome().appliedDefaults()).contains("endDate", "doseTimes", "dosePerTime");
     }
@@ -296,7 +296,7 @@ class MedicationLiveWorkflowTests {
         var result = workflow.prepare(5, selection, DATE, List.of(user("오늘부터 이틀 테스트약 저녁에만")));
         assertThat(result.request()).isNull();
         assertThat(result.proposal().request().doseTimes()).containsExactly(LocalTime.of(17, 0));
-        assertThat(result.outcome().message()).contains("하루 1번", "17시").doesNotContain("7·11·17시");
+        assertThat(result.outcome().message()).contains("하루 1번", "17시").doesNotContain("7·12·17시");
         verifyNoInteractions(schedules);
     }
 
@@ -304,7 +304,7 @@ class MedicationLiveWorkflowTests {
     void twoExplicitDailyDosesProposeTwoTimesAndKeepTheExplicitQuantity() {
         plan(new Plan("SAVE", null, "2026-11-05", null, 2, null, 2, 3, null, false, null));
         var result = workflow.prepare(5, selection, DATE, List.of(user("5일부터 이틀 하루 두 번 세 개씩")));
-        assertThat(result.proposal().request().doseTimes()).containsExactly(LocalTime.of(7, 0), LocalTime.of(11, 0));
+        assertThat(result.proposal().request().doseTimes()).containsExactly(LocalTime.of(7, 0), LocalTime.of(12, 0));
         assertThat(result.proposal().request().dosePerTime()).isEqualTo(3);
         assertThat(result.proposal().request().startDate()).isEqualTo(DATE.plusDays(2));
         assertThat(result.proposal().defaults()).doesNotContain("dosePerTime", "endDate");

@@ -65,6 +65,20 @@ public class QuestionStore {
     }
 
     /**
+     * beforeTurn 앞 턴의 답 원문(근거 표시 포함, beforeTurn 이 null 이면 마지막 턴). 없으면 null. 직전 답이 검색 후보
+     * 목록일 때 질문의 'N번'을 그 후보 이름으로 바꾸는 데만 쓴다(2026-11-04 운영 카톡: '1번 12시에 한알 먹을거라고'가
+     * 다른 약의 일정 제안이 됨). 다시 보내기는 저장된 질문의 턴이 마지막이라 그 앞 턴의 답을 본다(Codex 리뷰: 다시 보내면
+     * 고른 후보 이름이 빠져 등록 제안을 다시 만들지 못함).
+     */
+    @Transactional(readOnly = true)
+    public String answerBefore(Long sessionId, Integer beforeTurn) {
+        var turns = messages.findHistoryTurns(sessionId, beforeTurn, org.springframework.data.domain.PageRequest.of(0, 1));
+        if (turns.isEmpty()) return null;
+        return messages.findHistoryMessages(sessionId, turns).stream().filter(message -> "assistant".equals(message.getRole()))
+                .map(ChatMessage::getContent).reduce((first, second) -> second).orElse(null);
+    }
+
+    /**
      * PASS 질문만 전달받아 질문·첫 사본·제목·활동 시각을 한 번에 커밋한다.
      * 프로필과 방의 잠금 뒤에 메시지를 조회하므로 동시 저장 후의 최신 턴을 기준으로 계산한다.
      * 외부 호출은 없으며 실패하면 질문과 사본 변경이 함께 롤백된다.

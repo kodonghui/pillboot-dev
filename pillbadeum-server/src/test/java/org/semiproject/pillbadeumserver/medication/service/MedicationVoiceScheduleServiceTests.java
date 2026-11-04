@@ -49,7 +49,7 @@ class MedicationVoiceScheduleServiceTests {
 
         assertThat(result.schedule().startDate()).isEqualTo(SELECTED);
         assertThat(result.schedule().endDate()).isEqualTo(SELECTED.plusDays(6));
-        assertThat(result.schedule().doseTimes()).containsExactly("07:00", "11:00", "17:00");
+        assertThat(result.schedule().doseTimes()).containsExactly("07:00", "12:00", "17:00");
         assertThat(result.schedule().dosePerTime()).isEqualTo(2);
         assertThat(result.schedule().timing()).isEqualTo("식후");
         assertThat(result.appliedDefaults()).contains("myDrugId", "startDate", "doseTimes", "dosePerTime", "timing");

@@ -54,7 +54,7 @@ export function weekBars(schedules, week) {
 // 복용 시간 칸(목업 SCH-03 · 06): 아침 · 점심 · 저녁 세 칸과 기본 시각. 칸을 빼고 다시 더할 수 있다.
 export const doseSlots = [
   { name: '아침', time: '07:00' },
-  { name: '점심', time: '11:00' },
+  { name: '점심', time: '12:00' },
   { name: '저녁', time: '17:00' },
 ]
 

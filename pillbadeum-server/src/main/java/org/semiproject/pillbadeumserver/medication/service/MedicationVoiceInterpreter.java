@@ -34,7 +34,7 @@ public class MedicationVoiceInterpreter {
             일주일 동안은 durationDays=7이다. 종료일을 직접 말하지 않으면 endDate=null이다.
             명시하지 않은 doseTimes, dailyCount, dosePerTime, timing은 null로 둔다. 기본값을 추측하지 않는다.
             하루 횟수는 dailyCount에 담고, 삼시세끼는 3이다.
-            아침·점심·저녁은 화면에 정해진 시각인 07:00·11:00·17:00으로만 치환할 수 있다.
+            아침·점심·저녁은 화면에 정해진 시각인 07:00·12:00·17:00으로만 치환할 수 있다.
             명시된 시각은 24시간제 HH:mm으로 변환한다. 복용 때(식전·식후 등)는 timing으로 분리한다.
             지원 범위를 벗어나는 개수·횟수도 축소하거나 교정하지 말고 그대로 출력해 서버가 검사하게 한다.
             """;

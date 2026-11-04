@@ -10,6 +10,7 @@ import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.chat.dto.ChatProposalResponse;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntent;
 import org.semiproject.pillbadeumserver.chat.service.QuestionIntentReader;
+import org.semiproject.pillbadeumserver.chat.service.ChatDrugLookup;
 import org.semiproject.pillbadeumserver.chat.service.PhotoProposalService;
 import org.semiproject.pillbadeumserver.chat.service.RegistrationProposalService;
 import org.semiproject.pillbadeumserver.chat.service.ScheduleProposalService;
@@ -65,6 +66,7 @@ class QuestionWebTests {
     @MockitoBean RegistrationProposalService registrations;
     @MockitoBean ScheduleProposalService schedules;
     @MockitoBean PhotoProposalService photos;
+    @MockitoBean ChatDrugLookup lookup;
 
     @BeforeEach
     void ownedRoom() {
@@ -231,6 +233,25 @@ class QuestionWebTests {
         mvc.perform(post("/api/chat-sessions/42/messages/100/retry").header("Authorization", authorization()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.answer.content").value("후보 없음"))
                 .andExpect(jsonPath("$.answer.proposal").value(nullValue()));
+        verifyNoInteractions(answers);
+    }
+
+    // Codex 리뷰: 후보 번호로 고른 등록 요청('1번 등록해 줘')을 다시 보내면 저장된 질문 앞 턴의 후보 목록으로 번호를 바꿔 가름
+    @Test
+    void retryOfACandidateNumberRequestUsesTheAnswerBeforeTheSavedQuestion() throws Exception {
+        var question = new QuestionResponse.Question(100L, 3);
+        when(store.retryQuestion(42L, 7L, 10L, 100L)).thenReturn(question);
+        when(store.questionContent(42L, question)).thenReturn("1번 등록해 줘");
+        when(store.answerBefore(42L, 3)).thenReturn("검색된 제품이 여러 개예요.");
+        when(lookup.withChoiceNames("1번 등록해 줘", "검색된 제품이 여러 개예요.")).thenReturn("가상약정500밀리그람 등록해 줘");
+        when(intents.read(eq("가상약정500밀리그람 등록해 줘"), any(), any())).thenReturn(
+                new QuestionIntent(QuestionIntent.Kind.REGISTER_DRUG, List.of("가상약정500밀리그람"), null));
+        when(registrations.propose(eq(42L), eq(7L), eq(10L), eq(question), eq(List.of("가상약정500밀리그람")), any(), eq(true)))
+                .thenReturn(new QuestionResponse.Answer(101L, 3, "다시 후보", null,
+                        java.time.OffsetDateTime.parse("2026-11-04T19:00:00+09:00")));
+        mvc.perform(post("/api/chat-sessions/42/messages/100/retry").header("Authorization", authorization()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.answer.content").value("다시 후보"));
+        verify(store, never()).answerBefore(42L, null);
         verifyNoInteractions(answers);
     }
 

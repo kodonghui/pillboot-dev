@@ -70,7 +70,8 @@ class QuestionIntentReaderTests {
         ArgumentCaptor<List<AiMessage>> messages = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<String> instructions = ArgumentCaptor.forClass(String.class);
         verify(ai).createJson(instructions.capture(), messages.capture(), eq(0), eq("question_intent"), anyMap(), eq("low"));
-        assertThat(instructions.getValue()).contains("REGISTER_DRUG", "SCHEDULE_CHANGE", "판단이 애매하면 QUESTION");
+        assertThat(instructions.getValue()).contains("REGISTER_DRUG", "SCHEDULE_CHANGE", "판단이 애매하면 QUESTION",
+                "myDrugNames에 없는 약을 앞으로", "번호만으로 약을 정하지 않는다");
         var sent = json.readTree(messages.getValue().getFirst().content());
         assertThat(sent.path("question").asString()).isEqualTo("타이레놀 500 등록해 줘");
         assertThat(sent.path("myDrugNames").path(0).asString()).isEqualTo("가상혈압정 5mg");
@@ -113,6 +114,22 @@ class QuestionIntentReaderTests {
         var intent = reader.read("타이레놀 등록해 줘", List.of(), ChatDeadline.after(Duration.ofMillis(200)));
         assertThat(intent).isEqualTo(QuestionIntent.question());
         assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofMillis(1_500));
+    }
+
+    // 2026-11-04 운영 카톡: 검색 후보 '1번'을 약목록 첫 약으로 읽어 다른 약의 일정 제안을 만듦
+    @Test
+    void aTargetChosenOnlyByACandidateNumberIsDropped() {
+        var names = List.of("솔로가상정(성분)", "노바가상정10밀리그램");
+        var byNumber = json.valueToTree(Map.of("intent", "SCHEDULE_CHANGE", "drugMentions", List.of(),
+                "targetMyDrugName", "솔로가상정(성분)"));
+        assertThat(QuestionIntentReader.checked(byNumber, "1번 12시에 한알 먹을거라고", names).targetMyDrugName()).isNull();
+        // 이름을 말했거나 번호가 먹는 횟수면 그대로
+        assertThat(QuestionIntentReader.checked(byNumber, "솔로가상 1번 약 12시로 바꿔 줘", names).targetMyDrugName())
+                .isEqualTo("솔로가상정(성분)");
+        assertThat(QuestionIntentReader.checked(byNumber, "하루 2번 12시랑 6시에 먹을게", names).targetMyDrugName())
+                .isEqualTo("솔로가상정(성분)");
+        assertThat(QuestionIntentReader.checked(byNumber, "12시에 한 알 먹을게", names).targetMyDrugName())
+                .isEqualTo("솔로가상정(성분)");
     }
 
     @Test
