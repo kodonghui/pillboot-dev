@@ -97,8 +97,9 @@ class ChatSessionMySqlTests {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", aMapWithSize(1)))
                     .andExpect(jsonPath("$.sessions.length()").value(3))
-                    .andExpect(jsonPath("$.sessions[0]", aMapWithSize(3)))
+                    .andExpect(jsonPath("$.sessions[0]", aMapWithSize(4)))
                     .andExpect(jsonPath("$.sessions[0].sessionId").value(tied))
+                    .andExpect(jsonPath("$.sessions[0].channel").value("WEB"))
                     .andExpect(jsonPath("$.sessions[0].title").value(nullValue()))
                     .andExpect(jsonPath("$.sessions[0].updatedAt").value("2026-10-19T09:00:00+09:00"))
                     .andExpect(jsonPath("$.sessions[1].sessionId").value(recent))
@@ -158,8 +159,9 @@ class ChatSessionMySqlTests {
                             .header("Authorization", authorization(memberId))
                             .contentType(MediaType.APPLICATION_JSON).content("{\"memberId\":-99}"))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$", aMapWithSize(3)))
+                    .andExpect(jsonPath("$", aMapWithSize(4)))
                     .andExpect(jsonPath("$.title").value(nullValue()))
+                    .andExpect(jsonPath("$.channel").value("WEB"))
                     .andExpect(jsonPath("$.createdAt").value(org.hamcrest.Matchers.endsWith("+09:00")))
                     .andReturn();
             long room = roomId(result);
