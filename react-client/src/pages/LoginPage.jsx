@@ -9,10 +9,17 @@ import PasswordField from '../components/PasswordField.jsx'
 import { paths } from '../paths.js'
 import { useAuthStore } from '../store/auth.js'
 
+// 로그인 전에 바로 들어왔던 로그인 후 화면의 주소(MemberLayout 이 넘김). 앱 안의 경로만 따른다.
+function returnPath(from) {
+  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : null
+}
+
 // MEM-04 로그인. 로그인하면 프로필이 없으면 프로필 만들기, 있으면 홈으로 간다(docs/auth-logout.md).
+// 로그인 후 화면 주소로 바로 들어와 이리 왔으면 홈 대신 그 주소로 돌아간다.
 // 가입 직후 자동 로그인에 실패해 들어오면 가입 완료 안내와 이메일을 받아 보여 준다.
 function LoginPage() {
   const { state } = useLocation()
+  const returnTo = returnPath(state?.from)
   const navigate = useNavigate()
   const signIn = useAuthStore((store) => store.signIn)
   const titleId = useId()
@@ -47,7 +54,7 @@ function LoginPage() {
     try {
       const session = await loginWithProfiles(request)
       signIn(session)
-      navigate(session.profiles.length > 0 ? paths.home : paths.profileNew, { replace: true })
+      navigate(session.profiles.length > 0 ? (returnTo ?? paths.home) : paths.profileNew, { replace: true })
     } catch (error) {
       const wrong = errorOf(error).code === 'LOGIN_FAILED'
       setFailure(wrong ? '이메일 또는 비밀번호가 맞지 않습니다.' : '로그인하지 못했어요. 잠시 후 다시 시도해 주세요.')
