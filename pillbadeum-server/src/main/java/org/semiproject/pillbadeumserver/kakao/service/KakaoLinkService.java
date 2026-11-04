@@ -32,7 +32,7 @@ public class KakaoLinkService {
     private static final Logger log = LoggerFactory.getLogger(KakaoLinkService.class);
 
     /** 연결 안내(PRF-04) 판 번호. 안내 글을 바꾸면 올린다. */
-    public static final String NOTICE_VERSION = "KAKAO-LINK-1";
+    public static final String NOTICE_VERSION = "KAKAO-LINK-2";
     static final int MAX_LINKS = 5;
     static final int MAX_CODES_PER_WINDOW = 5;
     static final long CODE_MINUTES = 10;
