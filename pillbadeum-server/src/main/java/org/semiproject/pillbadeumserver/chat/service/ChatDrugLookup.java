@@ -145,7 +145,9 @@ public class ChatDrugLookup {
                 ambiguousOwned = owned.stream().limit(5).toList();
                 continue;
             }
-            var result=new PrescriptionDrugLookup(publicData).find(keyword,maker,deadline.remaining());
+            // '타이레놀 500'처럼 단위 없이 끝난 숫자는 등록 검색과 같이 밀리그램으로 읽는다(QA 2026-11-04: 등록은 후보를
+            // 찾았는데 같은 이름으로 물으면 '찾지 못했어요'로 답함. 붙인 표기 '타이레놀500'은 허가 품목명에 없음)
+            var result=new PrescriptionDrugLookup(publicData).find(RegistrationCandidates.searchName(keyword),maker,deadline.remaining());
             var unique=new LinkedHashMap<String,JsonNode>();
             for (var row:result.rows()) {
                 String code=row.path("ITEM_SEQ").asString("");
@@ -267,8 +269,8 @@ public class ChatDrugLookup {
 
     /**
      * 줄여 말한 이름('노바스크', '타이레놀 500')에 맞는 내 약. 숫자·단위를 뺀 이름이 내 약 이름(괄호 속 성분 제외)에 들어 있고
-     * 말한 함량이 그 약 이름에 모두 있을 때만이다. 단위까지 말했으면 단위도 같아야 하고('5mg'는 '5mcg'와 다름),
-     * 숫자만 말했으면 숫자만 맞춘다. 숫자를 뺀 이름이 두 글자 미만이면 맞추지 않는다.
+     * 말한 함량이 그 약 이름에 말한 차례대로 있을 때만이다('합성정5mg/10mg'는 '합성정10mg/5mg'가 아님). 단위까지 말했으면
+     * 단위도 같아야 하고('5mg'는 '5mcg'와 다름), 숫자만 말했으면 숫자만 맞춘다. 숫자를 뺀 이름이 두 글자 미만이면 맞추지 않는다.
      */
     static List<AnswerInput.Medication> ownedLike(AnswerInput input, String keyword, String maker) {
         String q = micrograms(canonical(keyword));
@@ -278,13 +280,24 @@ public class ChatDrugLookup {
         return input.medications().stream().filter(m -> {
             String name = micrograms(canonical(m.name().replaceAll("\\([^)]*\\)", "")));
             if (name.isBlank() || !name.replaceAll(UNIT, "").contains(base)) return false;
-            var have = AMOUNT.matcher(name).results().toList();
-            var numbers = have.stream().map(a -> a.group(1)).toList();
-            var amounts = have.stream().filter(a -> a.group(2) != null).map(a -> a.group(1) + unit(a.group(2))).toList();
-            return said.stream().allMatch(a -> a.group(2) == null ? numbers.contains(a.group(1))
-                    : amounts.contains(a.group(1) + unit(a.group(2))))
+            return inOrder(said, AMOUNT.matcher(name).results().toList())
                     && (maker.isBlank() || canonical(m.maker()).equals(canonical(maker)));
         }).toList();
+    }
+
+    /** 말한 함량마다 약 이름의 함량에서 앞서 맞춘 것 뒤에 같은 숫자(단위를 말했으면 같은 단위)가 있는지. */
+    private static boolean inOrder(List<java.util.regex.MatchResult> said, List<java.util.regex.MatchResult> have) {
+        int next = 0;
+        for (var a : said) {
+            while (next < have.size() && !sameAmount(a, have.get(next))) next++;
+            if (next++ >= have.size()) return false;
+        }
+        return true;
+    }
+
+    private static boolean sameAmount(java.util.regex.MatchResult said, java.util.regex.MatchResult have) {
+        return said.group(1).equals(have.group(1))
+                && (said.group(2) == null || have.group(2) != null && unit(said.group(2)).equals(unit(have.group(2))));
     }
 
     private static String micrograms(String value) {

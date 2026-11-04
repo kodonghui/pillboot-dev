@@ -151,6 +151,32 @@ class ChatDrugLookupTests {
             assertThat(lookup.resolve(same,ChatDeadline.after(Duration.ofSeconds(2))).medications()).as(said).containsExactly(owned);
         }
     }
+    // Codex 리뷰: 복합제 함량 차례를 보지 않아 '합성정5mg/10mg'가 '합성정10mg/5mg'로 바로 답하던 것
+    @Test void abbreviatedCombinationStrengthsMustKeepTheirOrder() {
+        var owned=new AnswerInput.Medication("199900031","합성정10mg/5mg","시험제약","ETC",null,null,null,null,null,LocalDate.now());
+        extraction("LOOKUP","합성정 5mg/10mg");results(0,List.of());
+        var reversed=new AnswerInput(1993,"UNKNOWN",false,"합성정 5mg/10mg 효능은?",List.of(owned),List.of(),false);
+        assertThat(lookup.resolve(reversed,ChatDeadline.after(Duration.ofSeconds(2))).medications()).isEmpty();
+        for (String said : List.of("합성정 10mg/5mg","합성정 10/5","합성정 5")) {
+            extraction("LOOKUP",said);
+            var same=new AnswerInput(1993,"UNKNOWN",false,said+" 효능은?",List.of(owned),List.of(),false);
+            assertThat(lookup.resolve(same,ChatDeadline.after(Duration.ofSeconds(2))).medications()).as(said).containsExactly(owned);
+        }
+    }
+    // QA 2026-11-04: 등록은 '타이레놀 500'으로 후보를 찾는데 같은 이름으로 물으면 '찾지 못했어요'로 답함
+    @Test void aBareNumberAfterTheNameIsReadAsMilligramsLikeRegistration() {
+        extraction("LOOKUP","타이레놀 500");
+        when(data.get(anyString(),anyMap(),any(Duration.class))).thenAnswer(call -> {
+            var params=(Map<?,?>) call.getArgument(1);
+            var items="타이레놀".equals(params.get("item_name"))
+                    ? List.of(row("199900021","타이레놀정500밀리그람"),row("199900022","타이레놀산500밀리그램"),row("199900023","타이레놀8시간이알서방정650밀리그람"))
+                    : List.<Map<String,Object>>of();
+            return json.valueToTree(Map.of("totalCount",items.size(),"items",items));
+        });
+        var result=lookup.resolve(input("타이레놀 500 하루 2번 먹어도 돼?",List.of()),ChatDeadline.after(Duration.ofSeconds(2)));
+        assertThat(result.reply()).startsWith(ChatDrugLookup.CHOICES).contains("타이레놀정500밀리그람","타이레놀산500밀리그램")
+                .doesNotContain("650");
+    }
     @Test void abbreviatedNameMatchingTwoOwnedProductsAsksAmongOwnedOnly() {
         extraction("LOOKUP","가상약");
         var ten=new AnswerInput.Medication("199900001","가상약정10mg","시험제약","ETC",null,null,null,null,null,LocalDate.now());
