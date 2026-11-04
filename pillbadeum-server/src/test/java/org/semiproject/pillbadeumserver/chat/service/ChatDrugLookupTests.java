@@ -138,6 +138,19 @@ class ChatDrugLookupTests {
         assertThat(lookup.resolve(other,ChatDeadline.after(Duration.ofSeconds(2))).medications()).isEmpty();
         verify(data,atLeastOnce()).get(anyString(),anyMap(),any(Duration.class));
     }
+    // Codex 리뷰: '가상약 5mg'가 숫자만 같은 '가상약정5mcg'로 바로 답하던 것
+    @Test void abbreviatedNameWithAUnitMustMatchTheOwnedUnit() {
+        var owned=new AnswerInput.Medication("199900003","가상약정5마이크로그램","시험제약","ETC",null,null,null,null,null,LocalDate.now());
+        extraction("LOOKUP","가상약 5mg");results(0,List.of());
+        var other=new AnswerInput(1993,"UNKNOWN",false,"가상약 5mg 효능은?",List.of(owned),List.of(),false);
+        assertThat(lookup.resolve(other,ChatDeadline.after(Duration.ofSeconds(2))).medications()).isEmpty();
+        verify(data,atLeastOnce()).get(anyString(),anyMap(),any(Duration.class));
+        for (String said : List.of("가상약 5mcg","가상약 5μg","가상약 5")) {
+            extraction("LOOKUP",said);
+            var same=new AnswerInput(1993,"UNKNOWN",false,said+" 효능은?",List.of(owned),List.of(),false);
+            assertThat(lookup.resolve(same,ChatDeadline.after(Duration.ofSeconds(2))).medications()).as(said).containsExactly(owned);
+        }
+    }
     @Test void abbreviatedNameMatchingTwoOwnedProductsAsksAmongOwnedOnly() {
         extraction("LOOKUP","가상약");
         var ten=new AnswerInput.Medication("199900001","가상약정10mg","시험제약","ETC",null,null,null,null,null,LocalDate.now());

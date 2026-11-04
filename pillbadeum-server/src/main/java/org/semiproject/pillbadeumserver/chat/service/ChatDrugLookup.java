@@ -262,24 +262,37 @@ public class ChatDrugLookup {
         }).toList();
     }
 
-    private static final java.util.regex.Pattern NUMBER = java.util.regex.Pattern.compile("[0-9]+(?:\\.[0-9]+)?");
     private static final String UNIT = "[0-9]+(?:\\.[0-9]+)?(?:mcg|μg|ug|mg|g)?";
+    private static final java.util.regex.Pattern AMOUNT = java.util.regex.Pattern.compile("([0-9]+(?:\\.[0-9]+)?)(mcg|μg|ug|mg|g)?");
 
     /**
      * 줄여 말한 이름('노바스크', '타이레놀 500')에 맞는 내 약. 숫자·단위를 뺀 이름이 내 약 이름(괄호 속 성분 제외)에 들어 있고
-     * 말한 숫자가 그 약 이름에 모두 있을 때만이다. 숫자를 뺀 이름이 두 글자 미만이면 맞추지 않는다.
+     * 말한 함량이 그 약 이름에 모두 있을 때만이다. 단위까지 말했으면 단위도 같아야 하고('5mg'는 '5mcg'와 다름),
+     * 숫자만 말했으면 숫자만 맞춘다. 숫자를 뺀 이름이 두 글자 미만이면 맞추지 않는다.
      */
     static List<AnswerInput.Medication> ownedLike(AnswerInput input, String keyword, String maker) {
-        String q = canonical(keyword);
+        String q = micrograms(canonical(keyword));
         String base = q.replaceAll(UNIT, "");
         if (base.length() < 2) return List.of();
-        var numbers = NUMBER.matcher(q).results().map(java.util.regex.MatchResult::group).toList();
+        var said = AMOUNT.matcher(q).results().toList();
         return input.medications().stream().filter(m -> {
-            String name = canonical(m.name().replaceAll("\\([^)]*\\)", ""));
+            String name = micrograms(canonical(m.name().replaceAll("\\([^)]*\\)", "")));
             if (name.isBlank() || !name.replaceAll(UNIT, "").contains(base)) return false;
-            var have = NUMBER.matcher(name).results().map(java.util.regex.MatchResult::group).toList();
-            return have.containsAll(numbers) && (maker.isBlank() || canonical(m.maker()).equals(canonical(maker)));
+            var have = AMOUNT.matcher(name).results().toList();
+            var numbers = have.stream().map(a -> a.group(1)).toList();
+            var amounts = have.stream().filter(a -> a.group(2) != null).map(a -> a.group(1) + unit(a.group(2))).toList();
+            return said.stream().allMatch(a -> a.group(2) == null ? numbers.contains(a.group(1))
+                    : amounts.contains(a.group(1) + unit(a.group(2))))
+                    && (maker.isBlank() || canonical(m.maker()).equals(canonical(maker)));
         }).toList();
+    }
+
+    private static String micrograms(String value) {
+        return value.replace("마이크로그램", "mcg").replace("마이크로그람", "mcg");
+    }
+
+    private static String unit(String value) {
+        return "μg".equals(value) || "ug".equals(value) ? "mcg" : value;
     }
 
     /** 공공 검색 후보 중 내 약을 앞에 둔다. 같은 무리 안에서는 검색 순서를 지킨다. */
