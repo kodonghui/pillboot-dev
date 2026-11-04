@@ -239,8 +239,9 @@ class ChatLookupReviewTests {
                         && m.size() == 2), any(ChatDeadline.class), contains("같이 먹을"));
         verify(dur).collect(argThat(value -> value.medications().size() == 2
                         && ChatQuestionPurpose.coadministration(value.question())), any(ChatDeadline.class));
+        // 번호 대신 고른 제품 이름이 질문 뒤에 붙는다(QA 2026-11-04 2차)
         verify(ai).createTextResult(anyString(), argThat(messages -> messages.getLast().content().contains(original)
-                && messages.getLast().content().contains("1번")), anyInt());
+                && messages.getLast().content().contains("후보에서 고른 제품: 다른약정20mg")), anyInt());
         assertThat(selectedInput.question()).isEqualTo("1번");
     }
 

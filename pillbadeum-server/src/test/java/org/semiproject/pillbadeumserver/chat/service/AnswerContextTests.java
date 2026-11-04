@@ -198,6 +198,18 @@ class AnswerContextTests {
     }
 
     @Test
+    void kakaoRoomAddsKakaoRulesOnly() {
+        var web = new AnswerInput(2000, "FEMALE", null, "q", List.of(), List.of(), true);
+        var kakao = new AnswerInput(2000, "FEMALE", null, "q", List.of(), List.of(), true, List.of(), List.of(), 0,
+                List.of(), List.of(), true);
+        assertThat(AnswerGenerator.rules(web)).isEqualTo(AnswerGenerator.RULES);
+        assertThat(AnswerGenerator.rules(kakao)).startsWith(AnswerGenerator.RULES)
+                .contains("카톡에는 카드·버튼·화면·메뉴가 없으니", "앱·웹에서 하라고 말하지 않는다");
+        assertThat(kakao.withQuestion("again").kakao()).isTrue();
+        assertThat(kakao.withSimilarSummaries(List.of()).kakao()).isTrue();
+    }
+
+    @Test
     void missingOrOversizedSummariesAreSkippedAndTotalInputIsBounded() {
         assertThat(generator.recentSummaryMessages(List.of())).isEmpty();
         assertThat(generator.recentSummaryMessages(List.of(new AnswerInput.Summary(1,1,10,"가".repeat(5000))))).isEmpty();

@@ -8,10 +8,18 @@ import java.util.List;
 public record AnswerInput(long birthYear, String gender, Boolean pregnant, String question,
                           List<Medication> medications, List<Turn> recentTurns, boolean firstAnswer,
                           List<Summary> recentSummaries, List<Summary> similarSummaries, long summaryCount,
-                          List<String> unidentifiedDrugNames, List<Medication> registeredRecords) {
+                          List<String> unidentifiedDrugNames, List<Medication> registeredRecords, boolean kakao) {
     public AnswerInput {
         unidentifiedDrugNames = List.copyOf(unidentifiedDrugNames);
         registeredRecords = List.copyOf(registeredRecords);
+    }
+    /** 웹 상담방(kakao=false). kakao는 카카오톡 약봉이가 연 상담방이다(chat_session.channel, V3-KAKAO-014). */
+    public AnswerInput(long birthYear, String gender, Boolean pregnant, String question,
+                       List<Medication> medications, List<Turn> recentTurns, boolean firstAnswer,
+                       List<Summary> recentSummaries, List<Summary> similarSummaries, long summaryCount,
+                       List<String> unidentifiedDrugNames, List<Medication> registeredRecords) {
+        this(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer, recentSummaries,
+                similarSummaries, summaryCount, unidentifiedDrugNames, registeredRecords, false);
     }
     public AnswerInput(long birthYear, String gender, Boolean pregnant, String question,
                        List<Medication> medications, List<Turn> recentTurns, boolean firstAnswer,
@@ -39,16 +47,16 @@ public record AnswerInput(long birthYear, String gender, Boolean pregnant, Strin
 
     public AnswerInput withSimilarSummaries(List<Summary> summaries) {
         return new AnswerInput(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer,
-                recentSummaries, summaries, summaryCount, unidentifiedDrugNames, registeredRecords);
+                recentSummaries, summaries, summaryCount, unidentifiedDrugNames, registeredRecords, kakao);
     }
     public AnswerInput withUnidentifiedDrugNames(List<String> names) {
         return new AnswerInput(birthYear, gender, pregnant, question, medications, recentTurns, firstAnswer,
-                recentSummaries, similarSummaries, summaryCount, names, registeredRecords);
+                recentSummaries, similarSummaries, summaryCount, names, registeredRecords, kakao);
     }
     /** 후보 선택 후 원래 질문을 이어 답하기 위한 요청 내 사본이다. 저장된 질문은 바꾸지 않는다. */
     AnswerInput withQuestion(String value) {
         return new AnswerInput(birthYear, gender, pregnant, value, medications, recentTurns, firstAnswer,
-                recentSummaries, similarSummaries, summaryCount, unidentifiedDrugNames, registeredRecords);
+                recentSummaries, similarSummaries, summaryCount, unidentifiedDrugNames, registeredRecords, kakao);
     }
     public record Medication(String itemSeq, String name, String maker, String etcOtc, Integer dosePerTime,
                               String timing, LocalDate startDate, LocalDate endDate,

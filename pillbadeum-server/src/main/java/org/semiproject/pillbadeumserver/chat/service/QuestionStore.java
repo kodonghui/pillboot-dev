@@ -159,7 +159,8 @@ public class QuestionStore {
                         turn.getQuestionTokens(), turn.getAnswerTokens())).toList();
         return new AnswerInput(session.getSnapBirthYear(), session.getSnapGender(), session.getSnapPregnant(),
                 savedQuestion.getContent(), drugs, turns, !messages.existsBySessionIdAndRole(sessionId, "assistant"),
-                recentSummaries, java.util.List.of(), summaries.countBySessionIdAndToTurnLessThan(sessionId, savedQuestion.getTurnNo()), unidentified, records);
+                recentSummaries, java.util.List.of(), summaries.countBySessionIdAndToTurnLessThan(sessionId, savedQuestion.getTurnNo()), unidentified, records,
+                session.getChannel() == org.semiproject.pillbadeumserver.chat.domain.ChatChannel.KAKAO);
     }
 
     /** 같은 질문의 턴에 답변·활동 시각·보조 ID를 함께 저장한다. 외부 대기는 이 트랜잭션 전에 끝낸다. */

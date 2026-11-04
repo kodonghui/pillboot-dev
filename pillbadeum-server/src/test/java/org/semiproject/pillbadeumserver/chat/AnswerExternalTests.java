@@ -236,7 +236,8 @@ class AnswerExternalTests {
         assertThat(publicCalls.get()).isZero();
         assertThat(chatCalls.get()).isZero();
         assertThat(sources.sources(result.content())).isEmpty();
-        assertThat(result.content()).contains("약을 등록하면", "지금 확인할 수 없어요");
+        assertThat(result.content()).contains("아직 등록한 약이 없어", "‘타이레놀 500 등록해 줘’처럼 말하면 약을 넣을 수 있어요")
+                .doesNotContain("약사에게 문의해 주세요");
     }
 
     @ParameterizedTest

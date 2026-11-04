@@ -75,8 +75,9 @@ public class ScheduleProposalService {
                                            String text, String targetName, ChatDeadline deadline, boolean retry) {
         try {
             deadline.check();
-            var target = target(memberId, profileId, targetName);
-            if (target == null) return notice(sessionId, memberId, profileId, question, ASK_DRUG, deadline, retry, "ask_drug");
+            var drugs = medications.drugs(memberId, profileId);
+            var target = target(drugs, targetName);
+            if (target == null) return notice(sessionId, memberId, profileId, question, askDrug(drugs, text), deadline, retry, "ask_drug");
             LocalDate today = LocalDate.now(clock);
             ParsedCommand parsed;
             try {
@@ -119,12 +120,37 @@ public class ScheduleProposalService {
         }
     }
 
-    /** 이 프로필 약목록에서 이름이 같은 약 하나. 이름이 없거나 같은 이름이 둘 이상이면 null(어느 약인지 묻기). */
-    private MedicationTarget target(Long memberId, Long profileId, String targetName) {
-        if (targetName == null) return null;
-        var matches = medications.drugs(memberId, profileId).stream()
-                .filter(drug -> targetName.equals(drug.drugName())).toList();
+    /**
+     * 이 프로필 약목록에서 이름이 같은 약 하나. 같은 이름이 둘 이상이면 null(어느 약인지 묻기).
+     * 이름을 정하지 못했어도 약목록에 약이 하나뿐이면 그 약이다('저녁에 두 알'. 확정 전에는 바뀌지 않음, QA 2026-11-04 2차).
+     */
+    private static MedicationTarget target(List<MedicationTarget> drugs, String targetName) {
+        if (targetName == null) return drugs.size() == 1 ? drugs.getFirst() : null;
+        var matches = drugs.stream().filter(drug -> targetName.equals(drug.drugName())).toList();
         return matches.size() == 1 ? matches.getFirst() : null;
+    }
+
+    /**
+     * 어느 약인지 묻는 안내. 줄여 말한 이름('노바스크')에 맞는 약목록 약이 이름이 다른 둘 이상이면 그 약들을 보이고
+     * 함량까지 말해 달라고 한다(QA 2026-11-04 2차: 노바스크 5·10을 고르게 하지 않고 '타이레놀' 예만 보임). 아니면 ASK_DRUG.
+     */
+    static String askDrug(List<MedicationTarget> drugs, String text) {
+        String said = text == null ? "" : text.replaceAll("\\s+", "");
+        var names = drugs.stream().map(MedicationTarget::drugName)
+                .filter(name -> { String base = base(name); return base.length() >= 2 && said.contains(base); })
+                .distinct().limit(5).toList();
+        if (names.size() < 2) return ASK_DRUG;
+        var out = new StringBuilder("약목록에 맞는 약이 여럿이에요. 어느 약인지 함량까지 넣어 다시 말해 주세요.");
+        names.forEach(name -> out.append("\n· ").append(name));
+        return out.append("\n예) ").append(names.getLast()).append(" 아침 8시로 바꿔 줘").toString();
+    }
+
+    /** 줄여 부르는 이름: 괄호·띄어쓰기를 빼고 첫 숫자 앞까지, 끝의 제형(정·캡슐 등)을 뺀다('노바스크정 5mg' → '노바스크'). */
+    private static String base(String name) {
+        String plain = name.replaceAll("\\([^)]*\\)", "").replaceAll("\\s+", "");
+        int digit = 0;
+        while (digit < plain.length() && !Character.isDigit(plain.charAt(digit))) digit++;
+        return plain.substring(0, digit).replaceAll("(?:연질캡슐|캡슐|정제|시럽|정|산|액)$", "");
     }
 
     /** 해석기에는 이미 고른 약 하나만 보낸다. 대상은 서버가 정했으므로 프로필 이름은 보내지 않는다(8.4). */
