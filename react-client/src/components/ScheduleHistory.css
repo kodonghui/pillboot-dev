@@ -1,0 +1,73 @@
+/* SCH-01 아래 약별 복용 기간(design/v3-dec-034-web-ux.md) */
+.schedule-history {
+  gap: var(--space-20);
+}
+
+.schedule-history__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.schedule-history__neutral {
+  color: var(--label-neutral);
+}
+
+.schedule-history__group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+.schedule-history__group ul {
+  width: 100%;
+}
+
+.schedule-history__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 72px;
+  align-items: center;
+  gap: var(--space-8) var(--space-16);
+  min-height: 44px;
+  padding: var(--space-8) var(--space-12);
+  border-top: 1px solid var(--line-neutral);
+  color: var(--label-normal);
+  text-decoration: none;
+}
+
+.schedule-history__group li:first-child .schedule-history__row {
+  border-top: 0;
+}
+
+.schedule-history__row:hover {
+  background: var(--background-alternative);
+}
+
+.schedule-history__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.schedule-history__period {
+  color: var(--label-neutral);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.schedule-history__row .mt-badge {
+  justify-self: start;
+}
+
+@media (max-width: 720px) {
+  .schedule-history__row {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .schedule-history__name {
+    grid-column: 1 / -1;
+  }
+}

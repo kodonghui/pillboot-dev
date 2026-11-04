@@ -255,12 +255,13 @@ function CheckState({ check, onRecheck }) {
 // onMissing: 대화방이 없거나(chatNotFound) 권한이 없을 때(forbidden) 오류 화면으로 바꾼다
 // onReady: 불러오기가 끝났다(대화 · 불러오지 못함 안내). 대화방 높이가 정해져 ChatPage 가 페이지를 대화방 자리로 내린다
 // channel: 목록에서 받은 이 방을 연 곳(WEB · KAKAO). 카톡에서 연 방이면 머리 제목 아래에 '카톡에서 시작한 대화'를 둔다.
-function ChatRoom({ sessionId, profileId, listTitle, channel, question, onQuestionTaken, onChange, onMissing, onReady }) {
+// voiceHandoff: 음성 대화를 못 써서 넘어왔을 때({ draft }). 입력창에 넣어 두기만 하고, 빈 방인 동안 쓰는 법을 안내한다(design/v3-dec-034-web-ux.md 2).
+function ChatRoom({ sessionId, profileId, listTitle, channel, question, voiceHandoff, onQuestionTaken, onChange, onMissing, onReady }) {
   const titleId = useId()
   const [attempt, setAttempt] = useState(0)
   const [loadFailed, setLoadFailed] = useState(-1)
   const [room, setRoom] = useState(null)
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState(voiceHandoff?.draft ?? '')
   // 보내지 못한 까닭(sendErrors 의 키)
   const [sendError, setSendError] = useState(null)
   // 답을 기다리는 질문. { kind: 'ask', content, at } · { kind: 'retry', messageId } · { kind: 'photo', at }
@@ -669,6 +670,7 @@ function ChatRoom({ sessionId, profileId, listTitle, channel, question, onQuesti
   if (pending || elsewhere) hint = '답변이 끝나면 보낼 수 있어요. 쓰고 있는 질문은 그대로 남아요.'
   else if (check) hint = '대화 상태를 확인하는 동안에는 보낼 수 없어요.'
   else if (room.retryMessageId) hint = '「다시 보내기」는 위의 저장된 질문을 다시 보내요. 입력창의 질문과는 따로예요.'
+  else if (voiceHandoff && empty) hint = '말하려던 일정을 글로 써 주세요. 예: 타이레놀 아침 8시 한 알로 바꿔 줘'
 
   const recheck = () => {
     setCheck({ ...check, busy: true })
@@ -812,6 +814,7 @@ function ChatRoom({ sessionId, profileId, listTitle, channel, question, onQuesti
               {name}의 약 {room.drugCount}개와 복약 일정, 공공데이터를 근거로 답해요. 근거를 찾지 못하면 '확인할 수 없어요'라고
               답해요.
             </p>
+            <p className="screen-caption chat-room__neutral">약 이름과 함량까지 적으면 더 정확해요. 예: 노바스크정 5밀리그램이랑 타이레놀정 500밀리그람 같이 먹어도 돼?</p>
           </div>
         )}
         {empty && room.drugCount === 0 && (

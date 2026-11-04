@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, Outlet, ScrollRestoration, useLocation, useMatches } from 'react-router'
+import { Link, Navigate, Outlet, ScrollRestoration, useLocation, useMatches } from 'react-router'
 import AppHeader from './AppHeader.jsx'
 import { paths } from '../paths.js'
 import { useAuthStore } from '../store/auth.js'
@@ -7,6 +7,7 @@ import './Layout.css'
 
 function Layout({ variant }) {
   const footer = useMatches().some((match) => match.handle?.footer)
+  const { pathname } = useLocation()
 
   return (
     <div className="screen-body">
@@ -18,7 +19,14 @@ function Layout({ variant }) {
         <footer className="layout-footer">
           <div className="layout-footer__in">
             <p className="screen-caption">약 정보 출처: 식품의약품안전처 공공데이터(의약품 허가정보, e약은요, 낱알식별, DUR)</p>
-            <p className="screen-caption">필받음</p>
+            <p className="screen-caption layout-footer__end">
+              {pathname === paths.welcome && (
+                <Link className="layout-footer__link" to={paths.changelog}>
+                  업데이트 기록
+                </Link>
+              )}
+              필받음
+            </p>
           </div>
         </footer>
       )}

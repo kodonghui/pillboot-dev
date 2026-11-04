@@ -14,7 +14,9 @@ import { PhotoChange, PhotoDrop, PhotoPreview } from '../components/PhotoPick.js
 import PhotoSaveBar from '../components/PhotoSaveBar.jsx'
 import StrengthMatchBadge from '../components/StrengthMatchBadge.jsx'
 import StrengthName from '../components/StrengthName.jsx'
+import RegisteredDrugLink from '../components/RegisteredDrugLink.jsx'
 import { useManagedProfile } from '../components/useManagedProfile.js'
+import { useMyDrugIndex } from '../components/useMyDrugIndex.js'
 import { paths, prescriptionResultLink, prescriptionSearchLink } from '../paths.js'
 import { photoMessages, photoProblem, photoProblemOf, photoSize } from '../photoFile.js'
 import { usePrescriptionDraft } from '../store/prescriptionDraft.js'
@@ -101,6 +103,7 @@ function PrescriptionResult({ profile, color, draft, onRetake, onLeave, onExpire
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
 
+  const { index: myDrugs } = useMyDrugIndex(profile.profileId)
   const { photoId, result, picks } = draft
   const groups = [...result.drugs].sort((a, b) => a.readNo - b.readNo)
   const name = profile.profileName
@@ -319,7 +322,7 @@ function PrescriptionResult({ profile, color, draft, onRetake, onLeave, onExpire
             )
           }
 
-          let badge = <span className="mt-badge">아직 고르지 않았어요</span>
+          let badge = <span className="mt-badge">{group.candidates.some((candidate) => candidate.alreadyRegistered) ? '이미 등록한 약이 있어요' : '아직 고르지 않았어요'}</span>
           if (value === 'none') badge = <span className="mt-badge">이 중에 없음</span>
           else if (value?.source === 'SEARCH') badge = <CheckBadge>이름 검색으로 골랐어요</CheckBadge>
           else if (value) badge = <CheckBadge>골랐어요</CheckBadge>
@@ -359,6 +362,7 @@ function PrescriptionResult({ profile, color, draft, onRetake, onLeave, onExpire
                             <span className="screen-caption prescription-photo__registered">
                               <Icon name="check" size="s" />
                               이미 등록한 약이에요
+                              <RegisteredDrugLink profileId={profile.profileId} drug={myDrugs.get(candidate.itemSeq)} />
                             </span>
                           </span>
                         </div>
@@ -408,7 +412,7 @@ function PrescriptionResult({ profile, color, draft, onRetake, onLeave, onExpire
         {empty ? (
           <p className="screen-caption prescription-photo__muted">검색에서 고른 약은 그 이름 자리에 들어가요. 다른 이름도 이어서 고쳐 검색할 수 있어요.</p>
         ) : (
-          <p className="screen-caption prescription-photo__neutral prescription-photo__note">복용 일정은 저장 후 약 상세에서 등록해 주세요.</p>
+          <p className="screen-caption prescription-photo__neutral prescription-photo__note">복용 일정은 저장한 뒤 약 목록에서 바로 정할 수 있어요.</p>
         )}
       </div>
 

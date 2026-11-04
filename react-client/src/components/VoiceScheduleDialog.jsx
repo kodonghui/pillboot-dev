@@ -164,8 +164,8 @@ const failureStatus = {
 
 // SCH-04 AI 복약도우미 음성 대화 창. conversation(LiveConversation)의 상태를 그린다.
 // 닫기 · 대화 끝내기 · Esc 는 onClose(대화를 끝내고 창을 치운다), 다시 시작 · 다시 시도는 onRestart(새 대화),
-// 저장 · 그만 먹기 뒤 "일정 상세"는 onShowSchedule(바뀐 일정)을 부른다.
-function VoiceScheduleDialog({ conversation, profiles, onClose, onRestart, onShowSchedule }) {
+// 저장 · 그만 먹기 뒤 "일정 상세"는 onShowSchedule(바뀐 일정)을, 마이크 · 음성을 못 쓸 때 "약봉이에게 글로 말하기"는 onUseChat 을 부른다.
+function VoiceScheduleDialog({ conversation, profiles, onClose, onRestart, onShowSchedule, onUseChat }) {
   const snapshot = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot)
   const dialogRef = useRef(null)
   const closeRef = useRef(null)
@@ -228,6 +228,11 @@ function VoiceScheduleDialog({ conversation, profiles, onClose, onRestart, onSho
         <button className="mt-btn mt-btn--assistive mt-btn--sm" type="button" onClick={close}>
           닫기
         </button>
+        {(phase === 'micDenied' || phase === 'unavailable') && (
+          <button className="mt-btn mt-btn--assistive mt-btn--sm" type="button" onClick={onUseChat}>
+            약봉이에게 글로 말하기
+          </button>
+        )}
         <button className="mt-btn mt-btn--solid mt-btn--sm" type="button" onClick={onRestart}>
           {phase === 'unavailable' ? '다시 시도' : '다시 시작'}
         </button>

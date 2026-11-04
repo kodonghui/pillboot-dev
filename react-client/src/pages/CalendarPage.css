@@ -21,11 +21,18 @@
   color: var(--label-alternative);
 }
 
+/* 구슬과 바로 아래 안내(design/v3-dec-034-web-ux.md 3) */
 .calendar-page__actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-12);
+  gap: var(--space-8);
+}
+
+.calendar-page__orb-hint {
+  color: var(--label-alternative);
+  text-align: center;
+  word-break: keep-all;
 }
 
 /* 일정이 없는 달(목업 .note + .empty-ic 48px) */

@@ -187,6 +187,31 @@ li:first-child.drug-search__item {
   white-space: nowrap;
 }
 
+/* 이미 등록한 약에서 그 약의 일정으로 가는 링크(design/v3-dec-034-web-ux.md 5) */
+.drug-search__registered-action {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-8);
+}
+
+.drug-search__registered-action .mt-btn {
+  cursor: pointer;
+}
+
+/* 좁은 화면: 약 이름이 눌리지 않게 안내와 링크를 이름 아래 줄로 내린다 */
+@media (max-width: 720px) {
+  .drug-search__item--registered {
+    flex-wrap: wrap;
+  }
+
+  .drug-search__registered-action {
+    flex: 1 0 100%;
+    justify-content: space-between;
+  }
+}
+
 /* 고른 약(목업 .sel) */
 .drug-search__item--picked {
   border-top-color: transparent;

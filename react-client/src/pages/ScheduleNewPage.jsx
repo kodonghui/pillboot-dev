@@ -15,7 +15,7 @@ import ScheduleSection from '../components/ScheduleSection.jsx'
 import TimingField from '../components/TimingField.jsx'
 import { useManagedProfile } from '../components/useManagedProfile.js'
 import { isDate, monthOf, todayKst } from '../dates.js'
-import { paths } from '../paths.js'
+import { paths, scheduleLink } from '../paths.js'
 import { checkForm, drugValues, errorNames, initialForm, pickName, requestOf, typedTimesError } from '../scheduleForm.js'
 import { eunAfter, periodText } from '../text.js'
 import './ScheduleFormPage.css'
@@ -166,7 +166,10 @@ function ScheduleNewPage() {
         setChoicesAttempt((count) => count + 1)
       }
       await saveSchedule(profileId, myDrugId, requestOf(form))
-      navigate(from === 'calendar' ? `${paths.calendar}?month=${monthOf(form.startDate)}` : backTo, { replace: true })
+      navigate(from === 'calendar' ? `${paths.calendar}?month=${monthOf(form.startDate)}` : backTo, {
+        replace: true,
+        state: from === 'drugs' ? { profileId, scheduleSavedMonth: monthOf(form.startDate) } : undefined,
+      })
     } catch (error) {
       setSaving(false)
       if (myDrugId && errorOf(error).status === 404) {
@@ -253,7 +256,16 @@ function ScheduleNewPage() {
             onPick={pick}
           />
           {replacing && (
-            <Notice variant="caution" role="status" icon="alertTriangle">
+            <Notice
+              variant="caution"
+              role="status"
+              icon="alertTriangle"
+              action={
+                <Link className="mt-btn mt-btn--assistive mt-btn--md" to={scheduleLink(paths.scheduleEdit, { profileId, myDrugId: mine.myDrugId, from: profileId === profile?.profileId ? 'drug' : 'calendar' })}>
+                  지금 일정 고치기
+                </Link>
+              }
+            >
               <b>이 약에는 이미 일정이 있어요.</b> 지금 일정({periodText(mine.startDate, mine.endDate)}, {mine.doseTimes.join('·')})은 저장하면 새로
               정한 일정으로 바뀌어요. 약 하나에는 일정을 하나만 둘 수 있어요.
             </Notice>

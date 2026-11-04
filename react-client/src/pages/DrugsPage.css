@@ -5,6 +5,13 @@
 }
 
 /* 제목 묶음(왼쪽)과 "약 등록"(오른쪽) */
+/* 약 저장 안내의 두 버튼. 좁으면 아래로 내려간다 */
+.drugs-page__saved-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
 .drugs-page__head {
   display: flex;
   flex-wrap: wrap;
