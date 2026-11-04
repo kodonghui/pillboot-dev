@@ -7,12 +7,13 @@ import './SettingsMenu.css'
 const items = [
   { to: paths.profiles, icon: 'user', label: '프로필 관리' },
   { to: paths.notifications, icon: 'bell', label: '알림' },
+  { to: paths.changelog, icon: 'fileText', label: '업데이트 기록' }, // CMN-04, 로그인 후 들어오는 곳
 ]
 
 // 펼친 목록에는 없지만 "설정"을 지금 메뉴로 보일 화면(PRF-06 카카오톡 연결은 프로필 관리에서 들어간다).
 const otherPaths = [paths.kakaoLink]
 
-// 주 메뉴의 "설정". 화면이 아니라 프로필 관리 · 알림 두 줄을 펼치는 드롭다운이다.
+// 주 메뉴의 "설정". 화면이 아니라 프로필 관리 · 알림 · 업데이트 기록 세 줄을 펼치는 드롭다운이다.
 function SettingsMenu() {
   const location = useLocation()
   // 연 주소를 기억해 두면 다른 화면으로 옮겨 갈 때 저절로 닫힌다.
