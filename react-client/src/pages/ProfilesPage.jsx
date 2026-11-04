@@ -2,9 +2,11 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { generatePath, Link } from 'react-router'
 import { errorOf } from '../api/client.js'
+import { getKakaoLinks } from '../api/kakaoLinks.js'
 import { deleteProfile, getProfiles } from '../api/profiles.js'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import Icon from '../components/Icon.jsx'
+import KakaoLinkCard from '../components/KakaoLinkCard.jsx'
 import Notice from '../components/Notice.jsx'
 import ProfileDot from '../components/ProfileDot.jsx'
 import { paths } from '../paths.js'
@@ -15,6 +17,7 @@ import './ProfilesPage.css'
 
 // PRF-01 프로필 관리. 표에서 관리할 사람을 바꾸고(관리하기), 수정(PRF-03) · 삭제 확인으로 간다.
 // 불러온 목록에 저장된 관리할 사람이 없으면 docs/auth-logout.md 규칙(본인 → 맨 위)으로 다시 정한다.
+// 표 위 '카카오톡 약봉이' 카드는 연결 목록을 따로 불러와 실패해도 표는 그대로 보인다(v3-kakao-web-link.md).
 function ProfilesPage() {
   const profileId = useAuthStore((state) => state.profileId)
   const setProfileId = useAuthStore((state) => state.setProfileId)
@@ -29,6 +32,25 @@ function ProfilesPage() {
   const [target, setTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
+  // 카카오톡 연결 목록(불러오는 중이면 null)
+  const [links, setLinks] = useState(null)
+  const [linksFailed, setLinksFailed] = useState(false)
+  const [linksAttempt, setLinksAttempt] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    getKakaoLinks()
+      .then((data) => active && setLinks(data))
+      .catch(() => active && setLinksFailed(true))
+    return () => {
+      active = false
+    }
+  }, [linksAttempt])
+
+  const retryLinks = () => {
+    setLinksFailed(false)
+    setLinksAttempt((count) => count + 1)
+  }
 
   useEffect(() => {
     let active = true
@@ -108,6 +130,7 @@ function ProfilesPage() {
     return (
       <div className="profiles-page">
         {head}
+        <KakaoLinkCard links={links} failed={linksFailed} onRetry={retryLinks} />
         <Notice
           variant="negative"
           role="alert"
@@ -132,9 +155,13 @@ function ProfilesPage() {
   if (lastOne) error = '마지막 프로필은 삭제할 수 없습니다.'
   else if (deleteError === 'failed') error = '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.'
 
+  // 지우려는 프로필을 카톡에서 보던 연결이 있으면 확인창에 알린다(연결은 남고 다음 메시지 때 다시 고른다).
+  const viewedInKakao = target !== null && links?.some((link) => link.currentProfileId === target.profileId)
+
   return (
     <div className="profiles-page">
       {head}
+      <KakaoLinkCard links={links} failed={linksFailed} onRetry={retryLinks} />
       {profiles && (
         <section
           ref={tableRef}
@@ -248,6 +275,9 @@ function ProfilesPage() {
           onConfirm={remove}
           onClose={closeDelete}
         >
+          {viewedInKakao && !lastOne && (
+            <p className="mt-modal__text">이 프로필을 보던 카카오톡은 다음 메시지 때 프로필을 다시 고르게 돼요.</p>
+          )}
           {next && !lastOne && (
             <Notice variant="caution" icon="info">
               지금 관리 중인 프로필이에요. 삭제하면 관리할 사람이{' '}

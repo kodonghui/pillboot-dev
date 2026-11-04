@@ -22,6 +22,7 @@ export const paths = {
   profiles: '/profiles', // PRF-01 프로필 관리
   profileNew: '/profiles/new', // PRF-02 프로필 만들기
   profileEdit: '/profiles/:profileId/edit', // PRF-03 프로필 수정
+  kakaoLink: '/kakao-link', // PRF-06 카카오톡 연결(v3, 헤더 메뉴는 설정)
   notifications: '/notifications', // NTF-01 알림 설정
   doses: '/doses', // NTF-02 그 시각에 먹을 약(?date=YYYY-MM-DD&time=HH:mm, 복약 알림을 누르면 열린다)
 }

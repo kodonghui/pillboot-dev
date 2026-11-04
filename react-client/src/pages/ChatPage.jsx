@@ -263,6 +263,7 @@ function ChatPage() {
             sessionId={sessionId}
             profileId={profileId}
             listTitle={sessions?.find((session) => session.sessionId === sessionId)?.title}
+            channel={sessions?.find((session) => session.sessionId === sessionId)?.channel}
             question={queued?.sessionId === sessionId ? queued.question : null}
             onQuestionTaken={() => setQueued(null)}
             onChange={() => setListKey((key) => key + 1)}

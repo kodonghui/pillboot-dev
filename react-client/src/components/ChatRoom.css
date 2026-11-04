@@ -23,6 +23,14 @@
   color: var(--label-neutral);
 }
 
+/* 카톡에서 연 방: 머리 제목 아래 '카톡에서 시작한 대화'(목업 v3-link CHT-02) */
+.chat-room__channel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--label-neutral);
+}
+
 .chat-room__strong {
   font-weight: 600;
 }
