@@ -7,6 +7,7 @@ import org.semiproject.pillbadeumserver.common.external.ExternalApiCaller;
 import org.semiproject.pillbadeumserver.common.external.RestClientFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -23,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /** OpenAI Decisions/Responses/Embedding 클라이언트. 분류/임베딩10초, 답변/요약60초(요약은 자체 마감30초), 처방전60초, 낱알85초임.
@@ -58,6 +60,8 @@ public class OpenAiClient {
     @Value("${openai.prescription-reasoning-effort:}")
     private String prescriptionReasoningEffort;
     private final BigDecimal decisionInputUsdPerMillion;
+    // V3-COMMON-005: 선택 백업. 직접 만든 OpenAiClient(테스트 등)에는 없으며 그때는 지금처럼 실패를 그대로 던진다.
+    private volatile ClaudeBackupClient backup;
 
     public OpenAiClient(ObjectMapper objectMapper,
                         @Value("${openai.api-key}") String apiKey,
@@ -106,14 +110,24 @@ public class OpenAiClient {
         return enabled;
     }
 
-    /* 목차. 1. 글로 된 답을 한 번에 받기 */
-    public String createText(String instructions, List<AiMessage> messages, int maxOutputTokens) {
-        return createTextResult(instructions, messages, maxOutputTokens, reasoningEffort).text();
+    /** V3-COMMON-005: 글·JSON·분류·사진 판독이 실패하면 같은 요청을 Claude로 한 번 다시 보낸다. 없거나 키가 비면 백업하지 않음. */
+    @Autowired(required = false)
+    public void setBackup(ClaudeBackupClient backup) {
+        this.backup = backup;
     }
 
-    /** CHAT-007: 본문과 보조 ID를 받는다. 이전 응답 연결 없이 매번 DB에서 만든 input을 보낸다. */
+    /* 목차. 1. 글로 된 답을 한 번에 받기 */
+    public String createText(String instructions, List<AiMessage> messages, int maxOutputTokens) {
+        return withBackup("text",
+                () -> createTextResult(instructions, messages, maxOutputTokens, reasoningEffort).text(),
+                claude -> claude.text(ClaudeBackupClient.Kind.ANSWER, instructions, messages));
+    }
+
+    /** CHAT-007: 본문과 보조 ID를 받는다. 이전 응답 연결 없이 매번 DB에서 만든 input을 보낸다. Claude 백업 답은 보조 ID가 없다. */
     public AiTextResult createTextResult(String instructions, List<AiMessage> messages, int maxOutputTokens) {
-        return createTextResult(instructions, messages, maxOutputTokens, chatReasoningEffort);
+        return withBackup("answer",
+                () -> createTextResult(instructions, messages, maxOutputTokens, chatReasoningEffort),
+                claude -> new AiTextResult(claude.text(ClaudeBackupClient.Kind.ANSWER, instructions, messages), null));
     }
 
     private AiTextResult createTextResult(String instructions, List<AiMessage> messages, int maxOutputTokens, String effort) {
@@ -139,12 +153,14 @@ public class OpenAiClient {
     /** 짧은 검색어 추출은 답변·요약 effort와 분리하며 출력 토큰 상한은 추가하지 않음. */
     public JsonNode createJson(String instructions, List<AiMessage> messages, int maxOutputTokens,
                                String schemaName, Map<String, Object> schema, String effort) {
-        Map<String, Object> body = requestBody(chatModel, instructions, toInput(messages), maxOutputTokens);
-        if (effort == null || effort.isBlank()) body.remove("reasoning");
-        else body.put("reasoning", Map.of("effort", effort));
-        body.put("text", jsonSchemaFormat(schemaName, schema));
+        return withBackup("json:" + schemaName, () -> {
+            Map<String, Object> body = requestBody(chatModel, instructions, toInput(messages), maxOutputTokens);
+            if (effort == null || effort.isBlank()) body.remove("reasoning");
+            else body.put("reasoning", Map.of("effort", effort));
+            body.put("text", jsonSchemaFormat(schemaName, schema));
 
-        return parseJson(outputText(post(shortClient, "/responses", body, chatModel, false)));
+            return parseJson(outputText(post(shortClient, "/responses", body, chatModel, false)));
+        }, claude -> claude.json(ClaudeBackupClient.Kind.SHORT, instructions, messages, schema));
     }
 
     /**
@@ -153,6 +169,12 @@ public class OpenAiClient {
      * refusal·누락·다른 질문의 답·선택지 밖 값은 통과 결과로 사용하지 않고 공통 503 예외로 처리한다.
      */
     public String createChoice(String input, String name, String instructions, List<DecisionChoice> choices) {
+        return withBackup("choice:" + name,
+                () -> decide(input, name, instructions, choices),
+                claude -> claude.choice(input, name, instructions, choices));
+    }
+
+    private String decide(String input, String name, String instructions, List<DecisionChoice> choices) {
         Map<String, Object> question = Map.of("type", "choice", "name", name,
                 "instructions", instructions, "choices", choices);
         Map<String, Object> body = Map.of("model", decisionModel, "input", input,
@@ -179,7 +201,16 @@ public class OpenAiClient {
      * */
     public JsonNode createJsonFromImages(String instructions, String prompt, List<String> imageDataUrls,
                                          int maxOutputTokens, String schemaName, Map<String, Object> schema) {
+        boolean prescription = "photo_prescription_names".equals(schemaName)
+                || "prescription_medicine_names".equals(schemaName);
+        return withBackup("image:" + schemaName,
+                () -> readImages(instructions, prompt, imageDataUrls, maxOutputTokens, schemaName, schema, prescription),
+                claude -> claude.jsonFromImages(prescription ? ClaudeBackupClient.Kind.PRESCRIPTION : ClaudeBackupClient.Kind.PILL,
+                        instructions, prompt, imageDataUrls, schema));
+    }
 
+    private JsonNode readImages(String instructions, String prompt, List<String> imageDataUrls, int maxOutputTokens,
+                                String schemaName, Map<String, Object> schema, boolean prescription) {
         List<Map<String, Object>> content = new ArrayList<>();
         content.add(Map.<String, Object>of("type", "input_text", "text", prompt));
         for (String imageDataUrl : imageDataUrls) {
@@ -187,8 +218,6 @@ public class OpenAiClient {
         }
         List<Map<String, Object>> input = List.of(Map.<String, Object>of("role", "user", "content", content));
 
-        boolean prescription = "photo_prescription_names".equals(schemaName)
-                || "prescription_medicine_names".equals(schemaName);
         String model = prescription && prescriptionModel != null && !prescriptionModel.isBlank()
                 ? prescriptionModel : visionModel;
         String effort = prescription && prescriptionReasoningEffort != null && !prescriptionReasoningEffort.isBlank()
@@ -238,6 +267,34 @@ public class OpenAiClient {
     }
 
     /* 설명. ===== 아래는 이 클래스 안에서만 쓰는 보조 메서드 ===== */
+
+    /* OpenAI가 키·모델 없음, 401, 429, 5xx, 연결 실패, 시간 초과, 대기 초과, 미완료·거절·형식 오류로 실패하면 Claude로 한 번 다시 보낸다.
+     * 마감으로 스레드가 중단됐으면 다시 보내지 않는다. Claude도 실패하면 원래 OpenAI 실패를 그대로 던진다(응답 계약 유지). */
+    private <T> T withBackup(String task, Supplier<T> openAi, Function<ClaudeBackupClient, T> claude) {
+        try {
+            return openAi.get();
+        } catch (AiUnavailableException | ExternalApiException failure) {
+            ClaudeBackupClient fallback = backup;
+            if (fallback == null || !fallback.isEnabled() || Thread.currentThread().isInterrupted()) throw failure;
+            log.warn("[AI 백업] task={} openAiFailure={} → Claude로 다시 보냄", task, reason(failure));
+            try {
+                T result = claude.apply(fallback);
+                log.info("[AI 백업] task={} result=success", task);
+                return result;
+            } catch (RuntimeException backupFailure) {
+                log.warn("[AI 백업] task={} result=failed claudeFailure={}", task, reason(backupFailure));
+                failure.addSuppressed(backupFailure);
+                throw failure;
+            }
+        }
+    }
+
+    /* 로그용 고정 사유. 외부 응답 본문·키·질문은 넣지 않는다. */
+    private static String reason(RuntimeException e) {
+        if (e instanceof ExternalApiException external) return external.getErrorCode() + " " + external.getFailureReason();
+        if (e instanceof BusinessException business) return String.valueOf(business.getErrorCode());
+        return e.getClass().getSimpleName();
+    }
 
     private void checkEnabled() {
         if (!enabled) {
