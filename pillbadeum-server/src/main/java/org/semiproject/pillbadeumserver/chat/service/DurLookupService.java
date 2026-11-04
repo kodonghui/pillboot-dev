@@ -8,7 +8,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
 import org.semiproject.pillbadeumserver.common.exception.BusinessException;
 import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
@@ -70,21 +74,21 @@ public class DurLookupService {
                 requests.add(new Request(code, type));
             }
         }
-        var deadline = requestDeadline.within(Duration.ofSeconds(30));
-        for (int offset = 0; offset < requests.size(); offset += concurrency) {
-            var batch = requests.subList(offset, Math.min(requests.size(), offset + concurrency));
-            var tasks = new ArrayList<Future<DurLookup>>();
-            try {
-                for (var request : batch) tasks.add(executor.submit(() -> lookup(request, deadline)));
-                for (int i = 0; i < tasks.size(); i++) {
-                    DurLookup lookup;
-                    try { lookup = deadline.await(tasks.get(i)); }
-                    catch (BusinessException exception) { lookup = DurLookup.failed(batch.get(i).code(), batch.get(i).type(), today); }
-                    results.add(lookup);
-                }
-            } finally {
-                tasks.stream().filter(task -> !task.isDone()).forEach(task -> task.cancel(true));
+        // 묶음 끝을 기다리지 않음. 페이지가 많은 품목이 마감을 다 써도 뒤 품목의 첫 페이지가 먼저 차례를 받음.
+        var run = new Run(requestDeadline.within(Duration.ofSeconds(30)), new Semaphore(concurrency, true), concurrency);
+        var tasks = new ArrayList<Future<DurLookup>>();
+        try {
+            for (var request : requests) tasks.add(executor.submit(() -> lookup(request, run)));
+            for (int i = 0; i < tasks.size(); i++) {
+                var task = tasks.get(i);
+                DurLookup lookup;
+                // 앞 품목을 기다리다 마감이 지나도 이미 끝난 조회의 결과는 버리지 않음.
+                try { lookup = task.state() == Future.State.SUCCESS ? task.resultNow() : run.deadline().await(task); }
+                catch (BusinessException exception) { lookup = DurLookup.failed(requests.get(i).code(), requests.get(i).type(), today); }
+                results.add(lookup);
             }
+        } finally {
+            tasks.stream().filter(task -> !task.isDone()).forEach(task -> task.cancel(true));
         }
         return List.copyOf(results);
     }
@@ -100,35 +104,77 @@ public class DurLookupService {
     }
 
     /** 페이지 일부만 읽은 결과를 성공으로 쓰지 않는다. 한 유형의 모든 페이지가 검증돼야 캐시 교체가 가능하다. */
-    private DurLookup lookup(Request request, ChatDeadline deadline) {
+    private DurLookup lookup(Request request, Run run) {
         var today = LocalDate.now(TimeZoneConfig.ZONE);
         try {
-            var rows = new ArrayList<DurLookup.Row>();
-            int expectedTotal = -1;
-            for (int page = 1; ; page++) {
-                deadline.check();
-                JsonNode body = client.get(request.type().path(), Map.of("itemSeq", request.code(), "pageNo", page, "numOfRows", PAGE_SIZE), deadline.remaining());
-                deadline.check();
-                String count = body.path("totalCount").asString("");
-                if (!count.matches("\\d{1,9}")) throw invalid();
-                int total = Integer.parseInt(count);
-                if (expectedTotal != -1 && expectedTotal != total) throw invalid();
-                expectedTotal = total;
-                if (body.has("pageNo") && body.path("pageNo").asInt(-1) != page) throw invalid();
-                var items = PublicDataClient.items(body);
-                int expectedSize = Math.min(PAGE_SIZE, Math.max(0, total - (page - 1) * PAGE_SIZE));
-                if (items.size() != expectedSize) throw invalid();
-                for (var item : items) rows.add(parse(request, item, today));
-                if (page * PAGE_SIZE >= total) break;
+            var first = readPage(request, 1, -1, run, today);
+            var pages = new ConcurrentSkipListMap<Integer, List<DurLookup.Row>>();
+            pages.put(1, first.rows());
+            int lastPage = (first.total() + PAGE_SIZE - 1) / PAGE_SIZE;
+            var next = new AtomicInteger(2);
+            var helpers = new ArrayList<Future<?>>();
+            try {
+                // 호출 자리는 Run.slots가 정함. 일꾼 수를 묶어 전체 수가 터무니없이 큰 응답에도 작업을 쌓지 않음.
+                for (int i = 1; i < Math.min(run.workers(), lastPage - 1); i++)
+                    helpers.add(executor.submit(() -> readPages(request, first.total(), lastPage, next, pages, run, today)));
+                readPages(request, first.total(), lastPage, next, pages, run, today);
+                for (var helper : helpers) run.deadline().await(helper);
+            } finally {
+                helpers.stream().filter(helper -> !helper.isDone()).forEach(helper -> helper.cancel(true));
             }
+            var rows = pages.values().stream().flatMap(List::stream).toList();
             // 동일 페이지가 반복되거나 응답의 전체 수와 실내용이 맞지 않으면 완전한 조회로 인정하지 않는다.
             if (rows.stream().distinct().count() != rows.size()) throw invalid();
             var updated = rows.stream().map(DurLookup.Row::updatedAt).min(LocalDate::compareTo).orElse(today);
-            return new DurLookup(request.code(), request.type(), true, List.copyOf(rows), updated);
+            return new DurLookup(request.code(), request.type(), true, rows, updated);
         } catch (BusinessException | NumberFormatException exception) {
             client.discard(request.type().path(),Map.of("itemSeq",request.code()));
             log.warn("[DUR 조회] type={} result=unavailable", request.type());
             return DurLookup.failed(request.code(), request.type(), today);
+        }
+    }
+
+    /** 한 페이지가 어긋나면 남은 페이지를 더 부르지 않는다. */
+    private void readPages(Request request, int total, int lastPage, AtomicInteger next,
+                           Map<Integer, List<DurLookup.Row>> pages, Run run, LocalDate today) {
+        try {
+            for (int page = next.getAndIncrement(); page <= lastPage; page = next.getAndIncrement())
+                pages.put(page, readPage(request, page, total, run, today).rows());
+        } catch (RuntimeException exception) {
+            next.set(lastPage + 1);
+            throw exception;
+        }
+    }
+
+    private Page readPage(Request request, int page, int expectedTotal, Run run, LocalDate today) {
+        JsonNode body = call(request, page, run);
+        run.deadline().check();
+        String count = body.path("totalCount").asString("");
+        if (!count.matches("\\d{1,9}")) throw invalid();
+        int total = Integer.parseInt(count);
+        if (expectedTotal != -1 && expectedTotal != total) throw invalid();
+        if (body.has("pageNo") && body.path("pageNo").asInt(-1) != page) throw invalid();
+        var items = PublicDataClient.items(body);
+        int expectedSize = Math.min(PAGE_SIZE, Math.max(0, total - (page - 1) * PAGE_SIZE));
+        if (items.size() != expectedSize) throw invalid();
+        var rows = new ArrayList<DurLookup.Row>();
+        for (var item : items) rows.add(parse(request, item, today));
+        return new Page(total, rows);
+    }
+
+    /** 이 조회에 허락된 자리 안에서만 부른다. 선조회가 화면 조회의 공공데이터 자리를 다 차지하지 않게 함. */
+    private JsonNode call(Request request, int page, Run run) {
+        try {
+            if (!run.slots().tryAcquire(run.deadline().remaining().toNanos(), TimeUnit.NANOSECONDS))
+                throw ExternalApiException.timeout("DUR", null);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw ExternalApiException.timeout("DUR", exception);
+        }
+        try {
+            return client.get(request.type().path(), Map.of("itemSeq", request.code(), "pageNo", page, "numOfRows", PAGE_SIZE), run.deadline().remaining());
+        } finally {
+            run.slots().release();
         }
     }
 
@@ -163,4 +209,6 @@ public class DurLookupService {
     }
 
     private record Request(String code, DurLookup.Type type) {}
+    private record Page(int total, List<DurLookup.Row> rows) {}
+    private record Run(ChatDeadline deadline, Semaphore slots, int workers) {}
 }

@@ -153,7 +153,78 @@ class DurExternalTests {
         var result = collect("A").getFirst();
         assertThat(result.success()).isTrue();
         assertThat(result.rows()).hasSize(201);
-        assertThat(requests).extracting(Request::page).containsExactly(1, 2, 3);
+        assertThat(requests).extracting(Request::page).containsExactlyInAnyOrder(1, 2, 3);
+    }
+
+    @Test
+    void aLongPartnerListDoesNotStopTheNextDrugsLookupOrHideAConfirmedPair() {
+        // 영상 흐름: 약 셋, 병용 행이 1,430건인 약이 맨 앞. 15페이지를 다 읽기 전에 마감이 와도 짧은 쪽 결과로 짝을 잡음.
+        responder.set(r -> {
+            if (r.type() != DurLookup.Type.INTERACTION) return success(0, r.page(), List.of());
+            if (r.code().equals("LONG")) {
+                pause(200);
+                return success(1430, r.page(), partnerRows(r, 1430));
+            }
+            if (!r.code().equals("SHORT")) return success(0, r.page(), List.of());
+            var pair = new LinkedHashMap<>(row(r.code(), r.type(), "synthetic contraindication"));
+            pair.put("MIXTURE_ITEM_SEQ", "LONG");
+            return success(1, r.page(), List.of(pair));
+        });
+        var input = input(List.of("LONG", "OTHER", "SHORT"), "MALE", false);
+        var results = service.collect(input, ChatDeadline.after(Duration.ofSeconds(1)));
+        assertThat(results).hasSize(6);
+        assertThat(results).filteredOn(r -> r.itemSeq().equals("SHORT")).allMatch(DurLookup::success);
+        assertThat(results).filteredOn(r -> r.itemSeq().equals("LONG") && r.type() == DurLookup.Type.INTERACTION)
+                .singleElement().satisfies(r -> assertThat(r.success()).isFalse());
+        var notice = new DurEvaluator().evaluate(input, results).notice();
+        assertThat(notice.result()).isEqualTo("FOUND");
+        assertThat(notice.lookup()).isEqualTo("PARTIAL");
+        assertThat(notice.uncheckedDrugNames()).containsExactly("drug-LONG");
+        assertThat(notice.items()).singleElement().satisfies(item -> assertThat(item.drugNames()).containsExactlyInAnyOrder("drug-LONG", "drug-SHORT"));
+    }
+
+    @Test
+    void remainingPagesAreReadTogetherWithinTheSlotsAndKeepTheirOrder() {
+        service = new DurLookupService(new PublicDataClient(json,
+            "http://127.0.0.1:" + server.getAddress().getPort(), "synthetic-dur-key", 1000, 1000, 4, 1000), executor, 4);
+        responder.set(r -> {
+            pause(40);
+            return success(1430, r.page(), partnerRows(r, 1430));
+        });
+        var result = service.collectItems(List.of("A"), java.util.Set.of(DurLookup.Type.INTERACTION), deadline()).getFirst();
+        assertThat(result.success()).isTrue();
+        assertThat(result.rows()).hasSize(1430);
+        assertThat(result.rows().getFirst().partnerItemSeq()).isEqualTo("P0");
+        assertThat(result.rows().getLast().partnerItemSeq()).isEqualTo("P1429");
+        assertThat(requests).extracting(Request::page).containsExactlyInAnyOrderElementsOf(IntStream.rangeClosed(1, 15).boxed().toList());
+        assertThat(maxActive.get()).isBetween(2, 4);
+    }
+
+    @Test
+    void backgroundPrefetchKeepsItsTwoSlotsWhileReadingManyPages() {
+        service = new DurLookupService(new PublicDataClient(json,
+            "http://127.0.0.1:" + server.getAddress().getPort(), "synthetic-dur-key", 1000, 1000, 4, 1000), executor, 4);
+        responder.set(r -> {
+            pause(40);
+            boolean many = r.type() == DurLookup.Type.INTERACTION;
+            return success(many ? 601 : 0, r.page(), many ? partnerRows(r, 601) : List.of());
+        });
+        var result = service.collectForPrefetch(List.of("A", "B"), java.util.EnumSet.allOf(DurLookup.Type.class), deadline());
+        assertThat(result).hasSize(8).allMatch(DurLookup::success);
+        assertThat(maxActive.get()).isBetween(1, 2);
+    }
+
+    @Test
+    void aBadMiddlePageFailsTheWholeTypeAndStopsReadingTheRest() {
+        responder.set(r -> {
+            pause(20);
+            if (r.page() == 3) return success(1430, r.page(), List.of());
+            return success(1430, r.page(), partnerRows(r, 1430));
+        });
+        var result = service.collectItems(List.of("A"), java.util.Set.of(DurLookup.Type.INTERACTION), deadline()).getFirst();
+        assertThat(result.success()).isFalse();
+        assertThat(result.rows()).isEmpty();
+        assertThat(requests.size()).isLessThan(15);
     }
 
     @ParameterizedTest
@@ -227,6 +298,18 @@ class DurExternalTests {
         assertThat(new DurEvaluator().evaluate(input, results).notice().result()).isNull();
     }
 
+    private void pause(long millis) {
+        try { Thread.sleep(millis); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+    }
+    private List<Map<String, String>> partnerRows(Request r, int total) {
+        var rows = new ArrayList<Map<String, String>>();
+        for (int i = (r.page() - 1) * 100; i < Math.min(r.page() * 100, total); i++) {
+            var value = new LinkedHashMap<>(row(r.code(), r.type(), "synthetic contraindication"));
+            value.put("MIXTURE_ITEM_SEQ", "P" + i);
+            rows.add(value);
+        }
+        return rows;
+    }
     private List<DurLookup> collect(String code) { return service.collect(input(List.of(code), "MALE", false), deadline()); }
     private ChatDeadline deadline() { return ChatDeadline.after(Duration.ofSeconds(10)); }
     private AnswerInput input(List<String> codes, String gender, Boolean pregnant) {
