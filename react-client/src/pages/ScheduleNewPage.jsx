@@ -261,7 +261,7 @@ function ScheduleNewPage() {
               role="status"
               icon="alertTriangle"
               action={
-                <Link className="mt-btn mt-btn--assistive mt-btn--md" to={scheduleLink(paths.scheduleEdit, { profileId, myDrugId: mine.myDrugId, from: 'drug' })}>
+                <Link className="mt-btn mt-btn--assistive mt-btn--md" to={scheduleLink(paths.scheduleEdit, { profileId, myDrugId: mine.myDrugId, from: profileId === profile?.profileId ? 'drug' : 'calendar' })}>
                   지금 일정 고치기
                 </Link>
               }
