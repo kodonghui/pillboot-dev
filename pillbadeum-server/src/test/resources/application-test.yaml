@@ -19,6 +19,10 @@ web-push:
     private-key: ""
     subject: ""
 
+# V3-COMMON-005: 테스트는 개발자 환경변수의 실제 Claude 키를 쓰지 않는다(백업 꺼짐).
+anthropic:
+  api-key: ""
+
 springdoc:
   api-docs:
     enabled: true

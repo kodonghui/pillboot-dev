@@ -76,6 +76,17 @@ photo:
   # 처방전 OCR 대기 한도임. 낱알85초·채팅60초와 별도로 적용함.
   prescription-ocr-timeout-ms: ${PRESCRIPTION_OCR_TIMEOUT_MS:60000}
 
+# V3-COMMON-005·DEC-028: OpenAI 호출이 실패하면 같은 요청을 Claude로 한 번 다시 보냄. 키가 비어 있으면 백업하지 않음.
+# 읽기 한도는 같은 호출의 OpenAI 한도(openai.*-read-timeout-ms, photo.*-timeout-ms)를 그대로 씀.
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+  model: ${ANTHROPIC_MODEL:claude-sonnet-5-5}
+  effort: ${ANTHROPIC_EFFORT:medium}
+  max-tokens: ${ANTHROPIC_MAX_TOKENS:16000}
+  # 안전 분류로 거절되면 Anthropic이 다른 모델로 다시 답하게 함(server-side fallback "default").
+  refusal-fallback: ${ANTHROPIC_REFUSAL_FALLBACK:true}
+  max-concurrent-calls: ${ANTHROPIC_MAX_CONCURRENT_CALLS:4}
+
 openai:
   api-key: ${OPENAI_API_KEY:}
   base-url: https://api.openai.com/v1
