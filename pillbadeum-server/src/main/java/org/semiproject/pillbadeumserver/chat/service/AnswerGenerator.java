@@ -66,8 +66,24 @@ public class AnswerGenerator {
                품목코드 없는 직접 입력 약도 등록 이름·일정은 설명할 수 있다. 식후라는 입력을 처방 지시나
                식전 금기로 해석하지 않는다. 식전·식후 등 실제 복용법 질문은 약별 공식 용법과 적용 조건을 설명한다.
             """;
-    private static final String NO_DRUG = "약을 등록하면 내 약 기준으로 공식 정보를 확인해 드릴게요. "
-            + "복약 기록이나 알림을 활용할 수 있지만, 특정 약의 복용 방법·용량·변경 여부는 지금 확인할 수 없어요. 약사에게 문의해 주세요.";
+    /** 카카오톡 약봉이 상담방에만 더하는 규칙(PM 카톡 캡처 2026-11-04: '카드에서 선택', '앱에서 등록해 주세요'). */
+    static final String KAKAO_RULES = """
+            9. 이 상담은 카카오톡 약봉이 대화다. 카톡에는 카드·버튼·화면·메뉴가 없으니 그런 말을 쓰지 않는다.
+               이전 대화의 '카드'·'제안'은 카톡에서 번호와 '모두 등록'·'일정 바꾸기'를 글로 보내 고르는 것을 말한다.
+               약 등록은 이 대화에서 '타이레놀 500 등록해 줘'처럼 말하거나 처방전·약봉투 사진을 보내면 되고,
+               복용 일정은 '타이레놀 아침 8시 한 알로 바꿔 줘'처럼 말하면 된다. 여기서는 등록·저장할 수 없다거나
+               앱·웹에서 하라고 말하지 않는다. 등록·일정을 원하는데 이번 글로 처리되지 않았으면 그렇게 다시 말해 달라고 한 줄로 안내한다.
+               불만·되묻기에는 사과를 반복하지 말고 지금 할 수 있는 것을 짧게 말한다.
+               프로필은 '프로필 바꾸기'를 보내 바꾼다. 입력에 없는 프로필 이름을 지어내지 않는다.
+               약 지우기만은 카톡에서 할 수 없다고 알리고, 필받음 웹 회원이면 웹 '약 목록'에서 지울 수 있다고 한다.
+               복용 시각이 정해지지 않은 약의 일정을 묻거나 말하면 '타이레놀 아침 8시 한 알로 바꿔 줘'처럼 말해 일정을 넣을 수 있다고 한 줄로 알린다.
+               본문에 '(출처 …)'·'[근거]' 같은 출처 줄을 쓰지 않는다. 출처는 답 끝에 따로 붙는다.
+               공식 정보를 확인하지 못했다는 말은 한 답에 한 번만 쓴다.
+               고령자·소아·임부·수유부 주의는 질문자 프로필의 나이·임신 여부에 해당하거나 질문이 그 사람을 물을 때만 말한다.
+            """;
+    static final String NO_DRUG = "아직 등록한 약이 없어 내 약을 바탕으로 답할 수 없어요. "
+            + "처방전·약봉투 사진을 보내거나 ‘타이레놀 500 등록해 줘’처럼 말하면 약을 넣을 수 있어요. "
+            + "궁금한 약이 있으면 약 이름을 넣어 다시 물어봐 주세요.";
     private static final String UNIDENTIFIED = "품목코드를 확인할 수 없는 직접 입력 약이 있어 공식 정보와 금기를 확인하지 못했어요. "
             + "약을 식별해 등록하거나 약사에게 확인해 주세요.";
     private final OpenAiClient openAi;
@@ -155,10 +171,11 @@ public class AnswerGenerator {
             var messages = messages(answerInput, medications, evidence, notice);
             deadline.check();
             deadline.stage(ChatStage.WRITING);
+            String rules = rules(input);
             // effort max의 긴 정리 답변이 30초를 넘어 60초까지 기다림(CHK-42). 전체 85초 마감이 먼저 오면 그때 끊음.
             AiTextResult generated = deadline.within(Duration.ofSeconds(60)).await(executor.submit(() -> {
                 deadline.check();
-                return openAi.createTextResult(RULES, messages, 1600);
+                return openAi.createTextResult(rules, messages, 1600);
             }));
             text = sources.body(generated.text()).strip();
             if (text.isBlank()) throw ExternalApiException.failed("OpenAI", "AI 응답 본문이 없습니다.", null);
@@ -189,11 +206,17 @@ public class AnswerGenerator {
         var evidence = new OfficialDrugEvidence.Evidence(List.of());
         var messages = messages(input, records, evidence, null);
         deadline.stage(ChatStage.WRITING);
+        String rules = rules(input);
         AiTextResult generated = deadline.within(Duration.ofSeconds(60)).await(executor.submit(() ->
-                openAi.createTextResult(RULES, messages, 1600)));
+                openAi.createTextResult(rules, messages, 1600)));
         var provenance = records.stream().filter(m -> m.itemSeq() != null && !m.itemSeq().isBlank())
                 .map(m -> new AnswerSource(m.itemSeq(), m.name(), AnswerSource.Type.USER_INPUT, m.updatedAt(), true, false)).toList();
         return new GeneratedAnswer(sources.append(generated.text(), provenance), generated.responseId(), null, List.of());
+    }
+
+    /** 신뢰하는 지침. 카카오톡 상담방이면 카톡 규칙을 덧붙인다(사용자 값은 끼우지 않음). */
+    static String rules(AnswerInput input) {
+        return input.kakao() ? RULES + KAKAO_RULES : RULES;
     }
 
     /** 현재 명시한 약을 선택함. 생략된 후속 질문은 직전 약을 우선하되 다른 등록 약·일정도 최대10개 유지함. */

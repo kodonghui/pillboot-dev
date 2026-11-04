@@ -119,4 +119,50 @@ class ChatDrugLookupTests {
         assertThat(lookup.resolve(input,ChatDeadline.after(Duration.ofSeconds(2))).medications()).isEmpty();
         verify(data,atLeastOnce()).get(anyString(),anyMap(),any(Duration.class));
     }
+    // QA 2026-11-04: 등록한 '노바스크정10밀리그램'을 '노바스크'로 물으면 공공 검색 후보 고르기가 나옴
+    @Test void abbreviatedNameUsesTheOneOwnedProduct() {
+        extraction("LOOKUP","노바스크");
+        var owned=new AnswerInput.Medication("199900010","노바스크정10밀리그램(암로디핀베실산염)","시험제약","ETC",null,null,null,null,null,LocalDate.now());
+        var input=new AnswerInput(1993,"UNKNOWN",false,"노바스크 효능은?",List.of(owned),List.of(),false);
+        assertThat(lookup.resolve(input,ChatDeadline.after(Duration.ofSeconds(2))).medications()).containsExactly(owned);
+        verifyNoInteractions(data);
+    }
+    @Test void abbreviatedNameWithStrengthMustMatchTheOwnedStrength() {
+        var owned=new AnswerInput.Medication("199900001","타이레놀정500밀리그람(아세트아미노펜)","시험제약","OTC",null,null,null,null,null,LocalDate.now());
+        extraction("LOOKUP","타이레놀 500");
+        var same=new AnswerInput(1993,"UNKNOWN",false,"타이레놀 500 효능은?",List.of(owned),List.of(),false);
+        assertThat(lookup.resolve(same,ChatDeadline.after(Duration.ofSeconds(2))).medications()).containsExactly(owned);
+        verifyNoInteractions(data);
+        extraction("LOOKUP","타이레놀 650");results(0,List.of());
+        var other=new AnswerInput(1993,"UNKNOWN",false,"타이레놀 650 효능은?",List.of(owned),List.of(),false);
+        assertThat(lookup.resolve(other,ChatDeadline.after(Duration.ofSeconds(2))).medications()).isEmpty();
+        verify(data,atLeastOnce()).get(anyString(),anyMap(),any(Duration.class));
+    }
+    @Test void abbreviatedNameMatchingTwoOwnedProductsAsksAmongOwnedOnly() {
+        extraction("LOOKUP","가상약");
+        var ten=new AnswerInput.Medication("199900001","가상약정10mg","시험제약","ETC",null,null,null,null,null,LocalDate.now());
+        var twenty=new AnswerInput.Medication("199900002","가상약정20mg","시험제약","ETC",null,null,null,null,null,LocalDate.now());
+        var input=new AnswerInput(1993,"UNKNOWN",false,"가상약 효능은?",List.of(ten,twenty),List.of(),false);
+        var result=lookup.resolve(input,ChatDeadline.after(Duration.ofSeconds(2)));
+        assertThat(result.reply()).startsWith(ChatDrugLookup.CHOICES).contains("1. 가상약정10mg · 시험제약 · 내 약","2. 가상약정20mg");
+        assertThat(result.sources()).extracting(s->s.itemSeq()).containsExactly("199900001","199900002");
+        verifyNoInteractions(data);
+    }
+    @Test void publicChoicesListOwnedProductsFirst() {
+        var owned=new AnswerInput.Medication("199900002","가상약정20mg","시험제약","ETC",null,null,null,null,null,LocalDate.now());
+        extraction("LOOKUP","가상약");results(2,List.of(row("199900001","가상약정10mg"),row("199900002","가상약정20mg")));
+        var input=new AnswerInput(1993,"UNKNOWN",false,"가상약 검색해줘",List.of(owned),List.of(),false);
+        var result=lookup.resolve(input,ChatDeadline.after(Duration.ofSeconds(2)));
+        assertThat(result.reply()).contains("1. 가상약정20mg · 시험제약 · 내 약","2. 가상약정10mg · 시험제약").doesNotContain("10mg · 시험제약 · 내 약");
+    }
+    @Test void pickingANumberAnswersTheQuestionAskedBeforeTheChoices() {
+        extraction("LOOKUP","가상약");results(2,List.of(row("199900001","가상약정10밀리그램"),row("199900002","가상약정20밀리그램")));
+        var first=lookup.resolve(input("가상약 효능 알려줘",List.of()),ChatDeadline.after(Duration.ofSeconds(2)));
+        results(1,List.of(row("199900002","가상약정20밀리그램")));
+        var recent=List.of(new AnswerInput.Turn(1,"가상약 효능 알려줘",sources.append(first.reply(),first.sources()),null,null));
+        var selected=lookup.resolve(input("2번이요",recent),ChatDeadline.after(Duration.ofSeconds(2)));
+        // 번호 대신 고른 제품 이름을 붙인다('2번 …을 선택하셨어요'로만 답함, QA 2026-11-04 2차)
+        assertThat(selected.continuationQuestion())
+                .isEqualTo("가상약 효능 알려줘\n(후보에서 고른 제품: 가상약정20밀리그램. 위 질문에 이 제품으로 답해 주세요.)");
+    }
 }

@@ -165,4 +165,22 @@ class QuestionIntentReaderTests {
         assertThat(unknown.kind()).isEqualTo(QuestionIntent.Kind.SCHEDULE_CHANGE);
         assertThat(unknown.targetMyDrugName()).isNull();
     }
+
+    // QA 2026-11-04: '오늘부터 5일간 점심에 먹을거니까'처럼 앞으로 먹을 때를 말하면 일정 요청으로 가를 수 있게 AI에 보낸다
+    @Test
+    void sayingWhenToTakeADrugIsSentToTheAi() {
+        answer("SCHEDULE_CHANGE", List.of(), "가상혈압정 5mg");
+        for (String q : List.of("가상혈압정 오늘부터 5일간 점심에 먹을거야", "가상혈압정 점심 12시 한알", "가상혈압정 저녁에 두알씩 먹을게요")) {
+            assertThat(read(q, List.of("가상혈압정 5mg")).kind()).as(q).isEqualTo(QuestionIntent.Kind.SCHEDULE_CHANGE);
+        }
+        verify(ai, org.mockito.Mockito.times(3)).createJson(anyString(), anyList(), anyInt(), eq("question_intent"), anyMap(), eq("low"));
+    }
+
+    @Test
+    void askingWhetherToTakeStillSkipsTheAi() {
+        for (String q : List.of("타이레놀 같이 먹을 수 있어?", "점심에 먹어도 돼?", "타이레놀 몇 알 먹어야 해?")) {
+            assertThat(read(q, List.of())).as(q).isEqualTo(QuestionIntent.question());
+        }
+        verifyNoInteractions(ai);
+    }
 }

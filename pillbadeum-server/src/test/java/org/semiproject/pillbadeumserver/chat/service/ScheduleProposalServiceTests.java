@@ -123,6 +123,29 @@ class ScheduleProposalServiceTests {
     }
 
     @Test
+    void anAbbreviatedNameMatchingTwoOwnedProductsListsThemToChooseFrom() {
+        var five = target(33L, "가상바스크정 5밀리그램", null);
+        var ten = target(34L, "가상바스크정 10밀리그램(가상성분)", null);
+        assertThat(ScheduleProposalService.askDrug(List.of(pressure, five, ten), "가상바스크 아침 8시 한 알로 바꿔 줘"))
+                .isEqualTo("약목록에 맞는 약이 여럿이에요. 어느 약인지 함량까지 넣어 다시 말해 주세요.\n"
+                        + "· 가상바스크정 5밀리그램\n· 가상바스크정 10밀리그램(가상성분)\n예) 가상바스크정 10밀리그램(가상성분) 아침 8시로 바꿔 줘");
+        assertThat(ScheduleProposalService.askDrug(List.of(pressure, five), "가상바스크 아침 8시로 바꿔 줘"))
+                .isEqualTo(ScheduleProposalService.ASK_DRUG);
+        assertThat(ScheduleProposalService.askDrug(List.of(five, ten), "아침 8시로 바꿔 줘")).isEqualTo(ScheduleProposalService.ASK_DRUG);
+    }
+
+    @Test
+    void withOnlyOneDrugAScheduleWithoutANameIsForThatDrug() {
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(pressure));
+        interpreted(parsed("CREATE_SCHEDULE", null, List.of("08:00"), 1));
+        when(proposals.saveScheduleAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), anyLong(), any(), any(), any(),
+                anyBoolean())).thenReturn(notice);
+        assertThat(propose(null)).isSameAs(notice);
+        verify(proposals).saveScheduleAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND), eq(30L),
+                any(), any(), any(), eq(false));
+    }
+
+    @Test
     void interpreterResultsThatCannotBeACardAnswerWithANotice() {
         record Case(ParsedCommand parsed, String notice) {}
         var cases = List.of(
