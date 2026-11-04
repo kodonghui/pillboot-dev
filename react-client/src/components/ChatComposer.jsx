@@ -81,7 +81,8 @@ function ChatComposer({ value, onChange, onSend, onPhoto, locked, hint, error })
         </div>
         <button className="mt-btn mt-btn--solid chat-composer__send" type="button" disabled={!canSend} onClick={send}>
           <Icon name="send" />
-          보내기
+          {/* 좁은 화면에서는 글자를 숨기고 아이콘만 보인다(ChatComposer.css) */}
+          <span className="chat-composer__send-label">보내기</span>
         </button>
       </div>
       <Notice variant="info">

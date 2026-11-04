@@ -367,4 +367,36 @@
     padding-right: var(--space-16);
     padding-left: var(--space-16);
   }
+
+  /* design/narrow-header-chat.md: 대화 내용이 더 보이게 위아래 여백 8px, 머리는 한 줄(제목 말줄임표 · 약 등록), 입력창 여백을 줄인다.
+     ChatPage 의 roomSpot 은 scroll-margin 을 읽으므로 대화방 위가 화면 위 8px 에 온다. */
+  .chat-room {
+    height: calc(100svh - var(--space-8) * 2);
+    scroll-margin-block: var(--space-8);
+  }
+
+  .chat-room__head {
+    gap: var(--space-6);
+    padding-top: var(--space-16);
+    padding-bottom: var(--space-16);
+  }
+
+  .chat-room__head-row {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-12);
+  }
+
+  .chat-room__head-row > h2 {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-room__composer {
+    gap: var(--space-10);
+    padding-top: var(--space-12);
+    padding-bottom: var(--space-16);
+  }
 }
