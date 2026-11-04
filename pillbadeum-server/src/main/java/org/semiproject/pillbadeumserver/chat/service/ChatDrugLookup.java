@@ -209,11 +209,12 @@ public class ChatDrugLookup {
                 .map(t -> sources.sources(t.answer())).orElse(List.of());
     }
 
-    // 후보 번호로 보이는 'N번'(뒤에 '약'·'거'·'제품'이 붙어도 됨). 먹는 횟수('하루 2번'·'2번씩'·'2번 먹어')는 뺀다.
+    // 후보 번호로 보이는 'N번'(뒤에 '약'·'거'·'제품'이 붙어도 됨). 먹는 횟수('하루 2번'·'하루 총 2번'·'1일 2번'·'2번씩'·'2번 먹어')는 뺀다.
     private static final java.util.regex.Pattern CHOICE_REF = java.util.regex.Pattern.compile(
             "(?<![0-9])([1-5])\\s*번(\\s*(?:약|거|꺼|것|제품))?(?![0-9a-zA-Z가-힣]*(?:째|시|일|분))");
     private static final java.util.regex.Pattern TIMES_BEFORE = java.util.regex.Pattern.compile(
-            "(?:하루|매일|날마다|일주일|주|한\\s*달|달|번에|아침|점심|저녁|밤|새벽|식전|식후|자기\\s*전)\\s*(?:에|에만|마다|동안)?\\s*$");
+            "(?:하루|매일|날마다|일주일|주|한\\s*달|달|번에|아침|점심|저녁|밤|새벽|식전|식후|자기\\s*전|(?<![0-9])1\\s*일)"
+                    + "\\s*(?:에|에만|마다|동안|당)?\\s*(?:총|최대|최소|각각|각|많게는|적게는|보통)?\\s*$");
     private static final java.util.regex.Pattern TIMES_AFTER = java.util.regex.Pattern.compile(
             "^\\s*(?:씩|이상|이하|넘게|넘어|까지|정도|쯤|이나|만|더|먹|복용|마시|마셔|발라|뿌려|넣어|넣으)");
 

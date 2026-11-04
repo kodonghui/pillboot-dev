@@ -229,6 +229,11 @@ class ChatDrugLookupTests {
         // 먹는 횟수·목록 밖 번호·번호만 보낸 글(고르기)은 그대로
         assertThat(lookup.withChoiceNames("하루 2번 먹어도 돼?",last)).isEqualTo("하루 2번 먹어도 돼?");
         assertThat(lookup.withChoiceNames("2번씩 먹을거야",last)).isEqualTo("2번씩 먹을거야");
+        // 고른 번호와 먹는 횟수를 같이 말하면 번호만 바꿈(Codex 리뷰: '하루 총 2번'·'1일 2번'의 2번이 2번 후보로 바뀜)
+        assertThat(lookup.withChoiceNames("1번 약 하루 총 2번 12시와 18시에 한 알 먹을게",last))
+                .isEqualTo("가상어린이약산160밀리그램 하루 총 2번 12시와 18시에 한 알 먹을게");
+        assertThat(lookup.withChoiceNames("1일 2번 12시와 18시에 한 알 먹을게",last)).isEqualTo("1일 2번 12시와 18시에 한 알 먹을게");
+        assertThat(lookup.withChoiceNames("1번 하루에 최대 2번 먹을게",last)).isEqualTo("가상어린이약산160밀리그램 하루에 최대 2번 먹을게");
         assertThat(lookup.withChoiceNames("4번 12시에 먹을게",last)).isEqualTo("4번 12시에 먹을게");
         assertThat(lookup.withChoiceNames("1번",last)).isEqualTo("1번");
         // 직전 답이 후보 목록이 아니면 그대로

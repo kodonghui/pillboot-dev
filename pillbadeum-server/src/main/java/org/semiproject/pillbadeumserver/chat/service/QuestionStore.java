@@ -65,12 +65,14 @@ public class QuestionStore {
     }
 
     /**
-     * 이 방의 마지막 답 원문(근거 표시 포함). 없으면 null. 직전 답이 검색 후보 목록일 때 질문의 'N번'을 그 후보 이름으로
-     * 바꾸는 데만 쓴다(2026-11-04 운영 카톡: '1번 12시에 한알 먹을거라고'가 다른 약의 일정 제안이 됨).
+     * beforeTurn 앞 턴의 답 원문(근거 표시 포함, beforeTurn 이 null 이면 마지막 턴). 없으면 null. 직전 답이 검색 후보
+     * 목록일 때 질문의 'N번'을 그 후보 이름으로 바꾸는 데만 쓴다(2026-11-04 운영 카톡: '1번 12시에 한알 먹을거라고'가
+     * 다른 약의 일정 제안이 됨). 다시 보내기는 저장된 질문의 턴이 마지막이라 그 앞 턴의 답을 본다(Codex 리뷰: 다시 보내면
+     * 고른 후보 이름이 빠져 등록 제안을 다시 만들지 못함).
      */
     @Transactional(readOnly = true)
-    public String lastAnswer(Long sessionId) {
-        var turns = messages.findHistoryTurns(sessionId, null, org.springframework.data.domain.PageRequest.of(0, 1));
+    public String answerBefore(Long sessionId, Integer beforeTurn) {
+        var turns = messages.findHistoryTurns(sessionId, beforeTurn, org.springframework.data.domain.PageRequest.of(0, 1));
         if (turns.isEmpty()) return null;
         return messages.findHistoryMessages(sessionId, turns).stream().filter(message -> "assistant".equals(message.getRole()))
                 .map(ChatMessage::getContent).reduce((first, second) -> second).orElse(null);

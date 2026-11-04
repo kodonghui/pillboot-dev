@@ -78,7 +78,7 @@ public class QuestionService {
             if (!plan.category().isPassed()) return QuestionResponse.blocked(plan.category());
             // V3-CHAT-001: 통과한 질문만 의도를 가른다. 등록 요청은 등록 제안 카드(V3-CHAT-002)로,
             // 일정 요청은 일정 제안 카드(V3-CHAT-007)로 답한다.
-            String request = request(sessionId, question);
+            String request = request(sessionId, question, null);
             var intent = intents.read(request, context.myDrugNames(), reported);
             reported.check();
             var saved = store.save(sessionId, memberId, profileId, question);
@@ -120,14 +120,15 @@ public class QuestionService {
             reported.stage(ChatStage.UNDERSTANDING);
             var question = store.retryQuestion(sessionId, memberId, profileId, messageId);
             // 등록·일정 요청이었던 질문은 다시 보내도 제안 카드로 답한다(V3-CHAT-002·007).
-            String content = store.questionContent(sessionId, question);
-            var intent = intents.read(content, store.classificationContext(sessionId, memberId, profileId).myDrugNames(), reported);
+            // 처음 보낼 때처럼 'N번'은 저장된 질문 앞 턴의 후보 목록으로 바꿔 가른다
+            String request = request(sessionId, store.questionContent(sessionId, question), question.turnNo());
+            var intent = intents.read(request, store.classificationContext(sessionId, memberId, profileId).myDrugNames(), reported);
             reported.check();
             if (intent.kind() == QuestionIntent.Kind.REGISTER_DRUG)
                 return QuestionResponse.answered(question, registrations.propose(sessionId, memberId, profileId, question,
                         intent.drugMentions(), reported, true));
             if (intent.kind() == QuestionIntent.Kind.SCHEDULE_CHANGE)
-                return QuestionResponse.answered(question, schedules.propose(sessionId, memberId, profileId, question, content,
+                return QuestionResponse.answered(question, schedules.propose(sessionId, memberId, profileId, question, request,
                         intent.targetMyDrugName(), reported, true));
             return QuestionResponse.answered(question, answers.retry(sessionId, memberId, profileId, question, reported));
         });
@@ -136,10 +137,11 @@ public class QuestionService {
     /**
      * 의도 가르기·등록·일정 제안에 보낼 글. 직전 답이 검색 후보 목록이고 질문에 'N번'이 있으면 그 후보 이름으로 바꾼다
      * (ChatDrugLookup.withChoiceNames). 저장하는 질문과 보통 답변은 보낸 글 그대로다. 'N번'이 없으면 이전 답을 읽지 않는다.
+     * beforeTurn 은 다시 보내는 질문의 턴(그 앞 턴의 답을 봄). 새 질문은 null(마지막 턴의 답).
      */
-    private String request(Long sessionId, String question) {
-        if (!question.matches("(?s).*[1-5]\\s*번.*")) return question;
-        String named = lookup.withChoiceNames(question, store.lastAnswer(sessionId));
+    private String request(Long sessionId, String question, Integer beforeTurn) {
+        if (question == null || !question.matches("(?s).*[1-5]\\s*번.*")) return question;
+        String named = lookup.withChoiceNames(question, store.answerBefore(sessionId, beforeTurn));
         return named == null ? question : named;
     }
 
