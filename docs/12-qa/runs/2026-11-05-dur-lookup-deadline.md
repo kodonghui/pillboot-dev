@@ -3,7 +3,22 @@
 - 왜: 운영에서 영상 흐름을 걷던 발표 준비 중 찾음. 에어탈정·케토라신정·노바스크정을 넣고 "같이 먹어도 돼?"로 물으면 병용금기 조회 6건 중 2건만 성공하고 금기 카드가 뜨지 않으며 답이 약 50초 걸렸음.
 - 범위: DEC-034 '영상 흐름의 막히는 곳을 고침'에 따름. 서버 `DurLookupService`만 고침. JSON 계약·스키마·SQL은 그대로임.
 
-## 원인(코드로 확인함)
+## 다음 원인: 겹친 행(운영 기록으로 확인함)
+
+위 고침 뒤에도 케토라신정이 '확인하지 못한 약'으로 남았음. 처음에는 시간이 모자란 것으로 짐작했으나 틀렸음. 진단 기록(PR #58)을 운영에 올리고 2026-11-05 11:15 KST에 '아버지(가상)'으로 "같이 먹어도 돼?"를 물어 아래 기록을 얻음.
+
+```text
+type=INTERACTION result=duplicate_rows repeatedRows=1 repeatedRawRows=0 samePage=1 otherPage=0 differingFields=[MIXTURE_INGR_ENG_NAME, MIXTURE_INGR_KOR_NAME] otherDifferingFields=0
+type=INTERACTION result=unavailable reason=duplicate_rows totalRows=1430 elapsedMs=14314
+```
+
+- 1,430행을 14.3초에 다 읽었고, 마감 30초 전에 끝남. 시간 문제가 아니었음.
+- 같은 페이지의 두 행이 상대 약의 성분 표기 칸만 다름. 서버가 읽는 칸(상대 품목, 성분, 분류, 내용, 갱신일)은 같아 중복 검사에 걸렸고, 행 하나 때문에 1,430행 전체가 실패가 됨.
+- 원본까지 같은 행은 0건이라 페이지 반복의 흔적은 없음.
+
+고침: 원본 행이 똑같이 또 오면 지금처럼 실패로 둠. 원본은 다르고 읽는 칸만 같으면 같은 금기이므로 하나로 합치고 `result=merged_rows`를 남김. 일부 페이지만 읽은 결과를 성공으로 쓰지 않는 규칙은 그대로임. JSON 계약·스키마·SQL은 바꾸지 않음.
+
+## 앞선 원인: 조회 순서와 마감(코드로 확인함)
 
 | 차례 | 내용 |
 | --- | --- |
