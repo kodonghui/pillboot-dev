@@ -241,6 +241,51 @@ class AnswerContextTests {
                 .extracting(AnswerInput.Medication::itemSeq).startsWith("code-10").contains("code-0","code-8");
     }
 
+    // QA 2026-11-05: '노바스크정'이라고만 물어도 등록한 세 약 자료를 모두 읽어 분량을 넘겼음.
+    @Test
+    void aShorterProductNameSelectsThatMedicationOnly() {
+        var amlodipine = medication("200610660", "노바스크정5밀리그람(암로디핀베실산염)");
+        var ketorolac = medication("199500043", "케토라신정");
+        assertThat(generator.selectMedications(input("노바스크정 아침에 깜빡했어. 지금 먹어도 돼?", List.of(amlodipine, ketorolac), List.of())))
+                .containsExactly(amlodipine);
+        assertThat(generator.selectMedications(input("노바스크 먹어도 돼?", List.of(amlodipine, ketorolac), List.of())))
+                .containsExactly(amlodipine);
+        assertThat(generator.selectMedications(input("같이 먹어도 돼?", List.of(amlodipine, ketorolac), List.of())))
+                .containsExactly(amlodipine, ketorolac);
+    }
+
+    private OfficialDrugEvidence.Lookup permit(String code, java.util.Map<String, String> facts) {
+        return new OfficialDrugEvidence.Lookup(new org.semiproject.pillbadeumserver.chat.domain.AnswerSource(code, code,
+                org.semiproject.pillbadeumserver.chat.domain.AnswerSource.Type.PERMIT, LocalDate.now(TimeZoneConfig.ZONE), true, false), facts, false);
+    }
+
+    // QA 2026-11-05: 분량을 넘긴 자료를 조회 실패로 표시해 '확인하지 못했어요'가 대부분의 답에 붙었음.
+    @Test
+    void evidenceOverTheBudgetIsTrimmedByFieldAndIsNotReportedAsAFailedLookup() {
+        var first = permit("A", java.util.Map.of("STORAGE_METHOD", "실온", "NB_DOC_DATA", "가".repeat(100), "EE_DOC_DATA", "나".repeat(10)));
+        var second = permit("B", java.util.Map.of("NB_DOC_DATA", "다".repeat(200)));
+        var evidence = new OfficialDrugEvidence.Evidence(List.of(first, second));
+
+        var fits = generator.limitEvidence(evidence, "같이 먹어도 돼?", 10_000);
+        assertThat(fits.evidence()).isSameAs(evidence);
+        assertThat(fits.relevantOmitted()).isFalse();
+
+        // 필요한 문서 중 긴 것이 빠지면 알리지만 조회 실패는 아님. 빠진 글을 중간에서 자르지 않음.
+        var missing = generator.limitEvidence(evidence, "같이 먹어도 돼?", 400);
+        assertThat(missing.relevantOmitted()).isTrue();
+        assertThat(missing.evidence().hasFailures()).isFalse();
+        assertThat(missing.evidence().lookups().get(0).facts()).containsOnlyKeys("STORAGE_METHOD", "NB_DOC_DATA", "EE_DOC_DATA");
+        assertThat(missing.evidence().lookups().get(0).source().ok()).isTrue();
+        assertThat(missing.evidence().lookups().get(1).facts()).isEmpty();
+        assertThat(missing.evidence().lookups().get(1).source().ok()).isFalse();
+
+        // 이 질문에 필요 없는 문서만 빠지면 답 끝에 알리지 않음.
+        var extra = generator.limitEvidence(evidence, "같이 먹어도 돼?", 906);
+        assertThat(extra.relevantOmitted()).isFalse();
+        assertThat(extra.evidence().lookups().get(0).facts()).containsOnlyKeys("STORAGE_METHOD", "NB_DOC_DATA");
+        assertThat(extra.evidence().lookups().get(1).facts()).containsOnlyKeys("NB_DOC_DATA");
+    }
+
     @Test
     void noMentionFallsBackToTenAndRepeatedCodesAreNotCalledTwice() {
         var medications = new ArrayList<AnswerInput.Medication>();

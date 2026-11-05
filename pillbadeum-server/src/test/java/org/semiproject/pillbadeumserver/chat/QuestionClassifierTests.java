@@ -64,6 +64,15 @@ class QuestionClassifierTests {
         serverExecutor.shutdownNow();
     }
 
+    @Test
+    void selfHarmKeepsTheEmergencyValueInThePublicResponse() {
+        var mapper = new tools.jackson.databind.json.JsonMapper();
+        var body = mapper.readTree(mapper.writeValueAsString(
+                org.semiproject.pillbadeumserver.chat.dto.QuestionResponse.blocked(QuestionCategory.SELF_HARM)));
+        assertThat(body.path("notice").path("category").asString()).isEqualTo("EMERGENCY");
+        assertThat(body.path("notice").path("message").asString()).contains("109");
+    }
+
     @ParameterizedTest
     @EnumSource(QuestionCategory.class)
     void fourChoicesUseDecisionsAndOnlyPassContinues(QuestionCategory category, CapturedOutput output) {
@@ -85,7 +94,8 @@ class QuestionClassifierTests {
         }
         assertThat(QuestionCategory.OFF_TOPIC.noticeMessage()).contains("약과 복약", "물어봐 주세요");
         assertThat(QuestionCategory.UNSAFE.noticeMessage()).contains("답해 드릴 수 없어요", "의사나 약사");
-        assertThat(QuestionCategory.EMERGENCY.noticeMessage()).contains("119", "응급실", "109");
+        assertThat(QuestionCategory.EMERGENCY.noticeMessage()).contains("119", "응급실", "드신 약").doesNotContain("109");
+        assertThat(QuestionCategory.SELF_HARM.noticeMessage()).contains("119", "응급실", "109");
         assertThat(calls.get()).isEqualTo(1);
         assertThat(authorization.get()).isEqualTo("Bearer local-test-key");
         JsonNode request = sent.get();
@@ -102,7 +112,7 @@ class QuestionClassifierTests {
             choices.add(choice.path("value").asString());
             assertThat(choice.path("description").asString()).isNotBlank();
         }
-        assertThat(choices).containsExactly("PASS", "OFF_TOPIC", "UNSAFE", "EMERGENCY");
+        assertThat(choices).containsExactly("PASS", "OFF_TOPIC", "UNSAFE", "EMERGENCY", "SELF_HARM");
         assertThat(output.getAll()).contains("category=" + category.name()).doesNotContain(INPUT, "local-test-key");
         assertThat(output.getAll()).contains("inputTokens=unknown", "estimatedCostUsd=unknown");
     }
@@ -227,7 +237,7 @@ class QuestionClassifierTests {
         assertThat(context.path("previousQuestions").path(0).asString()).isEqualTo("내 약 이름은?");
         assertThat(context.path("products").path(0).asString()).isEqualTo("197400040 합성약");
         assertThat(request.path("questions").size()).isEqualTo(1);
-        assertThat(request.path("questions").path(0).path("choices").size()).isEqualTo(6);
+        assertThat(request.path("questions").path(0).path("choices").size()).isEqualTo(7);
     }
 
     @Test

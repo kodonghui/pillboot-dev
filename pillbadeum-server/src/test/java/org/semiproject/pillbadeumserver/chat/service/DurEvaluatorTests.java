@@ -58,6 +58,36 @@ class DurEvaluatorTests {
         assertThat(notice.items().getFirst().drugNames()).containsExactly("drug-A", "drug-B");
     }
 
+    // QA 2026-11-05 PM 결정: 병용금기는 늘 두고, 나이를 대조하지 못한 연령금기는 금기를 물을 때만 보임.
+    @Test
+    void unmatchedAgeNoticeShowsOnlyWhenContraindicationsOrAgeAreAsked() {
+        var unmatched = new org.semiproject.pillbadeumserver.chat.dto.DurNotice.Item("AGE", List.of("drug-A"),
+                "연령 조건을 자동으로 대조하지 못했어요. 약사에게 확인해 주세요. 공식 내용: 안전성 및 유효성 미확립", today);
+        var confirmed = new org.semiproject.pillbadeumserver.chat.dto.DurNotice.Item("AGE", List.of("drug-A"), "15세 미만", today);
+        var pair = new org.semiproject.pillbadeumserver.chat.dto.DurNotice.Item("INTERACTION", List.of("drug-A", "drug-B"), "병용금기", today);
+        var both = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("ALL", "FOUND", 2, List.of(), List.of(pair, unmatched, confirmed), "message");
+
+        var plain = question("drug-A는 무슨 약이야?");
+        assertThat(evaluator.shownNotice(plain, both).items()).containsExactly(pair, confirmed);
+        assertThat(evaluator.shownNotice(plain, both).result()).isEqualTo("FOUND");
+        assertThat(evaluator.shownNotice(question("같이 먹어도 돼?"), both)).isSameAs(both);
+        assertThat(evaluator.shownNotice(question("금기 있어?"), both)).isSameAs(both);
+        assertThat(evaluator.shownNotice(question("어린이도 먹을 수 있어?"), both)).isSameAs(both);
+        assertThat(evaluator.shownNotice(question("12세도 이 약을 복용할 수 있어?"), both)).isSameAs(both);
+        assertThat(evaluator.shownNotice(question("청소년도 복용해도 돼?"), both)).isSameAs(both);
+        assertThat(evaluator.shownNotice(question("열두 살도 먹을 수 있어?"), both)).isSameAs(both);
+
+        var onlyUnmatched = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("ALL", null, 1, List.of(), List.of(unmatched), "message");
+        assertThat(evaluator.shownNotice(plain, onlyUnmatched)).isNull();
+        var unchecked = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("PARTIAL", null, 0, List.of("drug-B"), List.of(unmatched), "message");
+        assertThat(evaluator.shownNotice(plain, unchecked).items()).isEmpty();
+        assertThat(evaluator.shownNotice(plain, unchecked).uncheckedDrugNames()).containsExactly("drug-B");
+    }
+
+    private AnswerInput question(String text) {
+        return new AnswerInput(1960, "MALE", false, text, List.of(drug("A")), List.of(), false);
+    }
+
     @Test
     void cardPolicyKeepsWarningsAndSafetyQuestionsWithoutRepeatingSuccessfulRecordChecks() {
         var noDrug = new AnswerInput(1990, "MALE", false, "알림 설정은 어디에 있어?", List.of(), List.of(), false);
