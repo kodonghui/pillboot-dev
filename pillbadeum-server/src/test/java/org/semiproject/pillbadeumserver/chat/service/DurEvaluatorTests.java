@@ -73,6 +73,9 @@ class DurEvaluatorTests {
         assertThat(evaluator.shownNotice(question("같이 먹어도 돼?"), both)).isSameAs(both);
         assertThat(evaluator.shownNotice(question("금기 있어?"), both)).isSameAs(both);
         assertThat(evaluator.shownNotice(question("어린이도 먹을 수 있어?"), both)).isSameAs(both);
+        assertThat(evaluator.shownNotice(question("12세도 이 약을 복용할 수 있어?"), both)).isSameAs(both);
+        assertThat(evaluator.shownNotice(question("청소년도 복용해도 돼?"), both)).isSameAs(both);
+        assertThat(evaluator.shownNotice(question("열두 살도 먹을 수 있어?"), both)).isSameAs(both);
 
         var onlyUnmatched = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("ALL", null, 1, List.of(), List.of(unmatched), "message");
         assertThat(evaluator.shownNotice(plain, onlyUnmatched)).isNull();

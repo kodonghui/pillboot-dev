@@ -126,7 +126,7 @@ public class DurEvaluator {
      */
     public DurNotice shownNotice(AnswerInput input, DurNotice notice) {
         String question = input.question();
-        if (asksContraindication(question) || question.replaceAll("\\s+", "").matches("(?s).*(나이|연령|어린이|소아|아이|아기|노인|고령|몇살).*"))
+        if (asksContraindication(question) || question.replaceAll("\\s+", "").matches("(?s).*(나이|연령|어린이|청소년|미성년|소아|유아|영아|아이|아기|학생|노인|고령|어르신|몇살|몇세|[0-9]+(?:세|살|개월)|살(?:도|은|이|인|짜리)).*"))
             return notice;
         var items = notice.items().stream().filter(item -> !("AGE".equals(item.type()) && item.content().startsWith(AGE_UNRESOLVED))).toList();
         if (items.size() == notice.items().size()) return notice;
