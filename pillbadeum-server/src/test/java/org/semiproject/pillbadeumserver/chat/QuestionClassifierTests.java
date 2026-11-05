@@ -64,6 +64,19 @@ class QuestionClassifierTests {
         serverExecutor.shutdownNow();
     }
 
+    // QA 2026-11-05: 모델이 '약 한 통을 다 드셨어'를 일반 질문으로 넘겼음.
+    @Test
+    void anOverdoseAlreadyTakenBecomesAnEmergencyEvenWhenTheModelPassesIt() {
+        server.createContext("/decisions", exchange -> respond(exchange, 200, answer("PASS_OFFICIAL")));
+        var classifier = classifier("local-test-key", "decision-only", 1000);
+        var empty = QuestionClassifier.Context.empty();
+        assertThat(classifier.plan("아버지가 약 한 통을 다 드셨어", empty).category()).isEqualTo(QuestionCategory.SELF_HARM);
+        assertThat(classifier.plan("실수로 약 한 통을 다 드셨어", empty).category()).isEqualTo(QuestionCategory.EMERGENCY);
+        assertThat(classifier.plan("수면제를 너무 많이 먹었어", empty).category()).isEqualTo(QuestionCategory.SELF_HARM);
+        assertThat(classifier.plan("오늘 약 다 먹었어", empty).category()).isEqualTo(QuestionCategory.PASS);
+        assertThat(classifier.plan("밥을 너무 많이 먹었어. 약 먹어도 돼?", empty).category()).isEqualTo(QuestionCategory.PASS);
+    }
+
     @Test
     void selfHarmKeepsTheEmergencyValueInThePublicResponse() {
         var mapper = new tools.jackson.databind.json.JsonMapper();
@@ -94,7 +107,7 @@ class QuestionClassifierTests {
         }
         assertThat(QuestionCategory.OFF_TOPIC.noticeMessage()).contains("약과 복약", "물어봐 주세요");
         assertThat(QuestionCategory.UNSAFE.noticeMessage()).contains("답해 드릴 수 없어요", "의사나 약사");
-        assertThat(QuestionCategory.EMERGENCY.noticeMessage()).contains("119", "응급실", "드신 약").doesNotContain("109");
+        assertThat(QuestionCategory.EMERGENCY.noticeMessage()).contains("119", "응급실", "드신 시각").doesNotContain("109");
         assertThat(QuestionCategory.SELF_HARM.noticeMessage()).contains("119", "응급실", "109");
         assertThat(calls.get()).isEqualTo(1);
         assertThat(authorization.get()).isEqualTo("Bearer local-test-key");
