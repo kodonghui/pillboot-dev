@@ -1,0 +1,247 @@
+<title>필받음 사이트맵</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- 이 파일은 draw.py가 sitemap.yaml로 채우는 틀임. 화면 내용은 여기에 쓰지 않음. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+<style>
+/* 배치: 약 서랍장처럼 맨 위 뿌리 상자(홈) 아래로 가지 칸이 줄지어 서고, 같은 자료를 목록과 검토용 슬라이드로 다시 펼침. 색은 필받음 앱 토큰을 씀. */
+:root {
+  --bg: #F4F6F8;
+  --surface: #FFFFFF;
+  --sunken: #EEF1F4;
+  --fg: #17212B;
+  --muted: #5E6A76;
+  --line: #D3DAE1;
+  --edge: #8C98A4;
+  --accent: #0B6B4F;
+  --accent-ink: #075B43;
+  --accent-weak: #E3F1EA;
+  --guest-bg: #E8F0FB; --guest-fg: #1D4F91;
+  --public-bg: #FFF4DF; --public-fg: #7A4300;
+  --bad-bg: #FDEEEC; --bad-fg: #9A1C13;
+  --new-bg: #E4ECFA; --new-fg: #1D4787;
+  --sans: "Pretendard Variable", "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1c1e; --surface: #212225; --sunken: #2a2b2f; --fg: #f4f7f5; --muted: #b3b8be;
+    --line: #3a3c41; --edge: #7d838b; --accent: #5cc9a4; --accent-ink: #5cc9a4; --accent-weak: #173a2f;
+    --guest-bg: #1d2a3d; --guest-fg: #a9c8f2; --public-bg: #3a2c14; --public-fg: #ffc670;
+    --bad-bg: #3d1e1c; --bad-fg: #ff9a92; --new-bg: #1f2a40; --new-fg: #b4ccf4;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1b1c1e; --surface: #212225; --sunken: #2a2b2f; --fg: #f4f7f5; --muted: #b3b8be;
+  --line: #3a3c41; --edge: #7d838b; --accent: #5cc9a4; --accent-ink: #5cc9a4; --accent-weak: #173a2f;
+  --guest-bg: #1d2a3d; --guest-fg: #a9c8f2; --public-bg: #3a2c14; --public-fg: #ffc670;
+  --bad-bg: #3d1e1c; --bad-fg: #ff9a92; --new-bg: #1f2a40; --new-fg: #b4ccf4;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.55; word-break: keep-all; overflow-wrap: break-word; }
+table { font: inherit; color: inherit; }
+code, .sid, .flow, .term { font-family: var(--mono); }
+.wrap { max-width: 1440px; margin: 0 auto; padding-block: 32px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; }
+
+header.top { display: grid; gap: 12px; }
+.eyebrow { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; color: var(--accent-ink); }
+h1 { margin: 0; font-size: clamp(30px, 5vw, 44px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; text-wrap: balance; }
+.meta { margin: 0; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.meta code { font-size: 13px; }
+.status { justify-self: start; display: inline-flex; gap: 8px; align-items: center; padding: 6px 12px; border-radius: 999px; background: var(--public-bg); color: var(--public-fg); font-size: 14px; font-weight: 600; }
+
+nav.jump { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 0; background: var(--bg); border-bottom: 1px solid var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+nav.jump a { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--fg); text-decoration: none; font-weight: 600; font-size: 14px; background: var(--surface); }
+nav.jump a:hover { border-color: var(--accent); color: var(--accent-ink); }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; align-items: start; }
+.counts { display: grid; gap: 8px; }
+.counts .big { font-size: 40px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.counts dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; }
+.counts dt { color: var(--muted); }
+.counts dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.counts h2, .checks h2, .legend h2, section > h2 { margin: 0 0 4px; font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+.checks ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.checks li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; font-size: 14px; min-width: 0; }
+.checks .mark { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+.checks .ok .mark { background: var(--accent-weak); color: var(--accent-ink); }
+.checks .fail .mark { background: var(--bad-bg); color: var(--bad-fg); }
+.checks .detail { color: var(--muted); font-size: 13px; }
+.legend { display: grid; gap: 10px; font-size: 14px; }
+.legend .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.legend .sample { width: 44px; height: 22px; border-radius: 6px; background: var(--surface); display: inline-block; vertical-align: middle; margin-right: 6px; }
+
+section > p.lede { margin: 0 0 16px; color: var(--muted); max-width: 70ch; }
+
+/* 보드 */
+.root-row { display: flex; justify-content: center; }
+.root-row .node { width: min(360px, 100%); border-width: 2px; border-color: var(--accent); }
+.root-stem { height: 20px; width: 2px; background: var(--edge); margin: 0 auto; }
+.branches { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px 16px; border-top: 2px solid var(--edge); padding-top: 16px; }
+.branch { min-width: 0; }
+.from-root { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); font-family: var(--mono); }
+.tree ul { list-style: none; margin: 0; padding: 0; }
+.tree ul ul { margin-left: 14px; padding-left: 18px; }
+.tree ul ul > li { position: relative; padding-top: 10px; }
+.tree ul ul > li::before { content: ""; position: absolute; left: -18px; top: 0; bottom: 0; border-left: 2px solid var(--edge); }
+.tree ul ul > li:last-child::before { bottom: auto; height: 34px; }
+.tree ul ul > li::after { content: ""; position: absolute; left: -18px; top: 33px; width: 12px; border-top: 2px solid var(--edge); }
+.tree ul ul > li > .node::before { content: ""; position: absolute; left: -8px; top: 19px; border: 5px solid transparent; border-left: 7px solid var(--edge); }
+
+.node { position: relative; background: var(--surface); border: 1.5px solid var(--edge); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; min-width: 0; }
+.node.k-view { border-style: dashed; }
+.node.k-window { border-style: dotted; border-width: 2.5px; }
+.node.k-outside { border-style: dashed; background: var(--sunken); }
+.node-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sid { font-weight: 600; font-size: 13px; color: var(--accent-ink); }
+.node-name { font-weight: 700; font-size: 16px; line-height: 1.35; }
+.node-where { font-size: 13px; color: var(--muted); min-width: 0; }
+.node-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.path { font-size: 13px; color: var(--fg); background: var(--sunken); padding: 1px 6px; border-radius: 5px; }
+.at { font-size: 13px; }
+.also { font-size: 12px; color: var(--muted); }
+.tag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 5px; background: var(--sunken); color: var(--muted); }
+.new-tag { background: var(--new-bg); color: var(--new-fg); }
+.removed-tag { background: var(--bad-bg); color: var(--bad-fg); }
+.is-removed .node-name, tr.is-removed td:nth-child(2), li.is-removed b { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.node.is-removed { background: var(--sunken); }
+.chip { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.chip.member { background: var(--accent-weak); color: var(--accent-ink); }
+.chip.guest { background: var(--guest-bg); color: var(--guest-fg); }
+.chip.public { background: var(--public-bg); color: var(--public-fg); }
+
+/* 목록 */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table.list { border-collapse: collapse; width: 100%; min-width: 1080px; font-size: 14px; }
+table.list th { text-align: left; font-size: 12px; font-weight: 700; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--sunken); position: sticky; top: 0; }
+table.list td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.list tr:last-child td { border-bottom: 0; }
+.id-cell { padding-left: calc(12px + var(--depth) * 18px) !important; white-space: nowrap; }
+.flow, .term { display: inline-block; font-size: 12px; padding: 1px 6px; margin: 1px 0; border-radius: 5px; background: var(--sunken); }
+.flow { background: var(--accent-weak); color: var(--accent-ink); }
+.none { color: var(--muted); font-size: 13px; }
+td.note { color: var(--muted); font-size: 13px; min-width: 220px; }
+
+/* 슬라이드 */
+.slides { display: grid; gap: 24px; }
+.slide { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.slide-inner { height: 100%; padding: clamp(20px, 3.4vw, 48px); display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px; }
+@media (min-width: 900px) { .slide { aspect-ratio: 16 / 9; } }
+.slide-kicker { margin: 0; font-size: 14px; font-weight: 700; color: var(--accent-ink); letter-spacing: .04em; }
+.slide h3 { margin: 0; font-size: clamp(24px, 3.2vw, 40px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+.slide h3 .path { font-size: .5em; vertical-align: middle; }
+.slide-lede { margin: 0; color: var(--muted); }
+.slide-body { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-content: start; }
+@media (max-width: 700px) { .slide-body { grid-template-columns: 1fr; } }
+.slide-screens, .slide-branches { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.slide-screens li { padding-left: calc(var(--depth) * 22px); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: clamp(14px, 1.4vw, 17px); }
+.slide-branches { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); font-size: clamp(14px, 1.4vw, 17px); }
+.slide-flows { display: flex; flex-wrap: wrap; gap: 6px; align-content: start; }
+.slide-flows .label { flex-basis: 100%; margin: 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.slide-foot { margin: 0; font-size: 12px; color: var(--muted); align-self: end; }
+
+details.mermaid-src { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+details.mermaid-src summary { cursor: pointer; font-weight: 700; }
+details.mermaid-src pre { overflow-x: auto; font-size: 12px; background: var(--sunken); padding: 12px; border-radius: 8px; }
+.copy { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.copy:hover { border-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+
+<div class="wrap" lang="ko">
+  <header class="top">
+    <p class="eyebrow">CORTHEX 07 단계 · 사이트맵</p>
+    <h1>필받음 사이트맵</h1>
+    <p class="meta"><span>{{STAMP}}</span><span>원본 <code>docs/07-sitemap/sitemap.yaml</code> · sha256 <code>{{DIGEST}}</code></span><span>경로 기준 <code>react-client/src/paths.js</code></span></p>
+    <p class="status">내비게이션 구조 합의 전 · 검토는 11/6 제출 뒤에 받음</p>
+  </header>
+
+  <nav class="jump" aria-label="그림 바로가기">
+    <a href="#board">보드</a><a href="#list">목록</a><a href="#slides">슬라이드</a>
+  </nav>
+
+  <div class="summary">
+    <div class="counts">
+      <h2>화면</h2>
+      <div class="big">{{TOTAL}}개</div>
+      <dl>
+        <dt>주소가 있는 화면</dt><dd>{{PAGES}}</dd>
+        <dt>같은 주소 안 화면</dt><dd>{{VIEWS}}</dd>
+        <dt>창·패널</dt><dd>{{WINDOWS}}</dd>
+        <dt>앱 밖</dt><dd>{{OUTSIDE}}</dd>
+        <dt>없앤 화면(ID만 남김)</dt><dd>{{REMOVED}}</dd>
+      </dl>
+    </div>
+    <div class="checks">
+      <h2>점검 {{PASSED}} 통과</h2>
+      <ul>{{CHECKS}}</ul>
+    </div>
+    <div class="legend">
+      <h2>읽는 법</h2>
+      <div class="row"><span class="chip member">회원</span><span class="chip guest">비회원</span><span class="chip public">누구나</span></div>
+      <div class="row"><span><span class="sample" style="border:1.5px solid var(--edge)"></span>주소가 있는 화면</span></div>
+      <div class="row"><span><span class="sample" style="border:1.5px dashed var(--edge)"></span>같은 주소 안 화면 · 앱 밖</span></div>
+      <div class="row"><span><span class="sample" style="border:2.5px dotted var(--edge)"></span>창·패널(주소 없음)</span></div>
+      <div class="row"><span class="tag new-tag">2026-11-04 더함</span><span>10/21 사이트맵 뒤에 더한 화면</span></div>
+      <div class="row"><span class="tag removed-tag">없앰</span><span>ID만 남기고 다시 쓰지 않음</span></div>
+    </div>
+  </div>
+
+  <section id="board">
+    <h2>보드</h2>
+    <p class="lede">상자 하나가 화면 하나임. 선은 부모에서 자식으로 가는 길이고, 다른 곳에서도 들어오는 화면은 '다른 입구'에 적음.</p>
+    <div class="root-row">{{ROOT}}</div>
+    <div class="root-stem"></div>
+    <div class="branches">{{BRANCHES}}</div>
+  </section>
+
+  <section id="list">
+    <h2>목록</h2>
+    <p class="lede">트리 순서대로 한 줄에 화면 하나. 흐름 ID는 사용자 흐름(FL·V2-FL은 Notion, V3-FL은 docs/03-user-flow/user-flow-v3.md), 용어 ID는 docs/01-domain/domain.md를 따름.</p>
+    <div class="table-wrap">
+      <table class="list">
+        <thead><tr><th>ID</th><th>이름</th><th>종류</th><th>주소 · 나오는 곳</th><th>누가</th><th>지나는 흐름</th><th>맥락·용어</th><th>비고</th></tr></thead>
+        <tbody>{{ROWS}}</tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="slides">
+    <h2>슬라이드</h2>
+    <p class="lede">검토 회의용. 뿌리 한 장과 홈 아래 가지마다 한 장씩, 그 가지의 화면과 지나는 흐름을 보여 줌.</p>
+    <div class="slides">{{SLIDES}}</div>
+  </section>
+
+  <details class="mermaid-src">
+    <summary>Mermaid 원문(GitHub·Notion에 붙여 넣기)</summary>
+    <p><button class="copy" id="copy-mermaid" type="button">복사</button></p>
+    <pre id="mermaid-text"><code>{{MERMAID}}</code></pre>
+  </details>
+</div>
+
+<script>
+(function () {
+  var button = document.getElementById('copy-mermaid');
+  var pre = document.getElementById('mermaid-text');
+  if (!button || !pre) return;
+  function selectText() {
+    var range = document.createRange();
+    range.selectNodeContents(pre);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  button.addEventListener('click', function () {
+    var text = pre.textContent;
+    try {
+      navigator.clipboard.writeText(text).then(function () { button.textContent = '복사함'; }, function () { selectText(); button.textContent = '선택함. Ctrl+C로 복사'; });
+    } catch (e) { selectText(); button.textContent = '선택함. Ctrl+C로 복사'; }
+  });
+})();
+</script>
