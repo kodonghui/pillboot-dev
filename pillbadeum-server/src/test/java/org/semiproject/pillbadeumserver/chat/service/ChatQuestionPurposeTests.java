@@ -31,7 +31,8 @@ class ChatQuestionPurposeTests {
     @ParameterizedTest
     @ValueSource(strings = {"내가 잘못했어. 약 한 통 먹었어", "약 한 통 먹었어", "실수 아니야. 약 한 통 먹었어",
             "죽고 싶어서 약 한 통 먹었어. 실수로 깬 거야", "일부러 먹었어. 모르고 그런 거 아니야",
-            "아무도 모르고 있어. 죽기 위해 약 한 통 먹었어", "아무도 모르고 있어 약 한 통 먹었어", "실수로 깼어. 약 한 통 먹었어"})
+            "아무도 모르고 있어. 죽기 위해 약 한 통 먹었어", "아무도 모르고 있어 약 한 통 먹었어", "실수로 깼어. 약 한 통 먹었어",
+            "잘못 먹은 게 아니고 스스로 선택해서 약 한 통 먹었어", "실수로 먹은 거 아니야. 약 한 통 먹었어"})
     void regretOrSelfHarmWordsAreNotAccidental(String question) {
         assertThat(ChatQuestionPurpose.accidental(question)).isFalse();
     }

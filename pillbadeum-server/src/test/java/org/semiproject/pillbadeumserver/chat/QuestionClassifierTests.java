@@ -88,6 +88,7 @@ class QuestionClassifierTests {
         assertThat(classifier.plan("내가 잘못했어. 약 한 통 먹었어", empty).category()).isEqualTo(QuestionCategory.SELF_HARM);
         assertThat(classifier.plan("죽고 싶어서 약 한 통 먹었어. 실수로 깬 거야", empty).category()).isEqualTo(QuestionCategory.SELF_HARM);
         assertThat(classifier.plan("아무도 모르고 있어. 죽기 위해 약 한 통 먹었어", empty).category()).isEqualTo(QuestionCategory.SELF_HARM);
+        assertThat(classifier.plan("잘못 먹은 게 아니고 스스로 선택해서 약 한 통 먹었어", empty).category()).isEqualTo(QuestionCategory.SELF_HARM);
     }
 
     @Test
