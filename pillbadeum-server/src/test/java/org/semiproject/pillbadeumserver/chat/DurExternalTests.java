@@ -22,17 +22,21 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.semiproject.pillbadeumserver.chat.service.*;
 import org.semiproject.pillbadeumserver.common.config.TimeZoneConfig;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** 공식 Service03 필드·페이지·실패 의미를 로컬 합성 HTTP 응답과 실제 RestClient로 검증한다. */
+@ExtendWith(OutputCaptureExtension.class)
 class DurExternalTests {
     private final JsonMapper json = new JsonMapper();
     private final LocalDate today = LocalDate.now(TimeZoneConfig.ZONE);
@@ -258,6 +262,59 @@ class DurExternalTests {
         var large = collect("A").getFirst();
         assertThat(large.success()).isTrue();
         assertThat(large.rows()).hasSize(6).allSatisfy(row -> assertThat(row.content().length()).isEqualTo(5001));
+    }
+
+    @Test
+    void anUnavailableLookupLogsItsReasonButNoCodeOrOfficialText(CapturedOutput output) {
+        responder.set(r -> {
+            var rows = new ArrayList<Map<String, String>>();
+            for (int i = 0; i < 2; i++) {
+                var row = new LinkedHashMap<>(row(r.code(), r.type(), "synthetic official text"));
+                row.put("MIXTURE_ITEM_SEQ", "PARTNER");
+                row.put("EXTRA_FIELD", "extra-" + i);
+                rows.add(row);
+            }
+            return success(2, r.page(), rows);
+        });
+        var result = service.collectItems(List.of("CODE-A"), java.util.Set.of(DurLookup.Type.INTERACTION), deadline()).getFirst();
+        assertThat(result.success()).isFalse();
+        assertThat(output).contains("reason=duplicate_rows", "totalRows=2", "repeatedRows=1", "repeatedRawRows=0", "samePage=1", "differingFields=[EXTRA_FIELD]");
+        assertThat(output).doesNotContain("CODE-A", "PARTNER", "synthetic official text", "extra-0");
+
+        responder.set(r -> {
+            var row = new LinkedHashMap<>(row(r.code(), r.type(), "12세 미만"));
+            row.put("TYPE_NAME", "임부금기");
+            return success(1, r.page(), List.of(row));
+        });
+        assertThat(service.collectItems(List.of("CODE-B"), java.util.Set.of(DurLookup.Type.AGE), deadline()).getFirst().success()).isFalse();
+        assertThat(output).contains("reason=wrong_type");
+        assertThat(output).doesNotContain("CODE-B");
+    }
+
+    @Test
+    void repeatedRowsAcrossPagesAreCountedAndOnlyFieldNameShapesAreLogged(CapturedOutput output) {
+        responder.set(r -> {
+            var rows = new ArrayList<Map<String, String>>();
+            for (int i = 0; i < 100; i++) {
+                var row = new LinkedHashMap<>(row(r.code(), r.type(), "synthetic official text"));
+                row.put("MIXTURE_ITEM_SEQ", i == 0 ? "SAME" : "P" + r.page() + "-" + i);
+                if (i == 0 && r.page() == 1) { row.put("ONLY_FIRST", "x"); row.put("bad\nname", "secret-value"); }
+                rows.add(row);
+            }
+            return success(200, r.page(), rows);
+        });
+        var result = service.collectItems(List.of("CODE-C"), java.util.Set.of(DurLookup.Type.INTERACTION), deadline()).getFirst();
+        assertThat(result.success()).isFalse();
+        assertThat(output).contains("repeatedRows=1", "repeatedRawRows=0", "samePage=0", "otherPage=1",
+                "differingFields=[ONLY_FIRST]", "otherDifferingFields=1", "reason=duplicate_rows");
+        assertThat(output).doesNotContain("CODE-C", "SAME", "secret-value", "hidden");
+    }
+
+    @Test
+    void anExactlyRepeatedRowIsCountedAsARawRepeat(CapturedOutput output) {
+        responder.set(r -> success(2, r.page(), List.of(row(r.code(), r.type(), "12세 미만"), row(r.code(), r.type(), "12세 미만"))));
+        assertThat(collect("A").getFirst().success()).isFalse();
+        assertThat(output).contains("repeatedRows=1", "repeatedRawRows=1", "differingFields=[]", "otherDifferingFields=0");
     }
 
     @Test

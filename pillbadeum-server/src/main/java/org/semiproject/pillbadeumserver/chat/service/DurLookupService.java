@@ -4,10 +4,14 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.regex.Pattern;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
@@ -30,6 +34,8 @@ import tools.jackson.databind.JsonNode;
 public class DurLookupService {
     private static final Logger log = LoggerFactory.getLogger(DurLookupService.class);
     private static final int PAGE_SIZE = 100;
+    // 기록에 남길 수 있는 칸 이름 모양. 외부 응답의 다른 글자는 기록에 그대로 옮기지 않음.
+    private static final Pattern OFFICIAL_FIELD = Pattern.compile("[A-Z0-9_]{1,40}");
     private final PublicDataClient client;
     private final AsyncTaskExecutor executor;
     private final int batchSize;
@@ -106,10 +112,13 @@ public class DurLookupService {
     /** 페이지 일부만 읽은 결과를 성공으로 쓰지 않는다. 한 유형의 모든 페이지가 검증돼야 캐시 교체가 가능하다. */
     private DurLookup lookup(Request request, Run run) {
         var today = LocalDate.now(TimeZoneConfig.ZONE);
+        long startedAt = System.nanoTime();
+        int totalRows = -1;
         try {
             var first = readPage(request, 1, -1, run, today);
-            var pages = new ConcurrentSkipListMap<Integer, List<DurLookup.Row>>();
-            pages.put(1, first.rows());
+            totalRows = first.total();
+            var pages = new ConcurrentSkipListMap<Integer, Page>();
+            pages.put(1, first);
             int lastPage = (first.total() + PAGE_SIZE - 1) / PAGE_SIZE;
             var next = new AtomicInteger(2);
             var helpers = new ArrayList<Future<?>>();
@@ -122,24 +131,31 @@ public class DurLookupService {
             } finally {
                 helpers.stream().filter(helper -> !helper.isDone()).forEach(helper -> helper.cancel(true));
             }
-            var rows = pages.values().stream().flatMap(List::stream).toList();
+            var rows = pages.values().stream().map(Page::rows).flatMap(List::stream).toList();
             // 동일 페이지가 반복되거나 응답의 전체 수와 실내용이 맞지 않으면 완전한 조회로 인정하지 않는다.
-            if (rows.stream().distinct().count() != rows.size()) throw invalid();
+            if (rows.stream().distinct().count() != rows.size()) {
+                logDuplicates(request, pages);
+                throw invalid("duplicate_rows");
+            }
+            if (lastPage > 1) log.info("[DUR 조회] type={} result=read pages={} rows={} elapsedMs={}",
+                    request.type(), lastPage, rows.size(), elapsedMillis(startedAt));
             var updated = rows.stream().map(DurLookup.Row::updatedAt).min(LocalDate::compareTo).orElse(today);
             return new DurLookup(request.code(), request.type(), true, rows, updated);
         } catch (BusinessException | NumberFormatException exception) {
             client.discard(request.type().path(),Map.of("itemSeq",request.code()));
-            log.warn("[DUR 조회] type={} result=unavailable", request.type());
+            // 사유는 코드에 적은 고정 값과 숫자뿐임. 품목코드·응답 본문은 남기지 않음.
+            log.warn("[DUR 조회] type={} result=unavailable reason={} totalRows={} elapsedMs={}", request.type(),
+                    reason(exception), totalRows, elapsedMillis(startedAt));
             return DurLookup.failed(request.code(), request.type(), today);
         }
     }
 
     /** 한 페이지가 어긋나면 남은 페이지를 더 부르지 않는다. */
     private void readPages(Request request, int total, int lastPage, AtomicInteger next,
-                           Map<Integer, List<DurLookup.Row>> pages, Run run, LocalDate today) {
+                           Map<Integer, Page> pages, Run run, LocalDate today) {
         try {
             for (int page = next.getAndIncrement(); page <= lastPage; page = next.getAndIncrement())
-                pages.put(page, readPage(request, page, total, run, today).rows());
+                pages.put(page, readPage(request, page, total, run, today));
         } catch (RuntimeException exception) {
             next.set(lastPage + 1);
             throw exception;
@@ -150,16 +166,16 @@ public class DurLookupService {
         JsonNode body = call(request, page, run);
         run.deadline().check();
         String count = body.path("totalCount").asString("");
-        if (!count.matches("\\d{1,9}")) throw invalid();
+        if (!count.matches("\\d{1,9}")) throw invalid("bad_total");
         int total = Integer.parseInt(count);
-        if (expectedTotal != -1 && expectedTotal != total) throw invalid();
-        if (body.has("pageNo") && body.path("pageNo").asInt(-1) != page) throw invalid();
+        if (expectedTotal != -1 && expectedTotal != total) throw invalid("total_changed");
+        if (body.has("pageNo") && body.path("pageNo").asInt(-1) != page) throw invalid("page_no_mismatch");
         var items = PublicDataClient.items(body);
         int expectedSize = Math.min(PAGE_SIZE, Math.max(0, total - (page - 1) * PAGE_SIZE));
-        if (items.size() != expectedSize) throw invalid();
+        if (items.size() != expectedSize) throw invalid("page_size_mismatch");
         var rows = new ArrayList<DurLookup.Row>();
         for (var item : items) rows.add(parse(request, item, today));
-        return new Page(total, rows);
+        return new Page(total, rows, items);
     }
 
     /** 이 조회에 허락된 자리 안에서만 부른다. 선조회가 화면 조회의 공공데이터 자리를 다 차지하지 않게 함. */
@@ -179,16 +195,16 @@ public class DurLookupService {
     }
 
     private DurLookup.Row parse(Request request, JsonNode item, LocalDate today) {
-        if (!request.code().equals(item.path("ITEM_SEQ").asString(""))) throw invalid();
+        if (!request.code().equals(item.path("ITEM_SEQ").asString(""))) throw invalid("wrong_item");
         String label = text(item, "TYPE_NAME");
-        if (!label.isEmpty() && !request.type().cacheAliases().contains(label)) throw invalid();
+        if (!label.isEmpty() && !request.type().cacheAliases().contains(label)) throw invalid("wrong_type");
         String content = text(item, "PROHBT_CONTENT");
         String partner = text(item, "MIXTURE_ITEM_SEQ");
         if (content.isBlank()) {
             // 상대 NULL인 빈 행은 병용금기 상대 없음 표현일 뿐 다른 유형의 확인 증거는 아니다.
-            if (request.type() != DurLookup.Type.INTERACTION || !partner.isBlank()) throw invalid();
-        } else if (request.type() == DurLookup.Type.INTERACTION && partner.isBlank()) throw invalid();
-        if (partner.length() > 100) throw invalid();
+            if (request.type() != DurLookup.Type.INTERACTION || !partner.isBlank()) throw invalid("blank_content");
+        } else if (request.type() == DurLookup.Type.INTERACTION && partner.isBlank()) throw invalid("blank_partner");
+        if (partner.length() > 100) throw invalid("long_partner");
         LocalDate updated = OfficialDrugEvidence.parseDate(text(item, "CHANGE_DATE"));
         if (updated == null) updated = OfficialDrugEvidence.parseDate(text(item, "NOTIFICATION_DATE"));
         String ingredient = text(item, request.type() == DurLookup.Type.INTERACTION ? "INGR_KOR_NAME" : "INGR_NAME");
@@ -198,17 +214,61 @@ public class DurLookupService {
 
     private String text(JsonNode item, String field) {
         var node = item.path(field);
-        if (!node.isMissingNode() && !node.isNull() && !node.isString()) throw invalid();
+        if (!node.isMissingNode() && !node.isNull() && !node.isString()) throw invalid("non_text_field");
         String raw = node.asString("");
-        if (raw.length() > 8_000) throw invalid();
+        if (raw.length() > 8_000) throw invalid("long_text");
         return OfficialDrugEvidence.clean(raw);
     }
 
-    private static ExternalApiException invalid() {
-        return ExternalApiException.failed("DUR", "DUR 응답을 확인할 수 없습니다.", null);
+    /** 겹친 행이 원본까지 같은지, 우리가 읽는 칸만 같은지 가른다. 값은 남기지 않고 수와 공식 칸 이름만 남김. */
+    private void logDuplicates(Request request, Map<Integer, Page> pages) {
+        try {
+            var seenRaw = new HashSet<JsonNode>();
+            var firstSeen = new HashMap<DurLookup.Row, Seen>();
+            var differing = new TreeSet<String>();
+            int rawRepeats = 0, samePage = 0, otherPage = 0, otherFields = 0;
+            for (var entry : pages.entrySet()) {
+                var page = entry.getValue();
+                for (int i = 0; i < page.rows().size(); i++) {
+                    var row = page.rows().get(i);
+                    var raw = page.raw().get(i);
+                    if (!seenRaw.add(raw)) rawRepeats++;
+                    var earlier = firstSeen.putIfAbsent(row, new Seen(entry.getKey(), raw));
+                    if (earlier == null) continue;
+                    if (earlier.page() == entry.getKey()) samePage++; else otherPage++;
+                    var names = new HashSet<>(raw.propertyNames());
+                    names.addAll(earlier.raw().propertyNames());
+                    for (var name : names) {
+                        if (raw.path(name).equals(earlier.raw().path(name))) continue;
+                        if (OFFICIAL_FIELD.matcher(name).matches()) differing.add(name); else otherFields++;
+                    }
+                }
+            }
+            log.warn("[DUR 조회] type={} result=duplicate_rows repeatedRows={} repeatedRawRows={} samePage={} otherPage={} differingFields={} otherDifferingFields={}",
+                    request.type(), samePage + otherPage, rawRepeats, samePage, otherPage,
+                    differing.stream().limit(20).toList(), otherFields);
+        } catch (RuntimeException exception) {
+            // 진단 기록이 실패해도 이 유형만 미확인으로 남고 조회 전체로 번지지 않음.
+            log.warn("[DUR 조회] type={} result=duplicate_rows detail=unavailable", request.type());
+        }
+    }
+
+    /** 다른 작업이 먼저 실패해 취소된 조회와 실제 시간 초과를 가른다. */
+    private static String reason(RuntimeException exception) {
+        if (Thread.currentThread().isInterrupted()) return "cancelled";
+        return exception instanceof ExternalApiException external ? external.getFailureReason() : exception.getClass().getSimpleName();
+    }
+
+    private static long elapsedMillis(long startedAt) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
+    private static ExternalApiException invalid(String reason) {
+        return ExternalApiException.failed("DUR", reason, null);
     }
 
     private record Request(String code, DurLookup.Type type) {}
-    private record Page(int total, List<DurLookup.Row> rows) {}
+    private record Page(int total, List<DurLookup.Row> rows, List<JsonNode> raw) {}
+    private record Seen(int page, JsonNode raw) {}
     private record Run(ChatDeadline deadline, Semaphore slots, int workers) {}
 }
