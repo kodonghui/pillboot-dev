@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.regex.Pattern;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,8 @@ import tools.jackson.databind.JsonNode;
 public class DurLookupService {
     private static final Logger log = LoggerFactory.getLogger(DurLookupService.class);
     private static final int PAGE_SIZE = 100;
+    // 기록에 남길 수 있는 칸 이름 모양. 외부 응답의 다른 글자는 기록에 그대로 옮기지 않음.
+    private static final Pattern OFFICIAL_FIELD = Pattern.compile("[A-Z0-9_]{1,40}");
     private final PublicDataClient client;
     private final AsyncTaskExecutor executor;
     private final int batchSize;
@@ -110,8 +113,10 @@ public class DurLookupService {
     private DurLookup lookup(Request request, Run run) {
         var today = LocalDate.now(TimeZoneConfig.ZONE);
         long startedAt = System.nanoTime();
+        int totalRows = -1;
         try {
             var first = readPage(request, 1, -1, run, today);
+            totalRows = first.total();
             var pages = new ConcurrentSkipListMap<Integer, Page>();
             pages.put(1, first);
             int lastPage = (first.total() + PAGE_SIZE - 1) / PAGE_SIZE;
@@ -139,9 +144,8 @@ public class DurLookupService {
         } catch (BusinessException | NumberFormatException exception) {
             client.discard(request.type().path(),Map.of("itemSeq",request.code()));
             // 사유는 코드에 적은 고정 값과 숫자뿐임. 품목코드·응답 본문은 남기지 않음.
-            log.warn("[DUR 조회] type={} result=unavailable reason={} elapsedMs={}", request.type(),
-                    exception instanceof ExternalApiException external ? external.getFailureReason() : "bad_number",
-                    elapsedMillis(startedAt));
+            log.warn("[DUR 조회] type={} result=unavailable reason={} totalRows={} elapsedMs={}", request.type(),
+                    reason(exception), totalRows, elapsedMillis(startedAt));
             return DurLookup.failed(request.code(), request.type(), today);
         }
     }
@@ -218,25 +222,41 @@ public class DurLookupService {
 
     /** 겹친 행이 원본까지 같은지, 우리가 읽는 칸만 같은지 가른다. 값은 남기지 않고 수와 공식 칸 이름만 남김. */
     private void logDuplicates(Request request, Map<Integer, Page> pages) {
-        var seenRaw = new HashSet<JsonNode>();
-        var firstRaw = new HashMap<DurLookup.Row, JsonNode>();
-        var firstPage = new HashMap<DurLookup.Row, Integer>();
-        var differing = new TreeSet<String>();
-        int rawRepeats = 0, samePage = 0, otherPage = 0;
-        for (var entry : pages.entrySet()) {
-            var page = entry.getValue();
-            for (int i = 0; i < page.rows().size(); i++) {
-                var row = page.rows().get(i);
-                var raw = page.raw().get(i);
-                if (!seenRaw.add(raw)) rawRepeats++;
-                var earlier = firstRaw.putIfAbsent(row, raw);
-                if (earlier == null) { firstPage.put(row, entry.getKey()); continue; }
-                if (firstPage.get(row).equals(entry.getKey())) samePage++; else otherPage++;
-                for (var name : raw.propertyNames()) if (!raw.path(name).equals(earlier.path(name))) differing.add(name);
+        try {
+            var seenRaw = new HashSet<JsonNode>();
+            var firstSeen = new HashMap<DurLookup.Row, Seen>();
+            var differing = new TreeSet<String>();
+            int rawRepeats = 0, samePage = 0, otherPage = 0, otherFields = 0;
+            for (var entry : pages.entrySet()) {
+                var page = entry.getValue();
+                for (int i = 0; i < page.rows().size(); i++) {
+                    var row = page.rows().get(i);
+                    var raw = page.raw().get(i);
+                    if (!seenRaw.add(raw)) rawRepeats++;
+                    var earlier = firstSeen.putIfAbsent(row, new Seen(entry.getKey(), raw));
+                    if (earlier == null) continue;
+                    if (earlier.page() == entry.getKey()) samePage++; else otherPage++;
+                    var names = new HashSet<>(raw.propertyNames());
+                    names.addAll(earlier.raw().propertyNames());
+                    for (var name : names) {
+                        if (raw.path(name).equals(earlier.raw().path(name))) continue;
+                        if (OFFICIAL_FIELD.matcher(name).matches()) differing.add(name); else otherFields++;
+                    }
+                }
             }
+            log.warn("[DUR 조회] type={} result=duplicate_rows repeatedRows={} repeatedRawRows={} samePage={} otherPage={} differingFields={} otherDifferingFields={}",
+                    request.type(), samePage + otherPage, rawRepeats, samePage, otherPage,
+                    differing.stream().limit(20).toList(), otherFields);
+        } catch (RuntimeException exception) {
+            // 진단 기록이 실패해도 이 유형만 미확인으로 남고 조회 전체로 번지지 않음.
+            log.warn("[DUR 조회] type={} result=duplicate_rows detail=unavailable", request.type());
         }
-        log.warn("[DUR 조회] type={} result=duplicate_rows repeatedRows={} repeatedRawRows={} samePage={} otherPage={} differingFields={}",
-                request.type(), samePage + otherPage, rawRepeats, samePage, otherPage, differing);
+    }
+
+    /** 다른 작업이 먼저 실패해 취소된 조회와 실제 시간 초과를 가른다. */
+    private static String reason(RuntimeException exception) {
+        if (Thread.currentThread().isInterrupted()) return "cancelled";
+        return exception instanceof ExternalApiException external ? external.getFailureReason() : exception.getClass().getSimpleName();
     }
 
     private static long elapsedMillis(long startedAt) {
@@ -249,5 +269,6 @@ public class DurLookupService {
 
     private record Request(String code, DurLookup.Type type) {}
     private record Page(int total, List<DurLookup.Row> rows, List<JsonNode> raw) {}
+    private record Seen(int page, JsonNode raw) {}
     private record Run(ChatDeadline deadline, Semaphore slots, int workers) {}
 }

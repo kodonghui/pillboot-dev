@@ -278,7 +278,7 @@ class DurExternalTests {
         });
         var result = service.collectItems(List.of("CODE-A"), java.util.Set.of(DurLookup.Type.INTERACTION), deadline()).getFirst();
         assertThat(result.success()).isFalse();
-        assertThat(output).contains("reason=duplicate_rows", "repeatedRows=1", "repeatedRawRows=0", "samePage=1", "differingFields=[EXTRA_FIELD]");
+        assertThat(output).contains("reason=duplicate_rows", "totalRows=2", "repeatedRows=1", "repeatedRawRows=0", "samePage=1", "differingFields=[EXTRA_FIELD]");
         assertThat(output).doesNotContain("CODE-A", "PARTNER", "synthetic official text", "extra-0");
 
         responder.set(r -> {
@@ -288,6 +288,33 @@ class DurExternalTests {
         });
         assertThat(service.collectItems(List.of("CODE-B"), java.util.Set.of(DurLookup.Type.AGE), deadline()).getFirst().success()).isFalse();
         assertThat(output).contains("reason=wrong_type");
+        assertThat(output).doesNotContain("CODE-B");
+    }
+
+    @Test
+    void repeatedRowsAcrossPagesAreCountedAndOnlyFieldNameShapesAreLogged(CapturedOutput output) {
+        responder.set(r -> {
+            var rows = new ArrayList<Map<String, String>>();
+            for (int i = 0; i < 100; i++) {
+                var row = new LinkedHashMap<>(row(r.code(), r.type(), "synthetic official text"));
+                row.put("MIXTURE_ITEM_SEQ", i == 0 ? "SAME" : "P" + r.page() + "-" + i);
+                if (i == 0 && r.page() == 1) { row.put("ONLY_FIRST", "x"); row.put("bad\nname", "secret-value"); }
+                rows.add(row);
+            }
+            return success(200, r.page(), rows);
+        });
+        var result = service.collectItems(List.of("CODE-C"), java.util.Set.of(DurLookup.Type.INTERACTION), deadline()).getFirst();
+        assertThat(result.success()).isFalse();
+        assertThat(output).contains("repeatedRows=1", "repeatedRawRows=0", "samePage=0", "otherPage=1",
+                "differingFields=[ONLY_FIRST]", "otherDifferingFields=1", "reason=duplicate_rows");
+        assertThat(output).doesNotContain("CODE-C", "SAME", "secret-value", "hidden");
+    }
+
+    @Test
+    void anExactlyRepeatedRowIsCountedAsARawRepeat(CapturedOutput output) {
+        responder.set(r -> success(2, r.page(), List.of(row(r.code(), r.type(), "12세 미만"), row(r.code(), r.type(), "12세 미만"))));
+        assertThat(collect("A").getFirst().success()).isFalse();
+        assertThat(output).contains("repeatedRows=1", "repeatedRawRows=1", "differingFields=[]", "otherDifferingFields=0");
     }
 
     @Test
