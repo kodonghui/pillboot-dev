@@ -277,9 +277,10 @@ class DurExternalTests {
             return success(2, r.page(), rows);
         });
         var result = service.collectItems(List.of("CODE-A"), java.util.Set.of(DurLookup.Type.INTERACTION), deadline()).getFirst();
-        assertThat(result.success()).isFalse();
-        assertThat(output).contains("reason=duplicate_rows", "totalRows=2", "repeatedRows=1", "repeatedRawRows=0", "samePage=1", "differingFields=[EXTRA_FIELD]");
-        assertThat(output).doesNotContain("CODE-A", "PARTNER", "synthetic official text", "extra-0");
+        assertThat(result.success()).isTrue();
+        assertThat(result.rows()).hasSize(1);
+        assertThat(output).contains("result=merged_rows", "repeatedRows=1", "repeatedRawRows=0", "samePage=1", "differingFields=[EXTRA_FIELD]");
+        assertThat(output).doesNotContain("reason=duplicate_rows", "CODE-A", "PARTNER", "synthetic official text", "extra-0");
 
         responder.set(r -> {
             var row = new LinkedHashMap<>(row(r.code(), r.type(), "12세 미만"));
@@ -289,6 +290,25 @@ class DurExternalTests {
         assertThat(service.collectItems(List.of("CODE-B"), java.util.Set.of(DurLookup.Type.AGE), deadline()).getFirst().success()).isFalse();
         assertThat(output).contains("reason=wrong_type");
         assertThat(output).doesNotContain("CODE-B");
+    }
+
+    @Test
+    void rowsThatDifferOnlyInThePartnerIngredientSpellingBecomeOneConfirmedPair(CapturedOutput output) {
+        responder.set(r -> {
+            var rows = new ArrayList<Map<String, String>>();
+            for (var partner : List.of("PARTNER", "PARTNER", "OTHER")) {
+                var row = new LinkedHashMap<>(row(r.code(), r.type(), "synthetic official text"));
+                row.put("MIXTURE_ITEM_SEQ", partner);
+                row.put("MIXTURE_INGR_KOR_NAME", "spelling-" + rows.size());
+                rows.add(row);
+            }
+            return success(3, r.page(), rows);
+        });
+        var result = service.collectItems(List.of("CODE-D"), java.util.Set.of(DurLookup.Type.INTERACTION), deadline()).getFirst();
+        assertThat(result.success()).isTrue();
+        assertThat(result.rows()).extracting(DurLookup.Row::partnerItemSeq).containsExactly("PARTNER", "OTHER");
+        assertThat(output).contains("result=merged_rows", "differingFields=[MIXTURE_INGR_KOR_NAME]");
+        assertThat(output).doesNotContain("reason=duplicate_rows", "CODE-D", "PARTNER", "spelling-");
     }
 
     @Test
@@ -304,9 +324,10 @@ class DurExternalTests {
             return success(200, r.page(), rows);
         });
         var result = service.collectItems(List.of("CODE-C"), java.util.Set.of(DurLookup.Type.INTERACTION), deadline()).getFirst();
-        assertThat(result.success()).isFalse();
-        assertThat(output).contains("repeatedRows=1", "repeatedRawRows=0", "samePage=0", "otherPage=1",
-                "differingFields=[ONLY_FIRST]", "otherDifferingFields=1", "reason=duplicate_rows");
+        assertThat(result.success()).isTrue();
+        assertThat(result.rows()).hasSize(199);
+        assertThat(output).contains("result=merged_rows", "repeatedRows=1", "repeatedRawRows=0", "samePage=0", "otherPage=1",
+                "differingFields=[ONLY_FIRST]", "otherDifferingFields=1");
         assertThat(output).doesNotContain("CODE-C", "SAME", "secret-value", "hidden");
     }
 
@@ -314,7 +335,7 @@ class DurExternalTests {
     void anExactlyRepeatedRowIsCountedAsARawRepeat(CapturedOutput output) {
         responder.set(r -> success(2, r.page(), List.of(row(r.code(), r.type(), "12세 미만"), row(r.code(), r.type(), "12세 미만"))));
         assertThat(collect("A").getFirst().success()).isFalse();
-        assertThat(output).contains("repeatedRows=1", "repeatedRawRows=1", "differingFields=[]", "otherDifferingFields=0");
+        assertThat(output).contains("result=duplicate_rows", "reason=duplicate_rows", "repeatedRows=1", "repeatedRawRows=1", "differingFields=[]", "otherDifferingFields=0");
     }
 
     @Test

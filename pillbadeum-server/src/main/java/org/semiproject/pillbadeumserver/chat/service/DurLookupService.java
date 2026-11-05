@@ -23,6 +23,7 @@ import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.AsyncTaskExecutor;
@@ -131,12 +132,15 @@ public class DurLookupService {
             } finally {
                 helpers.stream().filter(helper -> !helper.isDone()).forEach(helper -> helper.cancel(true));
             }
-            var rows = pages.values().stream().map(Page::rows).flatMap(List::stream).toList();
-            // 동일 페이지가 반복되거나 응답의 전체 수와 실내용이 맞지 않으면 완전한 조회로 인정하지 않는다.
-            if (rows.stream().distinct().count() != rows.size()) {
-                logDuplicates(request, pages);
+            var raw = pages.values().stream().map(Page::raw).flatMap(List::stream).toList();
+            // 원본 행이 똑같이 또 오면 페이지가 반복된 것이라 완전한 조회로 인정하지 않는다.
+            if (raw.stream().distinct().count() != raw.size()) {
+                logDuplicates(request, pages, false);
                 throw invalid("duplicate_rows");
             }
+            // 원본은 달라도 우리가 읽는 칸이 모두 같으면 같은 금기다. 상대 약의 성분 표기만 다른 행이 실제 응답에 있다.
+            var rows = pages.values().stream().map(Page::rows).flatMap(List::stream).distinct().toList();
+            if (rows.size() != raw.size()) logDuplicates(request, pages, true);
             if (lastPage > 1) log.info("[DUR 조회] type={} result=read pages={} rows={} elapsedMs={}",
                     request.type(), lastPage, rows.size(), elapsedMillis(startedAt));
             var updated = rows.stream().map(DurLookup.Row::updatedAt).min(LocalDate::compareTo).orElse(today);
@@ -221,7 +225,7 @@ public class DurLookupService {
     }
 
     /** 겹친 행이 원본까지 같은지, 우리가 읽는 칸만 같은지 가른다. 값은 남기지 않고 수와 공식 칸 이름만 남김. */
-    private void logDuplicates(Request request, Map<Integer, Page> pages) {
+    private void logDuplicates(Request request, Map<Integer, Page> pages, boolean merged) {
         try {
             var seenRaw = new HashSet<JsonNode>();
             var firstSeen = new HashMap<DurLookup.Row, Seen>();
@@ -244,8 +248,8 @@ public class DurLookupService {
                     }
                 }
             }
-            log.warn("[DUR 조회] type={} result=duplicate_rows repeatedRows={} repeatedRawRows={} samePage={} otherPage={} differingFields={} otherDifferingFields={}",
-                    request.type(), samePage + otherPage, rawRepeats, samePage, otherPage,
+            log.atLevel(merged ? Level.INFO : Level.WARN).log("[DUR 조회] type={} result={} repeatedRows={} repeatedRawRows={} samePage={} otherPage={} differingFields={} otherDifferingFields={}",
+                    request.type(), merged ? "merged_rows" : "duplicate_rows", samePage + otherPage, rawRepeats, samePage, otherPage,
                     differing.stream().limit(20).toList(), otherFields);
         } catch (RuntimeException exception) {
             // 진단 기록이 실패해도 이 유형만 미확인으로 남고 조회 전체로 번지지 않음.
