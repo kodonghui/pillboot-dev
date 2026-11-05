@@ -180,7 +180,8 @@ public class MedicationLiveWorkflow {
             if (!missing.isEmpty() && rejectsDefaults(lastUser)) {
                 return question("그럼 바꿀 항목과 값만 말씀해주세요.", List.of("correction"));
             }
-            if (requireConfirmation || !missing.isEmpty() && !allowDefaults) {
+            // 일정은 약 한 줄의 칸이라 저장하면 앞 일정이 남지 않는다. 있던 일정을 덮어쓸 때는 값이 다 있어도 먼저 묻는다.
+            if (requireConfirmation || target.hasSchedule() || !missing.isEmpty() && !allowDefaults) {
                 if (timing == null && target.timing() != null) {
                     timing = target.timing();
                     if (timing.length() > 20) throw invalid();
@@ -322,8 +323,12 @@ public class MedicationLiveWorkflow {
             details.add(targets.get(i).drugName() + " 1회 " + item.dosePerTime() + "개"
                     + (item.timing() == null ? "" : ", " + item.timing()));
         }
+        String replaced = targets.stream().filter(MedicationTarget::hasSchedule).map(MedicationTarget::drugName)
+                .collect(java.util.stream.Collectors.joining(", "));
         return from + "부터 " + days + "일 동안 매일 " + times + "로 약 " + targets.size() + "개의 일정을 함께 등록할게요. "
-                + String.join(". ", details) + ". 적용할까요?";
+                + String.join(". ", details) + "."
+                + (replaced.isEmpty() ? "" : " " + replaced + "에는 지금 일정이 있어요. 적용하면 그 일정은 사라지고 새 일정으로 바뀌어요.")
+                + " 적용할까요?";
     }
 
     private String userText(List<Map<String, Object>> transcript) {
@@ -362,7 +367,18 @@ public class MedicationLiveWorkflow {
                 + (defaults.contains("doseTimes") ? "기본 " : "")
                 + "하루 " + request.doseTimes().size() + "번, " + times + ", 1회 " + request.dosePerTime() + "개"
                 + (request.timing() == null ? "" : ", " + request.timing());
-        return message + ". 적용할까요?";
+        return message + "." + replacedNotice(target) + " 적용할까요?";
+    }
+
+    private String replacedNotice(MedicationTarget target) {
+        if (!target.hasSchedule()) return "";
+        String times = target.doseTimes().stream().map(this::spokenTime).collect(java.util.stream.Collectors.joining("·"));
+        return " 이 약에는 지금 " + monthDay(target.startDate()) + "부터 " + monthDay(target.endDate()) + "까지 " + times
+                + " 일정이 있어요. 적용하면 지금 일정은 사라지고 새 일정으로 바뀌어요.";
+    }
+
+    private static String monthDay(LocalDate date) {
+        return date.getMonthValue() + "월 " + date.getDayOfMonth() + "일";
     }
 
     private String spokenTime(LocalTime time) {
