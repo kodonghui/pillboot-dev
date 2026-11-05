@@ -1,0 +1,347 @@
+# 필받음 웹 사이트맵(07 단계 원본).
+# - 이 파일이 원본이고, 사람이 보는 그림(보드·목록·슬라이드)은 draw.py로 이 파일에서 그림. 그림을 손으로 고치지 않음.
+# - PM이 2026-11-05 "Git에 원본 두기"를 고름. 10/21 사이트맵 Artifact(v2)는 옛 판으로 남김.
+# - 화면 ID는 팀 화면 원장(Notion)과 목업 v2 보드의 ID를 그대로 씀. 번호를 다시 매기거나 없앤 번호를 다시 쓰지 않음.
+# - 경로 출처: react-client/src/paths.js · router.js (develop 5af1fdd).
+#
+# 칸 뜻
+# - kind: page(주소가 있는 화면) · view(같은 주소 안에서 바뀌는 화면. 상태 모양은 08 단계 화면 정의에 둠)
+#         · window(주소 없는 창·패널) · outside(앱 밖, 예: 크롬 푸시)
+# - path: page만 가짐(라우트 모양, 쿼리 제외). 두 화면이 같은 path를 쓰지 않음. 나머지는 null이고 at에 나오는 곳을 적음.
+# - access: 비회원(GuestLayout, 로그인 상태로 들어오면 홈으로 보냄) · 회원(MemberLayout) · 누구나(PublicLayout)
+#   회원 화면에 로그인 없이 오면 만료는 CMN-03, 홈은 MEM-01, 그 밖은 MEM-04(돌아올 곳 기억)로 보냄(Layout.jsx).
+# - status: active · removed(ID와 이력만 남기고 주소는 없음)
+# - also_in: 같은 화면이 다른 부모 아래에서도 나올 때 그 부모 ID. 그림에는 첫 부모 아래 한 번만 그림.
+# - added: 10/21 사이트맵 뒤에 Git에 더한 날짜(그 화면의 첫 커밋 날짜).
+# - terms: 도메인(docs/01-domain/domain.md)의 맥락·용어 ID
+#
+# 화면이 없는 용어: TERM-007·TERM-008·TERM-009·TERM-011(CTX-007 진료 일정, DEC-036으로 하지 않음)
+#                  TERM-012·TERM-014·TERM-015(카카오톡 안에서만 씀)
+# 웹 화면이 없는 흐름: V3-FL-24·V3-FL-25·V3-FL-26(카카오톡 안에서만 진행), V3-FL-27·V3-FL-28·V3-FL-29(진료 일정, DEC-036으로 하지 않음)
+# 화면 ID가 없는 것: 헤더 '설정' 메뉴(프로필 관리 PRF-01 · 알림 NTF-01 · 업데이트 기록 CMN-04로 가는 링크 묶음),
+#                   홈의 로그아웃 확인창(CMN-01 안의 확인창). 회원 탈퇴 화면은 웹에 없음(V3-FL-32 탈퇴 갈래).
+
+- id: CMN-01
+  name: 홈
+  kind: page
+  path: /
+  access: 회원
+  status: active
+  flows: []
+  terms: [CTX-002, CTX-006]
+  note: 오늘 먹을 약과 관리할 사람을 보여 줌. 로그아웃 확인창이 이 화면 안에 있음.
+  children:
+    - id: MEM-01
+      name: 시작
+      kind: page
+      path: /welcome
+      access: 비회원
+      status: active
+      flows: []
+      terms: [CTX-001]
+      note: 로그인하지 않고 홈에 오면 이 화면으로 보냄. 아래쪽에 업데이트 기록(CMN-04) 링크가 있음.
+      children:
+        - id: MEM-02
+          name: 회원가입 약관 동의
+          kind: page
+          path: /signup
+          access: 비회원
+          status: active
+          flows: [FL-01]
+          terms: [CTX-001]
+          children:
+            - id: MEM-03
+              name: 회원가입 정보 입력
+              kind: page
+              path: /signup/info
+              access: 비회원
+              status: active
+              flows: [FL-01]
+              terms: [CTX-001]
+              note: 가입을 마치면 첫 프로필 만들기(PRF-02)로 감.
+        - id: MEM-04
+          name: 로그인
+          kind: page
+          path: /login
+          access: 비회원
+          status: active
+          flows: [FL-02]
+          terms: [CTX-001]
+    - id: CMN-03
+      name: 로그인 만료
+      kind: page
+      path: /session-expired
+      access: 비회원
+      status: active
+      flows: [FL-02, V3-FL-17]
+      terms: [CTX-001]
+      note: 회원 화면에서 로그인이 만료되면 이 화면으로 보냄. 다시 로그인(MEM-04)으로 이어짐.
+    - id: CMN-02
+      name: 권한 없음 · 찾을 수 없음
+      kind: page
+      path: "*"
+      access: 회원
+      status: active
+      flows: []
+      terms: none
+      note: 403·404 오류 화면. 없는 대화방(CMN-02-01)은 같은 화면의 다른 문구임(ErrorScreen.jsx).
+    - id: CMN-04
+      name: 업데이트 기록
+      kind: page
+      path: /changelog
+      access: 누구나
+      status: active
+      flows: []
+      terms: none
+      also_in: [MEM-01]
+      added: 2026-11-04
+      note: 회원은 헤더 '설정' 메뉴, 비회원은 시작 화면 아래쪽 링크로 들어옴(react-client/design/cmn-04-changelog.md).
+    - id: PRF-04
+      name: 관리할 사람 고르기
+      kind: window
+      path: null
+      at: 헤더 '관리할 사람' 버튼. 홈·약 목록·약 등록·대화에서는 바꿀 수 있고, 약 검색·사진 등록에서는 보이지만 잠김.
+      access: 회원
+      status: active
+      flows: []
+      terms: [CTX-002]
+    - id: MED-01
+      name: 약 목록
+      kind: page
+      path: /drugs
+      access: 회원
+      status: active
+      flows: [FL-07, V3-FL-17, V3-FL-18]
+      terms: [CTX-003, TERM-017, TERM-016, TERM-001, TERM-002]
+      note: v3에서 여러 개 삭제와 함량 표시가 더해짐.
+      children:
+        - id: MED-02
+          name: 약 등록 방법 고르기
+          kind: page
+          path: /drugs/new
+          access: 회원
+          status: active
+          flows: [V3-FL-18]
+          terms: [CTX-003]
+          children:
+            - id: MED-03
+              name: 약 이름 검색
+              kind: page
+              path: /drugs/search
+              access: 회원
+              status: active
+              flows: [FL-06, V3-FL-18, V3-FL-20]
+              terms: [CTX-003, TERM-018, TERM-002, TERM-001, TERM-004]
+              note: 처방전 결과에서 이름을 고쳐 찾을 때도 이 화면을 씀(?q · pick · photo).
+            - id: IMG-01
+              name: 처방전 · 약봉투 사진 올리기
+              kind: page
+              path: /drugs/new/prescription
+              access: 회원
+              status: active
+              flows: [FL-04, V3-FL-18]
+              terms: [CTX-004]
+              children:
+                - id: IMG-03
+                  name: 사진 분석 중
+                  kind: view
+                  path: null
+                  at: 사진을 올린 뒤 같은 화면에서 기다림(PhotoBusy.jsx).
+                  access: 회원
+                  status: active
+                  flows: [FL-04, FL-05, V3-FL-20]
+                  terms: [CTX-004]
+                  also_in: [IMG-02]
+                - id: IMG-04
+                  name: 처방전 찾은 약 확인
+                  kind: view
+                  path: null
+                  at: /drugs/new/prescription?photo=:photoId (새로고침해도 후보를 다시 불러옴)
+                  access: 회원
+                  status: active
+                  flows: [FL-04, V3-FL-18, V3-FL-21]
+                  terms: [CTX-004, TERM-018, TERM-001, TERM-004]
+                - id: IMG-06
+                  name: 식별 실패 · 만료
+                  kind: view
+                  path: null
+                  at: 사진으로 약을 찾지 못했을 때 같은 화면(PhotoFailure.jsx).
+                  access: 회원
+                  status: active
+                  flows: [FL-04, FL-05]
+                  terms: [CTX-004]
+                  also_in: [IMG-02]
+            - id: IMG-02
+              name: 알약 사진 올리기
+              kind: page
+              path: /drugs/new/pill
+              access: 회원
+              status: active
+              flows: [FL-05]
+              terms: [CTX-004]
+              children:
+                - id: IMG-05
+                  name: 찾은 알약 확인
+                  kind: view
+                  path: null
+                  at: 알약 사진 분석이 끝난 뒤 같은 화면.
+                  access: 회원
+                  status: active
+                  flows: [FL-05, V3-FL-21]
+                  terms: [CTX-004, TERM-018]
+                - id: IMG-07
+                  name: 단서 보완
+                  kind: window
+                  path: null
+                  at: 알약 결과의 '단서 보완하기'로 여는 오른쪽 패널(PillRefinePanel.jsx).
+                  access: 회원
+                  status: active
+                  flows: [FL-05]
+                  terms: [CTX-004]
+        - id: MED-04
+          name: 약 상세
+          kind: page
+          path: /drugs/:myDrugId
+          access: 회원
+          status: active
+          flows: [FL-07, V3-FL-21]
+          terms: [CTX-003, TERM-017, TERM-001, TERM-003]
+    - id: SCH-01
+      name: 복용 달력
+      kind: page
+      path: /calendar
+      access: 회원
+      status: active
+      flows: [FL-09, V2-FL-15]
+      terms: [CTX-006]
+      children:
+        - id: SCH-03
+          name: 일정 추가
+          kind: page
+          path: /schedules/new
+          access: 회원
+          status: active
+          flows: [FL-08, V3-FL-19]
+          terms: [CTX-006, TERM-003]
+          also_in: [CMN-01, MED-01, MED-04]
+          note: 홈·약 목록·약 상세에서도 들어옴(from 쿼리로 돌아갈 곳을 기억).
+        - id: SCH-06
+          name: 일정 수정
+          kind: page
+          path: /schedules/edit
+          access: 회원
+          status: active
+          flows: [FL-09, V3-FL-19]
+          terms: [CTX-006, TERM-003]
+        - id: SCH-05
+          name: 일정 상세
+          kind: window
+          path: null
+          at: 달력의 일정 막대를 누르면 오른쪽(좁으면 아래)에 여는 패널. 삭제 확인창이 이 안에 있음.
+          access: 회원
+          status: active
+          flows: [FL-09]
+          terms: [CTX-006]
+        - id: SCH-04
+          name: 음성 대화
+          kind: window
+          path: null
+          at: 달력의 AI 복약도우미 음성 대화 창(VoiceScheduleDialog.jsx).
+          access: 회원
+          status: active
+          flows: [V2-FL-16]
+          terms: [CTX-006]
+    - id: CHT-01
+      name: 대화방 목록
+      kind: page
+      path: /chat
+      access: 회원
+      status: active
+      flows: [FL-12]
+      terms: [CTX-005]
+      children:
+        - id: CHT-02
+          name: 대화방
+          kind: page
+          path: /chat/:sessionId
+          access: 회원
+          status: active
+          flows: [FL-12, FL-13, FL-14, V3-FL-20, V3-FL-21, V3-FL-22, V3-FL-23, V3-FL-30]
+          terms: [CTX-005, TERM-005, TERM-006, TERM-019]
+          note: v3에서 등록 제안·일정 제안 카드, 답변 진행 단계, 알약 사진 찾기가 더해짐.
+    - id: PRF-01
+      name: 프로필 관리
+      kind: page
+      path: /profiles
+      access: 회원
+      status: active
+      flows: [FL-03, V3-FL-31]
+      terms: [CTX-002, CTX-008, TERM-013]
+      note: 헤더 '설정' 메뉴로 들어옴. v3에서 표 위에 카카오톡 연결 카드가 더해짐.
+      children:
+        - id: PRF-02
+          name: 프로필 만들기
+          kind: page
+          path: /profiles/new
+          access: 회원
+          status: active
+          flows: [FL-03]
+          terms: [CTX-002]
+          also_in: [MEM-03]
+          note: 가입 직후 첫 프로필도 이 화면에서 만듦.
+        - id: PRF-03
+          name: 프로필 수정
+          kind: page
+          path: /profiles/:profileId/edit
+          access: 회원
+          status: active
+          flows: [FL-03]
+          terms: [CTX-002]
+        - id: PRF-06
+          name: 카카오톡 연결
+          kind: page
+          path: /kakao-link
+          access: 회원
+          status: active
+          flows: [V3-FL-31, V3-FL-32]
+          terms: [CTX-008, TERM-013]
+          added: 2026-11-04
+          note: v3 새 화면(DEC-029). 코드 받기·연결 목록·끊기. 화면 정의는 react-client/design/v3-kakao-web-link.md.
+        - id: PRF-05
+          name: 카카오톡 연결 승인(초안)
+          kind: page
+          path: null
+          at: 만들지 않음. DEC-029 Q1이 A안(웹 코드)으로 정해져 B안의 승인 화면 초안을 없앰.
+          access: 회원
+          status: removed
+          flows: []
+          terms: [CTX-008, TERM-013]
+    - id: NTF-01
+      name: 알림 설정
+      kind: page
+      path: /notifications
+      access: 회원
+      status: active
+      flows: [FL-10]
+      terms: [CTX-006, TERM-010]
+      note: 헤더 '설정' 메뉴로 들어옴.
+      children:
+        - id: NTF-03
+          name: 복약 알림(크롬 푸시)
+          kind: outside
+          path: null
+          at: 앱 밖 크롬 알림. 누르면 그 시각에 먹을 약(NTF-02)을 엶.
+          access: 회원
+          status: active
+          flows: [FL-11]
+          terms: [CTX-006, TERM-010]
+    - id: NTF-02
+      name: 그 시각에 먹을 약
+      kind: page
+      path: /doses
+      access: 회원
+      status: active
+      flows: [FL-11]
+      terms: [CTX-006, TERM-010]
+      also_in: [NTF-03]
+      note: 홈의 '약 보기'나 복약 알림(NTF-03)으로 엶(?date · time).

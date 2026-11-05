@@ -1,0 +1,316 @@
+<title>필받음 사이트맵</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- 이 파일은 draw.py가 sitemap.yaml로 채우는 틀임. 화면 내용은 여기에 쓰지 않음. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+<style>
+/* 배치: 약 서랍장처럼 맨 위 뿌리 상자(홈) 아래로 가지 칸이 줄지어 서고, 같은 자료를 목록과 검토용 슬라이드로 다시 펼침. 색은 필받음 앱 토큰을 씀. */
+:root {
+  --bg: #F4F6F8;
+  --surface: #FFFFFF;
+  --sunken: #EEF1F4;
+  --fg: #17212B;
+  --muted: #5E6A76;
+  --line: #D3DAE1;
+  --edge: #8C98A4;
+  --accent: #0B6B4F;
+  --accent-ink: #075B43;
+  --accent-weak: #E3F1EA;
+  --guest-bg: #E8F0FB; --guest-fg: #1D4F91;
+  --public-bg: #FFF4DF; --public-fg: #7A4300;
+  --bad-bg: #FDEEEC; --bad-fg: #9A1C13;
+  --new-bg: #E4ECFA; --new-fg: #1D4787;
+  --sans: "Pretendard Variable", "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1c1e; --surface: #212225; --sunken: #2a2b2f; --fg: #f4f7f5; --muted: #b3b8be;
+    --line: #3a3c41; --edge: #7d838b; --accent: #5cc9a4; --accent-ink: #5cc9a4; --accent-weak: #173a2f;
+    --guest-bg: #1d2a3d; --guest-fg: #a9c8f2; --public-bg: #3a2c14; --public-fg: #ffc670;
+    --bad-bg: #3d1e1c; --bad-fg: #ff9a92; --new-bg: #1f2a40; --new-fg: #b4ccf4;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1b1c1e; --surface: #212225; --sunken: #2a2b2f; --fg: #f4f7f5; --muted: #b3b8be;
+  --line: #3a3c41; --edge: #7d838b; --accent: #5cc9a4; --accent-ink: #5cc9a4; --accent-weak: #173a2f;
+  --guest-bg: #1d2a3d; --guest-fg: #a9c8f2; --public-bg: #3a2c14; --public-fg: #ffc670;
+  --bad-bg: #3d1e1c; --bad-fg: #ff9a92; --new-bg: #1f2a40; --new-fg: #b4ccf4;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.55; word-break: keep-all; overflow-wrap: break-word; }
+table { font: inherit; color: inherit; }
+code, .sid, .flow, .term { font-family: var(--mono); }
+.wrap { max-width: 1440px; margin: 0 auto; padding-block: 32px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; }
+
+header.top { display: grid; gap: 12px; }
+.eyebrow { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; color: var(--accent-ink); }
+h1 { margin: 0; font-size: clamp(30px, 5vw, 44px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; text-wrap: balance; }
+.meta { margin: 0; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.meta code { font-size: 13px; }
+.status { justify-self: start; display: inline-flex; gap: 8px; align-items: center; padding: 6px 12px; border-radius: 999px; background: var(--public-bg); color: var(--public-fg); font-size: 14px; font-weight: 600; }
+
+nav.jump { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 0; background: var(--bg); border-bottom: 1px solid var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+nav.jump a { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--fg); text-decoration: none; font-weight: 600; font-size: 14px; background: var(--surface); }
+nav.jump a:hover { border-color: var(--accent); color: var(--accent-ink); }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; align-items: start; }
+.counts { display: grid; gap: 8px; }
+.counts .big { font-size: 40px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.counts dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; }
+.counts dt { color: var(--muted); }
+.counts dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.counts h2, .checks h2, .legend h2, section > h2 { margin: 0 0 4px; font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+.checks ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.checks li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; font-size: 14px; min-width: 0; }
+.checks .mark { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+.checks .ok .mark { background: var(--accent-weak); color: var(--accent-ink); }
+.checks .fail .mark { background: var(--bad-bg); color: var(--bad-fg); }
+.checks .detail { color: var(--muted); font-size: 13px; }
+.legend { display: grid; gap: 10px; font-size: 14px; }
+.legend .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.legend .sample { width: 44px; height: 22px; border-radius: 6px; background: var(--surface); display: inline-block; vertical-align: middle; margin-right: 6px; }
+
+section > p.lede { margin: 0 0 16px; color: var(--muted); max-width: 70ch; }
+
+/* 보드 */
+.root-row { display: flex; justify-content: center; }
+.root-row .node { width: min(360px, 100%); border-width: 2px; border-color: var(--accent); }
+.root-stem { height: 20px; width: 2px; background: var(--edge); margin: 0 auto; }
+.branches { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px 16px; border-top: 2px solid var(--edge); padding-top: 16px; }
+.branch { min-width: 0; }
+.from-root { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); font-family: var(--mono); }
+.tree ul { list-style: none; margin: 0; padding: 0; }
+.tree ul ul { margin-left: 14px; padding-left: 18px; }
+.tree ul ul > li { position: relative; padding-top: 10px; }
+.tree ul ul > li::before { content: ""; position: absolute; left: -18px; top: 0; bottom: 0; border-left: 2px solid var(--edge); }
+.tree ul ul > li:last-child::before { bottom: auto; height: 34px; }
+.tree ul ul > li::after { content: ""; position: absolute; left: -18px; top: 33px; width: 12px; border-top: 2px solid var(--edge); }
+.tree ul ul > li > .node::before { content: ""; position: absolute; left: -8px; top: 19px; border: 5px solid transparent; border-left: 7px solid var(--edge); }
+
+.node { position: relative; background: var(--surface); border: 1.5px solid var(--edge); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; min-width: 0; }
+.node.k-view { border-style: dashed; }
+.node.k-window { border-style: dotted; border-width: 2.5px; }
+.node.k-outside { border-style: dashed; background: var(--sunken); }
+.node-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sid { font-weight: 600; font-size: 13px; color: var(--accent-ink); }
+.node-name { font-weight: 700; font-size: 16px; line-height: 1.35; }
+.node-where { font-size: 13px; color: var(--muted); min-width: 0; }
+.node-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.path { font-size: 13px; color: var(--fg); background: var(--sunken); padding: 1px 6px; border-radius: 5px; }
+.at { font-size: 13px; }
+.also { font-size: 12px; color: var(--muted); }
+.tag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 5px; background: var(--sunken); color: var(--muted); }
+.new-tag { background: var(--new-bg); color: var(--new-fg); }
+.removed-tag { background: var(--bad-bg); color: var(--bad-fg); }
+.is-removed .node-name, tr.is-removed td:nth-child(2), li.is-removed b { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.node.is-removed { background: var(--sunken); }
+.chip { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.chip.member { background: var(--accent-weak); color: var(--accent-ink); }
+.chip.guest { background: var(--guest-bg); color: var(--guest-fg); }
+.chip.public { background: var(--public-bg); color: var(--public-fg); }
+
+/* 목록 */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table.list { border-collapse: collapse; width: 100%; min-width: 1080px; font-size: 14px; }
+table.list th { text-align: left; font-size: 12px; font-weight: 700; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--sunken); position: sticky; top: 0; }
+table.list td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.list tr:last-child td { border-bottom: 0; }
+.id-cell { padding-left: calc(12px + var(--depth) * 18px) !important; white-space: nowrap; }
+.flow, .term { display: inline-block; font-size: 12px; padding: 1px 6px; margin: 1px 0; border-radius: 5px; background: var(--sunken); }
+.flow { background: var(--accent-weak); color: var(--accent-ink); }
+.none { color: var(--muted); font-size: 13px; }
+td.note { color: var(--muted); font-size: 13px; min-width: 220px; }
+
+/* 슬라이드 */
+.slides { display: grid; gap: 24px; }
+.slide { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.slide-inner { height: 100%; padding: clamp(20px, 3.4vw, 48px); display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px; }
+@media (min-width: 900px) { .slide { aspect-ratio: 16 / 9; } }
+.slide-kicker { margin: 0; font-size: 14px; font-weight: 700; color: var(--accent-ink); letter-spacing: .04em; }
+.slide h3 { margin: 0; font-size: clamp(24px, 3.2vw, 40px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+.slide h3 .path { font-size: .5em; vertical-align: middle; }
+.slide-lede { margin: 0; color: var(--muted); }
+.slide-body { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-content: start; }
+@media (max-width: 700px) { .slide-body { grid-template-columns: 1fr; } }
+.slide-screens, .slide-branches { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.slide-screens li { padding-left: calc(var(--depth) * 22px); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: clamp(14px, 1.4vw, 17px); }
+.slide-branches { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); font-size: clamp(14px, 1.4vw, 17px); }
+.slide-flows { display: flex; flex-wrap: wrap; gap: 6px; align-content: start; }
+.slide-flows .label { flex-basis: 100%; margin: 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.slide-foot { margin: 0; font-size: 12px; color: var(--muted); align-self: end; }
+
+details.mermaid-src { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+details.mermaid-src summary { cursor: pointer; font-weight: 700; }
+details.mermaid-src pre { overflow-x: auto; font-size: 12px; background: var(--sunken); padding: 12px; border-radius: 8px; }
+.copy { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.copy:hover { border-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+
+<div class="wrap" lang="ko">
+  <header class="top">
+    <p class="eyebrow">CORTHEX 07 단계 · 사이트맵</p>
+    <h1>필받음 사이트맵</h1>
+    <p class="meta"><span>그린 시각 2026-11-05 13:37 KST</span><span>원본 <code>docs/07-sitemap/sitemap.yaml</code> · sha256 <code>b12627889737</code></span><span>경로 기준 <code>react-client/src/paths.js</code></span></p>
+    <p class="status">내비게이션 구조 합의 전 · 검토는 11/6 제출 뒤에 받음</p>
+  </header>
+
+  <nav class="jump" aria-label="그림 바로가기">
+    <a href="#board">보드</a><a href="#list">목록</a><a href="#slides">슬라이드</a>
+  </nav>
+
+  <div class="summary">
+    <div class="counts">
+      <h2>화면</h2>
+      <div class="big">35개</div>
+      <dl>
+        <dt>주소가 있는 화면</dt><dd>25</dd>
+        <dt>같은 주소 안 화면</dt><dd>4</dd>
+        <dt>창·패널</dt><dd>4</dd>
+        <dt>앱 밖</dt><dd>1</dd>
+        <dt>없앤 화면(ID만 남김)</dt><dd>1</dd>
+      </dl>
+    </div>
+    <div class="checks">
+      <h2>점검 9 / 9 통과</h2>
+      <ul><li class="ok"><span class="mark">통과</span><span><b>화면 ID가 겹치지 않고 프로젝트 형식(MEM·CMN·MED·IMG·SCH·CHT·PRF·NTF-NN)을 따름</b><br><span class="detail">겹침 없음, 형식 밖 없음</span></span></li><li class="ok"><span class="mark">통과</span><span><b>뿌리가 하나이고 모든 화면이 뿌리에서 닿음</b><br><span class="detail">뿌리 [&#x27;CMN-01&#x27;], 화면 35개 모두 그 아래 트리에 있음</span></span></li><li class="ok"><span class="mark">통과</span><span><b>모든 화면에 누가 볼 수 있는지 적음</b><br><span class="detail">빠지거나 모르는 값 없음</span></span></li><li class="ok"><span class="mark">통과</span><span><b>칸 모양(kind·status·path·at·also_in)이 규칙에 맞음</b><br><span class="detail">어긋남 없음</span></span></li><li class="ok"><span class="mark">통과</span><span><b>두 화면이 같은 주소를 쓰지 않음</b><br><span class="detail">주소 25개, 겹침 없음</span></span></li><li class="ok"><span class="mark">통과</span><span><b>앱 라우트(paths.js·router.js)와 사이트맵 주소가 같음</b><br><span class="detail">라우트 25개 · 사이트맵 25개, 라우트에만 없음, 사이트맵에만 없음</span></span></li><li class="ok"><span class="mark">통과</span><span><b>화면을 보여 주는 흐름은 모두 화면에 이어짐</b><br><span class="detail">흐름 32개 중 화면에 이어짐 26 · 웹 화면 없음 6(V3-FL-24 V3-FL-25 V3-FL-26 V3-FL-27 V3-FL-28 V3-FL-29), 빠짐 없음, 모르는 ID 없음, 양쪽에 다 있음 없음</span></span></li><li class="ok"><span class="mark">통과</span><span><b>맥락·용어 ID가 도메인 문서에 있음</b><br><span class="detail">쓴 ID 19개, 도메인에 없는 것 없음, terms 빠짐 없음</span></span></li><li class="ok"><span class="mark">통과</span><span><b>화면마다 보드·목록·슬라이드에 한 번씩 나옴</b><br><span class="detail">화면 35개 × 그림 3개 모두 한 번씩</span></span></li></ul>
+    </div>
+    <div class="legend">
+      <h2>읽는 법</h2>
+      <div class="row"><span class="chip member">회원</span><span class="chip guest">비회원</span><span class="chip public">누구나</span></div>
+      <div class="row"><span><span class="sample" style="border:1.5px solid var(--edge)"></span>주소가 있는 화면</span></div>
+      <div class="row"><span><span class="sample" style="border:1.5px dashed var(--edge)"></span>같은 주소 안 화면 · 앱 밖</span></div>
+      <div class="row"><span><span class="sample" style="border:2.5px dotted var(--edge)"></span>창·패널(주소 없음)</span></div>
+      <div class="row"><span class="tag new-tag">2026-11-04 더함</span><span>10/21 사이트맵 뒤에 더한 화면</span></div>
+      <div class="row"><span class="tag removed-tag">없앰</span><span>ID만 남기고 다시 쓰지 않음</span></div>
+    </div>
+  </div>
+
+  <section id="board">
+    <h2>보드</h2>
+    <p class="lede">상자 하나가 화면 하나임. 선은 부모에서 자식으로 가는 길이고, 다른 곳에서도 들어오는 화면은 '다른 입구'에 적음.</p>
+    <div class="root-row"><div class="node k-page" data-screen="CMN-01"><div class="node-head"><span class="sid">CMN-01</span></div><div class="node-name">홈</div><div class="node-where"><code class="path">/<wbr></code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></div>
+    <div class="root-stem"></div>
+    <div class="branches"><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-page" data-screen="MEM-01"><div class="node-head"><span class="sid">MEM-01</span></div><div class="node-name">시작</div><div class="node-where"><code class="path">/<wbr>welcome</code></div><div class="node-foot"><span class="chip guest" title="로그인하지 않은 사람">비회원</span></div></div><ul><li><div class="node k-page" data-screen="MEM-02"><div class="node-head"><span class="sid">MEM-02</span></div><div class="node-name">회원가입 약관 동의</div><div class="node-where"><code class="path">/<wbr>signup</code></div><div class="node-foot"><span class="chip guest" title="로그인하지 않은 사람">비회원</span></div></div><ul><li><div class="node k-page" data-screen="MEM-03"><div class="node-head"><span class="sid">MEM-03</span></div><div class="node-name">회원가입 정보 입력</div><div class="node-where"><code class="path">/<wbr>signup/<wbr>info</code></div><div class="node-foot"><span class="chip guest" title="로그인하지 않은 사람">비회원</span></div></div></li></ul></li><li><div class="node k-page" data-screen="MEM-04"><div class="node-head"><span class="sid">MEM-04</span></div><div class="node-name">로그인</div><div class="node-where"><code class="path">/<wbr>login</code></div><div class="node-foot"><span class="chip guest" title="로그인하지 않은 사람">비회원</span></div></div></li></ul></li></ul></div></div><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-page" data-screen="CMN-03"><div class="node-head"><span class="sid">CMN-03</span></div><div class="node-name">로그인 만료</div><div class="node-where"><code class="path">/<wbr>session-expired</code></div><div class="node-foot"><span class="chip guest" title="로그인하지 않은 사람">비회원</span></div></div></li></ul></div></div><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-page" data-screen="CMN-02"><div class="node-head"><span class="sid">CMN-02</span></div><div class="node-name">권한 없음 · 찾을 수 없음</div><div class="node-where"><code class="path">*</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li></ul></div></div><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-page" data-screen="CMN-04"><div class="node-head"><span class="sid">CMN-04</span><span class="tag new-tag">2026-11-04 더함</span></div><div class="node-name">업데이트 기록</div><div class="node-where"><code class="path">/<wbr>changelog</code></div><div class="node-foot"><span class="chip public" title="로그인과 상관없음">누구나</span><span class="also">다른 입구 MEM-01</span></div></div></li></ul></div></div><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-window" data-screen="PRF-04"><div class="node-head"><span class="sid">PRF-04</span><span class="tag">창·패널</span></div><div class="node-name">관리할 사람 고르기</div><div class="node-where"><span class="at">헤더 &#x27;관리할 사람&#x27; 버튼. 홈·약 목록·약 등록·대화에서는 바꿀 수 있고, 약 검색·사진 등록에서는 보이지만 잠김.</span></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li></ul></div></div><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-page" data-screen="MED-01"><div class="node-head"><span class="sid">MED-01</span></div><div class="node-name">약 목록</div><div class="node-where"><code class="path">/<wbr>drugs</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div><ul><li><div class="node k-page" data-screen="MED-02"><div class="node-head"><span class="sid">MED-02</span></div><div class="node-name">약 등록 방법 고르기</div><div class="node-where"><code class="path">/<wbr>drugs/<wbr>new</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div><ul><li><div class="node k-page" data-screen="MED-03"><div class="node-head"><span class="sid">MED-03</span></div><div class="node-name">약 이름 검색</div><div class="node-where"><code class="path">/<wbr>drugs/<wbr>search</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li><li><div class="node k-page" data-screen="IMG-01"><div class="node-head"><span class="sid">IMG-01</span></div><div class="node-name">처방전 · 약봉투 사진 올리기</div><div class="node-where"><code class="path">/<wbr>drugs/<wbr>new/<wbr>prescription</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div><ul><li><div class="node k-view" data-screen="IMG-03"><div class="node-head"><span class="sid">IMG-03</span><span class="tag">같은 주소 안 화면</span></div><div class="node-name">사진 분석 중</div><div class="node-where"><span class="at">사진을 올린 뒤 같은 화면에서 기다림(PhotoBusy.jsx).</span></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span><span class="also">다른 입구 IMG-02</span></div></div></li><li><div class="node k-view" data-screen="IMG-04"><div class="node-head"><span class="sid">IMG-04</span><span class="tag">같은 주소 안 화면</span></div><div class="node-name">처방전 찾은 약 확인</div><div class="node-where"><span class="at">/<wbr>drugs/<wbr>new/<wbr>prescription?<wbr>photo=:photoId (새로고침해도 후보를 다시 불러옴)</span></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li><li><div class="node k-view" data-screen="IMG-06"><div class="node-head"><span class="sid">IMG-06</span><span class="tag">같은 주소 안 화면</span></div><div class="node-name">식별 실패 · 만료</div><div class="node-where"><span class="at">사진으로 약을 찾지 못했을 때 같은 화면(PhotoFailure.jsx).</span></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span><span class="also">다른 입구 IMG-02</span></div></div></li></ul></li><li><div class="node k-page" data-screen="IMG-02"><div class="node-head"><span class="sid">IMG-02</span></div><div class="node-name">알약 사진 올리기</div><div class="node-where"><code class="path">/<wbr>drugs/<wbr>new/<wbr>pill</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div><ul><li><div class="node k-view" data-screen="IMG-05"><div class="node-head"><span class="sid">IMG-05</span><span class="tag">같은 주소 안 화면</span></div><div class="node-name">찾은 알약 확인</div><div class="node-where"><span class="at">알약 사진 분석이 끝난 뒤 같은 화면.</span></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li><li><div class="node k-window" data-screen="IMG-07"><div class="node-head"><span class="sid">IMG-07</span><span class="tag">창·패널</span></div><div class="node-name">단서 보완</div><div class="node-where"><span class="at">알약 결과의 &#x27;단서 보완하기&#x27;로 여는 오른쪽 패널(PillRefinePanel.jsx).</span></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li></ul></li></ul></li><li><div class="node k-page" data-screen="MED-04"><div class="node-head"><span class="sid">MED-04</span></div><div class="node-name">약 상세</div><div class="node-where"><code class="path">/<wbr>drugs/<wbr>:myDrugId</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li></ul></li></ul></div></div><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-page" data-screen="SCH-01"><div class="node-head"><span class="sid">SCH-01</span></div><div class="node-name">복용 달력</div><div class="node-where"><code class="path">/<wbr>calendar</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div><ul><li><div class="node k-page" data-screen="SCH-03"><div class="node-head"><span class="sid">SCH-03</span></div><div class="node-name">일정 추가</div><div class="node-where"><code class="path">/<wbr>schedules/<wbr>new</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span><span class="also">다른 입구 CMN-01 · MED-01 · MED-04</span></div></div></li><li><div class="node k-page" data-screen="SCH-06"><div class="node-head"><span class="sid">SCH-06</span></div><div class="node-name">일정 수정</div><div class="node-where"><code class="path">/<wbr>schedules/<wbr>edit</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li><li><div class="node k-window" data-screen="SCH-05"><div class="node-head"><span class="sid">SCH-05</span><span class="tag">창·패널</span></div><div class="node-name">일정 상세</div><div class="node-where"><span class="at">달력의 일정 막대를 누르면 오른쪽(좁으면 아래)에 여는 패널. 삭제 확인창이 이 안에 있음.</span></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li><li><div class="node k-window" data-screen="SCH-04"><div class="node-head"><span class="sid">SCH-04</span><span class="tag">창·패널</span></div><div class="node-name">음성 대화</div><div class="node-where"><span class="at">달력의 AI 복약도우미 음성 대화 창(VoiceScheduleDialog.jsx).</span></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li></ul></li></ul></div></div><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-page" data-screen="CHT-01"><div class="node-head"><span class="sid">CHT-01</span></div><div class="node-name">대화방 목록</div><div class="node-where"><code class="path">/<wbr>chat</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div><ul><li><div class="node k-page" data-screen="CHT-02"><div class="node-head"><span class="sid">CHT-02</span></div><div class="node-name">대화방</div><div class="node-where"><code class="path">/<wbr>chat/<wbr>:sessionId</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li></ul></li></ul></div></div><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-page" data-screen="PRF-01"><div class="node-head"><span class="sid">PRF-01</span></div><div class="node-name">프로필 관리</div><div class="node-where"><code class="path">/<wbr>profiles</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div><ul><li><div class="node k-page" data-screen="PRF-02"><div class="node-head"><span class="sid">PRF-02</span></div><div class="node-name">프로필 만들기</div><div class="node-where"><code class="path">/<wbr>profiles/<wbr>new</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span><span class="also">다른 입구 MEM-03</span></div></div></li><li><div class="node k-page" data-screen="PRF-03"><div class="node-head"><span class="sid">PRF-03</span></div><div class="node-name">프로필 수정</div><div class="node-where"><code class="path">/<wbr>profiles/<wbr>:profileId/<wbr>edit</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li><li><div class="node k-page" data-screen="PRF-06"><div class="node-head"><span class="sid">PRF-06</span><span class="tag new-tag">2026-11-04 더함</span></div><div class="node-name">카카오톡 연결</div><div class="node-where"><code class="path">/<wbr>kakao-link</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li><li><div class="node k-page is-removed" data-screen="PRF-05"><div class="node-head"><span class="sid">PRF-05</span><span class="tag removed-tag">없앰</span></div><div class="node-name">카카오톡 연결 승인(초안)</div><div class="node-where"><span class="at">만들지 않음. DEC-029 Q1이 A안(웹 코드)으로 정해져 B안의 승인 화면 초안을 없앰.</span></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li></ul></li></ul></div></div><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-page" data-screen="NTF-01"><div class="node-head"><span class="sid">NTF-01</span></div><div class="node-name">알림 설정</div><div class="node-where"><code class="path">/<wbr>notifications</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div><ul><li><div class="node k-outside" data-screen="NTF-03"><div class="node-head"><span class="sid">NTF-03</span><span class="tag">앱 밖</span></div><div class="node-name">복약 알림(크롬 푸시)</div><div class="node-where"><span class="at">앱 밖 크롬 알림. 누르면 그 시각에 먹을 약(NTF-02)을 엶.</span></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span></div></div></li></ul></li></ul></div></div><div class="branch"><p class="from-root">CMN-01 홈에서 ↓</p><div class="tree"><ul><li><div class="node k-page" data-screen="NTF-02"><div class="node-head"><span class="sid">NTF-02</span></div><div class="node-name">그 시각에 먹을 약</div><div class="node-where"><code class="path">/<wbr>doses</code></div><div class="node-foot"><span class="chip member" title="로그인한 회원">회원</span><span class="also">다른 입구 NTF-03</span></div></div></li></ul></div></div></div>
+  </section>
+
+  <section id="list">
+    <h2>목록</h2>
+    <p class="lede">트리 순서대로 한 줄에 화면 하나. 흐름 ID는 사용자 흐름(FL·V2-FL은 Notion, V3-FL은 docs/03-user-flow/user-flow-v3.md), 용어 ID는 docs/01-domain/domain.md를 따름.</p>
+    <div class="table-wrap">
+      <table class="list">
+        <thead><tr><th>ID</th><th>이름</th><th>종류</th><th>주소 · 나오는 곳</th><th>누가</th><th>지나는 흐름</th><th>맥락·용어</th><th>비고</th></tr></thead>
+        <tbody><tr data-screen="CMN-01"><td class="id-cell" style="--depth:0"><span class="sid">CMN-01</span></td><td>홈</td><td>화면</td><td><code class="path">/<wbr></code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="none">없음</span></td><td><span class="term">CTX-002</span> <span class="term">CTX-006</span></td><td class="note">오늘 먹을 약과 관리할 사람을 보여 줌. 로그아웃 확인창이 이 화면 안에 있음.</td></tr><tr data-screen="MEM-01"><td class="id-cell" style="--depth:1"><span class="sid">MEM-01</span></td><td>시작</td><td>화면</td><td><code class="path">/<wbr>welcome</code></td><td><span class="chip guest" title="로그인하지 않은 사람">비회원</span></td><td><span class="none">없음</span></td><td><span class="term">CTX-001</span></td><td class="note">로그인하지 않고 홈에 오면 이 화면으로 보냄. 아래쪽에 업데이트 기록(CMN-04) 링크가 있음.</td></tr><tr data-screen="MEM-02"><td class="id-cell" style="--depth:2"><span class="sid">MEM-02</span></td><td>회원가입 약관 동의</td><td>화면</td><td><code class="path">/<wbr>signup</code></td><td><span class="chip guest" title="로그인하지 않은 사람">비회원</span></td><td><span class="flow">FL-01</span></td><td><span class="term">CTX-001</span></td><td class="note"></td></tr><tr data-screen="MEM-03"><td class="id-cell" style="--depth:3"><span class="sid">MEM-03</span></td><td>회원가입 정보 입력</td><td>화면</td><td><code class="path">/<wbr>signup/<wbr>info</code></td><td><span class="chip guest" title="로그인하지 않은 사람">비회원</span></td><td><span class="flow">FL-01</span></td><td><span class="term">CTX-001</span></td><td class="note">가입을 마치면 첫 프로필 만들기(PRF-02)로 감.</td></tr><tr data-screen="MEM-04"><td class="id-cell" style="--depth:2"><span class="sid">MEM-04</span></td><td>로그인</td><td>화면</td><td><code class="path">/<wbr>login</code></td><td><span class="chip guest" title="로그인하지 않은 사람">비회원</span></td><td><span class="flow">FL-02</span></td><td><span class="term">CTX-001</span></td><td class="note"></td></tr><tr data-screen="CMN-03"><td class="id-cell" style="--depth:1"><span class="sid">CMN-03</span></td><td>로그인 만료</td><td>화면</td><td><code class="path">/<wbr>session-expired</code></td><td><span class="chip guest" title="로그인하지 않은 사람">비회원</span></td><td><span class="flow">FL-02</span> <span class="flow">V3-FL-17</span></td><td><span class="term">CTX-001</span></td><td class="note">회원 화면에서 로그인이 만료되면 이 화면으로 보냄. 다시 로그인(MEM-04)으로 이어짐.</td></tr><tr data-screen="CMN-02"><td class="id-cell" style="--depth:1"><span class="sid">CMN-02</span></td><td>권한 없음 · 찾을 수 없음</td><td>화면</td><td><code class="path">*</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="none">없음</span></td><td><span class="none">없음</span></td><td class="note">403·404 오류 화면. 없는 대화방(CMN-02-01)은 같은 화면의 다른 문구임(ErrorScreen.jsx).</td></tr><tr data-screen="CMN-04"><td class="id-cell" style="--depth:1"><span class="sid">CMN-04</span></td><td>업데이트 기록</td><td>화면</td><td><code class="path">/<wbr>changelog</code></td><td><span class="chip public" title="로그인과 상관없음">누구나</span></td><td><span class="none">없음</span></td><td><span class="none">없음</span></td><td class="note">회원은 헤더 &#x27;설정&#x27; 메뉴, 비회원은 시작 화면 아래쪽 링크로 들어옴(react-client/design/cmn-04-changelog.md).</td></tr><tr data-screen="PRF-04"><td class="id-cell" style="--depth:1"><span class="sid">PRF-04</span></td><td>관리할 사람 고르기</td><td>창·패널</td><td><span class="at">헤더 &#x27;관리할 사람&#x27; 버튼. 홈·약 목록·약 등록·대화에서는 바꿀 수 있고, 약 검색·사진 등록에서는 보이지만 잠김.</span></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="none">없음</span></td><td><span class="term">CTX-002</span></td><td class="note"></td></tr><tr data-screen="MED-01"><td class="id-cell" style="--depth:1"><span class="sid">MED-01</span></td><td>약 목록</td><td>화면</td><td><code class="path">/<wbr>drugs</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-07</span> <span class="flow">V3-FL-17</span> <span class="flow">V3-FL-18</span></td><td><span class="term">CTX-003</span> <span class="term">TERM-017</span> <span class="term">TERM-016</span> <span class="term">TERM-001</span> <span class="term">TERM-002</span></td><td class="note">v3에서 여러 개 삭제와 함량 표시가 더해짐.</td></tr><tr data-screen="MED-02"><td class="id-cell" style="--depth:2"><span class="sid">MED-02</span></td><td>약 등록 방법 고르기</td><td>화면</td><td><code class="path">/<wbr>drugs/<wbr>new</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">V3-FL-18</span></td><td><span class="term">CTX-003</span></td><td class="note"></td></tr><tr data-screen="MED-03"><td class="id-cell" style="--depth:3"><span class="sid">MED-03</span></td><td>약 이름 검색</td><td>화면</td><td><code class="path">/<wbr>drugs/<wbr>search</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-06</span> <span class="flow">V3-FL-18</span> <span class="flow">V3-FL-20</span></td><td><span class="term">CTX-003</span> <span class="term">TERM-018</span> <span class="term">TERM-002</span> <span class="term">TERM-001</span> <span class="term">TERM-004</span></td><td class="note">처방전 결과에서 이름을 고쳐 찾을 때도 이 화면을 씀(?q · pick · photo).</td></tr><tr data-screen="IMG-01"><td class="id-cell" style="--depth:3"><span class="sid">IMG-01</span></td><td>처방전 · 약봉투 사진 올리기</td><td>화면</td><td><code class="path">/<wbr>drugs/<wbr>new/<wbr>prescription</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-04</span> <span class="flow">V3-FL-18</span></td><td><span class="term">CTX-004</span></td><td class="note"></td></tr><tr data-screen="IMG-03"><td class="id-cell" style="--depth:4"><span class="sid">IMG-03</span></td><td>사진 분석 중</td><td>같은 주소 안 화면</td><td><span class="at">사진을 올린 뒤 같은 화면에서 기다림(PhotoBusy.jsx).</span></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-04</span> <span class="flow">FL-05</span> <span class="flow">V3-FL-20</span></td><td><span class="term">CTX-004</span></td><td class="note"></td></tr><tr data-screen="IMG-04"><td class="id-cell" style="--depth:4"><span class="sid">IMG-04</span></td><td>처방전 찾은 약 확인</td><td>같은 주소 안 화면</td><td><span class="at">/<wbr>drugs/<wbr>new/<wbr>prescription?<wbr>photo=:photoId (새로고침해도 후보를 다시 불러옴)</span></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-04</span> <span class="flow">V3-FL-18</span> <span class="flow">V3-FL-21</span></td><td><span class="term">CTX-004</span> <span class="term">TERM-018</span> <span class="term">TERM-001</span> <span class="term">TERM-004</span></td><td class="note"></td></tr><tr data-screen="IMG-06"><td class="id-cell" style="--depth:4"><span class="sid">IMG-06</span></td><td>식별 실패 · 만료</td><td>같은 주소 안 화면</td><td><span class="at">사진으로 약을 찾지 못했을 때 같은 화면(PhotoFailure.jsx).</span></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-04</span> <span class="flow">FL-05</span></td><td><span class="term">CTX-004</span></td><td class="note"></td></tr><tr data-screen="IMG-02"><td class="id-cell" style="--depth:3"><span class="sid">IMG-02</span></td><td>알약 사진 올리기</td><td>화면</td><td><code class="path">/<wbr>drugs/<wbr>new/<wbr>pill</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-05</span></td><td><span class="term">CTX-004</span></td><td class="note"></td></tr><tr data-screen="IMG-05"><td class="id-cell" style="--depth:4"><span class="sid">IMG-05</span></td><td>찾은 알약 확인</td><td>같은 주소 안 화면</td><td><span class="at">알약 사진 분석이 끝난 뒤 같은 화면.</span></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-05</span> <span class="flow">V3-FL-21</span></td><td><span class="term">CTX-004</span> <span class="term">TERM-018</span></td><td class="note"></td></tr><tr data-screen="IMG-07"><td class="id-cell" style="--depth:4"><span class="sid">IMG-07</span></td><td>단서 보완</td><td>창·패널</td><td><span class="at">알약 결과의 &#x27;단서 보완하기&#x27;로 여는 오른쪽 패널(PillRefinePanel.jsx).</span></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-05</span></td><td><span class="term">CTX-004</span></td><td class="note"></td></tr><tr data-screen="MED-04"><td class="id-cell" style="--depth:2"><span class="sid">MED-04</span></td><td>약 상세</td><td>화면</td><td><code class="path">/<wbr>drugs/<wbr>:myDrugId</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-07</span> <span class="flow">V3-FL-21</span></td><td><span class="term">CTX-003</span> <span class="term">TERM-017</span> <span class="term">TERM-001</span> <span class="term">TERM-003</span></td><td class="note"></td></tr><tr data-screen="SCH-01"><td class="id-cell" style="--depth:1"><span class="sid">SCH-01</span></td><td>복용 달력</td><td>화면</td><td><code class="path">/<wbr>calendar</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-09</span> <span class="flow">V2-FL-15</span></td><td><span class="term">CTX-006</span></td><td class="note"></td></tr><tr data-screen="SCH-03"><td class="id-cell" style="--depth:2"><span class="sid">SCH-03</span></td><td>일정 추가</td><td>화면</td><td><code class="path">/<wbr>schedules/<wbr>new</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-08</span> <span class="flow">V3-FL-19</span></td><td><span class="term">CTX-006</span> <span class="term">TERM-003</span></td><td class="note">홈·약 목록·약 상세에서도 들어옴(from 쿼리로 돌아갈 곳을 기억).</td></tr><tr data-screen="SCH-06"><td class="id-cell" style="--depth:2"><span class="sid">SCH-06</span></td><td>일정 수정</td><td>화면</td><td><code class="path">/<wbr>schedules/<wbr>edit</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-09</span> <span class="flow">V3-FL-19</span></td><td><span class="term">CTX-006</span> <span class="term">TERM-003</span></td><td class="note"></td></tr><tr data-screen="SCH-05"><td class="id-cell" style="--depth:2"><span class="sid">SCH-05</span></td><td>일정 상세</td><td>창·패널</td><td><span class="at">달력의 일정 막대를 누르면 오른쪽(좁으면 아래)에 여는 패널. 삭제 확인창이 이 안에 있음.</span></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-09</span></td><td><span class="term">CTX-006</span></td><td class="note"></td></tr><tr data-screen="SCH-04"><td class="id-cell" style="--depth:2"><span class="sid">SCH-04</span></td><td>음성 대화</td><td>창·패널</td><td><span class="at">달력의 AI 복약도우미 음성 대화 창(VoiceScheduleDialog.jsx).</span></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">V2-FL-16</span></td><td><span class="term">CTX-006</span></td><td class="note"></td></tr><tr data-screen="CHT-01"><td class="id-cell" style="--depth:1"><span class="sid">CHT-01</span></td><td>대화방 목록</td><td>화면</td><td><code class="path">/<wbr>chat</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-12</span></td><td><span class="term">CTX-005</span></td><td class="note"></td></tr><tr data-screen="CHT-02"><td class="id-cell" style="--depth:2"><span class="sid">CHT-02</span></td><td>대화방</td><td>화면</td><td><code class="path">/<wbr>chat/<wbr>:sessionId</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-12</span> <span class="flow">FL-13</span> <span class="flow">FL-14</span> <span class="flow">V3-FL-20</span> <span class="flow">V3-FL-21</span> <span class="flow">V3-FL-22</span> <span class="flow">V3-FL-23</span> <span class="flow">V3-FL-30</span></td><td><span class="term">CTX-005</span> <span class="term">TERM-005</span> <span class="term">TERM-006</span> <span class="term">TERM-019</span></td><td class="note">v3에서 등록 제안·일정 제안 카드, 답변 진행 단계, 알약 사진 찾기가 더해짐.</td></tr><tr data-screen="PRF-01"><td class="id-cell" style="--depth:1"><span class="sid">PRF-01</span></td><td>프로필 관리</td><td>화면</td><td><code class="path">/<wbr>profiles</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-03</span> <span class="flow">V3-FL-31</span></td><td><span class="term">CTX-002</span> <span class="term">CTX-008</span> <span class="term">TERM-013</span></td><td class="note">헤더 &#x27;설정&#x27; 메뉴로 들어옴. v3에서 표 위에 카카오톡 연결 카드가 더해짐.</td></tr><tr data-screen="PRF-02"><td class="id-cell" style="--depth:2"><span class="sid">PRF-02</span></td><td>프로필 만들기</td><td>화면</td><td><code class="path">/<wbr>profiles/<wbr>new</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-03</span></td><td><span class="term">CTX-002</span></td><td class="note">가입 직후 첫 프로필도 이 화면에서 만듦.</td></tr><tr data-screen="PRF-03"><td class="id-cell" style="--depth:2"><span class="sid">PRF-03</span></td><td>프로필 수정</td><td>화면</td><td><code class="path">/<wbr>profiles/<wbr>:profileId/<wbr>edit</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-03</span></td><td><span class="term">CTX-002</span></td><td class="note"></td></tr><tr data-screen="PRF-06"><td class="id-cell" style="--depth:2"><span class="sid">PRF-06</span></td><td>카카오톡 연결</td><td>화면</td><td><code class="path">/<wbr>kakao-link</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">V3-FL-31</span> <span class="flow">V3-FL-32</span></td><td><span class="term">CTX-008</span> <span class="term">TERM-013</span></td><td class="note">v3 새 화면(DEC-029). 코드 받기·연결 목록·끊기. 화면 정의는 react-client/design/v3-kakao-web-link.md.</td></tr><tr data-screen="PRF-05" class="is-removed"><td class="id-cell" style="--depth:2"><span class="sid">PRF-05</span></td><td>카카오톡 연결 승인(초안) <span class="tag removed-tag">없앰</span></td><td>화면</td><td><span class="at">만들지 않음. DEC-029 Q1이 A안(웹 코드)으로 정해져 B안의 승인 화면 초안을 없앰.</span></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="none">없음</span></td><td><span class="term">CTX-008</span> <span class="term">TERM-013</span></td><td class="note"></td></tr><tr data-screen="NTF-01"><td class="id-cell" style="--depth:1"><span class="sid">NTF-01</span></td><td>알림 설정</td><td>화면</td><td><code class="path">/<wbr>notifications</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-10</span></td><td><span class="term">CTX-006</span> <span class="term">TERM-010</span></td><td class="note">헤더 &#x27;설정&#x27; 메뉴로 들어옴.</td></tr><tr data-screen="NTF-03"><td class="id-cell" style="--depth:2"><span class="sid">NTF-03</span></td><td>복약 알림(크롬 푸시)</td><td>앱 밖</td><td><span class="at">앱 밖 크롬 알림. 누르면 그 시각에 먹을 약(NTF-02)을 엶.</span></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-11</span></td><td><span class="term">CTX-006</span> <span class="term">TERM-010</span></td><td class="note"></td></tr><tr data-screen="NTF-02"><td class="id-cell" style="--depth:1"><span class="sid">NTF-02</span></td><td>그 시각에 먹을 약</td><td>화면</td><td><code class="path">/<wbr>doses</code></td><td><span class="chip member" title="로그인한 회원">회원</span></td><td><span class="flow">FL-11</span></td><td><span class="term">CTX-006</span> <span class="term">TERM-010</span></td><td class="note">홈의 &#x27;약 보기&#x27;나 복약 알림(NTF-03)으로 엶(?date · time).</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="slides">
+    <h2>슬라이드</h2>
+    <p class="lede">검토 회의용. 뿌리 한 장과 홈 아래 가지마다 한 장씩, 그 가지의 화면과 지나는 흐름을 보여 줌.</p>
+    <div class="slides"><article class="slide" data-screen="CMN-01"><div class="slide-inner"><p class="slide-kicker">사이트맵 검토 · 뿌리</p><h3>CMN-01 홈 <code class="path">/<wbr></code></h3><p class="slide-lede">로그인한 회원의 첫 화면임. 아래 11개 가지가 여기서 갈라짐.</p><ol class="slide-branches"><li><span class="sid">MEM-01</span> 시작</li><li><span class="sid">CMN-03</span> 로그인 만료</li><li><span class="sid">CMN-02</span> 권한 없음 · 찾을 수 없음</li><li><span class="sid">CMN-04</span> 업데이트 기록</li><li><span class="sid">PRF-04</span> 관리할 사람 고르기</li><li><span class="sid">MED-01</span> 약 목록</li><li><span class="sid">SCH-01</span> 복용 달력</li><li><span class="sid">CHT-01</span> 대화방 목록</li><li><span class="sid">PRF-01</span> 프로필 관리</li><li><span class="sid">NTF-01</span> 알림 설정</li><li><span class="sid">NTF-02</span> 그 시각에 먹을 약</li></ol><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 1 / 11 · CMN-01에서</p><h3>MEM-01 시작</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="MEM-01" style="--depth:0"><span class="sid">MEM-01</span> <b>시작</b> <code class="path">/<wbr>welcome</code> <span class="chip guest" title="로그인하지 않은 사람">비회원</span></li><li data-screen="MEM-02" style="--depth:1"><span class="sid">MEM-02</span> <b>회원가입 약관 동의</b> <code class="path">/<wbr>signup</code> <span class="chip guest" title="로그인하지 않은 사람">비회원</span></li><li data-screen="MEM-03" style="--depth:2"><span class="sid">MEM-03</span> <b>회원가입 정보 입력</b> <code class="path">/<wbr>signup/<wbr>info</code> <span class="chip guest" title="로그인하지 않은 사람">비회원</span></li><li data-screen="MEM-04" style="--depth:1"><span class="sid">MEM-04</span> <b>로그인</b> <code class="path">/<wbr>login</code> <span class="chip guest" title="로그인하지 않은 사람">비회원</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="flow">FL-01</span> <span class="flow">FL-02</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 2 / 11 · CMN-01에서</p><h3>CMN-03 로그인 만료</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="CMN-03" style="--depth:0"><span class="sid">CMN-03</span> <b>로그인 만료</b> <code class="path">/<wbr>session-expired</code> <span class="chip guest" title="로그인하지 않은 사람">비회원</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="flow">FL-02</span> <span class="flow">V3-FL-17</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 3 / 11 · CMN-01에서</p><h3>CMN-02 권한 없음 · 찾을 수 없음</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="CMN-02" style="--depth:0"><span class="sid">CMN-02</span> <b>권한 없음 · 찾을 수 없음</b> <code class="path">*</code> <span class="chip member" title="로그인한 회원">회원</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="none">없음</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 4 / 11 · CMN-01에서</p><h3>CMN-04 업데이트 기록</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="CMN-04" style="--depth:0"><span class="sid">CMN-04</span> <b>업데이트 기록</b> <code class="path">/<wbr>changelog</code> <span class="chip public" title="로그인과 상관없음">누구나</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="none">없음</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 5 / 11 · CMN-01에서</p><h3>PRF-04 관리할 사람 고르기</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="PRF-04" style="--depth:0"><span class="sid">PRF-04</span> <b>관리할 사람 고르기</b> <span class="at">헤더 &#x27;관리할 사람&#x27; 버튼. 홈·약 목록·약 등록·대화에서는 바꿀 수 있고, 약 검색·사진 등록에서는 보이지만 잠김.</span> <span class="chip member" title="로그인한 회원">회원</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="none">없음</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 6 / 11 · CMN-01에서</p><h3>MED-01 약 목록</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="MED-01" style="--depth:0"><span class="sid">MED-01</span> <b>약 목록</b> <code class="path">/<wbr>drugs</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="MED-02" style="--depth:1"><span class="sid">MED-02</span> <b>약 등록 방법 고르기</b> <code class="path">/<wbr>drugs/<wbr>new</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="MED-03" style="--depth:2"><span class="sid">MED-03</span> <b>약 이름 검색</b> <code class="path">/<wbr>drugs/<wbr>search</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="IMG-01" style="--depth:2"><span class="sid">IMG-01</span> <b>처방전 · 약봉투 사진 올리기</b> <code class="path">/<wbr>drugs/<wbr>new/<wbr>prescription</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="IMG-03" style="--depth:3"><span class="sid">IMG-03</span> <b>사진 분석 중</b> <span class="at">사진을 올린 뒤 같은 화면에서 기다림(PhotoBusy.jsx).</span> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="IMG-04" style="--depth:3"><span class="sid">IMG-04</span> <b>처방전 찾은 약 확인</b> <span class="at">/<wbr>drugs/<wbr>new/<wbr>prescription?<wbr>photo=:photoId (새로고침해도 후보를 다시 불러옴)</span> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="IMG-06" style="--depth:3"><span class="sid">IMG-06</span> <b>식별 실패 · 만료</b> <span class="at">사진으로 약을 찾지 못했을 때 같은 화면(PhotoFailure.jsx).</span> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="IMG-02" style="--depth:2"><span class="sid">IMG-02</span> <b>알약 사진 올리기</b> <code class="path">/<wbr>drugs/<wbr>new/<wbr>pill</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="IMG-05" style="--depth:3"><span class="sid">IMG-05</span> <b>찾은 알약 확인</b> <span class="at">알약 사진 분석이 끝난 뒤 같은 화면.</span> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="IMG-07" style="--depth:3"><span class="sid">IMG-07</span> <b>단서 보완</b> <span class="at">알약 결과의 &#x27;단서 보완하기&#x27;로 여는 오른쪽 패널(PillRefinePanel.jsx).</span> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="MED-04" style="--depth:1"><span class="sid">MED-04</span> <b>약 상세</b> <code class="path">/<wbr>drugs/<wbr>:myDrugId</code> <span class="chip member" title="로그인한 회원">회원</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="flow">FL-04</span> <span class="flow">FL-05</span> <span class="flow">FL-06</span> <span class="flow">FL-07</span> <span class="flow">V3-FL-17</span> <span class="flow">V3-FL-18</span> <span class="flow">V3-FL-20</span> <span class="flow">V3-FL-21</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 7 / 11 · CMN-01에서</p><h3>SCH-01 복용 달력</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="SCH-01" style="--depth:0"><span class="sid">SCH-01</span> <b>복용 달력</b> <code class="path">/<wbr>calendar</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="SCH-03" style="--depth:1"><span class="sid">SCH-03</span> <b>일정 추가</b> <code class="path">/<wbr>schedules/<wbr>new</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="SCH-06" style="--depth:1"><span class="sid">SCH-06</span> <b>일정 수정</b> <code class="path">/<wbr>schedules/<wbr>edit</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="SCH-05" style="--depth:1"><span class="sid">SCH-05</span> <b>일정 상세</b> <span class="at">달력의 일정 막대를 누르면 오른쪽(좁으면 아래)에 여는 패널. 삭제 확인창이 이 안에 있음.</span> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="SCH-04" style="--depth:1"><span class="sid">SCH-04</span> <b>음성 대화</b> <span class="at">달력의 AI 복약도우미 음성 대화 창(VoiceScheduleDialog.jsx).</span> <span class="chip member" title="로그인한 회원">회원</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="flow">FL-08</span> <span class="flow">FL-09</span> <span class="flow">V2-FL-15</span> <span class="flow">V2-FL-16</span> <span class="flow">V3-FL-19</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 8 / 11 · CMN-01에서</p><h3>CHT-01 대화방 목록</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="CHT-01" style="--depth:0"><span class="sid">CHT-01</span> <b>대화방 목록</b> <code class="path">/<wbr>chat</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="CHT-02" style="--depth:1"><span class="sid">CHT-02</span> <b>대화방</b> <code class="path">/<wbr>chat/<wbr>:sessionId</code> <span class="chip member" title="로그인한 회원">회원</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="flow">FL-12</span> <span class="flow">FL-13</span> <span class="flow">FL-14</span> <span class="flow">V3-FL-20</span> <span class="flow">V3-FL-21</span> <span class="flow">V3-FL-22</span> <span class="flow">V3-FL-23</span> <span class="flow">V3-FL-30</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 9 / 11 · CMN-01에서</p><h3>PRF-01 프로필 관리</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="PRF-01" style="--depth:0"><span class="sid">PRF-01</span> <b>프로필 관리</b> <code class="path">/<wbr>profiles</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="PRF-02" style="--depth:1"><span class="sid">PRF-02</span> <b>프로필 만들기</b> <code class="path">/<wbr>profiles/<wbr>new</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="PRF-03" style="--depth:1"><span class="sid">PRF-03</span> <b>프로필 수정</b> <code class="path">/<wbr>profiles/<wbr>:profileId/<wbr>edit</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="PRF-06" style="--depth:1"><span class="sid">PRF-06</span> <b>카카오톡 연결</b> <code class="path">/<wbr>kakao-link</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="PRF-05" style="--depth:1" class="is-removed"><span class="sid">PRF-05</span> <b>카카오톡 연결 승인(초안)</b> <span class="at">만들지 않음. DEC-029 Q1이 A안(웹 코드)으로 정해져 B안의 승인 화면 초안을 없앰.</span> <span class="chip member" title="로그인한 회원">회원</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="flow">FL-03</span> <span class="flow">V3-FL-31</span> <span class="flow">V3-FL-32</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 10 / 11 · CMN-01에서</p><h3>NTF-01 알림 설정</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="NTF-01" style="--depth:0"><span class="sid">NTF-01</span> <b>알림 설정</b> <code class="path">/<wbr>notifications</code> <span class="chip member" title="로그인한 회원">회원</span></li><li data-screen="NTF-03" style="--depth:1"><span class="sid">NTF-03</span> <b>복약 알림(크롬 푸시)</b> <span class="at">앱 밖 크롬 알림. 누르면 그 시각에 먹을 약(NTF-02)을 엶.</span> <span class="chip member" title="로그인한 회원">회원</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="flow">FL-10</span> <span class="flow">FL-11</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article><article class="slide"><div class="slide-inner"><p class="slide-kicker">가지 11 / 11 · CMN-01에서</p><h3>NTF-02 그 시각에 먹을 약</h3><div class="slide-body"><ul class="slide-screens"><li data-screen="NTF-02" style="--depth:0"><span class="sid">NTF-02</span> <b>그 시각에 먹을 약</b> <code class="path">/<wbr>doses</code> <span class="chip member" title="로그인한 회원">회원</span></li></ul><div class="slide-flows"><p class="label">지나는 흐름</p><span class="flow">FL-11</span></div></div><p class="slide-foot">그린 시각 2026-11-05 13:37 KST</p></div></article></div>
+  </section>
+
+  <details class="mermaid-src">
+    <summary>Mermaid 원문(GitHub·Notion에 붙여 넣기)</summary>
+    <p><button class="copy" id="copy-mermaid" type="button">복사</button></p>
+    <pre id="mermaid-text"><code>flowchart TD
+  CMN01[&quot;CMN-01 홈&lt;br/&gt;/ · 회원&quot;]
+  MEM01[&quot;MEM-01 시작&lt;br/&gt;/welcome · 비회원&quot;]
+  CMN01 --&gt; MEM01
+  MEM02[&quot;MEM-02 회원가입 약관 동의&lt;br/&gt;/signup · 비회원&quot;]
+  MEM01 --&gt; MEM02
+  MEM03[&quot;MEM-03 회원가입 정보 입력&lt;br/&gt;/signup/info · 비회원&quot;]
+  MEM02 --&gt; MEM03
+  MEM04[&quot;MEM-04 로그인&lt;br/&gt;/login · 비회원&quot;]
+  MEM01 --&gt; MEM04
+  CMN03[&quot;CMN-03 로그인 만료&lt;br/&gt;/session-expired · 비회원&quot;]
+  CMN01 --&gt; CMN03
+  CMN02[&quot;CMN-02 권한 없음 · 찾을 수 없음&lt;br/&gt;* · 회원&quot;]
+  CMN01 --&gt; CMN02
+  CMN04[&quot;CMN-04 업데이트 기록&lt;br/&gt;/changelog · 누구나&quot;]
+  CMN01 --&gt; CMN04
+  PRF04[&quot;PRF-04 관리할 사람 고르기&lt;br/&gt;창·패널 · 회원&quot;]
+  CMN01 --&gt; PRF04
+  MED01[&quot;MED-01 약 목록&lt;br/&gt;/drugs · 회원&quot;]
+  CMN01 --&gt; MED01
+  MED02[&quot;MED-02 약 등록 방법 고르기&lt;br/&gt;/drugs/new · 회원&quot;]
+  MED01 --&gt; MED02
+  MED03[&quot;MED-03 약 이름 검색&lt;br/&gt;/drugs/search · 회원&quot;]
+  MED02 --&gt; MED03
+  IMG01[&quot;IMG-01 처방전 · 약봉투 사진 올리기&lt;br/&gt;/drugs/new/prescription · 회원&quot;]
+  MED02 --&gt; IMG01
+  IMG03[&quot;IMG-03 사진 분석 중&lt;br/&gt;같은 주소 안 화면 · 회원&quot;]
+  IMG01 --&gt; IMG03
+  IMG04[&quot;IMG-04 처방전 찾은 약 확인&lt;br/&gt;같은 주소 안 화면 · 회원&quot;]
+  IMG01 --&gt; IMG04
+  IMG06[&quot;IMG-06 식별 실패 · 만료&lt;br/&gt;같은 주소 안 화면 · 회원&quot;]
+  IMG01 --&gt; IMG06
+  IMG02[&quot;IMG-02 알약 사진 올리기&lt;br/&gt;/drugs/new/pill · 회원&quot;]
+  MED02 --&gt; IMG02
+  IMG05[&quot;IMG-05 찾은 알약 확인&lt;br/&gt;같은 주소 안 화면 · 회원&quot;]
+  IMG02 --&gt; IMG05
+  IMG07[&quot;IMG-07 단서 보완&lt;br/&gt;창·패널 · 회원&quot;]
+  IMG02 --&gt; IMG07
+  MED04[&quot;MED-04 약 상세&lt;br/&gt;/drugs/:myDrugId · 회원&quot;]
+  MED01 --&gt; MED04
+  SCH01[&quot;SCH-01 복용 달력&lt;br/&gt;/calendar · 회원&quot;]
+  CMN01 --&gt; SCH01
+  SCH03[&quot;SCH-03 일정 추가&lt;br/&gt;/schedules/new · 회원&quot;]
+  SCH01 --&gt; SCH03
+  SCH06[&quot;SCH-06 일정 수정&lt;br/&gt;/schedules/edit · 회원&quot;]
+  SCH01 --&gt; SCH06
+  SCH05[&quot;SCH-05 일정 상세&lt;br/&gt;창·패널 · 회원&quot;]
+  SCH01 --&gt; SCH05
+  SCH04[&quot;SCH-04 음성 대화&lt;br/&gt;창·패널 · 회원&quot;]
+  SCH01 --&gt; SCH04
+  CHT01[&quot;CHT-01 대화방 목록&lt;br/&gt;/chat · 회원&quot;]
+  CMN01 --&gt; CHT01
+  CHT02[&quot;CHT-02 대화방&lt;br/&gt;/chat/:sessionId · 회원&quot;]
+  CHT01 --&gt; CHT02
+  PRF01[&quot;PRF-01 프로필 관리&lt;br/&gt;/profiles · 회원&quot;]
+  CMN01 --&gt; PRF01
+  PRF02[&quot;PRF-02 프로필 만들기&lt;br/&gt;/profiles/new · 회원&quot;]
+  PRF01 --&gt; PRF02
+  PRF03[&quot;PRF-03 프로필 수정&lt;br/&gt;/profiles/:profileId/edit · 회원&quot;]
+  PRF01 --&gt; PRF03
+  PRF06[&quot;PRF-06 카카오톡 연결&lt;br/&gt;/kakao-link · 회원&quot;]
+  PRF01 --&gt; PRF06
+  PRF05[&quot;PRF-05 카카오톡 연결 승인(초안)&lt;br/&gt;화면 · 회원 · 없앰&quot;]
+  PRF01 --&gt; PRF05
+  NTF01[&quot;NTF-01 알림 설정&lt;br/&gt;/notifications · 회원&quot;]
+  CMN01 --&gt; NTF01
+  NTF03[&quot;NTF-03 복약 알림(크롬 푸시)&lt;br/&gt;앱 밖 · 회원&quot;]
+  NTF01 --&gt; NTF03
+  NTF02[&quot;NTF-02 그 시각에 먹을 약&lt;br/&gt;/doses · 회원&quot;]
+  CMN01 --&gt; NTF02</code></pre>
+  </details>
+</div>
+
+<script>
+(function () {
+  var button = document.getElementById('copy-mermaid');
+  var pre = document.getElementById('mermaid-text');
+  if (!button || !pre) return;
+  function selectText() {
+    var range = document.createRange();
+    range.selectNodeContents(pre);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  button.addEventListener('click', function () {
+    var text = pre.textContent;
+    try {
+      navigator.clipboard.writeText(text).then(function () { button.textContent = '복사함'; }, function () { selectText(); button.textContent = '선택함. Ctrl+C로 복사'; });
+    } catch (e) { selectText(); button.textContent = '선택함. Ctrl+C로 복사'; }
+  });
+})();
+</script>
