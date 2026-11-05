@@ -38,8 +38,9 @@ final class ChatQuestionPurpose {
     /** 이미 많이 먹었다는 말. 분류 모델이 놓쳐도 응급 안내로 보낸다. '오늘 약 다 먹었어'는 들지 않는다. */
     static boolean overdoseTaken(String question) {
         String q = question.replaceAll("\\s+", "");
-        return q.matches(".*(한통|한병|한줌|통째|몽땅|왕창|잔뜩).*(먹었|드셨|삼켰|복용했).*")
-                || q.matches(".*(약|제).*(너무많이|과다복용).*(먹었|드셨|삼켰|복용했|했).*");
+        // 많다는 말이 약을 가리킬 때만이다. '밥을 잔뜩 먹었어. 약 먹어도 돼?'는 약 질문으로 둔다.
+        return q.matches(".*(약|제|정|캡슐|시럽|알)(을|를|이|가|도)?(다|전부|한꺼번에|한번에)?"
+                + "(한통|한병|한줌|통째|몽땅|왕창|잔뜩|너무많이|과다복용).*(먹었|드셨|삼켰|복용했|했).*");
     }
 
     static boolean accidental(String question) {

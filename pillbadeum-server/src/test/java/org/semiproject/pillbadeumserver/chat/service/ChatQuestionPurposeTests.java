@@ -14,6 +14,20 @@ class ChatQuestionPurposeTests {
         assertThat(ChatQuestionPurpose.extraDose(question)).isTrue();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"아버지가 약 한 통을 다 드셨어", "수면제 한 통 먹었어", "수면제를 너무 많이 먹었어", "약을 왕창 먹었어",
+            "약을 과다복용했어", "약을 다 몽땅 삼켰어"})
+    void anOverdoseOfMedicineIsRecognized(String question) {
+        assertThat(ChatQuestionPurpose.overdoseTaken(question)).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"밥을 잔뜩 먹었어. 지금 약 먹어도 돼?", "물 한 병 먹었어. 약 먹어도 돼?", "약 먹고 밥을 너무 많이 먹었어",
+            "오늘 약 다 먹었어", "약 한 통 샀어"})
+    void foodAndOrdinaryWordsAreNotAnOverdose(String question) {
+        assertThat(ChatQuestionPurpose.overdoseTaken(question)).isFalse();
+    }
+
     // QA 2026-11-05: '깜빡했어'가 용법 문서를 부르지 않아 '자료에 없어'로 답했음.
     @ParameterizedTest
     @ValueSource(strings = {"노바스크정 아침에 깜빡했어. 지금 먹어도 돼?", "약 까먹었는데 어떡해?", "아침 약 빼먹었어"})
