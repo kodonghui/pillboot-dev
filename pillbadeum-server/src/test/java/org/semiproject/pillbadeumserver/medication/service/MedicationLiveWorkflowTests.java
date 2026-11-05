@@ -353,6 +353,19 @@ class MedicationLiveWorkflowTests {
         assertThat(result.proposal().request().doseTimes()).containsExactly(LocalTime.of(7, 30), LocalTime.of(17, 15));
     }
 
+    @Test
+    void savingOverAnExistingScheduleAsksFirstAndSaysTheCurrentOneGoesAway() {
+        when(reads.allDrugs(5)).thenReturn(List.of(new MedicationTarget(25, 13, "엄마", "MOTHER", "테스트약", 2, "식후",
+                DATE.minusDays(3), DATE.plusDays(4), "07:30,20:00", LocalDateTime.of(2026, 10, 19, 9, 0))));
+        when(planner.plan(any(), any(), anyList(), anyList(), anyList()))
+                .thenReturn(new Plan("SAVE", null, null, null, 7, List.of("08:00"), 1, 1, "식후", false, null));
+        var result = workflow.prepare(5, selection, DATE, List.of(user("일주일 동안 아침 8시에 식후 한 알")));
+        assertThat(result.proposal()).isNotNull();
+        assertThat(result.request()).isNull();
+        assertThat(result.outcome().message()).contains("10월 31일부터 11월 7일까지", "7시 30분·20시", "지금 일정은 사라지고", "적용할까요");
+        verifyNoInteractions(schedules);
+    }
+
     private void plan(Plan plan) {
         when(reads.allDrugs(5)).thenReturn(List.of(new MedicationTarget(25, 13, "엄마", "MOTHER", "테스트약", 2, "식후",
                 null, null, null, LocalDateTime.of(2026, 10, 19, 9, 0))));

@@ -34,6 +34,17 @@ class MedicationLiveBatchTests {
     private final StartRequest selection = new StartRequest("offer", 13L, 25L, DAY);
 
     @Test
+    void batchProposalNamesOnlyTheDrugsWhoseCurrentScheduleGoesAway() {
+        when(reads.allDrugs(5)).thenReturn(List.of(
+                new MedicationTarget(25, 13, "본인", "SELF", "타이레놀정", 1, "식전", DAY, DAY.plusDays(2), "08:00", null),
+                new MedicationTarget(26, 13, "본인", "SELF", "인데놀정", 2, "식후", null, null, null, null)));
+        when(planner.plan(any(), any(), anyList(), anyList(), anyList())).thenReturn(batchPlan("두 개 다", "12:00"));
+        var message = workflow.prepare(5, selection, DAY, List.of(user("두 개 다 일주일 12시에"))).outcome().message();
+        assertThat(message).contains("타이레놀정에는 지금 일정이 있어요", "그 일정은 사라지고", "적용할까요");
+        assertThat(message).doesNotContain("인데놀정에는");
+    }
+
+    @Test
     void twoDrugProposalPreservesEachDoseAndTimingAndConfirmSavesBothOnce() {
         ownedTwo();
         when(planner.plan(any(), any(), anyList(), anyList(), anyList())).thenReturn(batchPlan("두 개 다", "12:00"));
