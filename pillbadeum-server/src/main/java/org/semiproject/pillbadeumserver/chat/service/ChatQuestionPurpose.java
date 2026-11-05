@@ -37,7 +37,8 @@ final class ChatQuestionPurpose {
 
     /** 이미 많이 먹었다는 말. 분류 모델이 놓쳐도 응급 안내로 보낸다. '오늘 약 다 먹었어'는 들지 않는다. */
     static boolean overdoseTaken(String question) {
-        String q = question.replaceAll("\\s+", "");
+        // '어제·제가'의 '제'를 약 이름 끝(수면제)으로 읽지 않게 먼저 뺀다.
+        String q = question.replaceAll("(?<![가-힣])(엊그제|어제|그제|제가)", "").replaceAll("\\s+", "");
         // 많다는 말이 약을 가리킬 때만이다. '밥을 잔뜩 먹었어. 약 먹어도 돼?'는 약 질문으로 둔다.
         // '먹었을 때 어떻게 해?' 같은 가정과 '한 달 동안 나눠 먹었어' 같은 평소 복용은 모델 판단에 맡긴다.
         return q.matches(".*(약|제|정|캡슐|시럽|알)(을|를|이|가|도)?(다|전부|한꺼번에|한번에)?"
