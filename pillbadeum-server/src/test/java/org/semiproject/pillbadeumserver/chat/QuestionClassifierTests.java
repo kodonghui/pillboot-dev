@@ -77,6 +77,18 @@ class QuestionClassifierTests {
         assertThat(classifier.plan("밥을 너무 많이 먹었어. 약 먹어도 돼?", empty).category()).isEqualTo(QuestionCategory.PASS);
     }
 
+    // QA 2026-11-05: 모델이 '실수로 약 한 통을 다 드셨어'를 자해로 골라 109가 같이 나왔음.
+    @Test
+    void anAccidentalOverdoseShowsOnly119EvenWhenTheModelChoosesSelfHarm() {
+        server.createContext("/decisions", exchange -> respond(exchange, 200, answer("SELF_HARM")));
+        var classifier = classifier("local-test-key", "decision-only", 1000);
+        var empty = QuestionClassifier.Context.empty();
+        assertThat(classifier.plan("실수로 약 한 통을 다 드셨어", empty).category()).isEqualTo(QuestionCategory.EMERGENCY);
+        assertThat(classifier.plan("아버지가 약 한 통을 다 드셨어", empty).category()).isEqualTo(QuestionCategory.SELF_HARM);
+        assertThat(classifier.plan("내가 잘못했어. 약 한 통 먹었어", empty).category()).isEqualTo(QuestionCategory.SELF_HARM);
+        assertThat(classifier.plan("죽고 싶어서 약 한 통 먹었어. 실수로 깬 거야", empty).category()).isEqualTo(QuestionCategory.SELF_HARM);
+    }
+
     @Test
     void selfHarmKeepsTheEmergencyValueInThePublicResponse() {
         var mapper = new tools.jackson.databind.json.JsonMapper();

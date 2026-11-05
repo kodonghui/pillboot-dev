@@ -75,9 +75,12 @@ public class QuestionClassifier {
         var choices = new java.util.ArrayList<>(PURPOSES);
         CHOICES.stream().filter(choice -> !"PASS".equals(choice.value())).forEach(choices::add);
         var plan = plan(question, context, choices, INSTRUCTIONS + ROUTING);
+        if (!ChatQuestionPurpose.overdoseTaken(question)) return plan;
+        boolean accidental = ChatQuestionPurpose.accidental(question);
         // 모델이 일반 질문으로 넘겨도 이미 많이 먹었다는 말은 고정 응급 안내로 보낸다(QA 2026-11-05 '약 한 통').
-        if (!plan.category().isPassed() || !ChatQuestionPurpose.overdoseTaken(question)) return plan;
-        var category = ChatQuestionPurpose.accidental(question) ? QuestionCategory.EMERGENCY : QuestionCategory.SELF_HARM;
+        // 실수라고 밝혔는데 모델이 자해로 고른 경우는 119만 안내한다(QA 2026-11-05 '실수로 약 한 통').
+        if (!plan.category().isPassed() && !(accidental && plan.category() == QuestionCategory.SELF_HARM)) return plan;
+        var category = accidental ? QuestionCategory.EMERGENCY : QuestionCategory.SELF_HARM;
         log.info("[질문 분류] category={} guard=overdose", category);
         return new QuestionPlan(category, plan.purpose(), question);
     }
