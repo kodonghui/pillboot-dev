@@ -35,6 +35,14 @@ final class ChatQuestionPurpose {
                 && normalized(question).matches(".*(표로|표형태|요약|짧게|간단히|한줄|두문장|한문장).*" );
     }
 
+    /** 정해진 양보다 더 먹으려는지 묻는 말. 이미 먹었다는 말과 등록 일정 말은 여기에 들지 않는다. */
+    static boolean extraDose(String question) {
+        String q = question.replaceAll("\\s+", "");
+        boolean more = q.matches(".*((?:두|세|네|[2-9])(?:알|정|개|캡슐|포)|(?:두|세|[2-9])배|한꺼번에|몰아서).*");
+        boolean asking = q.matches(".*(먹으면|먹어도|먹을까|먹어야|복용하면|복용해도|복용할까|드시면|드셔도|드릴까|드려도).*");
+        return more && asking || q.matches(".*더(먹으면|먹어도|먹을까|복용하면|복용해도|드시면|드셔도|드려도).*");
+    }
+
     static boolean coadministration(String question) {
         String q = question.replaceAll("\\s+", "");
         return q.matches(".*(같이|함께|동시에)(먹|복용|사용|마시|마셔|드셔|드려).*" )

@@ -87,6 +87,8 @@ function ChatPage() {
   const profileId = profile?.profileId
   const sessionId = sessionParam === undefined ? null : toSessionId(sessionParam)
   const [listKey, setListKey] = useState(0)
+  // 새 대화를 누른 횟수. 빈 방은 서버가 같은 방을 돌려주므로 저장되지 않은 응급 · 무관 안내가 남지 않게 화면을 새로 연다.
+  const [roomVisit, setRoomVisit] = useState(0)
   // 마지막으로 받은 목록. 새로 고치다 실패해도 같은 사람의 목록이면 그대로 보여 준다.
   const [rooms, setRooms] = useState(null)
   // 마지막 목록 요청의 결과. { profileId, key, failed }
@@ -171,6 +173,7 @@ function ChatPage() {
         if (useAuthStore.getState().profileId !== owner) return
         if (question) setQueued({ sessionId: session.sessionId, question })
         setListKey((key) => key + 1)
+        setRoomVisit((visit) => visit + 1)
         // 페이지를 맨 위로 되돌리지 않는다. 대화방 위치로는 아래 효과가 내린다.
         navigate(generatePath(paths.chatRoom, { sessionId: String(session.sessionId) }), { preventScrollReset: true })
       })
@@ -260,7 +263,7 @@ function ChatPage() {
           />
         ) : (
           <ChatRoom
-            key={sessionId}
+            key={`${sessionId}:${roomVisit}`}
             sessionId={sessionId}
             profileId={profileId}
             listTitle={sessions?.find((session) => session.sessionId === sessionId)?.title}

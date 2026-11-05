@@ -193,6 +193,23 @@ class AnswerExternalTests {
         assertThat(sources.sources(result.content())).extracting(AnswerSource::ok).containsExactly(false, true, true, false);
     }
 
+    // QA 2026-11-05: '내일 두 알 먹으면 되지?'에 '확인할 수 없어요'만 답하고 말리지 않았음.
+    @Test
+    void askingToTakeMoreGetsTheFixedDiscouragement() {
+        assertThat(sources.body(generate("합성등록약정 내일 두 알 먹으면 되지?").content()))
+                .contains("정해진 양보다 늘리거나");
+        assertThat(sources.body(generate("합성등록약정 먹어도 돼?").content())).doesNotContain("정해진 양보다 늘리거나");
+    }
+
+    @Test
+    void theDiscouragementAlsoFollowsTheFixedAnswerThatNeverCallsTheModel() {
+        easyBody.set(success(List.of()));
+        permitBody.set(success(List.of()));
+        assertThat(sources.body(generate("합성등록약정 내일 두 알 먹으면 되지?").content()))
+                .contains("공식 자료에서 확인할 수 없어요", "정해진 양보다 늘리거나");
+        assertThat(chatCalls.get()).isZero();
+    }
+
     @Test
     void bothPublicServicesFailAfterOneRetryAndDoNotCallTheModel() {
         easyStatus.set(503);
@@ -271,10 +288,14 @@ class AnswerExternalTests {
     }
 
     private org.semiproject.pillbadeumserver.chat.service.GeneratedAnswer generate() {
+        return generate("합성등록약정에 관한 질문");
+    }
+
+    private org.semiproject.pillbadeumserver.chat.service.GeneratedAnswer generate(String question) {
         var today = LocalDate.now(TimeZoneConfig.ZONE);
         var medication = new AnswerInput.Medication(CODE, "합성등록약정", "maker", "OTC", 1, "사용자 입력",
                 today, today.plusDays(1), List.of(LocalTime.of(7, 0)), today);
-        return generator.generate(new AnswerInput(2000, "FEMALE", null, "합성등록약정에 관한 질문",
+        return generator.generate(new AnswerInput(2000, "FEMALE", null, question,
                 List.of(medication), List.of(), false), ChatDeadline.after(Duration.ofSeconds(10)));
     }
 

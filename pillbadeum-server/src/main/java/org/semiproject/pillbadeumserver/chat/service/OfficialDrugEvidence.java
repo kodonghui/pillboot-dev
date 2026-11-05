@@ -62,6 +62,7 @@ public class OfficialDrugEvidence {
             try {
                 deadline.check();
             } catch (BusinessException exception) {
+                log.warn("[답변 근거 조회] result=deadline remaining={}", medications.size() - offset);
                 for (var remaining : medications.subList(offset, medications.size())) {
                     lookups.add(failed(remaining, AnswerSource.Type.EASY_DRUG));
                     lookups.add(failed(remaining, AnswerSource.Type.PERMIT));
@@ -80,6 +81,7 @@ public class OfficialDrugEvidence {
                     try {
                         lookups.addAll(deadline.await(tasks.get(i)));
                     } catch (BusinessException exception) {
+                        log.warn("[답변 근거 조회] result=deadline reason={}", exception.getClass().getSimpleName());
                         lookups.add(failed(batch.get(i), AnswerSource.Type.EASY_DRUG));
                         lookups.add(failed(batch.get(i), AnswerSource.Type.PERMIT));
                     }
@@ -121,8 +123,15 @@ public class OfficialDrugEvidence {
                         && !item.path(field.substring(0, 2) + "_DOC_ID").asString("").isBlank()) {
                     try {
                         text = java.util.Objects.toString(documents.read(medication.itemSeq(), field.substring(0, 2), deadline.remaining()), "").replaceAll("\\s+", " ").strip();
-                        if (DrugGuideService.OMITTED_SECTION.equals(text)) { text = ""; incomplete = true; }
-                    } catch (BusinessException error) { incomplete = true; }
+                        if (DrugGuideService.OMITTED_SECTION.equals(text)) {
+                            log.warn("[답변 근거 조회] document={} result=unavailable reason=too_large", field);
+                            text = "";
+                            incomplete = true;
+                        }
+                    } catch (BusinessException error) {
+                        log.warn("[답변 근거 조회] document={} result=unavailable reason={}", field, error.getClass().getSimpleName());
+                        incomplete = true;
+                    }
                 }
                 if (!text.isBlank()) facts.put(field, text);
             }

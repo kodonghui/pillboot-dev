@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 /** CHAT-008: 조회 범위와 대조 결과를 분리한다. 모델이 아닌 서버가 등록 품목코드·확정 사본으로 판단한다. */
 @Component
 public class DurEvaluator {
+    private static final String AGE_UNRESOLVED = "연령 조건을 자동으로 대조하지 못했어요.";
     // 공식 응답에는 별도 나이 칸이 없다. 단순한 단일 조건만 읽고 복합 조건은 확인 필요로 남긴다.
     private static final Pattern AGE = Pattern.compile("^(?:만\\s*)?(\\d{1,3})\\s*(세|개월)\\s*(미만|이하|이상|초과)"
             + "(?:\\s*(?:의\\s*)?(?:소아|영아|어린이|청소년|환자))?[.!]?$");
@@ -63,7 +64,7 @@ public class DurEvaluator {
                         if (match == Match.UNRESOLVED) {
                             unresolved = true;
                             matched = false;
-                            content = "연령 조건을 자동으로 대조하지 못했어요. 약사에게 확인해 주세요. 공식 내용: " + content;
+                            content = AGE_UNRESOLVED + " 약사에게 확인해 주세요. 공식 내용: " + content;
                         } else if (match == Match.POSSIBLE) content = "출생연도만으로 나이를 추정해 해당할 수 있어요. 공식 내용: " + content;
                     } else if (type == DurLookup.Type.ELDERLY) {
                         long years = today.getYear() - input.birthYear();
@@ -110,9 +111,27 @@ public class DurEvaluator {
         if ("NO_DRUG".equals(notice.lookup())) return false;
         if (!"ALL".equals(notice.lookup()) || !"NONE".equals(notice.result()) || !notice.items().isEmpty()) return true;
         if (ChatQuestionPurpose.recordOnly(input.question())) return false;
-        String question = input.question().replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
+        return asksContraindication(input.question());
+    }
+
+    private static boolean asksContraindication(String text) {
+        String question = text.replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
         return List.of("dur", "병용", "상호작용", "금기")
-                .stream().anyMatch(question::contains) || ChatQuestionPurpose.coadministration(input.question());
+                .stream().anyMatch(question::contains) || ChatQuestionPurpose.coadministration(text);
+    }
+
+    /**
+     * 금기를 묻지 않은 답에는 나이를 대조하지 못한 연령금기 안내를 뺀다(QA 2026-11-05 PM 결정).
+     * 병용금기와 프로필 나이에 해당하는 연령금기는 질문과 무관하게 둔다. 뺀 뒤 보일 것이 없으면 null이다.
+     */
+    public DurNotice shownNotice(AnswerInput input, DurNotice notice) {
+        String question = input.question();
+        if (asksContraindication(question) || question.replaceAll("\\s+", "").matches("(?s).*(나이|연령|어린이|소아|아이|아기|노인|고령|몇살).*"))
+            return notice;
+        var items = notice.items().stream().filter(item -> !("AGE".equals(item.type()) && item.content().startsWith(AGE_UNRESOLVED))).toList();
+        if (items.size() == notice.items().size()) return notice;
+        if (items.isEmpty() && "ALL".equals(notice.lookup())) return null;
+        return new DurNotice(notice.lookup(), notice.result(), notice.checkedCount(), notice.uncheckedDrugNames(), items, notice.message());
     }
 
     /** CHAT-008: 발견 경고·미확인은 유지하고 정상 조회의 불필요한 반복 카드만 줄임. */
