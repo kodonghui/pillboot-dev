@@ -39,8 +39,11 @@ final class ChatQuestionPurpose {
     static boolean overdoseTaken(String question) {
         String q = question.replaceAll("\\s+", "");
         // 많다는 말이 약을 가리킬 때만이다. '밥을 잔뜩 먹었어. 약 먹어도 돼?'는 약 질문으로 둔다.
+        // '먹었을 때 어떻게 해?' 같은 가정과 '한 달 동안 나눠 먹었어' 같은 평소 복용은 모델 판단에 맡긴다.
         return q.matches(".*(약|제|정|캡슐|시럽|알)(을|를|이|가|도)?(다|전부|한꺼번에|한번에)?"
-                + "(한통|한병|한줌|통째|몽땅|왕창|잔뜩|너무많이|과다복용).*(먹었|드셨|삼켰|복용했|했).*");
+                + "(한통|한병|한줌|통째|몽땅|왕창|잔뜩|너무많이|과다복용).*(먹었|드셨|삼켰|복용했|했).*")
+                && !q.matches(".*(먹었|드셨|삼켰|복용했|했)(을|으면|다면).*")
+                && !q.matches(".*(동안|나눠|나누어|처방대로|꾸준히|매일).*");
     }
 
     static boolean accidental(String question) {

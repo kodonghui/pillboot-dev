@@ -23,7 +23,8 @@ class ChatQuestionPurposeTests {
 
     @ParameterizedTest
     @ValueSource(strings = {"밥을 잔뜩 먹었어. 지금 약 먹어도 돼?", "물 한 병 먹었어. 약 먹어도 돼?", "약 먹고 밥을 너무 많이 먹었어",
-            "오늘 약 다 먹었어", "약 한 통 샀어"})
+            "오늘 약 다 먹었어", "약 한 통 샀어", "약을 너무 많이 먹었을 때 어떻게 해야 해?", "약을 너무 많이 먹었으면 어떻게 돼?",
+            "약 한 통을 한 달 동안 처방대로 나눠 먹었어. 계속 먹어도 돼?"})
     void foodAndOrdinaryWordsAreNotAnOverdose(String question) {
         assertThat(ChatQuestionPurpose.overdoseTaken(question)).isFalse();
     }
