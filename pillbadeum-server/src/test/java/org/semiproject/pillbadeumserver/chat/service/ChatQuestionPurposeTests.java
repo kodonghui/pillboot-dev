@@ -14,6 +14,13 @@ class ChatQuestionPurposeTests {
         assertThat(ChatQuestionPurpose.extraDose(question)).isTrue();
     }
 
+    // QA 2026-11-05: '깜빡했어'가 용법 문서를 부르지 않아 '자료에 없어'로 답했음.
+    @ParameterizedTest
+    @ValueSource(strings = {"노바스크정 아침에 깜빡했어. 지금 먹어도 돼?", "약 까먹었는데 어떡해?", "아침 약 빼먹었어"})
+    void aMissedDoseAsksForTheUsageDocument(String question) {
+        assertThat(OfficialDrugEvidence.wantsDocument("UD_DOC_DATA", question)).isTrue();
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"노바스크 먹어도 돼?", "같이 먹어도 돼?", "지금 먹어도 돼?", "실수로 두 알 먹었어",
             "아침에 두 알로 일정 잡아줘", "노바스크정5밀리그람 효능이 뭐야?", "두 약을 같이 먹으면 안 돼?"})

@@ -35,6 +35,17 @@ final class ChatQuestionPurpose {
                 && normalized(question).matches(".*(표로|표형태|요약|짧게|간단히|한줄|두문장|한문장).*" );
     }
 
+    /** 이미 많이 먹었다는 말. 분류 모델이 놓쳐도 응급 안내로 보낸다. '오늘 약 다 먹었어'는 들지 않는다. */
+    static boolean overdoseTaken(String question) {
+        String q = question.replaceAll("\\s+", "");
+        return q.matches(".*(한통|한병|한줌|통째|몽땅|왕창|잔뜩).*(먹었|드셨|삼켰|복용했).*")
+                || q.matches(".*(약|제).*(너무많이|과다복용).*(먹었|드셨|삼켰|복용했|했).*");
+    }
+
+    static boolean accidental(String question) {
+        return question.replaceAll("\\s+", "").matches(".*(실수|잘못|착각|모르고|깜빡).*");
+    }
+
     /** 정해진 양보다 더 먹으려는지 묻는 말. 이미 먹었다는 말과 등록 일정 말은 여기에 들지 않는다. */
     static boolean extraDose(String question) {
         String q = question.replaceAll("\\s+", "");
