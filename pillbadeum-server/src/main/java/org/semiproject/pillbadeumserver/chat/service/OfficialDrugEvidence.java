@@ -62,6 +62,7 @@ public class OfficialDrugEvidence {
             try {
                 deadline.check();
             } catch (BusinessException exception) {
+                log.warn("[답변 근거 조회] result=deadline remaining={}", medications.size() - offset);
                 for (var remaining : medications.subList(offset, medications.size())) {
                     lookups.add(failed(remaining, AnswerSource.Type.EASY_DRUG));
                     lookups.add(failed(remaining, AnswerSource.Type.PERMIT));
@@ -80,6 +81,7 @@ public class OfficialDrugEvidence {
                     try {
                         lookups.addAll(deadline.await(tasks.get(i)));
                     } catch (BusinessException exception) {
+                        log.warn("[답변 근거 조회] result=deadline reason={}", exception.getClass().getSimpleName());
                         lookups.add(failed(batch.get(i), AnswerSource.Type.EASY_DRUG));
                         lookups.add(failed(batch.get(i), AnswerSource.Type.PERMIT));
                     }
@@ -121,8 +123,15 @@ public class OfficialDrugEvidence {
                         && !item.path(field.substring(0, 2) + "_DOC_ID").asString("").isBlank()) {
                     try {
                         text = java.util.Objects.toString(documents.read(medication.itemSeq(), field.substring(0, 2), deadline.remaining()), "").replaceAll("\\s+", " ").strip();
-                        if (DrugGuideService.OMITTED_SECTION.equals(text)) { text = ""; incomplete = true; }
-                    } catch (BusinessException error) { incomplete = true; }
+                        if (DrugGuideService.OMITTED_SECTION.equals(text)) {
+                            log.warn("[답변 근거 조회] document={} result=unavailable reason=too_large", field);
+                            text = "";
+                            incomplete = true;
+                        }
+                    } catch (BusinessException error) {
+                        log.warn("[답변 근거 조회] document={} result=unavailable reason={}", field, error.getClass().getSimpleName());
+                        incomplete = true;
+                    }
                 }
                 if (!text.isBlank()) facts.put(field, text);
             }
@@ -148,7 +157,7 @@ public class OfficialDrugEvidence {
         String q = question.replaceAll("\\s+", "");
         if (q.isBlank() || "PN_DOC_DATA".equals(field)) return false;
         boolean efficacy = q.matches(".*(효능|효과|기전|해열|진통|염증|심박|쓰는약|어떤약).*"),
-                usage = q.matches(".*(용법|사용법|복용법|복용방법|용량|몇정|몇알|놓쳤|잊었|중단|끊|중지|거르|건너뛰|두배|식전|식후|공복|식사|식간|밥|몇분|복용간격|먹는시간|먹는시점|복용시점|언제먹|먹어야|먹으면|어떻게먹).*"),
+                usage = q.matches(".*(용법|사용법|복용법|복용방법|용량|몇정|몇알|놓쳤|잊었|깜빡|까먹|빼먹|빠뜨|중단|끊|중지|거르|건너뛰|두배|식전|식후|공복|식사|식간|밥|몇분|복용간격|먹는시간|먹는시점|복용시점|언제먹|먹어야|먹으면|어떻게먹).*"),
                 caution = q.matches(".*(주의|부작용|이상반응|천식|당뇨|저혈당|간질환|음주|간기능|술|중복|겹|병용|상호작용|같이|함께|안전|위험|임신|임산부|임부|수유|중단|두배).*"),
                 general = !efficacy && !usage && !caution && q.matches(".*(자세히|깊게|설명|알려줘).*" ) && !q.matches(".*(이름|성분|시각|기록|일정|별명|표로|짧게).*" );
         return switch (field) {

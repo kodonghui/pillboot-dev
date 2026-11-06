@@ -8,6 +8,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.semiproject.pillbadeumserver.common.ai.AiMessage;
 import org.semiproject.pillbadeumserver.common.ai.OpenAiClient;
@@ -52,6 +54,22 @@ class QuestionIntentReaderTests {
     private void answer(String intent, List<?> mentions, String target) {
         when(ai.createJson(anyString(), anyList(), anyInt(), eq("question_intent"), anyMap(), eq("low")))
                 .thenReturn(json.valueToTree(Map.of("intent", intent, "drugMentions", mentions, "targetMyDrugName", target)));
+    }
+
+    // QA 2026-11-05: '일정 잡아줘'가 AI까지 가지 못해 '직접 등록할 수 없어요'로 답했음.
+    @ParameterizedTest
+    @ValueSource(strings = {"노바스크정 내일부터 일주일 동안 아침 8시에 식후 한 알로 일정 잡아줘", "혈압약 일정 만들어줘",
+            "혈압약 일정 짜 줘", "노바스크 아침 8시에 먹게 해줘", "노바스크 알람 맞춰줘", "노바스크 아침 식후 한 알"})
+    void asksForAScheduleInOtherWordsReachTheAi(String question) {
+        answer("SCHEDULE_CHANGE", List.of(), "노바스크");
+        assertThat(read(question, List.of("노바스크")).kind()).isEqualTo(QuestionIntent.Kind.SCHEDULE_CHANGE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"노바스크 먹어도 돼?", "오늘 먹을 약 뭐야?", "그럼 내일 두 알 먹으면 되지?"})
+    void plainMedicationQuestionsStillSkipTheAi(String question) {
+        assertThat(read(question, List.of("노바스크")).kind()).isEqualTo(QuestionIntent.Kind.QUESTION);
+        verifyNoInteractions(ai);
     }
 
     private QuestionIntent read(String question, List<String> names) {
