@@ -47,13 +47,24 @@ class PrescriptionRowReadTests {
                 .isEqualTo(new PrescriptionDose("0.5", 3, 3));
     }
 
-    // QA 2026-11-08: 시럽 칸을 '20ml'로 읽으면 숫자 모양이 아니라 버려졌음. 단위는 떼고 물약이면 품목을 고른 뒤 mL를 붙인다.
+    // QA 2026-11-08: 시럽 칸을 '20ml'로 읽으면 숫자 모양이 아니라 버려졌음. 개수 단위는 떼고, 적힌 물약 단위는 mL로 남긴다.
+    // PR #77 Codex 리뷰: 물약 단위까지 떼면 이름이 '시럽'이 아닌 현탁액의 '5mL'가 1회 5개로 일정에 들어갈 수 있었음.
     @Test
-    void aUnitAfterTheDoseIsDropped() {
+    void aCountUnitIsDroppedAndAWrittenLiquidUnitIsKeptAsMillilitres() {
         assertThat(read(Map.of("readName", "가상기침시럽", "dosePerTime", "20ml", "dailyCount", "3", "totalDays", "5")).dose())
-                .isEqualTo(new PrescriptionDose("20", 3, 5));
+                .isEqualTo(new PrescriptionDose("20mL", 3, 5));
+        var suspension = read(Map.of("readName", "가상해열현탁액", "dosePerTime", "5 cc", "dailyCount", "3", "totalDays", "3")).dose();
+        assertThat(suspension).as("이름과 관계없이 mL").isEqualTo(new PrescriptionDose("5mL", 3, 3));
+        assertThat(suspension.liquidAmount()).isEqualTo("5mL");
+        assertThat(suspension.wholeDose()).as("1회 5개로 읽지 않음").isNull();
+        assertThat(read(Map.of("readName", "가상해열현탁액", "dosePerTime", "7.25mL", "dailyCount", "3", "totalDays", "3")).dose())
+                .isEqualTo(new PrescriptionDose("7.25mL", 3, 3));
+        assertThat(read(Map.of("readName", "가상해열현탁액", "dosePerTime", "5.0㎖", "dailyCount", "3", "totalDays", "3")).dose())
+                .isEqualTo(new PrescriptionDose("5mL", 3, 3));
         assertThat(read(Map.of("readName", "가상셀코정", "dosePerTime", "1 정", "dailyCount", "2", "totalDays", "3")).dose())
                 .isEqualTo(new PrescriptionDose("1", 2, 3));
+        assertThat(read(Map.of("readName", "가상셀코캡슐", "dosePerTime", "2C", "dailyCount", "2", "totalDays", "3")).dose())
+                .isEqualTo(new PrescriptionDose("2", 2, 3));
         assertThat(read(Map.of("readName", "가상셀코정", "dosePerTime", "한 알", "dailyCount", "2", "totalDays", "3")).dose())
                 .as("숫자가 아니면 버림").isEqualTo(new PrescriptionDose(null, 2, 3));
     }

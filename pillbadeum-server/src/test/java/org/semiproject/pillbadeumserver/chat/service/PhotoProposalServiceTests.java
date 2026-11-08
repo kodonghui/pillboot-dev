@@ -221,6 +221,12 @@ class PhotoProposalServiceTests {
         assertThat(PhotoProposalService.prescription(rx, "가상기침시럽")).isEqualTo(new PrescriptionDose("20mL", 3, 5));
         assertThat(PhotoProposalService.prescription(rx, "가상셀코정")).isSameAs(rx);
         assertThat(PhotoProposalService.prescription(null, "가상기침시럽")).isNull();
+        // PR #77 Codex 리뷰: 판독 때 남긴 mL는 시럽이 아닌 현탁액에서도 그대로 1회 양이다(1회 5개가 아님)
+        var suspension = new PrescriptionDose("5mL", 3, 3);
+        assertThat(PhotoProposalService.prescription(suspension, "가상해열현탁액")).isSameAs(suspension);
+        assertThat(PhotoProposalService.prescription(suspension, "가상기침시럽")).isEqualTo(suspension);
+        assertThat(suspension.schedulable()).as("1회 1개와 복용 때 '1회 5mL'로 넣음(PrescriptionScheduleTests)").isTrue();
+        assertThat(suspension.liquidAmount()).isEqualTo("5mL");
         var syrup = group(1, "가상기침시럽", List.of(candidate("199900041", "가상기침시럽", null)), "640000002", true, false, false, rx);
         assertThat(PhotoProposalService.candidates(syrup)).singleElement()
                 .satisfies(c -> assertThat(c.prescription()).isEqualTo(new PrescriptionDose("20mL", 3, 5)));

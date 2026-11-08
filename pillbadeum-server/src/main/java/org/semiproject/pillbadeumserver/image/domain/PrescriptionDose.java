@@ -32,8 +32,9 @@ public record PrescriptionDose(String dosePerTime, Integer dailyCount, Integer t
     }
 
     /**
-     * 2026-11-08 QA(처방전의 코대원에스시럽 '20'이 '1회 20개'로 보이고, '10'이었다면 1회 10개 일정으로 들어갈 뻔함): 시럽·현탁액처럼
-     * 물약 품목이면 처방전의 1회 투약량은 mL라 단위를 붙인다. 이미 단위가 있거나 숫자가 아니면 그대로다.
+     * 2026-11-08 QA(처방전의 코대원에스시럽 '20'이 '1회 20개'로 보이고, '10'이었다면 1회 10개 일정으로 들어갈 뻔함): 시럽 품목이면
+     * 단위 없이 적힌 처방전의 1회 투약량은 mL라 단위를 붙인다(포로 주는 현탁액은 제외, 칸에 mL가 적혀 있으면 판독 때 이미 남김).
+     * 이미 단위가 있거나 숫자가 아니면 그대로다.
      */
     public PrescriptionDose inMilliliters() {
         if (dosePerTime == null || !dosePerTime.matches("[0-9]{1,3}(?:\\.[0-9]{1,2})?")) return this;
