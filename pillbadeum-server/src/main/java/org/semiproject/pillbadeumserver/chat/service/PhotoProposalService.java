@@ -4,6 +4,7 @@ import java.util.List;
 import org.semiproject.pillbadeumserver.chat.dto.QuestionResponse;
 import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
+import org.semiproject.pillbadeumserver.drug.service.DrugNameSimilarity;
 import org.semiproject.pillbadeumserver.image.domain.PhotoCandidateData;
 import org.semiproject.pillbadeumserver.image.domain.PhotoIdentificationResponse;
 import org.semiproject.pillbadeumserver.image.domain.PrescriptionDose;
@@ -109,10 +110,19 @@ public class PhotoProposalService {
                         new PhotoCandidateData(c.itemSeq(), c.name(), c.maker(), c.etcOtc(), null, c.imageUrl(),
                                 c.printFront(), c.printBack(), c.shape(), c.color(), null, null, null, null,
                                 c.printMatched(), c.cancelled()),
-                        byCode ? StrengthMatch.MATCH
-                                : similar || unclear || c.strengthMatch() == null ? StrengthMatch.UNKNOWN : c.strengthMatch(),
+                        strength(group.readName(), c, byCode, similar || unclear),
                         similar, prescription(group.prescription(), c.name())))
                 .toList();
+    }
+
+    /**
+     * 카드 후보의 함량 상태. 읽은 함량과 품목 함량이 둘 다 있고 다르면 늘 '다름'이다(카톡 다리도 후보가 하나여도 미리 고르지
+     * 않음, PR #77 Codex 리뷰). 그 밖에 코드로 맞췄으면 일치, 비슷한·흐린 이름이면 확인 불가, 아니면 판독 응답의 값이다.
+     */
+    static StrengthMatch strength(String readName, PhotoIdentificationResponse.Candidate c, boolean byCode, boolean unsure) {
+        if (DrugNameSimilarity.strengthConflict(readName, c.name())) return StrengthMatch.DIFFERENT;
+        if (byCode) return StrengthMatch.MATCH;
+        return unsure || c.strengthMatch() == null ? StrengthMatch.UNKNOWN : c.strengthMatch();
     }
 
     /** 처방전 한 줄의 값. 물약 품목이면 1회 투약량을 mL로 본다(2026-11-08 QA: 코대원에스시럽 '1회 20개'). */

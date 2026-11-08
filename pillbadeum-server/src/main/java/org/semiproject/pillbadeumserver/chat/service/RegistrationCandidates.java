@@ -111,12 +111,18 @@ public class RegistrationCandidates {
         return found;
     }
 
-    /** 보험코드로 찾은 행. 하나뿐이고 함께 말한 이름과 맞으면 함량 일치(미리 고름), 아니면 확인 불가로 둔다. */
+    /**
+     * 보험코드로 찾은 행. 하나뿐이고 함께 말한 이름과 맞으면 함량 일치(미리 고름), 함께 말한 함량과 다르면 함량 다름,
+     * 그 밖에는 확인 불가로 둔다. 함량 다름은 카톡 다리도 후보가 하나여도 미리 고르지 않는다(PR #77 Codex 리뷰: 코드가
+     * 다른 함량 품목을 가리켜도 일치로 미리 골랐음). 함량은 이름 찾기와 같게 '200미리'를 200mg으로 읽는다.
+     */
     private List<Candidate> byCode(String mention, String named, List<JsonNode> rows) {
         var drugs = drugs(rows);
-        boolean sure = drugs.size() == 1 && DrugNameSimilarity.consistent(named, drugs.getFirst().name());
+        String written = searchName(named);
+        boolean sure = drugs.size() == 1 && DrugNameSimilarity.consistent(written, drugs.getFirst().name());
         return drugs.stream().limit(PER_MENTION)
-                .map(drug -> new Candidate(mention, drug, sure ? StrengthMatch.MATCH : StrengthMatch.UNKNOWN)).toList();
+                .map(drug -> new Candidate(mention, drug, DrugNameSimilarity.strengthConflict(written, drug.name())
+                        ? StrengthMatch.DIFFERENT : sure ? StrengthMatch.MATCH : StrengthMatch.UNKNOWN)).toList();
     }
 
     /** 비슷한 이름의 공식 후보(미리 고르지 않음). 낱알 목록은 준비된 것만 쓰고 기다리지 않는다. */

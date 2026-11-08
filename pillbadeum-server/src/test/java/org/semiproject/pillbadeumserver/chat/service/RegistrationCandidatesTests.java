@@ -150,6 +150,17 @@ class RegistrationCandidatesTests {
         assertThat(found).singleElement().satisfies(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.UNKNOWN));
     }
 
+    // PR #77 Codex 리뷰: 코드가 다른 함량 품목을 가리켜도 일치로 미리 골랐음. '함량 다름'이면 카톡 다리도 미리 고르지 않음
+    @Test
+    void aCodeWhoseProductHasAnotherStrengthThanTheWrittenOneIsMarkedDifferent() {
+        byCode("640000003", List.of(coded("199900023", "가상룩펠정10밀리그램", "640000003")));
+        assertThat(find("640000003 가상룩펠정 5mg").getFirst()).singleElement()
+                .satisfies(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.DIFFERENT));
+        byCode("640000001", List.of(coded("199900021", "가상스텐캡슐200밀리그램", "640000001")));
+        assertThat(find("640000001 가상스텐캡슐 200미리").getFirst()).as("'200미리'는 이름 찾기처럼 200mg").singleElement()
+                .satisfies(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.MATCH));
+    }
+
     @Test
     void anUnknownNameOffersSimilarNamesWithoutPreselecting() {
         when(catalog.cachedRows()).thenReturn(List.of(json.valueToTree(row("199900031", "가상뮤코스텐캡슐200밀리그램"))));

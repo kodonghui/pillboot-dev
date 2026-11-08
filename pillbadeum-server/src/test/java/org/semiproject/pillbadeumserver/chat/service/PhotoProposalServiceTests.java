@@ -186,6 +186,23 @@ class PhotoProposalServiceTests {
                 .satisfies(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.UNKNOWN));
     }
 
+    // PR #77 Codex 리뷰: 읽은 함량과 품목 함량이 다르면 '다름'으로 두어 카톡 다리가 후보 하나를 미리 고르지 않게 함.
+    // 보험코드의 품목이 읽은 이름·함량과 맞지 않는 줄은 흐린 이름처럼 미리 고르지 않고 확인을 부탁함
+    @Test
+    void aCandidateWithAnotherStrengthThanTheReadOneIsDifferentAndNotPreselected() {
+        var conflict = group(1, "가상룩펠정5mg", List.of(candidate("199900051", "가상룩펠정10밀리그램", null)),
+                "640000005", false, false, true, null);
+        assertThat(conflict.autoSelectItemSeq()).isNull();
+        assertThat(PhotoProposalService.candidates(conflict)).singleElement()
+                .satisfies(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.DIFFERENT));
+        assertThat(PhotoProposalService.notes(List.of(conflict), 1))
+                .isEqualTo("\n" + PhotoProposalService.UNCLEAR + " ‘가상룩펠정5mg’. 고르기 전에 포장과 맞는지 봐 주세요.");
+        var same = group(2, "가상룩펠정10mg", List.of(candidate("199900051", "가상룩펠정10밀리그램", null)),
+                "640000005", true, false, false, null);
+        assertThat(PhotoProposalService.candidates(same)).singleElement()
+                .satisfies(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.MATCH));
+    }
+
     @Test
     void theNotesAreAddedToTheSavedAnswer() {
         when(workflow.readPrescription(anyLong(), any())).thenReturn(read(identified(55L, "OK",

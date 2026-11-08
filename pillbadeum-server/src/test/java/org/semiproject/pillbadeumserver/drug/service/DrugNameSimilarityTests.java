@@ -34,4 +34,14 @@ class DrugNameSimilarityTests {
         assertThat(DrugNameSimilarity.consistent("벨토라정", "가리몬정10밀리그램")).isFalse();
         assertThat(DrugNameSimilarity.consistent("가상정", "")).isFalse();
     }
+
+    // PR #77 Codex 리뷰: 이름 비교가 함량을 빼고 해서 코드가 다른 함량 품목을 가리켜도 맞다고 봤음
+    @Test
+    void aCodeMatchWithAnotherWrittenStrengthIsNotTrusted() {
+        assertThat(DrugNameSimilarity.consistent("가상룩펠정5mg", "가상룩펠정10mg")).isFalse();
+        assertThat(DrugNameSimilarity.strengthConflict("가상룩펠정 5mg", "가상룩펠정10밀리그램")).isTrue();
+        assertThat(DrugNameSimilarity.consistent("가상룩펠정 5mg", "가상룩펠정5밀리그램")).as("단위 표기만 다름").isTrue();
+        assertThat(DrugNameSimilarity.consistent("가상룩펠정", "가상룩펠정10mg")).as("함량을 적지 않으면 이름만 봄").isTrue();
+        assertThat(DrugNameSimilarity.strengthConflict("640000001", "가상룩펠정10mg")).as("코드 숫자는 함량이 아님").isFalse();
+    }
 }

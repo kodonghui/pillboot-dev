@@ -180,19 +180,21 @@ public class PhotoIdentificationWorkflow {
               var entry = entries.get(i);
               List<PhotoCandidateData> candidates;
               String status;
-              boolean byCode = false, similar = false;
+              boolean byCode = false, similar = false, conflict = false;
               try {
                 var result = await(tasks.get(i - offset), deadline, 40_000);
                 candidates = result.candidates();
                 status = result.status();
                 byCode = result.byCode();
                 similar = result.similar();
+                conflict = result.codeConflict();
               } catch (ExternalApiException exception) {
                 candidates = List.of();
                 status = "FAILED";
               }
               groups.add(new PhotoCandidateData.Group(i + 1, entry.readName(), status, candidates));
-              extras.put(i + 1, new Extra(entry.code(), byCode, similar, entry.unclear(), entry.dose()));
+              // 보험코드의 품목이 읽은 이름·함량과 맞지 않으면 둘 중 하나를 잘못 읽었을 수 있어 흐린 이름처럼 다룸
+              extras.put(i + 1, new Extra(entry.code(), byCode, similar, entry.unclear() || conflict, entry.dose()));
             }
           } finally {
             tasks.stream().filter(t -> !t.isDone()).forEach(t -> t.cancel(true));

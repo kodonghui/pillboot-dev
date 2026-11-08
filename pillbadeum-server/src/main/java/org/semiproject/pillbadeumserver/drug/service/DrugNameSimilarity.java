@@ -4,6 +4,7 @@ import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Objects;
 import org.semiproject.pillbadeumserver.drug.domain.DrugStrength;
+import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 
 /**
  * 2026-11-08 카톡 기록(사진 '룩펠정'을 '록펠정'으로 읽음, '뮤코스텐캡슐'을 '유코스텐스캡슐'로 씀): 약 이름을 자모로 나눠
@@ -34,15 +35,23 @@ public final class DrugNameSimilarity {
     }
 
     /**
-     * 보험코드로 찾은 품목이 읽은 이름과 같은 약이라고 볼 수 있는지. 읽은 이름이 없으면(코드만 읽음) 볼 것이 없어 true다.
-     * 한쪽 이름이 다른 쪽을 품거나 자모 유사도가 기준 이상이면 같은 약으로 본다.
+     * 보험코드로 찾은 품목이 읽은 이름과 같은 약이라고 볼 수 있는지. 두 이름에 적힌 함량이 서로 다르면 같은 약이 아니다
+     * ('가상룩펠정5mg'와 '가상룩펠정10mg', PR #77 Codex 리뷰: 이름 비교는 함량을 빼고 해서 이 경우도 맞다고 봤음).
+     * 그 밖에 읽은 이름이 없으면(코드만 읽음) 볼 것이 없어 true고, 한쪽 이름이 다른 쪽을 품거나 자모 유사도가 기준
+     * 이상이면 같은 약으로 본다.
      */
     public static boolean consistent(String readName, String officialName) {
+        if (strengthConflict(readName, officialName)) return false;
         String read = key(readName), official = key(officialName);
         if (read.isEmpty()) return true;
         if (official.isEmpty()) return false;
         if (official.contains(read) || read.contains(official)) return true;
         return similarity(readName, officialName) >= SIMILAR;
+    }
+
+    /** 두 이름에 모두 함량이 적혀 있고 서로 다른지. 한쪽이라도 함량이 없으면 false다(DrugStrength.matchOf와 같은 대조). */
+    public static boolean strengthConflict(String readName, String officialName) {
+        return DrugStrength.parse(readName).matchOf(DrugStrength.parse(officialName)) == StrengthMatch.DIFFERENT;
     }
 
     /** 한글 음절을 초성·중성·종성으로 나눈다. 다른 글자는 그대로 둔다. */
