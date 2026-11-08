@@ -106,6 +106,10 @@ class ScheduleDraftTests {
         assertThat(ScheduleDraft.slotGroup("점심약 1시로")).isEqualTo("점심");
         assertThat(ScheduleDraft.slotGroup("아침 약속이 있어서 저녁 9시로")).as("약속").isNull();
         assertThat(ScheduleDraft.slotGroup("저녁 약국 들르고 9시로")).as("약국").isNull();
+        // PR #77 Codex 리뷰: '저녁 약으로'는 옮겨 갈 곳이라 약목록 전부를 저녁에 먹던 약으로 좁히지 않음
+        assertThat(ScheduleDraft.slotGroup("약목록 전부 저녁 약으로 옮겨줘, 9시에만 먹을게")).as("옮겨 갈 곳").isNull();
+        assertThat(ScheduleDraft.slotGroup("아침 약을 저녁 약으로 바꿔줘")).isEqualTo("아침");
+        assertThat(ScheduleDraft.slotGroup("저녁약 9시로")).isEqualTo("저녁");
         assertThat(ScheduleDraft.slotGroup("아침 약은 8시, 저녁 약은 9시로")).as("두 때").isNull();
         assertThat(ScheduleDraft.slotGroup("혈압약 저녁 9시로")).as("약 이름 뒤의 때").isNull();
         assertThat(ScheduleDraft.slotGroup(null)).isNull();

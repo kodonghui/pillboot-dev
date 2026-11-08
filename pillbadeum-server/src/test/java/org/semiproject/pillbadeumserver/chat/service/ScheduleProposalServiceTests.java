@@ -135,6 +135,24 @@ class ScheduleProposalServiceTests {
         verify(questions, never()).saveNotice(any(), any(), any(), any(), anyString(), any(), anyBoolean());
     }
 
+    // PR #77 Codex 리뷰: '뮤코스텐캡슐 200미리 아침 한 알씩'의 '200미리'(함량)를 시럽 양으로 보고 '1회 200mL'를 적었음
+    @Test
+    void aCapsuleStrengthInTheTextIsNotWrittenAsAnAmount() {
+        var capsule = target(36L, "가상스텐캡슐200밀리그램(아세틸시스테인)", "07:00,19:00");
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(capsule));
+        interpreted(parsed("CREATE_SCHEDULE", null, List.of("08:00"), 1));
+        when(proposals.saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), any(), any(),
+                anyBoolean())).thenReturn(notice);
+        assertThat(propose("가상스텐캡슐200밀리그램(아세틸시스테인)", "가상스텐캡슐 200미리 아침 8시 한 알씩으로 바꿔 줘"))
+                .isSameAs(notice);
+        // 아침 시각만 바꾸고(한 끼 규칙) 1회 1개, 복용 때 칸에 '1회 200mL'를 붙이지 않음
+        var month = new ScheduleValues(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), List.of("07:00", "19:00"), 2, "식후 30분");
+        verify(proposals).saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND),
+                eq(List.of(new ChatProposalStore.ScheduleRow(36L, month,
+                        new ScheduleValues(month.startDate(), month.endDate(), List.of("08:00", "19:00"), 1, "식후 30분"),
+                        null))), any(), eq(false));
+    }
+
     @Test
     void interpreterGetsOnlyTheChosenDrugWithoutTheProfileName() {
         interpreted(parsed("CREATE_SCHEDULE", null, List.of("08:00"), 1));
@@ -296,6 +314,18 @@ class ScheduleProposalServiceTests {
         proposeAll("전부 바꿔 줘");
         verify(questions).saveNotice(eq(42L), eq(7L), eq(10L), eq(question),
                 eq("‘가상비타민정’: 1회 개수는 1~10개로 말해 주세요." + ScheduleProposalService.REJECTED_TAIL), any(), eq(false));
+        verify(proposals, never()).saveScheduleSetAnswer(any(), any(), any(), any(), any(), any(), any(), anyBoolean());
+    }
+
+    // PR #77 Codex 리뷰: 읽지 못한 시럽 양('반 스푼')을 버리고 앞 양을 그대로 두면 '이미 같은 일정'으로 답할 수 있었음
+    @Test
+    void anUnreadableAmountStopsTheCardWithTheReason() {
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(pressure, syrup));
+        String reason = "‘가상기침시럽’" + ScheduleSetInterpreter.UNREADABLE_AMOUNT.formatted("‘반 스푼’");
+        when(setInterpreter.parse(anyString(), eq(TODAY), any())).thenThrow(new ScheduleDraft.Rejected(reason));
+        proposeAll("전부 아침 8시로, 시럽은 반 스푼");
+        verify(questions).saveNotice(eq(42L), eq(7L), eq(10L), eq(question), eq(reason + ScheduleProposalService.REJECTED_TAIL),
+                any(), eq(false));
         verify(proposals, never()).saveScheduleSetAnswer(any(), any(), any(), any(), any(), any(), any(), anyBoolean());
     }
 

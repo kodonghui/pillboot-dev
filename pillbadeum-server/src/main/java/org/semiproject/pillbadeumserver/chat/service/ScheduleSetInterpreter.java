@@ -41,8 +41,16 @@ public class ScheduleSetInterpreter {
             넣지 말고 그 약의 exceptions.amountText에 숫자와 단위로 쓴다('20미리' → '20mL'). 어느 약의 양인지 모르면 넣지 않는다.
             지원 범위를 벗어나는 개수·횟수도 축소하거나 교정하지 말고 그대로 출력해 서버가 검사하게 한다.
             """;
-    // 시럽 1회 양: '20mL'·'7.5ml'·'5cc'·'1g'. 복용 때 칸(20자)에 적으므로 짧은 형식만 받는다.
-    private static final Pattern AMOUNT = Pattern.compile("([0-9]{1,3}(?:\\.[0-9])?)\\s*(mL|ml|ML|cc|CC|g|mg|미리|밀리)");
+    // 시럽 1회 양: '20mL'·'7.25ml'·'5cc'·'1g'('20mL씩'·'20mL 정도'의 뒷말은 뗌). 복용 때 칸(20자)에 적으므로 짧은 형식만
+    // 받는다. 소수는 처방전 일정과 같은 둘째 자리까지(PrescriptionDose.liquidAmount, PR #77 Codex 리뷰)
+    private static final Pattern AMOUNT =
+            Pattern.compile("([0-9]{1,3}(?:\\.[0-9]{1,2})?)\\s*(mL|ml|ML|cc|CC|g|mg|밀리리터|미리|밀리)(?:\\s*(?:씩|정도|쯤))?");
+    // 양을 말한 글('반 스푼'·'2000mL'). 읽지 못하면 앞 양을 그대로 두지 않고 거절한다. '한 알'·'1정' 같은 개수는 아님
+    private static final Pattern AMOUNT_HINT = Pattern.compile("mL|ml|ML|cc|CC|미리|밀리|스푼|숟가락|[0-9]\\s*g");
+    // 정제·캡슐: 1회 양을 mL로 먹지 않으므로 글의 '200미리'는 함량이다. 시럽·액제 이름이면 그렇지 않다
+    private static final Pattern SOLID_FORM = Pattern.compile("정|캡슐|캅셀");
+    private static final Pattern LIQUID_FORM = Pattern.compile("시럽|현탁|액|드롭");
+    static final String UNREADABLE_AMOUNT = "의 1회 양을 일정에 적을 수 없어요(%s). ‘5mL’처럼 숫자와 단위로 말해 주세요.";
 
     /** 약 하나에 쓸 값과, 시럽처럼 개수로 셀 수 없어 따로 받은 1회 양('20mL', 없으면 null). */
     public record DrugCommand(ParsedCommand command, String amount) {}
@@ -69,6 +77,8 @@ public class ScheduleSetInterpreter {
                 schema(), "low");
         try {
             return commands(result, targets);
+        } catch (ScheduleDraft.Rejected unreadableAmount) {
+            throw unreadableAmount;
         } catch (RuntimeException invalid) {
             throw ExternalApiException.failed("OpenAI", "일정 항목을 읽을 수 없습니다.", invalid);
         }
@@ -91,7 +101,12 @@ public class ScheduleSetInterpreter {
         var commands = new ArrayList<DrugCommand>();
         for (var target : targets) {
             var exception = exceptions.get(target.myDrugId());
-            String amount = exception == null ? null : amount(text(exception, "amountText"));
+            // 정제·캡슐에 붙은 양('200미리')은 함량이라 보지 않는다. 양으로 먹는 약의 양을 읽지 못하면 거절한다
+            String said = exception == null || !byVolume(target.drugName()) ? null : text(exception, "amountText");
+            String amount = amount(said);
+            if (said != null && amount == null && AMOUNT_HINT.matcher(said).find())
+                throw new ScheduleDraft.Rejected(RegistrationProposalService.quote(target.drugName())
+                        + UNREADABLE_AMOUNT.formatted(RegistrationProposalService.quote(said)));
             Integer dose = exception != null && integer(exception, "dosePerTime") != null ? integer(exception, "dosePerTime")
                     : integer(result, "dosePerTime");
             if (amount != null && (exception == null || integer(exception, "dosePerTime") == null)) dose = 1;
@@ -103,9 +118,19 @@ public class ScheduleSetInterpreter {
         return new Result(intent, List.copyOf(commands));
     }
 
-    // 글 속 시럽 1회 양: '20미리'·'10 mL'·'5cc'. '500밀리그램'·'200mg'은 함량이라 뺀다(2026-11-08 QA)
+    // 글 속 시럽 1회 양: '20미리'·'10 mL'·'5cc'·'7.25mL'·'20밀리리터'. '500밀리그램'·'200mg'은 함량이라 뺀다(2026-11-08 QA)
     private static final Pattern LIQUID = Pattern.compile(
-            "(?<![0-9.])([0-9]{1,3}(?:\\.[0-9])?)\\s*(mL|ml|ML|cc|CC|미리|밀리)(?!\\s*(?:그램|그람|g|리터))");
+            "(?<![0-9.])([0-9]{1,3}(?:\\.[0-9]{1,2})?)\\s*(mL|ml|ML|cc|CC|밀리리터|미리|밀리)(?!\\s*(?:그램|그람|g|리터))");
+
+    /**
+     * 1회 양을 mL·cc·g로 말할 수 있는 약인지. 이름(괄호 설명 뺌)이 정제·캡슐이고 시럽·액제가 아니면 false다. 그런 약의
+     * '200미리'는 함량이라 1회 양으로 적지 않는다(PR #77 Codex 리뷰: '뮤코스텐캡슐 200미리 아침 한 알씩'이 '1회 200mL'를 적음).
+     */
+    public static boolean byVolume(String drugName) {
+        if (drugName == null) return true;
+        String base = drugName.replaceAll("\\([^)]*\\)", "");
+        return LIQUID_FORM.matcher(base).find() || !SOLID_FORM.matcher(base).find();
+    }
 
     /**
      * 2026-11-08 QA(한 약 일정에서 '20미리라고'가 1회 20개로 읽혀 거절, '10미리씩'은 1회 10개로 저장): 글에 시럽 1회 양이
@@ -141,7 +166,7 @@ public class ScheduleSetInterpreter {
         var matcher = AMOUNT.matcher(value.strip());
         if (!matcher.matches()) return null;
         String unit = switch (matcher.group(2).toLowerCase()) {
-            case "ml", "미리", "밀리" -> "mL";
+            case "ml", "밀리리터", "미리", "밀리" -> "mL";
             case "cc" -> "cc";
             default -> matcher.group(2).toLowerCase();
         };

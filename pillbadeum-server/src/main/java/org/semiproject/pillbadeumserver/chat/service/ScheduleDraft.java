@@ -132,8 +132,10 @@ final class ScheduleDraft {
     }
 
     // 2026-11-08 QA 시나리오 01 다시 돌림('저녁 약은 7시 말고 9시로 바꿔줘'에 어느 약이냐고 되물음): '저녁 약'·'아침에 먹는 약'은
-    // 그 때에 먹는 약들. '아침 약속'·'저녁 약국'은 아님
-    private static final Pattern SLOT_GROUP = Pattern.compile("(아침|점심|저녁)\\s*(?:에\\s*)?(?:먹는\\s*)?약(?![속국])");
+    // 그 때에 먹는 약들. '아침 약속'·'저녁 약국'은 아님. '저녁 약으로 옮겨줘'의 '저녁 약으로'는 옮겨 갈 곳이라 대상이 아님
+    // (PR #77 Codex 리뷰: '약목록 전부 저녁 약으로 옮겨줘'가 저녁에 먹던 약만 골랐음)
+    private static final Pattern SLOT_GROUP =
+            Pattern.compile("(아침|점심|저녁)\\s*(?:에\\s*)?(?:먹는\\s*)?약(?![속국])(?!\\s*(?:으로|로))");
 
     /** 글이 '저녁 약'처럼 한 때에 먹는 약들을 가리키면 그 때('저녁'). 없거나 두 때 이상이면 null. */
     static String slotGroup(String text) {

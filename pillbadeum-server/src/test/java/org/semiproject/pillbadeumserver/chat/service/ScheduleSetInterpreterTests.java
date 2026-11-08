@@ -56,6 +56,28 @@ class ScheduleSetInterpreterTests {
         assertThat(syrup.command().startDate()).isEqualTo("2026-11-08");
     }
 
+    // PR #77 Codex 리뷰: 읽지 못한 양은 앞 양을 그대로 두지 않고 거절함. 정제·캡슐의 '200미리'는 함량이라 양으로 보지 않음
+    @Test
+    void anUnreadableAmountIsRejectedAndATabletStrengthIsNotAnAmount() {
+        assertThatThrownBy(() -> ScheduleSetInterpreter.commands(json.valueToTree(result(List.of(
+                Map.of("myDrugId", 35, "amountText", "반 스푼")))), targets))
+                .isInstanceOf(ScheduleDraft.Rejected.class)
+                .hasMessage("‘가상기침시럽’의 1회 양을 일정에 적을 수 없어요(‘반 스푼’). ‘5mL’처럼 숫자와 단위로 말해 주세요.");
+        var counted = ScheduleSetInterpreter.commands(json.valueToTree(result(List.of(
+                Map.of("myDrugId", 35, "amountText", "한 알")))), targets);
+        assertThat(counted.commands().get(1).amount()).as("개수는 양이 아님").isNull();
+        var capsule = List.of(target(36L, "가상스텐캡슐200밀리그램(아세틸시스테인)"));
+        var strength = ScheduleSetInterpreter.commands(json.valueToTree(result(List.of(
+                Map.of("myDrugId", 36, "amountText", "200mL")))), capsule);
+        assertThat(strength.commands().getFirst().amount()).isNull();
+        assertThat(strength.commands().getFirst().command().dosePerTime()).isEqualTo(1);
+        assertThat(ScheduleSetInterpreter.byVolume("가상기침시럽")).isTrue();
+        assertThat(ScheduleSetInterpreter.byVolume("가상현탁액")).isTrue();
+        assertThat(ScheduleSetInterpreter.byVolume("가상과립")).as("가루약은 g로 먹을 수 있음").isTrue();
+        assertThat(ScheduleSetInterpreter.byVolume("가상셀코정")).isFalse();
+        assertThat(ScheduleSetInterpreter.byVolume("가상스텐캡슐200밀리그램(아세틸시스테인)")).isFalse();
+    }
+
     @Test
     void unsupportedRequestsHaveNoCommandsAndBrokenOutputIsAnError() {
         assertThat(ScheduleSetInterpreter.commands(json.valueToTree(Map.of("intent", "UNSUPPORTED")), targets).commands()).isEmpty();
@@ -70,6 +92,11 @@ class ScheduleSetInterpreterTests {
         assertThat(ScheduleSetInterpreter.amount("5cc")).isEqualTo("5cc");
         assertThat(ScheduleSetInterpreter.amount("한 숟가락")).isNull();
         assertThat(ScheduleSetInterpreter.amount("2000mL")).isNull();
+        // PR #77 Codex 리뷰: 처방전 일정과 같게 소수 둘째 자리까지
+        assertThat(ScheduleSetInterpreter.amount("7.25mL")).isEqualTo("7.25mL");
+        assertThat(ScheduleSetInterpreter.amount("7.255mL")).isNull();
+        assertThat(ScheduleSetInterpreter.amount("20mL씩")).isEqualTo("20mL");
+        assertThat(ScheduleSetInterpreter.amount("20밀리리터")).isEqualTo("20mL");
         assertThat(LocalDate.parse("2026-11-08")).isNotNull();
     }
 
@@ -86,6 +113,8 @@ class ScheduleSetInterpreterTests {
         assertThat(ScheduleSetInterpreter.liquidAmount("물 1.5리터와 함께")).isNull();
         assertThat(ScheduleSetInterpreter.liquidAmount("시럽은 20미리, 물약은 10미리")).as("양이 여럿이면 어느 약인지 모름").isNull();
         assertThat(ScheduleSetInterpreter.liquidAmount(null)).isNull();
+        assertThat(ScheduleSetInterpreter.liquidAmount("가상기침시럽 7.25미리씩")).isEqualTo("7.25mL");
+        assertThat(ScheduleSetInterpreter.liquidAmount("20밀리리터로")).isEqualTo("20mL");
 
         var counted = new ParsedCommand("CREATE_SCHEDULE", 35L, null, null, null, List.of("08:00"), null, 20, null);
         assertThat(ScheduleSetInterpreter.withLiquid(counted, "20mL").dosePerTime()).as("양의 숫자를 개수로 읽음").isEqualTo(1);
