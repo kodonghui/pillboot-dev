@@ -135,10 +135,13 @@ public class ScheduleProposalService {
             // 2026-11-08 QA: '20미리라고'는 1회 개수가 아니라 시럽 1회 양(복용 때 칸에 적음, 약 여러 개 일정과 같은 규칙),
             // '저녁 약은 9시로'는 저녁 시각만 바꿈. 정제·캡슐의 '200미리'는 함량이라 양으로 보지 않음(PR #77 Codex 리뷰).
             // '5mL 말고 10mL로'는 10mL이고, 바꿀 양을 하나로 정할 수 없으면 앞 양을 두지 않고 되물음(PR #77 Codex 리뷰)
-            var amounts = ScheduleSetInterpreter.byVolume(target.drugName()) ? ScheduleSetInterpreter.liquidAmounts(text)
-                    : List.<String>of();
+            boolean byVolume = ScheduleSetInterpreter.byVolume(target.drugName());
+            var amounts = byVolume ? ScheduleSetInterpreter.liquidAmounts(text) : List.<String>of();
             if (amounts.size() > 1) throw new ScheduleDraft.Rejected(RegistrationProposalService.quote(target.drugName())
                     + ScheduleSetInterpreter.MANY_AMOUNTS.formatted(String.join("·", amounts)));
+            String unread = byVolume && amounts.isEmpty() ? ScheduleSetInterpreter.unreadAmount(text) : null;
+            if (unread != null) throw new ScheduleDraft.Rejected(RegistrationProposalService.quote(target.drugName())
+                    + ScheduleSetInterpreter.UNREADABLE_AMOUNT.formatted(RegistrationProposalService.quote(unread)));
             String amount = amounts.isEmpty() ? null : amounts.getFirst();
             var command = ScheduleDraft.slotEdit(text, ScheduleSetInterpreter.withLiquid(parsed, amount), current);
             var amounted = amounted(current, ScheduleDraft.proposed(command, current, target.dosePerTime(), today), amount);

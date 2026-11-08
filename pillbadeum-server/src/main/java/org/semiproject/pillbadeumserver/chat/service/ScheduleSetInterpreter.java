@@ -137,6 +137,20 @@ public class ScheduleSetInterpreter {
     private static final Pattern FROM_AMOUNT =
             Pattern.compile("\\s*(?:씩\\s*)?(?:이|가|은|는)?\\s*(?:말고|대신|에서|아니라|아니고|였는데|이었는데)");
     static final String MANY_AMOUNTS = "의 1회 양을 하나로 정할 수 없어요(%s). ‘10mL로’처럼 바꿀 양 하나만 말해 주세요.";
+    // 숫자와 양 단위가 있지만 LIQUID로 읽지 못하는 말('7.255mL'·'1000mL'·'2스푼'). 함량('500밀리그램')은 뺀다.
+    private static final Pattern AMOUNT_LIKE = Pattern.compile(
+            "[0-9][0-9.]*\\s*(?:mL|ml|ML|cc|CC|밀리리터|미리|밀리(?!\\s*(?:그램|그람))|스푼|숟가락)");
+
+    /**
+     * 글에서 양처럼 말했지만 일정에 적을 수 없는 첫 말. 없으면 null. PR #77 Codex 리뷰: 한 약 일정이 이를 말하지 않은 양처럼 보고
+     * 앞 양을 그대로 두었음(여러 약 일정은 amountText를 AMOUNT_HINT로 거절함).
+     */
+    public static String unreadAmount(String text) {
+        if (text == null) return null;
+        var matcher = AMOUNT_LIKE.matcher(text);
+        while (matcher.find()) if (!LIQUID.matcher(matcher.group()).find()) return matcher.group().strip();
+        return null;
+    }
 
     /**
      * 2026-11-08 QA(한 약 일정에서 '20미리라고'가 1회 20개로 읽혀 거절, '10미리씩'은 1회 10개로 저장): 글에 시럽 1회 양이

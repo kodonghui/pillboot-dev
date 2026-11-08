@@ -227,6 +227,9 @@ class PhotoProposalServiceTests {
         assertThat(PhotoProposalService.prescription(suspension, "가상기침시럽")).isEqualTo(suspension);
         assertThat(suspension.schedulable()).as("1회 1개와 복용 때 '1회 5mL'로 넣음(PrescriptionScheduleTests)").isTrue();
         assertThat(suspension.liquidAmount()).isEqualTo("5mL");
+        var sachet = new PrescriptionDose("1", 3, 3, true);
+        assertThat(PhotoProposalService.prescription(sachet, "가상기침시럽")).as("'1포'처럼 개수로 적힌 시럽은 1mL가 아님")
+                .isSameAs(sachet);
         var syrup = group(1, "가상기침시럽", List.of(candidate("199900041", "가상기침시럽", null)), "640000002", true, false, false, rx);
         assertThat(PhotoProposalService.candidates(syrup)).singleElement()
                 .satisfies(c -> assertThat(c.prescription()).isEqualTo(new PrescriptionDose("20mL", 3, 5)));

@@ -1,17 +1,31 @@
 package org.semiproject.pillbadeumserver.image.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.math.BigDecimal;
 
 /**
  * 2026-11-08: 처방전 표에서 약 한 줄의 1회 투약량·1일 투여 횟수·총 투약 일수(인쇄된 그대로 읽은 값).
  * 1회 투약량은 0.5처럼 소수일 수 있어 글자로 둔다. 읽지 못한 칸은 null이다. 약목록에는 확정 뒤에만 쓴다.
  */
-public record PrescriptionDose(String dosePerTime, Integer dailyCount, Integer totalDays) {
+public record PrescriptionDose(String dosePerTime, Integer dailyCount, Integer totalDays, @JsonIgnore boolean counted) {
+    /** 단위 없이 읽었거나 저장해 둔 값. 개수인지 물약 양인지는 품목으로 정한다(inMilliliters). */
+    public PrescriptionDose(String dosePerTime, Integer dailyCount, Integer totalDays) {
+        this(dosePerTime, dailyCount, totalDays, false);
+    }
+
     /** 세 칸이 모두 비었으면 null로 본다. */
     public static PrescriptionDose of(String dosePerTime, Integer dailyCount, Integer totalDays) {
+        return of(dosePerTime, dailyCount, totalDays, false);
+    }
+
+    /**
+     * counted는 1회 투약량 칸에 개수 단위('1포'·'1정')가 적혀 있었다는 뜻이다. 그러면 시럽이어도 mL로 보지 않는다(PR #77 Codex
+     * 리뷰: 시럽 줄의 '1포'가 '1mL'가 됐음). 판독에서만 쓰고 응답·저장에는 숫자만 남는다.
+     */
+    public static PrescriptionDose of(String dosePerTime, Integer dailyCount, Integer totalDays, boolean counted) {
         String dose = dosePerTime == null || dosePerTime.isBlank() ? null : dosePerTime.strip();
         if (dose == null && dailyCount == null && totalDays == null) return null;
-        return new PrescriptionDose(dose, dailyCount, totalDays);
+        return new PrescriptionDose(dose, dailyCount, totalDays, dose != null && counted);
     }
 
     /**
@@ -34,10 +48,10 @@ public record PrescriptionDose(String dosePerTime, Integer dailyCount, Integer t
     /**
      * 2026-11-08 QA(처방전의 코대원에스시럽 '20'이 '1회 20개'로 보이고, '10'이었다면 1회 10개 일정으로 들어갈 뻔함): 시럽 품목이면
      * 단위 없이 적힌 처방전의 1회 투약량은 mL라 단위를 붙인다(포로 주는 현탁액은 제외, 칸에 mL가 적혀 있으면 판독 때 이미 남김).
-     * 이미 단위가 있거나 숫자가 아니면 그대로다.
+     * 이미 단위가 있거나, 칸에 개수 단위가 적혀 있었거나(counted), 숫자가 아니면 그대로다.
      */
     public PrescriptionDose inMilliliters() {
-        if (dosePerTime == null || !dosePerTime.matches("[0-9]{1,3}(?:\\.[0-9]{1,2})?")) return this;
+        if (counted || dosePerTime == null || !dosePerTime.matches("[0-9]{1,3}(?:\\.[0-9]{1,2})?")) return this;
         return new PrescriptionDose(new BigDecimal(dosePerTime).stripTrailingZeros().toPlainString() + "mL", dailyCount,
                 totalDays);
     }

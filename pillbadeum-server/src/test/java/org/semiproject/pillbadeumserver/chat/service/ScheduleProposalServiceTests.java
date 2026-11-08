@@ -157,6 +157,11 @@ class ScheduleProposalServiceTests {
         verify(questions).saveNotice(eq(42L), eq(7L), eq(10L), eq(question),
                 eq("‘가상기침시럽’" + ScheduleSetInterpreter.MANY_AMOUNTS.formatted("5mL·10mL") + ScheduleProposalService.REJECTED_TAIL),
                 any(), eq(false));
+        // 읽지 못한 양도 앞 양을 두지 않고 되묻는다(PR #77 Codex 리뷰, 여러 약 일정의 amountText와 같은 규칙)
+        assertThat(propose("가상기침시럽", "가상기침시럽 7.255mL로 바꿔줘")).isSameAs(notice);
+        verify(questions).saveNotice(eq(42L), eq(7L), eq(10L), eq(question),
+                eq("‘가상기침시럽’" + ScheduleSetInterpreter.UNREADABLE_AMOUNT.formatted("‘7.255mL’")
+                        + ScheduleProposalService.REJECTED_TAIL), any(), eq(false));
     }
 
     // PR #77 Codex 리뷰: '뮤코스텐캡슐 200미리 아침 한 알씩'의 '200미리'(함량)를 시럽 양으로 보고 '1회 200mL'를 적었음

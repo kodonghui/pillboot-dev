@@ -31,10 +31,16 @@ public final class InsuranceCodeLookup {
         return match.find() ? match.group(1) : null;
     }
 
-    /** 글에서 보험코드를 뺀 나머지(이름 부분). 띄어쓰기는 하나로 줄인다. */
+    /**
+     * 글에서 보험코드를 뺀 나머지(이름 부분). 띄어쓰기는 하나로 줄인다. extract가 띄어쓰기·'-'를 빼고 찾은 코드('6400-00001')도
+     * 그 모양 그대로 뺀다(PR #77 Codex 리뷰: 이름 쪽에 남아 '00001mg' 함량으로 읽혔음).
+     */
     public static String withoutCode(String text) {
         if (text == null) return "";
-        return CODE.matcher(text).replaceAll(" ").replaceAll("\\s+", " ").strip();
+        String code = extract(text);
+        String rest = code == null ? text : Pattern.compile("(?<![0-9])" + String.join("[\\s-]*", code.split("")) + "(?![0-9])")
+                .matcher(text).replaceFirst(" ");
+        return CODE.matcher(rest).replaceAll(" ").replaceAll("\\s+", " ").strip();
     }
 
     /**

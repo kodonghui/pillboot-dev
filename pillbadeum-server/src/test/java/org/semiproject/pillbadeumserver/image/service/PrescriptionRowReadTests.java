@@ -62,9 +62,15 @@ class PrescriptionRowReadTests {
         assertThat(read(Map.of("readName", "가상해열현탁액", "dosePerTime", "5.0㎖", "dailyCount", "3", "totalDays", "3")).dose())
                 .isEqualTo(new PrescriptionDose("5mL", 3, 3));
         assertThat(read(Map.of("readName", "가상셀코정", "dosePerTime", "1 정", "dailyCount", "2", "totalDays", "3")).dose())
-                .isEqualTo(new PrescriptionDose("1", 2, 3));
+                .isEqualTo(new PrescriptionDose("1", 2, 3, true));
         assertThat(read(Map.of("readName", "가상셀코캡슐", "dosePerTime", "2C", "dailyCount", "2", "totalDays", "3")).dose())
-                .isEqualTo(new PrescriptionDose("2", 2, 3));
+                .isEqualTo(new PrescriptionDose("2", 2, 3, true));
+        // PR #77 Codex 리뷰: 시럽 줄의 '1포'를 '1'로 떼면 품목명이 시럽이라 '1mL'가 됐음. 적힌 개수 단위는 개수로 남긴다.
+        var sachet = read(Map.of("readName", "가상기침시럽", "dosePerTime", "1포", "dailyCount", "3", "totalDays", "3")).dose();
+        assertThat(sachet).isEqualTo(new PrescriptionDose("1", 3, 3, true));
+        assertThat(sachet.inMilliliters()).as("개수로 적혔으면 mL로 보지 않음").isSameAs(sachet);
+        assertThat(read(Map.of("readName", "가상기침시럽", "dosePerTime", "10", "dailyCount", "3", "totalDays", "3")).dose())
+                .as("단위가 없으면 개수인지 모름").isEqualTo(new PrescriptionDose("10", 3, 3));
         assertThat(read(Map.of("readName", "가상셀코정", "dosePerTime", "한 알", "dailyCount", "2", "totalDays", "3")).dose())
                 .as("숫자가 아니면 버림").isEqualTo(new PrescriptionDose(null, 2, 3));
     }

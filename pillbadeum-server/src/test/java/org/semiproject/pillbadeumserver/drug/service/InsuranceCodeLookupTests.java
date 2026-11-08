@@ -29,6 +29,10 @@ class InsuranceCodeLookupTests {
         assertThat(InsuranceCodeLookup.extract("가상스텐캡슐 200mg")).isNull();
         assertThat(InsuranceCodeLookup.extract("6400000011")).isNull();
         assertThat(InsuranceCodeLookup.withoutCode("640000001 가상스텐캡슐  200mg")).isEqualTo("가상스텐캡슐 200mg");
+        // PR #77 Codex 리뷰: '6400-00001'은 코드로 찾고도 이름 쪽에 남아 '00001mg' 함량으로 읽혔음
+        assertThat(InsuranceCodeLookup.withoutCode("6400-00001")).isEmpty();
+        assertThat(InsuranceCodeLookup.withoutCode("640 000 001 가상스텐캡슐")).isEqualTo("가상스텐캡슐");
+        assertThat(InsuranceCodeLookup.withoutCode("가상스텐캡슐 200mg 640-000-001")).isEqualTo("가상스텐캡슐 200mg");
     }
 
     @Test

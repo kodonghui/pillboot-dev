@@ -3,6 +3,7 @@ package org.semiproject.pillbadeumserver.image.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 /** 처방전 한 줄의 투약 값이 일정 저장 규칙(1회 1~10개·하루 1~3번·1~365일)에 그대로 들어가는지. */
 class PrescriptionDoseTests {
@@ -38,5 +39,15 @@ class PrescriptionDoseTests {
         assertThat(new PrescriptionDose("20mL", 4, 5).schedulable()).as("하루 횟수는 같은 규칙").isFalse();
         assertThat(new PrescriptionDose("20", 3, 5).liquidAmount()).isNull();
         assertThat(new PrescriptionDose("20", 3, 5).schedulable()).as("단위 없는 20은 1회 20개라 규칙 밖").isFalse();
+    }
+
+    // PR #77 Codex 리뷰: 칸에 개수 단위가 적혔다는 표시(counted)는 판독 안에서만 쓰고 사진 응답 JSON에는 내보내지 않는다
+    @Test
+    void theCountedMarkStaysOutOfTheJson() {
+        var counted = PrescriptionDose.of("1", 3, 3, true);
+        assertThat(counted.counted()).isTrue();
+        assertThat(PrescriptionDose.of(null, 3, 3, true).counted()).as("1회 투약량이 없으면 표시도 없음").isFalse();
+        assertThat(JsonMapper.builder().build().writeValueAsString(counted))
+                .isEqualTo("{\"dosePerTime\":\"1\",\"dailyCount\":3,\"totalDays\":3}");
     }
 }

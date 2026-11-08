@@ -254,27 +254,29 @@ public class PhotoIdentificationWorkflow {
     String code = medicine.path("insuranceCode").asString("").replaceAll("[\\s-]", "");
     if (!code.matches("[0-9]{9}")) code = null;
     if (name.isEmpty() && code == null) return null;
-    var prescription = PrescriptionDose.of(dose(medicine.path("dosePerTime").asString("")),
+    var prescription = prescription(medicine.path("dosePerTime").asString(""),
         number(medicine.path("dailyCount"), 24), number(medicine.path("totalDays"), 365));
     boolean unclear = medicine.path("clear").isBoolean() && !medicine.path("clear").asBoolean();
     return new Read(name, medicine.path("readMaker").asString("").strip(), code, prescription, unclear);
   }
 
-  /** 1회 투약량 칸: 숫자와, 있으면 물약 단위(group 2)나 개수 단위. */
+  /** 1회 투약량 칸: 숫자와, 있으면 물약 단위(group 2)나 개수 단위(group 3). */
   private static final java.util.regex.Pattern DOSE = java.util.regex.Pattern.compile(
-      "([0-9]{1,3}(?:\\.[0-9]{1,2})?)\\s*(?:(mL|ml|ML|cc|CC|㎖)|정|캡슐|알|개|포|T|C|t|c)?");
+      "([0-9]{1,3}(?:\\.[0-9]{1,2})?)\\s*(?:(mL|ml|ML|cc|CC|㎖)|(정|캡슐|캅셀|알|개|포|T|C|t|c))?");
 
   /**
-   * 1회 투약량 글자. 개수 단위('1정'·'2C')는 떼고 숫자만, 적힌 물약 단위('20ml'·'5cc')는 품목명과 관계없이 mL로 남긴다
-   * (PR #77 Codex 리뷰: 떼면 이름이 '시럽'이 아닌 현탁액의 5mL가 1회 5개가 됐음). 단위 없는 시럽 숫자는 품목을 고른 뒤
-   * mL를 붙인다(PhotoProposalService, 2026-11-08 QA). 숫자 모양이 아니거나 0이면 null.
+   * 처방 칸 세 개. 1회 투약량에 적힌 물약 단위('20ml'·'5cc')는 품목명과 관계없이 mL로 남기고(PR #77 Codex 리뷰: 떼면 이름이
+   * '시럽'이 아닌 현탁액의 5mL가 1회 5개가 됐음), 적힌 개수 단위('1포'·'2C')는 숫자만 두되 개수로 표시해 시럽이어도 mL로 바꾸지
+   * 않는다(PR #77 Codex 리뷰: 시럽 '1포'가 '1mL'). 단위 없는 시럽 숫자는 품목을 고른 뒤 mL를 붙인다(PhotoProposalService,
+   * 2026-11-08 QA). 1회 투약량이 숫자 모양이 아니거나 0이면 그 칸만 null이다.
    */
-  static String dose(String text) {
-    var dose = DOSE.matcher(text.strip());
-    if (!dose.matches()) return null;
-    var value = new java.math.BigDecimal(dose.group(1));
-    if (value.signum() <= 0) return null;
-    return dose.group(2) == null ? dose.group(1) : value.stripTrailingZeros().toPlainString() + "mL";
+  static PrescriptionDose prescription(String doseText, Integer dailyCount, Integer totalDays) {
+    var dose = DOSE.matcher(doseText.strip());
+    if (!dose.matches() || new java.math.BigDecimal(dose.group(1)).signum() <= 0)
+      return PrescriptionDose.of(null, dailyCount, totalDays);
+    String value = dose.group(2) == null ? dose.group(1)
+        : new java.math.BigDecimal(dose.group(1)).stripTrailingZeros().toPlainString() + "mL";
+    return PrescriptionDose.of(value, dailyCount, totalDays, dose.group(3) != null);
   }
 
   private static Integer number(JsonNode value, int max) {

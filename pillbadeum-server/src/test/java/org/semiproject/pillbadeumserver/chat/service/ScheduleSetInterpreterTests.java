@@ -127,6 +127,14 @@ class ScheduleSetInterpreterTests {
                 .containsExactly("5mL", "10mL");
         assertThat(ScheduleSetInterpreter.liquidAmounts("20미리 그러니까 20ml")).containsExactly("20mL");
         assertThat(ScheduleSetInterpreter.liquidAmounts("하루 3번")).isEmpty();
+        // PR #77 Codex 리뷰: 한 약 일정에서 읽지 못한 양('7.255mL')을 말하지 않은 것처럼 보고 앞 양을 그대로 두었음
+        assertThat(ScheduleSetInterpreter.unreadAmount("가상기침시럽 7.255mL로 바꿔")).isEqualTo("7.255mL");
+        assertThat(ScheduleSetInterpreter.unreadAmount("두 번 2스푼씩")).isEqualTo("2스푼");
+        assertThat(ScheduleSetInterpreter.unreadAmount("1000mL")).isEqualTo("1000mL");
+        assertThat(ScheduleSetInterpreter.unreadAmount("10mL로")).isNull();
+        assertThat(ScheduleSetInterpreter.unreadAmount("가상정 500밀리그램 한 알")).isNull();
+        assertThat(ScheduleSetInterpreter.unreadAmount("물 1.5리터와 함께")).isNull();
+        assertThat(ScheduleSetInterpreter.unreadAmount("한 스푼")).as("숫자 없이 말한 양은 되묻지 않음").isNull();
 
         var counted = new ParsedCommand("CREATE_SCHEDULE", 35L, null, null, null, List.of("08:00"), null, 20, null);
         assertThat(ScheduleSetInterpreter.withLiquid(counted, "20mL").dosePerTime()).as("양의 숫자를 개수로 읽음").isEqualTo(1);
