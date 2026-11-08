@@ -62,16 +62,49 @@ public class QuestionClassifier {
             새 기록 질문에는 지난 의약 주제를 계속 강요하지 않는다. 애매한 경우 PASS를 선택한다.
             """;
 
+    // 2026-11-08 QA: 응급·자해 안내 뒤 30분 안의 질문에만 덧붙인다(EmergencyFollowUp). 막은 질문은 저장하지 않아 이력에 없다.
+    private static final String AFTER_EMERGENCY = """
+            recentEmergency가 있으면 이 사용자가 30분 안에 과다 복용·응급 증상이나 자해 위험을 말해 응급 안내를 받았다.
+            그 말은 저장하지 않아 previousQuestions에 없다. 현재 질문이 그 상황을 이어 말하면 recentEmergency와 같은 분류를 고른다.
+            이어 말: 괜찮을지·증상·먹은 양이나 시각·병원이나 119를 피하고 싶음·물이나 구토로 해결되는지·기다려도 되는지·
+            농담이었다·알겠다·고맙다·상담 전화 번호. 안심시키는 답을 바라는 질문도 이어 말이다.
+            등록 약·일정 확인처럼 앞 상황과 상관없는 새 질문만 PASS다.
+            """;
+
     /** myDrugNames: 의도 가르기(V3-CHAT-001)에만 보내는 약목록 이름. 안전 분류 호출에는 넣지 않는다. */
-    public record Context(List<String> previousQuestions, List<String> products, List<String> myDrugNames) {
+    /** @param recentTurns 2026-11-08: 의도 가르기에만 보내는 바로 앞 메시지(최근 3턴, 오래된 것부터). 안전 분류에는 보내지 않는다 */
+    /** @param profileId 2026-11-08: 응급·자해 안내 뒤 30분 안의 이어 말을 알아보는 열쇠(EmergencyFollowUp). 모델에는 보내지 않는다 */
+    public record Context(List<String> previousQuestions, List<String> products, List<String> myDrugNames,
+                          List<RecentTurn> recentTurns, Long profileId) {
+        public Context {
+            recentTurns = recentTurns == null ? List.of() : List.copyOf(recentTurns);
+        }
+        public Context(List<String> previousQuestions, List<String> products, List<String> myDrugNames,
+                       List<RecentTurn> recentTurns) {
+            this(previousQuestions, products, myDrugNames, recentTurns, null);
+        }
+        public Context(List<String> previousQuestions, List<String> products, List<String> myDrugNames) {
+            this(previousQuestions, products, myDrugNames, List.of());
+        }
         public Context(List<String> previousQuestions, List<String> products) {
             this(previousQuestions, products, List.of());
         }
         public static Context empty() { return new Context(List.of(), List.of()); }
     }
 
-    /** 기존 Decision 한 번에서 안전 분류와 조회 목적을 얻는다. PASS는 혼합 목적의 내부 호환 이름이다. */
+    /**
+     * 기존 Decision 한 번에서 안전 분류와 조회 목적을 얻는다. PASS는 혼합 목적의 내부 호환 이름이다.
+     * 2026-11-08 QA(과다 복용 뒤 '괜찮겠지?'에 안심시키는 답, 자해 말 뒤 '농담이야'에 잡담 안내): 막은 질문은 저장하지 않으므로
+     * 같은 프로필에서 응급·자해로 막은 분류를 30분 동안 기억해 두고(질문 글은 두지 않음), 그동안의 질문은 afterEmergency로 가른다.
+     */
     public QuestionPlan plan(String question, Context context) {
+        var recent = emergencies.recent(context.profileId());
+        var plan = recent == null ? first(question, context) : afterEmergency(question, context, recent);
+        emergencies.mark(context.profileId(), plan.category());
+        return plan;
+    }
+
+    private QuestionPlan first(String question, Context context) {
         var choices = new java.util.ArrayList<>(PURPOSES);
         CHOICES.stream().filter(choice -> !"PASS".equals(choice.value())).forEach(choices::add);
         var plan = plan(question, context, choices, INSTRUCTIONS + ROUTING);
@@ -85,6 +118,37 @@ public class QuestionClassifier {
         return new QuestionPlan(category, plan.purpose(), question);
     }
 
+    /**
+     * recentEmergency(같은 프로필에서 30분 안에 응급·자해로 막은 분류)를 모델에 함께 보내고, 모델이 막으면 둘 중 강한 분류
+     * (자해가 섞이면 자해)로, 통과시키거나 잡담으로 봐도 이어 말로 보이면 같은 분류로 막는다. 상관없는 새 질문만 통과한다.
+     */
+    private QuestionPlan afterEmergency(String question, Context context, QuestionCategory recentEmergency) {
+        var choices = new java.util.ArrayList<>(PURPOSES);
+        CHOICES.stream().filter(choice -> !"PASS".equals(choice.value())).forEach(choices::add);
+        QuestionPlan plan;
+        try {
+            plan = plan(question, context, choices, INSTRUCTIONS + ROUTING + AFTER_EMERGENCY, recentEmergency);
+        } catch (RuntimeException unavailable) {
+            // 분류 장애로 실패 답만 가면 방금 응급을 말한 사람이 안내를 못 받는다. 이 30분 안에서는 같은 안내로 막는다
+            log.warn("[질문 분류] category={} guard=after_emergency_fallback type={}", recentEmergency,
+                    unavailable.getClass().getSimpleName());
+            return new QuestionPlan(recentEmergency, QuestionPlan.Purpose.COMBINED, question, true);
+        }
+        QuestionCategory category;
+        if (ChatQuestionPurpose.overdoseTaken(question))  // 이미 많이 먹었다는 말은 처음 질문과 같은 규칙(실수면 응급, 아니면 자해)
+            category = EmergencyFollowUp.stronger(recentEmergency,
+                    ChatQuestionPurpose.accidental(question) ? QuestionCategory.EMERGENCY : QuestionCategory.SELF_HARM);
+        else if (!plan.category().isPassed() && plan.category() != QuestionCategory.OFF_TOPIC)
+            category = EmergencyFollowUp.stronger(recentEmergency,
+                    plan.category().isEmergency() ? plan.category() : recentEmergency);
+        else if (plan.category() == QuestionCategory.OFF_TOPIC || ChatQuestionPurpose.emergencyFollowUp(question))
+            category = recentEmergency;
+        else
+            return plan;
+        log.info("[질문 분류] category={} guard=after_emergency", category);
+        return new QuestionPlan(category, plan.purpose(), question, true);
+    }
+
     /** 이미 통과·저장된 질문은 목적만 다시 구한다. 질문 저장/안전 분류를 반복하지 않는다. */
     public QuestionPlan retryPlan(AnswerInput input) {
         var recent = input.recentTurns();
@@ -95,8 +159,17 @@ public class QuestionClassifier {
     }
 
     private QuestionPlan plan(String question, Context context, List<DecisionChoice> choices, String instructions) {
-        String data = JSON.writeValueAsString(Map.of("question", question,
-                "previousQuestions", context.previousQuestions(), "products", context.products()));
+        return plan(question, context, choices, instructions, null);
+    }
+
+    private QuestionPlan plan(String question, Context context, List<DecisionChoice> choices, String instructions,
+                              QuestionCategory recentEmergency) {
+        var fields = new java.util.LinkedHashMap<String, Object>();
+        fields.put("question", question);
+        fields.put("previousQuestions", context.previousQuestions());
+        fields.put("products", context.products());
+        if (recentEmergency != null) fields.put("recentEmergency", recentEmergency.name());
+        String data = JSON.writeValueAsString(fields);
         String choice = openAi.createChoice(data, QUESTION_NAME, instructions, choices);
         var category = choice.startsWith("PASS") ? QuestionCategory.PASS : QuestionCategory.valueOf(choice);
         var purpose = switch (choice) {
@@ -109,8 +182,17 @@ public class QuestionClassifier {
         return plan;
     }
 
+    // 2026-11-08: 응급·자해로 막은 분류를 프로필마다 30분 기억함(서버 메모리, 질문 글은 두지 않음)
+    private final EmergencyFollowUp emergencies;
+
+    @org.springframework.beans.factory.annotation.Autowired
     public QuestionClassifier(OpenAiClient openAi) {
+        this(openAi, java.time.Clock.systemUTC());
+    }
+
+    QuestionClassifier(OpenAiClient openAi, java.time.Clock clock) {
         this.openAi = openAi;
+        this.emergencies = new EmergencyFollowUp(clock);
     }
 
     /**

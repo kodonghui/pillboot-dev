@@ -52,16 +52,37 @@ public class QuestionStore {
     @Transactional(readOnly = true)
     public QuestionClassifier.Context classificationContext(Long sessionId, Long memberId, Long profileId) {
         if (!Objects.equals(checkAccess(sessionId, memberId), profileId)) throw new NotFoundException("프로필을 찾을 수 없습니다.");
-        var turns = messages.findHistoryTurns(sessionId, null, org.springframework.data.domain.PageRequest.of(0, 2));
-        var previous = turns.isEmpty() ? java.util.List.<String>of() : messages.findHistoryMessages(sessionId, turns).stream()
-                .filter(message -> "user".equals(message.getRole())).map(ChatMessage::getContent).toList();
+        var turns = messages.findHistoryTurns(sessionId, null, org.springframework.data.domain.PageRequest.of(0, RECENT_TURNS));
+        var history = turns.isEmpty() ? java.util.List.<ChatMessage>of() : messages.findHistoryMessages(sessionId, turns);
+        // 안전 분류에는 지금처럼 마지막 2턴의 회원 말만 보낸다. 의도 가르기는 3턴의 회원 말·답을 함께 본다.
+        var lastTwo = turns.stream().limit(2).collect(java.util.stream.Collectors.toSet());
+        var previous = history.stream().filter(message -> "user".equals(message.getRole()) && lastTwo.contains(message.getTurnNo()))
+                .map(ChatMessage::getContent).toList();
         var all = medications.findAllWithDrugByProfileId(profileId);
         var drugs = all.stream().filter(m -> m.getDrug() != null).toList();
         var products = drugs.stream().limit(10).map(m -> m.getDrug().getItemSeq() + " " + m.getDrug().getName()).toList();
         // 일정 요청(V3-CHAT-007)은 직접 입력한 약도 대상이라 약목록 이름에는 입력한 이름도 넣는다.
         var names = all.stream().map(m -> m.getDrug() != null ? m.getDrug().getName() : m.getCustomName())
                 .filter(Objects::nonNull).toList();
-        return new QuestionClassifier.Context(previous, products, names);
+        return new QuestionClassifier.Context(previous, products, names, recent(history), profileId);
+    }
+
+    /** 의도 가르기에 함께 보내는 턴 수(회원 말·답). 2026-11-08 카톡 기록처럼 두세 번 이어 말한 요청을 잇는 데 쓴다. */
+    static final int RECENT_TURNS = 3;
+
+    /**
+     * 2026-11-08: beforeTurn 앞 최근 3턴의 회원 말·답(오래된 것부터). 다시 보내는 질문은 그 질문의 턴 앞을 본다
+     * (새 질문은 null, 마지막 턴까지). 의도 가르기에만 쓴다.
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<RecentTurn> recentTurns(Long sessionId, Integer beforeTurn) {
+        var turns = messages.findHistoryTurns(sessionId, beforeTurn, org.springframework.data.domain.PageRequest.of(0, RECENT_TURNS));
+        return turns.isEmpty() ? java.util.List.of() : recent(messages.findHistoryMessages(sessionId, turns));
+    }
+
+    private static java.util.List<RecentTurn> recent(java.util.List<ChatMessage> history) {
+        return history.stream().filter(message -> message.getContent() != null && !message.getContent().isBlank())
+                .map(message -> new RecentTurn("user".equals(message.getRole()), message.getContent())).toList();
     }
 
     /**

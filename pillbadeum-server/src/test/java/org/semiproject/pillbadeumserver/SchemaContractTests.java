@@ -31,11 +31,11 @@ class SchemaContractTests {
                     .as("Only the dedicated pill_test database may be modified").isEqualTo(1);
             org.semiproject.pillbadeumserver.TestDatabaseSchema.prepare(connection);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(189);
+                    .isEqualTo(195);
             assertConstraintCount(connection, "PRIMARY KEY", 23);
             assertConstraintCount(connection, "FOREIGN KEY", 32);
             assertConstraintCount(connection, "UNIQUE", 10);
-            assertConstraintCount(connection, "CHECK", 15);
+            assertConstraintCount(connection, "CHECK", 16);
             assertColumn(connection, "pill_identification_session", "identification_id", "char", 36L, "NO", null);
             assertColumn(connection, "pill_identification_session", "photo_id", "bigint", null, "YES", null);
             assertColumn(connection, "pill_identification_session", "snapshot", "json", null, "YES", null);
@@ -59,16 +59,27 @@ class SchemaContractTests {
             assertColumn(connection, "drug", "strength_ug", "decimal", null, "YES", null);
             assertColumn(connection, "drug", "strength_unit", "varchar", 10L, "YES", null);
             ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/14_DRUG_STRENGTH.sql"));
-            // V3-CHAT-002~005·007: 제안 표 3개는 최신01에 있고, 16을 다시 적용해도 구조가 그대로다.
+            // V3-CHAT-002~005·007: 제안 표 3개는 최신01에 있고, 16을 다시 적용해도 구조가 그대로다. 16의 확인 쿼리는 18 뒤 구조도
+            // READY다(PR #77 Codex 리뷰: setup-local-db.ps1 -UpgradeExisting을 다시 돌리면 16이 BLOCKED라 멈췄음).
             ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/16_CHAT_PROPOSAL.sql"));
+            assertThat(finalStatus(connection, "sql/16_CHAT_PROPOSAL.sql")).isEqualTo("READY");
             // V3-KAKAO-012~016(DEC-029): 연결 표 2개·상담방 channel은 최신01에 있고, 17을 두 번 다시 적용해도 READY이고 구조가 그대로다.
             for (int run = 0; run < 2; run++) {
                 ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/17_KAKAO_LINK.sql"));
             }
             assertThat(finalStatus(connection, "sql/17_KAKAO_LINK.sql")).isEqualTo("READY");
+            // 2026-11-08: 처방 값 칸·일정 제안 줄 번호는 최신01에 있고, 18을 두 번 다시 적용해도 READY이고 구조가 그대로다.
+            for (int run = 0; run < 2; run++) {
+                ScriptUtils.executeSqlScript(connection, new FileSystemResource("sql/18_CHAT_PROPOSAL_PRESCRIPTION.sql"));
+            }
+            assertThat(finalStatus(connection, "sql/18_CHAT_PROPOSAL_PRESCRIPTION.sql")).isEqualTo("READY");
+            assertColumn(connection, "chat_proposal_item", "rx_dose", "varchar", 10L, "YES", null);
+            assertColumn(connection, "chat_proposal_item", "rx_applied", "tinyint", null, "NO", "0");
+            assertColumn(connection, "chat_proposal_schedule", "item_no", "tinyint", null, "NO", "1");
+            assertColumn(connection, "chat_proposal_schedule", "note", "varchar", 200L, "YES", null);
             assertThat(count(connection, "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()"))
-                    .isEqualTo(189);
-            assertConstraintCount(connection, "CHECK", 15);
+                    .isEqualTo(195);
+            assertConstraintCount(connection, "CHECK", 16);
             assertColumn(connection, "chat_session", "channel", "varchar", 10L, "NO", "WEB");
             assertColumn(connection, "kakao_link", "kakao_user_hmac", "char", 64L, "NO", null);
             assertColumn(connection, "kakao_link", "current_profile_id", "bigint", null, "YES", null);

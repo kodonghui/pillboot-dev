@@ -3,8 +3,11 @@ package org.semiproject.pillbadeumserver.image.service;
 import java.util.*;
 import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
+import org.semiproject.pillbadeumserver.drug.service.DrugNameSimilarity;
 import org.semiproject.pillbadeumserver.drug.service.DrugSyncService;
+import org.semiproject.pillbadeumserver.drug.service.InsuranceCodeLookup;
 import org.semiproject.pillbadeumserver.drug.service.PrescriptionDrugLookup;
+import org.semiproject.pillbadeumserver.drug.service.SimilarDrugNames;
 import org.semiproject.pillbadeumserver.drug.domain.DrugRegulatoryType;
 import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.image.domain.PhotoCandidateData;
@@ -23,12 +26,57 @@ public class PhotoCandidateLookup {
     this.catalog = catalog;
   }
 
-  public record Result(List<PhotoCandidateData> candidates, int excludedCount) {
+  /**
+   * @param byCode 2026-11-08: 처방전에 인쇄된 보험코드로 찾은 품목이 하나이고 읽은 이름과도 맞음(미리 고를 수 있음)
+   * @param similar 2026-11-08: 이름이 꼭 맞는 품목이 없어 비슷한 이름으로 찾은 후보(미리 고르지 않음)
+   */
+  /**
+   * @param byCode 보험코드로 찾은 품목이 하나이고 읽은 이름·함량과 맞음(미리 고름)
+   * @param similar 이름이 꼭 맞는 품목이 없어 비슷한 이름으로 찾음
+   * @param codeConflict 보험코드로 찾은 품목이 어느 것도 읽은 이름·함량과 맞지 않음. 코드나 이름 중 하나를 잘못 읽었을 수
+   *     있어 흐린 이름처럼 미리 고르지 않는다(PR #77 Codex 리뷰 뒤 확인: 카톡은 후보가 하나면 미리 골랐음)
+   */
+  public record Result(List<PhotoCandidateData> candidates, int excludedCount, boolean byCode, boolean similar,
+      boolean codeConflict) {
+    public Result(List<PhotoCandidateData> candidates, int excludedCount) { this(candidates, excludedCount, false, false, false); }
     public String status() { return candidates.isEmpty() ? "NOT_FOUND" : excludedCount > 0 ? "PARTIAL" : "OK"; }
   }
 
   public List<PhotoCandidateData> prescription(String name, String maker) {
     return prescriptionResult(name, maker).candidates();
+  }
+
+  /**
+   * 2026-11-08: 보험코드(9자리)가 읽혔으면 그 코드로 먼저 찾고, 없거나 찾지 못하면 이름으로 찾는다. 이름으로도 없으면
+   * 비슷한 이름의 후보(최대 3개)를 돌려준다. 코드로 찾은 품목이 하나이고 읽은 이름·함량과 맞을 때만 byCode다.
+   */
+  public Result prescriptionResult(String name, String maker, String insuranceCode) {
+    if (insuranceCode != null && insuranceCode.matches("[0-9]{9}")) {
+      var rows = new InsuranceCodeLookup(client).find(insuranceCode, null);
+      if (!rows.isEmpty()) {
+        var images = catalog.cachedImageUrls(rows.stream().filter(row -> !present(first(row, "ITEM_IMAGE", "ITEM_IMAGE_URL")))
+            .map(row -> text(row, "ITEM_SEQ")).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet()));
+        var found = validated(rows, null, images);
+        boolean single = found.candidates().size() == 1;
+        boolean consistent = single && DrugNameSimilarity.consistent(name, found.candidates().getFirst().name());
+        boolean conflict = !found.candidates().isEmpty()
+            && found.candidates().stream().noneMatch(c -> DrugNameSimilarity.consistent(name, c.name()));
+        return new Result(found.candidates(), found.excludedCount(), consistent, false, conflict);
+      }
+    }
+    if (name == null || name.isBlank()) return new Result(List.of(), 0);
+    var byName = prescriptionResult(name, maker);
+    if (!byName.candidates().isEmpty()) return byName;
+    var similar = new SimilarDrugNames(client, catalog::cachedRows).find(name, null);
+    if (similar.isEmpty()) return byName;
+    var images = catalog.cachedImageUrls(similar.stream().filter(row -> !present(first(row, "ITEM_IMAGE", "ITEM_IMAGE_URL")))
+        .map(row -> text(row, "ITEM_SEQ")).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet()));
+    try {
+      var found = validated(similar, null, images);
+      return new Result(found.candidates(), found.excludedCount(), false, true, false);
+    } catch (ExternalApiException incomplete) {
+      return byName;
+    }
   }
 
   /** V3-REG-002: 함량 일치 · 확인 불가 · 다름 순을 먼저 두고, 그 안에서 기존 순서(취하 뒤로, 같은 이름 · 제약사 앞으로)를 씀. */

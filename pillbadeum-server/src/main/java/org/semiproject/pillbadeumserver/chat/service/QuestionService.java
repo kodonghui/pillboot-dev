@@ -75,19 +75,23 @@ public class QuestionService {
             reported.stage(ChatStage.UNDERSTANDING);
             var context = store.classificationContext(sessionId, memberId, profileId);
             var plan = classifier.plan(question, context);
-            if (!plan.category().isPassed()) return QuestionResponse.blocked(plan.category());
+            // 2026-11-08 QA: 응급·자해 안내 뒤 30분 안의 이어 말('괜찮겠지?'·'119 안 부르면 안돼?')은 이어 말 안내로 막는다
+            if (!plan.category().isPassed()) return plan.afterEmergency()
+                    ? QuestionResponse.blocked(plan.category(), plan.category().followUpMessage())
+                    : QuestionResponse.blocked(plan.category());
             // V3-CHAT-001: 통과한 질문만 의도를 가른다. 등록 요청은 등록 제안 카드(V3-CHAT-002)로,
             // 일정 요청은 일정 제안 카드(V3-CHAT-007)로 답한다.
             String request = request(sessionId, question, null);
-            var intent = intents.read(request, context.myDrugNames(), reported);
+            // 2026-11-08: 바로 앞 대화와 함께 가른다('약목록 전부', '아니 전부 넣어달라고'를 앞 요청에 잇기).
+            var intent = intents.read(request, context.myDrugNames(), context.recentTurns(), reported);
             reported.check();
             var saved = store.save(sessionId, memberId, profileId, question);
             if (intent.kind() == QuestionIntent.Kind.REGISTER_DRUG)
                 return QuestionResponse.answered(saved, registrations.propose(sessionId, memberId, profileId, saved,
                         intent.drugMentions(), reported, false));
             if (intent.kind() == QuestionIntent.Kind.SCHEDULE_CHANGE)
-                return QuestionResponse.answered(saved, schedules.propose(sessionId, memberId, profileId, saved, request,
-                        intent.targetMyDrugName(), reported, false));
+                return QuestionResponse.answered(saved, schedule(sessionId, memberId, profileId, saved, request, intent,
+                        reported, false));
             return QuestionResponse.answered(saved, answers.complete(sessionId, memberId, profileId, saved, reported, plan));
         });
     }
@@ -122,14 +126,15 @@ public class QuestionService {
             // 등록·일정 요청이었던 질문은 다시 보내도 제안 카드로 답한다(V3-CHAT-002·007).
             // 처음 보낼 때처럼 'N번'은 저장된 질문 앞 턴의 후보 목록으로 바꿔 가른다
             String request = request(sessionId, store.questionContent(sessionId, question), question.turnNo());
-            var intent = intents.read(request, store.classificationContext(sessionId, memberId, profileId).myDrugNames(), reported);
+            var intent = intents.read(request, store.classificationContext(sessionId, memberId, profileId).myDrugNames(),
+                    store.recentTurns(sessionId, question.turnNo()), reported);
             reported.check();
             if (intent.kind() == QuestionIntent.Kind.REGISTER_DRUG)
                 return QuestionResponse.answered(question, registrations.propose(sessionId, memberId, profileId, question,
                         intent.drugMentions(), reported, true));
             if (intent.kind() == QuestionIntent.Kind.SCHEDULE_CHANGE)
-                return QuestionResponse.answered(question, schedules.propose(sessionId, memberId, profileId, question, request,
-                        intent.targetMyDrugName(), reported, true));
+                return QuestionResponse.answered(question, schedule(sessionId, memberId, profileId, question, request, intent,
+                        reported, true));
             return QuestionResponse.answered(question, answers.retry(sessionId, memberId, profileId, question, reported));
         });
     }
@@ -143,6 +148,18 @@ public class QuestionService {
         if (question == null || !question.matches("(?s).*[1-5]\\s*번.*")) return question;
         String named = lookup.withChoiceNames(question, store.answerBefore(sessionId, beforeTurn));
         return named == null ? question : named;
+    }
+
+    /**
+     * 일정 요청을 일정 제안으로. 약 이름 없이 '저녁 약은 7시 말고 9시로'처럼 한 때에 먹는 약들을 가리키면 보낸 글 그대로 그 때에
+     * 먹는 약들로 보낸다(2026-11-08 QA 시나리오 01 다시 돌림: 의도 읽기가 대상을 정하지 못해 어느 약이냐고 되물음, 두 번 중 두 번).
+     */
+    private QuestionResponse.Answer schedule(Long sessionId, Long memberId, Long profileId, QuestionResponse.Question question,
+                                             String request, QuestionIntent intent, ChatDeadline deadline, boolean retry) {
+        boolean slotGroup = intent.targetMyDrugNames().isEmpty() && ScheduleDraft.slotGroup(request) != null;
+        String text = slotGroup || intent.request() == null ? request : intent.request();
+        return schedules.propose(sessionId, memberId, profileId, question, text, intent.targetMyDrugNames(),
+                slotGroup || intent.allMyDrugs(), deadline, retry);
     }
 
     private void lock(Long sessionId) {

@@ -176,6 +176,26 @@ class PhotoCandidateLookupTests {
     });
   }
 
+  // PR #77 Codex 리뷰 뒤: 보험코드의 품목이 읽은 이름·함량과 맞지 않으면 코드로 맞췄다고 보지 않고 충돌로 알림
+  @Test
+  void aCodeWhoseProductDisagreesWithTheReadNameOrStrengthIsAConflict() {
+    var coded = row("900001", "합성룩펠정10밀리그램"); coded.put("EDI_CODE", "640000001");
+    when(client.get(eq(DrugSyncService.PERMIT_INFO_PATH), argThat((Map<String, ?> p) -> "640000001".equals(p.get("edi_code")))))
+        .thenReturn(json.valueToTree(Map.of("items", List.of(coded))));
+    when(catalog.cachedImageUrls(anySet())).thenReturn(Map.of());
+    var agrees = lookup.prescriptionResult("합성룩펠정10mg", null, "640000001");
+    assertThat(agrees.byCode()).isTrue();
+    assertThat(agrees.codeConflict()).isFalse();
+    var strength = lookup.prescriptionResult("합성룩펠정5mg", null, "640000001");
+    assertThat(strength.byCode()).isFalse();
+    assertThat(strength.codeConflict()).isTrue();
+    assertThat(strength.candidates()).singleElement().satisfies(c -> assertThat(c.itemSeq()).isEqualTo("900001"));
+    assertThat(lookup.prescriptionResult("벨토라정", null, "640000001").codeConflict()).as("다른 이름").isTrue();
+    var codeOnly = lookup.prescriptionResult("", null, "640000001");
+    assertThat(codeOnly.byCode()).isTrue();
+    assertThat(codeOnly.codeConflict()).isFalse();
+  }
+
   static Map<String, Object> row(String code, String name) {
     return new LinkedHashMap<>(
         Map.of("ITEM_SEQ", code, "ITEM_NAME", name, "ENTP_NAME", "합성제약", "ETC_OTC_NAME", "일반의약품"));

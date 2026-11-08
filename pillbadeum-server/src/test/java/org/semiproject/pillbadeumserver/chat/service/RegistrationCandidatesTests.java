@@ -11,6 +11,7 @@ import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.common.external.PublicDataClient;
 import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.drug.service.DrugSearchService;
+import org.semiproject.pillbadeumserver.drug.service.DrugSyncService;
 import org.semiproject.pillbadeumserver.image.service.PillCatalog;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import tools.jackson.databind.json.JsonMapper;
@@ -115,5 +116,80 @@ class RegistrationCandidatesTests {
         when(data.get(eq(DrugSearchService.SEARCH_PATH), anyMap(), any(Duration.class)))
                 .thenThrow(ExternalApiException.failed("공공데이터포털", "장애", null));
         assertThatThrownBy(() -> find("타이레놀 500")).isInstanceOf(ExternalApiException.class);
+    }
+
+    // ---- 2026-11-08 카톡 기록: 보험코드를 같이 보내도, '200미리'로 써도, 이름을 조금 틀려도 찾지 못함 ----
+
+    private Map<String, Object> coded(String code, String name, String edi) {
+        var row = new java.util.HashMap<String, Object>(row(code, name));
+        row.put("EDI_CODE", edi);
+        return row;
+    }
+
+    private void byCode(String edi, List<Map<String, Object>> rows) {
+        when(data.get(eq(DrugSyncService.PERMIT_INFO_PATH), argThat(params -> edi.equals(params.get("edi_code"))),
+                any(Duration.class))).thenReturn(json.valueToTree(Map.of("totalCount", rows.size(), "items", rows)));
+    }
+
+    @Test
+    void aNineDigitInsuranceCodeIsLookedUpFirstAndPreselectedWhenTheNameAgrees() {
+        byCode("640000001", List.of(coded("199900021", "가상스텐캡슐200밀리그램", "640000001")));
+        var found = find("640000001 가상스텐캡슐 200mg").getFirst();
+        assertThat(found).singleElement().satisfies(c -> {
+            assertThat(c.drug().itemSeq()).isEqualTo("199900021");
+            assertThat(c.strength()).isEqualTo(StrengthMatch.MATCH);
+            assertThat(c.mention()).isEqualTo("640000001 가상스텐캡슐 200mg");
+            assertThat(c.similar()).isFalse();
+        });
+    }
+
+    @Test
+    void aCodeWhoseProductDisagreesWithTheWrittenNameIsShownButNotPreselected() {
+        byCode("640000002", List.of(coded("199900022", "가리몬정10밀리그램", "640000002")));
+        var found = find("640000002 벨토라정").getFirst();
+        assertThat(found).singleElement().satisfies(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.UNKNOWN));
+    }
+
+    // PR #77 Codex 리뷰: 코드가 다른 함량 품목을 가리켜도 일치로 미리 골랐음. '함량 다름'이면 카톡 다리도 미리 고르지 않음
+    @Test
+    void aCodeWhoseProductHasAnotherStrengthThanTheWrittenOneIsMarkedDifferent() {
+        byCode("640000003", List.of(coded("199900023", "가상룩펠정10밀리그램", "640000003")));
+        assertThat(find("640000003 가상룩펠정 5mg").getFirst()).singleElement()
+                .satisfies(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.DIFFERENT));
+        byCode("640000001", List.of(coded("199900021", "가상스텐캡슐200밀리그램", "640000001")));
+        assertThat(find("640000001 가상스텐캡슐 200미리").getFirst()).as("'200미리'는 이름 찾기처럼 200mg").singleElement()
+                .satisfies(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.MATCH));
+    }
+
+    @Test
+    void anUnknownNameOffersSimilarNamesWithoutPreselecting() {
+        when(catalog.cachedRows()).thenReturn(List.of(json.valueToTree(row("199900031", "가상뮤코스텐캡슐200밀리그램"))));
+        var found = find("가상유코스텐스캡슐20g").getFirst();
+        assertThat(found).singleElement().satisfies(c -> {
+            assertThat(c.drug().itemSeq()).isEqualTo("199900031");
+            assertThat(c.similar()).isTrue();
+            assertThat(c.strength()).isEqualTo(StrengthMatch.UNKNOWN);
+        });
+    }
+
+    @Test
+    void shortUnitsAreReadAsMilligramsForTabletsAndMillilitresForSyrups() {
+        assertThat(RegistrationCandidates.searchName("가상스텐캡슐 200미리")).isEqualTo("가상스텐캡슐 200mg");
+        assertThat(RegistrationCandidates.searchName("가상기침시럽 20미리")).isEqualTo("가상기침시럽 20mL");
+        assertThat(RegistrationCandidates.searchName("가상정 5밀리그램")).isEqualTo("가상정 5밀리그램");
+    }
+
+    // 2026-11-08 QA: 처방전의 시럽 '20'이 '1회 20개'로 보였음. 단위를 알 수 없는 물약(포 현탁액·점안액·건조시럽)은 그대로 둔다.
+    @Test
+    void onlySyrupProductsReadThePrescriptionDoseInMillilitres() {
+        assertThat(RegistrationCandidates.liquidProduct("가상기침시럽")).isTrue();
+        assertThat(RegistrationCandidates.liquidProduct("가상기침시럽 100밀리리터")).isTrue();
+        assertThat(RegistrationCandidates.liquidProduct("가상해열시럽(가상성분)")).isTrue();
+        assertThat(RegistrationCandidates.liquidProduct("가상위장현탁액")).isFalse();
+        assertThat(RegistrationCandidates.liquidProduct("가상점안액0.1%")).isFalse();
+        assertThat(RegistrationCandidates.liquidProduct("가상항생건조시럽")).isFalse();
+        assertThat(RegistrationCandidates.liquidProduct("가상액티정")).isFalse();
+        assertThat(RegistrationCandidates.liquidProduct("가상스텐캡슐200밀리그램")).isFalse();
+        assertThat(RegistrationCandidates.liquidProduct(null)).isFalse();
     }
 }

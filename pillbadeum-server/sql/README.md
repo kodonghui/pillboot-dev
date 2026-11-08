@@ -1,7 +1,7 @@
 # MySQL 설치와 기존 DB 갱신
 
-- 앱 SQL은 00~14·16·17의 **17개**임. 새 설치 구조00·01, 선택 샘플02, 기존 구조 변경03~12·14·16·17, 기본 가입 약관13으로 구성함. 15(관계 값)는 SQL 변경이 필요 없어 비워 둠.
-- 최신01은 23개 테이블·189개 컬럼과 승인된 제약을 포함함. 성분명은 material TEXT NOT NULL임. 새 DB는 구조 패치03~12·14·16·17을 거칠 필요가 없음.
+- 앱 SQL은 00~14·16~18의 **18개**임. 새 설치 구조00·01, 선택 샘플02, 기존 구조 변경03~12·14·16~18, 기본 가입 약관13으로 구성함. 15(관계 값)는 SQL 변경이 필요 없어 비워 둠.
+- 최신01은 23개 테이블·195개 컬럼과 승인된 제약을 포함함. 성분명은 material TEXT NOT NULL임. 새 DB는 구조 패치03~12·14·16~18을 거칠 필요가 없음.
 - **신규 설치는00 → 01 → 13이며02는 선택임.** 약관은 샘플 계정과 분리되어13으로 준비함. 기존 DB는 누락된 구조 패치와13을 적용함.
 
 ## 처음 설치
@@ -37,9 +37,9 @@
 
 ## 기존 데이터를 보존하며 갱신할 때
 
-00~11을 모두 적용한 기존 DB는12 → 13 → 14 → 16만 대상 DB에서 실행함. ingredient_text_status·base_consent_status·drug_strength_status·chat_proposal_status의 READY를 확인함. 최신01을 다시 실행해 기존 컬럼이 바뀌기를 기대하지 않음.
+00~11을 모두 적용한 기존 DB는12 → 13 → 14 → 16 → 17 → 18만 대상 DB에서 실행함. ingredient_text_status·base_consent_status·drug_strength_status·chat_proposal_status·kakao_link_status·chat_proposal_prescription_status의 READY를 확인함(16의 확인 쿼리는 18 전·뒤 칸 수를 모두 받아 18 뒤에 16을 다시 돌려도 READY임). 최신01을 다시 실행해 기존 컬럼이 바뀌기를 기대하지 않음.
 
-일부 변경이 빠진 기존 팀 DB는 아래 명령으로03~12 → 13 → 14 → 16을 순서대로 적용함. 01·02는 실행하지 않음.
+일부 변경이 빠진 기존 팀 DB는 아래 명령으로03~12 → 13 → 14 → 16 → 17 → 18을 순서대로 적용함. 01·02는 실행하지 않음.
 
 ```powershell
 .\scripts\setup-local-db.ps1 -UpgradeExisting
@@ -55,7 +55,7 @@
 | 파일 | 용도 |
 | --- | --- |
 | `00_PILLBADEUM_DB_CREAT.sql` | 개발 DB·계정 준비임. 기존 계정 비밀번호는 바꾸지 않음. |
-| `01_PILLBADEUM_DB_SCRIPT.sql` | 새 설치용 최신 전체 구조임. 23표·189열·PK23·FK32·UNIQUE10·CHECK15임. |
+| `01_PILLBADEUM_DB_SCRIPT.sql` | 새 설치용 최신 전체 구조임. 23표·195열·PK23·FK32·UNIQUE10·CHECK16임. |
 | `02_PILLBADEUM_TEST_DATA.sql` | 빈 개발 DB의 선택 샘플임. |
 | `03_MEDICATION_UPDATE.sql` | 기존 DB의 컬럼명 오타·직접 입력 약·일정 NULL·푸시 구조 갱신임. |
 | `04_MY_DRUG_COMPOSITE_UNIQUE.sql` | 동일 프로필·품목 중복 방지임. item_seq=NULL인 직접 입력 약은 허용함. |
@@ -71,9 +71,10 @@
 | `14_DRUG_STRENGTH.sql` | V3-DRUG-001: drug에 기본 이름·함량 원문·μg 값·표시 단위 칸을 더함. 기존 행 값은 바꾸지 않고 빈 칸으로 둠. |
 | `16_CHAT_PROPOSAL.sql` | V3-CHAT-002~005·007: 대화 속 등록 제안·일정 제안 표 3개(chat_proposal·chat_proposal_item·chat_proposal_schedule)를 더함. 기존 표·값은 바꾸지 않음. 등록 방법 값 `CHAT`은 my_drug.source varchar(30)에 들어가 구조 변경 없음. |
 | `17_KAKAO_LINK.sql` | V3-KAKAO-012~016(DEC-029): 카톡 약봉이를 웹 회원에 잇는 연결 코드 표 `kakao_link_code`·연결 표 `kakao_link`를 더하고, chat_session에 연 곳 `channel`(WEB/KAKAO, 기본 WEB)을 더함. 기존 행은 모두 WEB으로 둠. 코드 원문·카카오 사용자 키 원문은 두지 않음(SHA-256·HMAC만). |
+| `18_CHAT_PROPOSAL_PRESCRIPTION.sql` | 2026-11-08 약봉이 카톡 개선: 등록 제안 항목에 처방전의 1회 투약량·1일 횟수·총 일수(`rx_dose`·`rx_daily_count`·`rx_days`)와 확정 때 처방대로 일정을 넣었는지(`rx_applied`)를 더하고, 일정 제안에 약마다 한 줄(`item_no` 1~10, PK를 (proposal_id, item_no)로)과 확정 전에 볼 점(`note`)을 더함. 기존 일정 제안은 1번 줄이 되고 기존 값은 바꾸지 않음. |
 
 - 01의 CREATE TABLE IF NOT EXISTS는 같은 최신 구조 재실행에서 기존 값을 보존함. 기존 컬럼 변경·다른 10/15개 테이블 설계의 자동 이관 기능은 아님.
-- 03~11의 순서와 파일명은 기존 적용 이력을 위해 유지함. 새 변경12·13·14·16·17을 뒤에 추가함.
+- 03~11의 순서와 파일명은 기존 적용 이력을 위해 유지함. 새 변경12·13·14·16·17·18을 뒤에 추가함.
 
 ## 16 제안 표의 규칙 (H-10)
 

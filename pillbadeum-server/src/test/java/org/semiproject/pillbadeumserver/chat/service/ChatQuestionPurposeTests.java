@@ -61,4 +61,19 @@ class ChatQuestionPurposeTests {
     void otherWordsAreNot(String question) {
         assertThat(ChatQuestionPurpose.extraDose(question)).isFalse();
     }
+
+    // 2026-11-08 카톡 기록: 일정 이야기 답에 '확인하지 못한 약' 금기 카드가 붙음
+    @ParameterizedTest
+    @ValueSource(strings = {"아침 점심 저녁, 복용할 양은 한알씩", "식후 30분. 9시, 13시, 19시", "약목록 전부 오늘부터 3일간",
+            "20미리라고", "하루 3번으로"})
+    void settingTimesAmountsOrDaysIsScheduleTalk(String question) {
+        assertThat(ChatQuestionPurpose.scheduleTalk(question)).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"아침에 같이 먹어도 돼?", "가상정 부작용 알려줘", "9시에 술 마셔도 돼?", "알림 설정은 어디에 있어?",
+            "저녁에 금기 있어?"})
+    void safetyQuestionsOrOtherTalkAreNotScheduleTalk(String question) {
+        assertThat(ChatQuestionPurpose.scheduleTalk(question)).isFalse();
+    }
 }

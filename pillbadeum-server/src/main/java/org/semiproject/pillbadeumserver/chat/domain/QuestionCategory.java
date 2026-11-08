@@ -39,4 +39,25 @@ public enum QuestionCategory {
     public String noticeMessage() {
         return noticeMessage;
     }
+
+    /**
+     * 2026-11-08 QA(과다 복용을 말한 뒤 '괜찮겠지?'·'119 안 부르면 안돼?'에 안심시키는 답): 응급·자해 안내 뒤 30분 안에
+     * 이어 묻는 말에 쓰는 고정 안내. 앞 상황을 다시 묻지 않고, 지금 괜찮아 보여도 늦게 나빠질 수 있다고 알린다.
+     * 응급·자해가 아니면 처음 안내와 같다.
+     */
+    public String followUpMessage() {
+        return switch (this) {
+            case EMERGENCY -> "앞서 말씀하신 상황이면 지금은 괜찮아 보여도 늦게 나빠질 수 있어요. "
+                    + "지금 바로 119에 전화하거나 가까운 응급실로 가 주세요.";
+            case SELF_HARM -> "앞서 말씀하신 일이 걱정돼요. 약을 많이 드셨다면 지금은 괜찮아 보여도 늦게 나빠질 수 있어요. "
+                    + "지금 바로 119에 전화하거나 가까운 응급실로 가 주세요. "
+                    + "마음이 많이 힘드시다면 자살예방상담전화 109에서도 도움을 받을 수 있어요.";
+            default -> noticeMessage;
+        };
+    }
+
+    /** 응급 안내로 막는 분류(EMERGENCY·SELF_HARM). */
+    public boolean isEmergency() {
+        return this == EMERGENCY || this == SELF_HARM;
+    }
 }

@@ -90,11 +90,30 @@ public class RegistrationProposalService {
         return picked;
     }
 
-    /** 카드를 설명하는 답변 글. 후보를 하나도 찾지 못한 이름은 다시 말해 달라고 덧붙인다. */
+    /**
+     * 카드를 설명하는 답변 글. 후보를 하나도 찾지 못한 이름은 다시 말해 달라고 덧붙이고, 비슷한 이름으로만 찾은 이름은
+     * 맞는 약인지 확인해 달라고 덧붙인다(2026-11-08). 이름은 ‘ ’로 감싼다(카톡에서 '가 &#39;로 보이는 일을 막음).
+     */
     static String describe(List<String> mentions, List<List<RegistrationCandidates.Candidate>> found) {
         var missing = new ArrayList<String>();
-        for (int i = 0; i < mentions.size(); i++) if (found.get(i).isEmpty()) missing.add("'" + mentions.get(i) + "'");
-        if (missing.isEmpty()) return FOUND;
-        return FOUND + "\n찾지 못한 이름: " + String.join(", ", missing) + ". 포장에 적힌 제품명과 함량으로 다시 말해 주세요.";
+        var similar = new ArrayList<String>();
+        for (int i = 0; i < mentions.size(); i++) {
+            if (found.get(i).isEmpty()) missing.add(quote(mentions.get(i)));
+            else if (found.get(i).stream().allMatch(RegistrationCandidates.Candidate::similar)) similar.add(quote(mentions.get(i)));
+        }
+        var out = new StringBuilder(FOUND);
+        if (!similar.isEmpty()) out.append("\n").append(SIMILAR).append(" ").append(String.join(", ", similar))
+                .append(". 이름이 꼭 맞는 약이 없어 비슷한 이름을 보여 드려요. 맞는 약인지 확인해 주세요.");
+        if (!missing.isEmpty()) out.append("\n").append(MISSING).append(" ").append(String.join(", ", missing))
+                .append(". 포장에 적힌 제품명과 함량으로 다시 말해 주세요.");
+        return out.toString();
+    }
+
+    /** 카톡 다리가 이 줄을 골라 보여 준다(카톡 다리 proposal.py). 문구를 바꾸면 다리도 함께 바꾼다. */
+    static final String MISSING = "찾지 못한 이름:";
+    static final String SIMILAR = "비슷한 이름으로 찾은 약:";
+
+    static String quote(String name) {
+        return "‘" + name + "’";
     }
 }

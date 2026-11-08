@@ -51,7 +51,33 @@ function conflictText(items) {
   return `고른 약 중 ${quoted}${iAfter(names.at(-1))} 그사이 약목록에 들어가 있어서 아무것도 넣지 않았어요. 나머지를 확인하고 다시 넣어 주세요.`
 }
 
-// 후보 한 줄의 이름 · 함량 비교(또는 이미 등록됨) · 제약사
+// 시럽 처방의 1회 양('20mL', 서버 PrescriptionDose.liquidAmount). 아니면 null.
+function liquidAmount(rx) {
+  return /^[0-9]{1,3}(\.[0-9]{1,2})?mL$/.test(rx?.dosePerTime ?? '') ? rx.dosePerTime : null
+}
+
+// 처방전 한 줄에서 읽은 값(인쇄된 그대로). 읽지 못한 칸은 뺀다. 예) '처방전: 1회 1개 · 하루 3번 · 3일분'.
+// 2026-11-08 QA: 시럽은 '1회 20개'가 아니라 '1회 20mL'
+function prescriptionText(rx) {
+  const parts = [
+    rx.dosePerTime != null && `1회 ${liquidAmount(rx) ?? `${rx.dosePerTime}개`}`,
+    rx.dailyCount != null && `하루 ${rx.dailyCount}번`,
+    rx.totalDays != null && `${rx.totalDays}일분`,
+  ].filter(Boolean)
+  return parts.length > 0 ? `처방전: ${parts.join(' · ')}` : null
+}
+
+// 처방전 값이 일정 저장 규칙(1회 정수 1~10개 · 하루 1~3번 · 1~365일)에 그대로 들어가는지. 서버(PrescriptionDose)와 같은 규칙이다.
+// 0.5처럼 정수가 아닌 1회 투약량은 일정에 넣지 않는다. 시럽의 1회 양('20mL')은 1회 1개와 복용 때 '1회 20mL'로 넣는다.
+function schedulable(rx) {
+  if (!rx || !(rx.dailyCount >= 1 && rx.dailyCount <= 3 && rx.totalDays >= 1 && rx.totalDays <= 365)) return false
+  if (liquidAmount(rx)) return true
+  if (!/^[0-9]+(\.0+)?$/.test(rx.dosePerTime ?? '')) return false
+  const dose = Number(rx.dosePerTime)
+  return dose >= 1 && dose <= 10
+}
+
+// 후보 한 줄의 이름 · 함량 비교(또는 이미 등록됨) · 제약사 · 처방전 값
 function ItemBody({ item }) {
   return (
     <span className="chat-proposal__body">
@@ -67,6 +93,9 @@ function ItemBody({ item }) {
         <StrengthMatchBadge match={item.strengthMatch} />
       )}
       {item.maker && <span className="screen-caption chat-proposal__muted">{item.maker}</span>}
+      {item.prescription && prescriptionText(item.prescription) && (
+        <span className="screen-caption chat-proposal__muted">{prescriptionText(item.prescription)}</span>
+      )}
     </span>
   )
 }
@@ -75,6 +104,7 @@ function ItemBody({ item }) {
 function DoneCard({ proposal, titleId, announce, notice }) {
   const chosen = proposal.items.filter((item) => item.chosen)
   const rest = proposal.items.filter((item) => !item.chosen && !item.alreadyRegistered).length
+  const applied = chosen.filter((item) => item.prescription?.applied).length
   return (
     <section className="chat-proposal chat-proposal--done" aria-labelledby={titleId}>
       {notice && <Notice variant="info">{notice}</Notice>}
@@ -88,8 +118,15 @@ function DoneCard({ proposal, titleId, announce, notice }) {
         {chosen.map((item) => (
           <li key={item.itemNo}>
             <DrugThumb imageUrl={item.imageUrl} size="sm" />
-            <span className="screen-body chat-proposal__name">
-              <StrengthName name={item.name} baseName={item.baseName} strengthText={item.strengthText} />
+            <span className="chat-proposal__body">
+              <span className="screen-body chat-proposal__name">
+                <StrengthName name={item.name} baseName={item.baseName} strengthText={item.strengthText} />
+              </span>
+              {item.prescription?.applied && (
+                <span className="screen-caption chat-proposal__muted">
+                  처방대로 오늘부터 {item.prescription.totalDays}일 · 하루 {item.prescription.dailyCount}번 일정을 넣었어요
+                </span>
+              )}
             </span>
           </li>
         ))}
@@ -99,7 +136,7 @@ function DoneCard({ proposal, titleId, announce, notice }) {
       </p>
       <Link className="mt-btn mt-btn--assistive mt-btn--sm" to={paths.drugs}>
         <Icon name="list" />
-        약목록에서 복용 시각 정하기
+        {applied > 0 ? '약목록에서 복용 시각 확인하기' : '약목록에서 복용 시각 정하기'}
       </Link>
     </section>
   )
@@ -138,6 +175,8 @@ function ChatProposal({ proposal, fromPhoto, onChange }) {
   const [auto] = useState(() => autoPicks(proposal.items))
   // 고른 후보. 묶음 → itemNo · 'skip'(넣지 않음). 없으면 아직 고르지 않음
   const [picks, setPicks] = useState(auto)
+  // 처방전 값으로 일정도 넣기. 처방전 사진 카드에서만 보이고, 처음에는 켜 둔다(확정 전에 끌 수 있음).
+  const [withSchedule, setWithSchedule] = useState(true)
   // 누르고 응답을 기다리는 버튼: 'confirm' · 'cancel'
   const [busy, setBusy] = useState(null)
   const [problem, setProblem] = useState(null)
@@ -179,6 +218,9 @@ function ChatProposal({ proposal, fromPhoto, onChange }) {
   const selectable = new Set(proposal.items.filter((item) => !item.alreadyRegistered).map((item) => item.itemNo))
   const itemNos = groups.map((group) => picks[group.mention]).filter((no) => selectable.has(no))
   const allRegistered = selectable.size === 0
+  // 고른 약 중 처방전 값으로 일정을 넣을 수 있는 약 수
+  const rxReady = proposal.items.filter((item) => itemNos.includes(item.itemNo) && schedulable(item.prescription)).length
+  const applyPrescription = withSchedule && rxReady > 0
 
   const choose = (mention, value) => setPicks((current) => ({ ...current, [mention]: value }))
 
@@ -204,7 +246,7 @@ function ChatProposal({ proposal, fromPhoto, onChange }) {
     setBusy('confirm')
     setProblem(null)
     setConflictNos([])
-    confirmChatProposal(proposal.proposalId, sent)
+    confirmChatProposal(proposal.proposalId, sent, applyPrescription)
       .then((next) => {
         if (!aliveRef.current) return
         setBusy(null)
@@ -331,6 +373,23 @@ function ChatProposal({ proposal, fromPhoto, onChange }) {
         })}
       </div>
       {allRegistered && <p className="screen-caption chat-proposal__muted">카드의 약이 모두 약목록에 있어요.</p>}
+      {rxReady > 0 && (
+        <label className="chat-proposal__rx">
+          <input
+            type="checkbox"
+            checked={withSchedule}
+            disabled={busy !== null}
+            onChange={(event) => setWithSchedule(event.target.checked)}
+          />
+          <span className="screen-body">
+            처방전 값으로 일정도 넣기({rxReady}개)
+            <span className="screen-caption chat-proposal__muted chat-proposal__rx-help">
+              오늘부터 처방 일수만큼, 하루 횟수에 맞춰 07:00 · 12:00 · 17:00 중 앞에서부터 넣어요. 반 알처럼 개수로 넣을 수 없는
+              약은 약만 넣어요.
+            </span>
+          </span>
+        </label>
+      )}
       {problem && (
         <Notice variant="negative" role="alert">
           {problem}
@@ -351,7 +410,11 @@ function ChatProposal({ proposal, fromPhoto, onChange }) {
           취소
         </button>
       </div>
-      <p className="screen-caption chat-proposal__muted">넣은 약의 복용 시각·1회 개수는 약목록에서 정해요.</p>
+      <p className="screen-caption chat-proposal__muted">
+        {applyPrescription
+          ? '넣은 약의 복용 시각·1회 개수는 약목록에서 바꿀 수 있어요.'
+          : '넣은 약의 복용 시각·1회 개수는 약목록에서 정해요.'}
+      </p>
     </section>
   )
 }

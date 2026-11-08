@@ -122,8 +122,10 @@ export async function getChatProposal(proposalId) {
 
 // ChatProposalController.confirm — POST /api/chat-proposals/{proposalId}/confirm
 // itemNos: 등록 제안에서 고른 항목 번호. 일정 제안은 넘기지 않는다(본문 없음).
-export async function confirmChatProposal(proposalId, itemNos) {
-  const { data } = await client.post(`/api/chat-proposals/${proposalId}/confirm`, itemNos ? { itemNos } : undefined)
+// applyPrescription: 처방전 사진에서 읽은 1회 투약량 · 1일 횟수 · 총 일수로 일정도 함께 넣기(2026-11-08, 등록 카드만)
+export async function confirmChatProposal(proposalId, itemNos, applyPrescription) {
+  const body = itemNos ? { itemNos, ...(applyPrescription ? { applyPrescription: true } : {}) } : undefined
+  const { data } = await client.post(`/api/chat-proposals/${proposalId}/confirm`, body)
   return data
 }
 

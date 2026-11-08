@@ -32,6 +32,8 @@ if ($UpgradeExisting) { $sqlFiles += '14_DRUG_STRENGTH.sql' }
 if ($UpgradeExisting) { $sqlFiles += '16_CHAT_PROPOSAL.sql' }
 # V3-KAKAO-012: the KakaoTalk link tables and chat_session.channel are already in 01; existing databases add them after 16.
 if ($UpgradeExisting) { $sqlFiles += '17_KAKAO_LINK.sql' }
+# 2026-11-08: prescription values on proposal items and multi-drug schedule proposals are already in 01; existing databases add them after 17.
+if ($UpgradeExisting) { $sqlFiles += '18_CHAT_PROPOSAL_PRESCRIPTION.sql' }
 if ($IncludeTestData) { $sqlFiles += '02_PILLBADEUM_TEST_DATA.sql' }
 $sqlPaths = $sqlFiles | ForEach-Object { Join-Path $projectRoot "sql/$_" }
 foreach ($sqlPath in $sqlPaths) {
@@ -78,8 +80,8 @@ $sqlText = ($sqlPaths | ForEach-Object {
 $sqlText += @'
 
 SELECT IF(
-    (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE())=21
-    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE())=171
+    (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE())=23
+    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE())=195
     AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
          AND table_name='drug' AND column_name='material' AND data_type='text' AND is_nullable='NO')=1,
     'READY','BLOCKED') AS current_schema_status;

@@ -348,6 +348,10 @@ paths:
         오고 약목록에는 저장하지 않음. 읽지 못함 → 다시 찍기 안내, 후보 없음 → 이름·함량을 글로 알려 달라는 안내, 판독·공공데이터
         장애 → 잠시 뒤 다시 보내 달라는 안내를 답변 글로 주고 `proposal`은 null임. 사진은 처리 뒤 바로 지우므로 다시 보내기는 없음.
         스트림 경로는 없음(화면이 기다림 표시를 함).
+        2026-11-08: 처방전 표의 줄에 9자리 보험코드(EDI 코드)가 보이면 그 코드로 허가정보를 먼저 찾고(응답의 `EDI_CODE`에 그 코드가
+        든 품목만 씀), 이름이 꼭 맞는 품목이 없으면 비슷한 이름의 공식 품목을 함량 '확인 불가'로 후보에 둠. 줄마다 인쇄된 1회 투약량·
+        1일 투여 횟수·총 투약 일수를 읽어 그 줄 후보의 `prescription`에 둠. 표에서 본 줄보다 읽은 약이 적으면 답변 글에
+        '처방전 표에서 약 N줄을 봤는데 M개만 읽었어요…' 줄을, 글자가 흐린 이름이 있으면 '글자가 흐려 확실하지 않은 이름: …' 줄을 붙임.
       parameters:
         - { name: sessionId, in: path, required: true, schema: { type: integer, format: int64 } }
       requestBody:
@@ -403,6 +407,10 @@ paths:
         등록 제안은 고른 항목(`itemNos`)만 등록 방법 `CHAT`으로 약목록에 저장함. 일정 제안은 본문 없이 보내며 대상 약의 일정을
         카드의 '바뀐 뒤'로 저장함. 상태 변경과 저장은 한 트랜잭션이고, 대기이며 만료 전인 제안만 확정됨. 같은 제안을 동시에 두 번
         확정해도 하나만 성공하고 다른 하나는 409임. 실패하면 아무것도 저장하지 않음.
+        2026-11-08: 등록 제안에 `applyPrescription: true`를 함께 보내면, 고른 항목 중 `prescription` 값이 일정 규칙(1회 정수 1~10개·
+        하루 1~3번·1~365일)에 맞는 약은 오늘부터 총 일수만큼, 하루 횟수만큼 기본 시각(07:00·12:00·17:00 앞에서부터)과 1회 개수로
+        일정도 같은 트랜잭션에서 저장하고 그 항목의 `prescription.applied`가 true임. 0.5처럼 정수가 아닌 1회 양은 일정 없이 약만 저장함.
+        일정 제안이 약 여러 개(`schedules`)면 모든 약의 일정을 한 번에 저장하고, 한 약이라도 저장할 수 없으면 아무 약도 바꾸지 않음.
       parameters:
         - { name: proposalId, in: path, required: true, schema: { type: integer, format: int64 } }
       requestBody:
@@ -432,7 +440,8 @@ paths:
             - `CONFLICT`: 고른 약이 이미 약목록에 있음(카드를 만든 뒤 다른 경로로 먼저 저장된 경우 포함). 제안은 대기 그대로이고,
               `proposal`에서 그 항목이 `alreadyRegistered: true`로 보임
             - `SCHEDULE_CHANGED`: 일정 제안을 만든 뒤 대상 약의 일정이 바뀌었거나(카드의 `schedule.current`와 값으로 맞춰 봄)
-              대상 약이 지워짐. 제안은 대기 그대로이고 새 카드를 받아야 함
+              대상 약이 지워짐. 약 여러 개 제안이면 그중 한 약이라도 그러함(지운 약은 `schedules`의 그 줄 `myDrugId`가 null).
+              제안은 대기 그대로이고 새 카드를 받아야 함
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ChatProposalConflict' }
@@ -978,7 +987,15 @@ components:
           oneOf:
             - $ref: '#/components/schemas/ChatProposalSchedule'
             - type: 'null'
-          description: 일정 제안의 내용. 등록 제안은 null
+          description: 일정 제안의 내용(약 여러 개면 첫 줄). 등록 제안은 null
+        schedules:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { $ref: '#/components/schemas/ChatProposalSchedule' }
+          description: |
+            2026-11-08: 일정 제안의 모든 약 줄(카드 순서). 한 문장으로 여러 약의 일정을 말하면('전부 오늘부터 3일간 아침 점심 저녁 한 알씩')
+            한 제안에 약 여러 개가 오고 한 번에 확정함. 약 하나면 `schedule`과 같은 한 줄. 등록 제안은 칸이 없음
     ChatProposalItem:
       allOf:
         - type: object
@@ -1002,7 +1019,20 @@ components:
               type: [integer, 'null']
               format: int64
               description: 확정으로 만든 약목록 약. 고르지 않았거나, 그 약을 뒤에 지웠으면 null
+            prescription:
+              $ref: '#/components/schemas/ChatProposalPrescription'
         - $ref: '#/components/schemas/DrugStrengthFields'
+    ChatProposalPrescription:
+      type: object
+      description: |
+        2026-11-08: 처방전 사진 표에서 그 줄에 인쇄된 투약 값(읽은 그대로)과 확정 때 그 값으로 일정을 넣었는지.
+        글로 한 등록 제안이나 값을 읽지 못한 줄은 칸이 없음. 읽지 못한 칸은 null
+      required: [applied]
+      properties:
+        dosePerTime: { type: [string, 'null'], description: "1회 투약량. 0.5처럼 소수일 수 있어 글자임. 예) '1', '0.5'. 2026-11-08: 품목명이 '시럽'으로 끝나면(건조시럽 빼고) mL를 붙임. 예) '20mL'" }
+        dailyCount: { type: [integer, 'null'], description: 1일 투여 횟수 }
+        totalDays: { type: [integer, 'null'], description: 총 투약 일수 }
+        applied: { type: boolean, description: 확정 때 `applyPrescription`으로 이 값의 일정도 저장함 }
     ChatProposalSchedule:
       type: object
       required: [current, proposed]
@@ -1016,6 +1046,10 @@ components:
           description: 카드에 보일 약 이름. 약목록의 지금 이름(직접 입력한 약은 입력한 이름)이고, 그 약을 지웠으면 null
         current: { $ref: '#/components/schemas/ScheduleValues' }
         proposed: { $ref: '#/components/schemas/ScheduleValues' }
+        note:
+          type: string
+          description: |
+            2026-11-08: 확정 전에 볼 점(하루 횟수가 바뀜·시럽처럼 개수로 셀 수 없는 1회 양을 복용 때 칸에 적음 등). 없으면 칸이 없음
     ScheduleValues:
       type: object
       description: |
@@ -1046,6 +1080,11 @@ components:
           uniqueItems: true
           items: { type: integer, minimum: 1, maximum: 10 }
           description: 등록 제안에서 고른 항목 번호. 일정 제안에는 보내지 않음
+        applyPrescription:
+          type: boolean
+          description: |
+            2026-11-08: 등록 제안에서 고른 약의 처방전 값(`prescription`)으로 일정도 함께 저장함. 보내지 않으면 약만 저장함(웹 카드 기본은
+            켜 둔 체크, 카톡은 '모두 등록'이 true·'약만 등록'이 false). 일정 제안에서는 쓰지 않음
     ChatProposalConflict:
       description: 기존 공통 오류 모양(`code`·`message`)에 지금 제안 상태 `proposal`을 더함
       type: object

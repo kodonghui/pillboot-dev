@@ -219,6 +219,21 @@ class ChatDrugLookupTests {
                 .isEqualTo("가상약 효능 알려줘\n(후보에서 고른 제품: 가상약정20밀리그램. 위 질문에 이 제품으로 답해 주세요.)");
     }
 
+    // 2026-11-08 QA: 후보 목록 뒤 '술은?'·'고마워'마다 같은 후보 목록을 되풀이했음. 고를 제품을 가리킬 때만 목록을 다시 보인다.
+    @Test void aFollowupThatDoesNotPointAtAProductDoesNotRepeatTheChoices() {
+        extraction("LOOKUP","가상약");results(2,List.of(row("199900001","가상약정10밀리그램"),row("199900002","가상약정20밀리그램")));
+        var first=lookup.resolve(input("가상약 효능 알려줘",List.of()),ChatDeadline.after(Duration.ofSeconds(2)));
+        var recent=List.of(new AnswerInput.Turn(1,"가상약 효능 알려줘",sources.append(first.reply(),first.sources()),null,null));
+        extraction("FOLLOWUP","");
+        var drink=lookup.resolve(input("술은?",recent),ChatDeadline.after(Duration.ofSeconds(2)));
+        assertThat(drink.reply()).isNull();
+        assertThat(drink.medications()).isEmpty();
+        assertThat(lookup.resolve(input("그 약 성분은?",recent),ChatDeadline.after(Duration.ofSeconds(2))).reply())
+                .isEqualTo(first.reply());
+        assertThat(lookup.resolve(input("어느 제품이 나아?",recent),ChatDeadline.after(Duration.ofSeconds(2))).reply())
+                .startsWith(ChatDrugLookup.CHOICES);
+    }
+
     // 2026-11-04 운영 카톡: '1번 12시에 한알 먹을거라고'를 의도 가르기가 약목록 첫 약으로 읽어 다른 약의 일정 제안을 만듦
     @Test void aCandidateNumberWithMoreWordsBecomesThatCandidateName() {
         extraction("LOOKUP","가상약");results(2,List.of(row("199900001","가상어린이약산160밀리그램(성분)"),row("199900002","가상약정500밀리그람")));

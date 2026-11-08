@@ -153,13 +153,29 @@ public class OpenAiClient {
     /** 짧은 검색어 추출은 답변·요약 effort와 분리하며 출력 토큰 상한은 추가하지 않음. */
     public JsonNode createJson(String instructions, List<AiMessage> messages, int maxOutputTokens,
                                String schemaName, Map<String, Object> schema, String effort) {
+        return createJson(shortClient, instructions, messages, maxOutputTokens, schemaName, schema, effort);
+    }
+
+    /**
+     * 2026-11-08 QA(약 7개 일정 해석이 10초 읽기 한도에 걸려 '지금은 일정을 읽을 수 없어요'): 입력이 긴 구조화 출력은 답변과
+     * 같은 긴 읽기 한도(answer-read-timeout-ms)로 기다린다. 부르는 쪽이 자기 한도(deadline)로 먼저 끊는다.
+     * effort는 부르는 쪽이 정한다(값이 비면 공통 설정).
+     */
+    public JsonNode createJsonLongRead(String instructions, List<AiMessage> messages, int maxOutputTokens,
+                                       String schemaName, Map<String, Object> schema, String effort) {
+        return createJson(longClient, instructions, messages, maxOutputTokens, schemaName, schema,
+                effort == null || effort.isBlank() ? reasoningEffort : effort);
+    }
+
+    private JsonNode createJson(RestClient client, String instructions, List<AiMessage> messages, int maxOutputTokens,
+                                String schemaName, Map<String, Object> schema, String effort) {
         return withBackup("json:" + schemaName, () -> {
             Map<String, Object> body = requestBody(chatModel, instructions, toInput(messages), maxOutputTokens);
             if (effort == null || effort.isBlank()) body.remove("reasoning");
             else body.put("reasoning", Map.of("effort", effort));
             body.put("text", jsonSchemaFormat(schemaName, schema));
 
-            return parseJson(outputText(post(shortClient, "/responses", body, chatModel, false)));
+            return parseJson(outputText(post(client, "/responses", body, chatModel, false)));
         }, claude -> claude.json(ClaudeBackupClient.Kind.SHORT, instructions, messages, schema));
     }
 
@@ -214,7 +230,10 @@ public class OpenAiClient {
         List<Map<String, Object>> content = new ArrayList<>();
         content.add(Map.<String, Object>of("type", "input_text", "text", prompt));
         for (String imageDataUrl : imageDataUrls) {
-            content.add(Map.<String, Object>of("type", "input_image", "image_url", imageDataUrl));
+            // 2026-11-08: 처방전의 작은 글자(보험코드·투약량 칸, '룩'과 '록')를 줄여 읽지 않게 처방전만 high로 보낸다.
+            content.add(prescription
+                    ? Map.<String, Object>of("type", "input_image", "image_url", imageDataUrl, "detail", "high")
+                    : Map.<String, Object>of("type", "input_image", "image_url", imageDataUrl));
         }
         List<Map<String, Object>> input = List.of(Map.<String, Object>of("role", "user", "content", content));
 

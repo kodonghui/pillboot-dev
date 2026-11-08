@@ -69,7 +69,7 @@ class RegistrationProposalServiceTests {
                 .thenReturn(notice);
         assertThat(propose(List.of("타이레놀 500", "없는약"), ChatDeadline.after(Duration.ofSeconds(5)))).isSameAs(notice);
         verify(proposals).saveRegisterAnswer(eq(42L), eq(7L), eq(10L), eq(question),
-                eq(RegistrationProposalService.FOUND + "\n찾지 못한 이름: '없는약'. 포장에 적힌 제품명과 함량으로 다시 말해 주세요."),
+                eq(RegistrationProposalService.FOUND + "\n찾지 못한 이름: ‘없는약’. 포장에 적힌 제품명과 함량으로 다시 말해 주세요."),
                 eq(List.of(found.getFirst().getFirst())), any(), eq(false));
         assertThat(RegistrationProposalService.describe(List.of("가"), List.of(List.of(candidate("가", "1")))))
                 .isEqualTo(RegistrationProposalService.FOUND);

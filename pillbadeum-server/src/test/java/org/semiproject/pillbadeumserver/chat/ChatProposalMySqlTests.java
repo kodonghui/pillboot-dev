@@ -27,7 +27,7 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.test.context.ActiveProfiles;
 
-/** V3-CHAT-002~005·007(TASK-021): 16 패치와 제안 표의 제약, 한 번만 확정되는 상태 변경을 전용 pill_test에서 확인함. */
+/** V3-CHAT-002~005·007(TASK-021): 16·18 패치와 제안 표의 제약, 한 번만 확정되는 상태 변경을 전용 pill_test에서 확인함. */
 @SpringBootTest
 @ActiveProfiles("test")
 @EnabledIfEnvironmentVariable(named = "MYSQL_TEST_URL", matches = ".+")
@@ -72,32 +72,60 @@ class ChatProposalMySqlTests {
     }
 
     @Test
-    void patch16AddsTheSameProposalTablesToAnExistingDatabaseAndCanRunAgain() throws Exception {
+    void patches16And18AddTheSameProposalTablesToAnExistingDatabaseAndCanRunAgain() throws Exception {
         // 실제 표를 지우지 않도록 이름을 바꾼 사본에 적용함. 제약 이름도 표 이름을 품고 있어 함께 바뀜.
         String prefix = "t" + UUID.randomUUID().toString().substring(0, 8) + "_";
-        var script = new ByteArrayResource(Files.readString(Path.of("sql/16_CHAT_PROPOSAL.sql"))
-                .replace("chat_proposal", prefix + "chat_proposal").getBytes(StandardCharsets.UTF_8));
+        var patch16 = renamed("sql/16_CHAT_PROPOSAL.sql", prefix);
+        var patch18 = renamed("sql/18_CHAT_PROPOSAL_PRESCRIPTION.sql", prefix);
         String[] tables = {prefix + "chat_proposal_schedule", prefix + "chat_proposal_item", prefix + "chat_proposal"};
         try (var connection = dataSource.getConnection()) {
             try {
-                ScriptUtils.executeSqlScript(connection, script);
-                ScriptUtils.executeSqlScript(connection, script);   // 다시 적용해도 오류 없이 그대로임
+                ScriptUtils.executeSqlScript(connection, patch16);
+                ScriptUtils.executeSqlScript(connection, patch16);   // 다시 적용해도 오류 없이 그대로임
+                assertThat(columns(prefix + "chat_proposal_schedule")).as("18 전 구조").isEqualTo(4);
+
+                // 18 전에 만든 일정 제안 한 줄은 18 뒤 1번 줄이 됨(기존 값은 바꾸지 않음).
+                long legacy = insert("INSERT INTO " + prefix + "chat_proposal(member_id,profile_id,message_id,kind,created_at,"
+                        + "expires_at) VALUES(?,?,?,'SCHEDULE',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP + INTERVAL 30 MINUTE)",
+                        member, profile, message());
+                jdbc.update("INSERT INTO " + prefix + "chat_proposal_schedule(proposal_id,my_drug_id,current_schedule,"
+                        + "proposed_schedule) VALUES(?,NULL,'{}','{}')", legacy);
+
+                ScriptUtils.executeSqlScript(connection, patch18);
+                ScriptUtils.executeSqlScript(connection, patch18);   // 18도 다시 적용해도 그대로임
 
                 assertThat(columns(prefix + "chat_proposal")).isEqualTo(columns("chat_proposal")).isEqualTo(9);
-                assertThat(columns(prefix + "chat_proposal_item")).isEqualTo(columns("chat_proposal_item")).isEqualTo(8);
-                assertThat(columns(prefix + "chat_proposal_schedule")).isEqualTo(columns("chat_proposal_schedule")).isEqualTo(4);
+                assertThat(columns(prefix + "chat_proposal_item")).isEqualTo(columns("chat_proposal_item")).isEqualTo(12);
+                assertThat(columns(prefix + "chat_proposal_schedule")).isEqualTo(columns("chat_proposal_schedule")).isEqualTo(6);
                 assertThat(constraints(prefix + "chat_proposal", "CHECK")).isEqualTo(constraints("chat_proposal", "CHECK")).isEqualTo(4);
                 assertThat(constraints(prefix + "chat_proposal_item", "CHECK")).isEqualTo(3);
                 assertThat(constraints(prefix + "chat_proposal_item", "FOREIGN KEY")).isEqualTo(3);
+                assertThat(constraints(prefix + "chat_proposal_schedule", "CHECK"))
+                        .isEqualTo(constraints("chat_proposal_schedule", "CHECK")).isEqualTo(1);
+                assertThat(constraints(prefix + "chat_proposal_schedule", "FOREIGN KEY")).isEqualTo(2);
+                assertThat(primaryKey(prefix + "chat_proposal_schedule")).isEqualTo(primaryKey("chat_proposal_schedule"))
+                        .isEqualTo("proposal_id,item_no");
                 assertThat(jdbc.queryForObject("SELECT delete_rule FROM information_schema.referential_constraints "
                         + "WHERE constraint_schema=DATABASE() AND constraint_name=?", String.class,
                         "fk_" + prefix + "chat_proposal_item_my_drug")).isEqualTo("SET NULL");
+                assertThat(jdbc.queryForMap("SELECT item_no, note FROM " + prefix + "chat_proposal_schedule WHERE proposal_id=?",
+                        legacy)).containsEntry("item_no", 1).containsEntry("note", null);
             } finally {
                 try (var statement = connection.createStatement()) {
                     for (String table : tables) statement.execute("DROP TABLE IF EXISTS " + table);
                 }
             }
         }
+    }
+
+    private static ByteArrayResource renamed(String path, String prefix) throws Exception {
+        return new ByteArrayResource(Files.readString(Path.of(path)).replace("chat_proposal", prefix + "chat_proposal")
+                .getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String primaryKey(String table) {
+        return jdbc.queryForObject("SELECT GROUP_CONCAT(column_name ORDER BY ordinal_position) FROM information_schema.key_column_usage "
+                + "WHERE constraint_schema=DATABASE() AND table_name=? AND constraint_name='PRIMARY'", String.class, table);
     }
 
     @Test

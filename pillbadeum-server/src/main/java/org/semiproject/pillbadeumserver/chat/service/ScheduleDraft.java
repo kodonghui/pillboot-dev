@@ -92,6 +92,84 @@ final class ScheduleDraft {
         return scheduled ? current.doseTimes() : format(MyDrug.DEFAULT_DOSE_TIMES);
     }
 
+    // 2026-11-08 QA('저녁 약은 7시 말고 9시로 바꿔줘'가 07:00·12:00·17:00을 21:00 하나로 바꿈): 때 이름과 횟수를 줄이는 말
+    private static final Pattern SLOT = Pattern.compile("아침|점심|저녁");
+    // 그 끼에만 먹거나 하루 횟수를 직접 말한 경우('저녁에만'·'하루 두 번 아침 8시 저녁 9시'·'점심 빼고')는 말한 시각만 남긴다
+    private static final Pattern FEWER = Pattern.compile(
+            "에만|만\\s*먹|(?:한|1)\\s*번(?:씩)?만|하루\\s*(?:[1-4]|한|두|세|네)\\s*(?:번|회)|(?:[1-4]|한|두|세|네)\\s*번\\s*(?:먹|복용)|빼");
+    // 2026-11-08 QA 다시 돌림('둘 다 아침 8시 저녁 8시로 바꿔줘'가 점심을 남겨 08:00·13:00·20:00이 됨. 답변은 '8시·8시로 바뀐
+    // 일정이 없다'고 함): 때를 둘 이상 늘어놓은 말은 그 시각들로 바꾼다(줄면 카드에 '하루 3번에서 2번으로' 줄). 때마다
+    // '은·는'을 붙이거나('아침은 8시, 저녁은 9시로') '말고·대신'으로 고치면 그 때만 고친다
+    private static final Pattern TOPIC = Pattern.compile("(아침|점심|저녁)\\s*(?:약|거|것|에)?\\s*(?:은|는|엔)");
+    private static final Pattern INSTEAD = Pattern.compile("말고|대신");
+
+    /**
+     * 아침·점심·저녁 중 일부 때만 말하고 그 수만큼 시각을 말했으면(지금보다 적게, 하루 횟수는 말하지 않음) 지금 시각에서 그 때의
+     * 시각만 바꾼다. 때가 둘 이상이면 때마다 '은·는'을 붙였거나 '말고·대신'으로 고친 말만 그렇게 본다. 때와 말한 시각은
+     * 이른 것부터 짝짓고, 지금 시각의 때는 아침 11시 전·점심 11~15시·저녁 15시부터(그중 이른 시각)로 가른다. 그 때에 맞는 지금 시각이 없거나 '저녁에만'·'하루 한 번'·'빼'처럼 횟수를 줄이는 말이면 그대로 둔다.
+     */
+    static ParsedCommand slotEdit(String text, ParsedCommand parsed, ScheduleValues current) {
+        var said = parsed.doseTimes();
+        var now = current.doseTimes();
+        if (text == null || said == null || said.isEmpty() || now == null || said.size() >= now.size()) return parsed;
+        if (parsed.dailyCount() != null && parsed.dailyCount() != said.size() || FEWER.matcher(text).find()) return parsed;
+        var slots = SLOT.matcher(text).results().map(m -> m.group()).distinct()
+                .sorted(java.util.Comparator.comparingInt(ScheduleDraft::slotOrder)).toList();
+        if (slots.size() != said.size() || said.stream().anyMatch(t -> t == null || !TIME.matcher(t).matches())) return parsed;
+        if (slots.size() > 1 && !INSTEAD.matcher(text).find()
+                && !TOPIC.matcher(text).results().map(m -> m.group(1)).collect(java.util.stream.Collectors.toSet()).containsAll(slots))
+            return parsed;
+        var sorted = said.stream().sorted().toList();
+        var edited = new java.util.ArrayList<>(now);
+        var used = new HashSet<Integer>();
+        for (int i = 0; i < slots.size(); i++) {
+            int index = slotIndex(slots.get(i), now);
+            if (index < 0 || !used.add(index)) return parsed;
+            edited.set(index, sorted.get(i));
+        }
+        return new ParsedCommand(parsed.intent(), parsed.myDrugId(), parsed.startDate(), parsed.endDate(),
+                parsed.durationDays(), List.copyOf(edited), null, parsed.dosePerTime(), parsed.timing());
+    }
+
+    // 2026-11-08 QA 시나리오 01 다시 돌림('저녁 약은 7시 말고 9시로 바꿔줘'에 어느 약이냐고 되물음): '저녁 약'·'아침에 먹는 약'은
+    // 그 때에 먹는 약들. '아침 약속'·'저녁 약국'은 아님. '저녁 약으로 옮겨줘'의 '저녁 약으로'는 옮겨 갈 곳이라 대상이 아님
+    // (PR #77 Codex 리뷰: '약목록 전부 저녁 약으로 옮겨줘'가 저녁에 먹던 약만 골랐음)
+    private static final Pattern SLOT_GROUP =
+            Pattern.compile("(아침|점심|저녁)\\s*(?:에\\s*)?(?:먹는\\s*)?약(?![속국])(?!\\s*(?:으로|로))");
+
+    /** 글이 '저녁 약'처럼 한 때에 먹는 약들을 가리키면 그 때('저녁'). 없거나 두 때 이상이면 null. */
+    static String slotGroup(String text) {
+        if (text == null) return null;
+        var slots = SLOT_GROUP.matcher(text).results().map(m -> m.group(1)).distinct().toList();
+        return slots.size() == 1 ? slots.getFirst() : null;
+    }
+
+    /** 저장된 복용 시각 가운데 그 때(아침 11시 전·점심 11~15시·저녁 15시부터)에 드는 시각이 있음. 일정 없는 약은 false. */
+    static boolean takenAt(String slot, String storedDoseTimes) {
+        if (storedDoseTimes == null || storedDoseTimes.isBlank()) return false;
+        var times = Arrays.stream(storedDoseTimes.split(",")).map(String::strip).filter(t -> TIME.matcher(t).matches())
+                .sorted().toList();
+        return slotIndex(slot, times) >= 0;
+    }
+
+    private static int slotOrder(String slot) {
+        return switch (slot) { case "아침" -> 0; case "점심" -> 1; default -> 2; };
+    }
+
+    /** 지금 시각(이른 것부터) 중 그 때의 시각 번호. 없으면 -1. */
+    private static int slotIndex(String slot, List<String> times) {
+        for (int i = 0; i < times.size(); i++) {
+            int hour = Integer.parseInt(times.get(i).substring(0, 2));
+            boolean fits = switch (slot) {
+                case "아침" -> hour < 11;
+                case "점심" -> hour >= 11 && hour < 15;
+                default -> hour >= 15;
+            };
+            if (fits) return i;
+        }
+        return -1;
+    }
+
     /** 확정 때 기존 일정 저장(MedicationScheduleService.save)에 넘길 전체 교체 요청. */
     static ScheduleRequest request(ScheduleValues values) {
         return new ScheduleRequest(values.startDate(), values.endDate(),

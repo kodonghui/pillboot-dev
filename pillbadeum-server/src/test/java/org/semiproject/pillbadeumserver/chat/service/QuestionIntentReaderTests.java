@@ -93,7 +93,10 @@ class QuestionIntentReaderTests {
         var sent = json.readTree(messages.getValue().getFirst().content());
         assertThat(sent.path("question").asString()).isEqualTo("타이레놀 500 등록해 줘");
         assertThat(sent.path("myDrugNames").path(0).asString()).isEqualTo("가상혈압정 5mg");
-        assertThat(sent.properties()).hasSize(2);
+        // 2026-11-08: 앞 대화(recentTurns)만 더한다. 회원·프로필 정보는 보내지 않는다.
+        assertThat(sent.properties()).hasSize(3);
+        assertThat(sent.path("recentTurns").isArray()).isTrue();
+        assertThat(sent.path("recentTurns")).isEmpty();
         // 질문 글·약 이름은 로그에 남기지 않는다.
         assertThat(output).contains("[질문 의도] intent=REGISTER_DRUG mentions=1").doesNotContain("타이레놀");
     }
@@ -217,5 +220,87 @@ class QuestionIntentReaderTests {
             assertThat(read(q, List.of())).as(q).isEqualTo(QuestionIntent.question());
         }
         verifyNoInteractions(ai);
+    }
+
+    // ---- 2026-11-08 카톡 기록: 짧은 이어 말('약목록 전부', '등록해줘')을 앞 대화와 함께 가름 ----
+
+    private QuestionIntent read(String question, List<String> names, List<RecentTurn> recent) {
+        return reader.read(question, names, recent, ChatDeadline.after(Duration.ofSeconds(5)));
+    }
+
+    private void answerWith(Map<String, Object> result) {
+        when(ai.createJson(anyString(), anyList(), anyInt(), eq("question_intent"), anyMap(), eq("low")))
+                .thenReturn(json.valueToTree(result));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aShortFollowUpAfterAScheduleTalkReachesTheAiWithTheRecentTurns() {
+        var recent = List.of(new RecentTurn(true, "나 먹는 약들 3일간 등록해줘 오늘부터"),
+                new RecentTurn(false, ScheduleProposalService.ASK_DRUG));
+        answerWith(Map.of("intent", "SCHEDULE_CHANGE", "drugMentions", List.of(), "targetMyDrugNames", List.of(),
+                "allMyDrugs", true, "request", "약목록 전부 오늘부터 3일간 일정 넣어 줘"));
+        var intent = read("약목록 전부", List.of("가상셀코정", "가상기침시럽"), recent);
+        assertThat(intent.kind()).isEqualTo(QuestionIntent.Kind.SCHEDULE_CHANGE);
+        assertThat(intent.allMyDrugs()).isTrue();
+        assertThat(intent.targetMyDrugName()).isNull();
+        assertThat(intent.request()).isEqualTo("약목록 전부 오늘부터 3일간 일정 넣어 줘");
+
+        ArgumentCaptor<List<AiMessage>> messages = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<String> instructions = ArgumentCaptor.forClass(String.class);
+        verify(ai).createJson(instructions.capture(), messages.capture(), eq(0), eq("question_intent"), anyMap(), eq("low"));
+        assertThat(instructions.getValue()).contains("recentTurns", "약봉이가 예로 든 약 이름", "날짜로 바꾸거나 말하지 않은 값을 채우지 않는다");
+        var sent = json.readTree(messages.getValue().getFirst().content());
+        assertThat(sent.path("recentTurns")).hasSize(2);
+        assertThat(sent.path("recentTurns").path(0).path("user").asBoolean()).isTrue();
+        assertThat(sent.path("recentTurns").path(1).path("user").asBoolean()).isFalse();
+    }
+
+    @Test
+    void aRestatedRequestWithNumbersTheMemberNeverSaidIsDropped() {
+        var recent = List.of(new RecentTurn(true, "나 먹는 약들 3일간 등록해줘 오늘부터"));
+        answerWith(Map.of("intent", "SCHEDULE_CHANGE", "drugMentions", List.of(), "targetMyDrugNames", List.of(),
+                "allMyDrugs", true, "request", "11월 8일부터 10일까지 9시에 넣어 줘"));
+        var intent = read("전부", List.of("가상셀코정"), recent);
+        assertThat(intent.allMyDrugs()).isTrue();
+        assertThat(intent.request()).isNull();
+
+        assertThat(QuestionIntentReader.grounded("오늘부터 3일간 아침 점심 저녁 1알씩", "3일간 아침 점심 저녁 한알씩", List.of())).isTrue();
+        assertThat(QuestionIntentReader.grounded("9시, 13시, 19시 식후 30분, 가상기침시럽은 20mL",
+                "식후 30분. 9시, 13시, 19시\n20미리라고", List.of())).isTrue();
+        assertThat(QuestionIntentReader.grounded("가상정10mg 9시", "9시", List.of("가상정10mg"))).isTrue();
+        assertThat(QuestionIntentReader.grounded("8시", "9시", List.of())).isFalse();
+    }
+
+    @Test
+    void namesOnlyTheBotWroteAreNotRegistered() {
+        var recent = List.of(new RecentTurn(true, "가상스텐캡슐 200mg"), new RecentTurn(false,
+                "가상스텐캡슐 200mg은 시험제약의 제품이에요. 등록하려면 “가상스텐캡슐 200mg 등록해 줘”라고 말씀해 주세요. 예) 타이레놀 500 등록해 줘"));
+        answerWith(Map.of("intent", "REGISTER_DRUG", "drugMentions", List.of("가상스텐캡슐 200mg", "타이레놀 500"),
+                "targetMyDrugNames", List.of(), "allMyDrugs", false, "request", "가상스텐캡슐 200mg 등록해 줘"));
+        var intent = read("등록해줘", List.of(), recent);
+        assertThat(intent.kind()).isEqualTo(QuestionIntent.Kind.REGISTER_DRUG);
+        assertThat(intent.drugMentions()).containsExactly("가상스텐캡슐 200mg");
+        assertThat(intent.request()).isNull();
+    }
+
+    @Test
+    void anUnrelatedQuestionAfterAPlainAnswerStillSkipsTheAi() {
+        var recent = List.of(new RecentTurn(true, "가상셀코정 먹어도 돼?"), new RecentTurn(false, "공식 자료에서 확인할 수 없어요."));
+        assertThat(read("부작용은?", List.of("가상셀코정"), recent)).isEqualTo(QuestionIntent.question());
+        verifyNoInteractions(ai);
+        assertThat(QuestionIntentReader.followsTask(List.of(new RecentTurn(false, "약목록에 6개를 넣었어요.")))).isTrue();
+        assertThat(QuestionIntentReader.followsTask(List.of())).isFalse();
+    }
+
+    @Test
+    void severalNamedTargetsOnTheListAreKept() {
+        answerWith(Map.of("intent", "SCHEDULE_CHANGE", "drugMentions", List.of(),
+                "targetMyDrugNames", List.of("가상셀코정", "없는정", "가상기침시럽"), "allMyDrugs", false,
+                "request", "가상셀코정이랑 가상기침시럽 아침 8시로 바꿔 줘"));
+        var intent = read("가상셀코정이랑 가상기침시럽 아침 8시로 바꿔 줘", List.of("가상셀코정", "가상기침시럽"), List.of());
+        assertThat(intent.targetMyDrugNames()).containsExactly("가상셀코정", "가상기침시럽");
+        assertThat(intent.targetMyDrugName()).isNull();
+        assertThat(intent.request()).isEqualTo("가상셀코정이랑 가상기침시럽 아침 8시로 바꿔 줘");
     }
 }

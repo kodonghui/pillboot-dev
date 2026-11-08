@@ -58,6 +58,69 @@ class ScheduleDraftTests {
                 .containsExactly(LocalDate.of(2026, 11, 5), LocalDate.of(2026, 11, 7));
     }
 
+    // QA 2026-11-08 시나리오 01: '저녁 약은 7시 말고 9시로'가 아침·점심 시각을 지우고 하루 1번(21:00)으로 바꿨음.
+    @Test
+    void namingAMealChangesOnlyThatMealsTime() {
+        var three = ScheduleDraft.stored(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), "07:00,12:00,19:00", 1, null);
+        var evening = ScheduleDraft.slotEdit("저녁 약은 7시 말고 9시로 바꿔 줘",
+                said(null, null, null, List.of("21:00"), null, null, null), three);
+        assertThat(evening.doseTimes()).containsExactly("07:00", "12:00", "21:00");
+        assertThat(evening.dailyCount()).isNull();
+        assertThat(ScheduleDraft.proposed(evening, three, 1, TODAY).doseTimes()).containsExactly("07:00", "12:00", "21:00");
+        assertThat(ScheduleDraft.slotEdit("아침은 8시, 저녁은 8시로", said(null, null, null, List.of("20:00", "08:00"), null, null, null),
+                three).doseTimes()).as("두 끼를 말하면 그 두 시각").containsExactly("08:00", "12:00", "20:00");
+        assertThat(ScheduleDraft.slotEdit("점심 약 1시로", said(null, null, null, List.of("13:00"), null, 2, null), MONTH))
+                .as("말한 1회 개수는 그대로 둠").extracting(ParsedCommand::doseTimes, ParsedCommand::dosePerTime)
+                .containsExactly(List.of("07:00", "13:00", "17:00"), 2);
+    }
+
+    @Test
+    void sayingOnlyOneMealOrNoMealKeepsTheSaidTimes() {
+        var three = ScheduleDraft.stored(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), "07:00,12:00,19:00", 1, null);
+        var nine = said(null, null, null, List.of("21:00"), null, null, null);
+        for (String text : List.of("저녁에만 9시로", "저녁만 먹을게 9시", "하루 한 번 저녁 9시", "한 번씩만 저녁 9시",
+                "아침 점심 빼고 저녁 9시", "9시로 바꿔 줘"))
+            assertThat(ScheduleDraft.slotEdit(text, nine, three)).as(text).isSameAs(nine);
+        var mornings = ScheduleDraft.stored(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), "07:00,09:00", 1, null);
+        assertThat(ScheduleDraft.slotEdit("저녁 9시로", nine, mornings)).as("저녁 시각이 없으면 그대로").isSameAs(nine);
+        assertThat(ScheduleDraft.slotEdit("저녁 9시로", nine, NONE)).as("일정 없는 약").isSameAs(nine);
+        var both = said(null, null, null, List.of("08:00", "21:00"), null, null, null);
+        assertThat(ScheduleDraft.slotEdit("아침 8시하고 9시", both, three)).as("말한 끼와 시각 수가 다르면 그대로").isSameAs(both);
+        assertThat(ScheduleDraft.slotEdit("하루 두 번 아침 8시 저녁 9시", both, three)).as("하루 횟수를 말함").isSameAs(both);
+        assertThat(ScheduleDraft.slotEdit("2번 먹을게 아침 8시 저녁 9시", both, three)).isSameAs(both);
+        // QA 2026-11-08 다시 돌림 시나리오 14: '둘 다 아침 8시 저녁 8시로'는 하루 두 번(카드에 '3번에서 2번으로' 줄)
+        assertThat(ScheduleDraft.slotEdit("아침 8시 저녁 9시", both, three)).as("때를 늘어놓으면 그 시각들로").isSameAs(both);
+        assertThat(ScheduleDraft.slotEdit("둘 다 아침 8시 저녁 8시로 바꿔줘", both, three)).isSameAs(both);
+        assertThat(ScheduleDraft.slotEdit("아침엔 8시 저녁엔 9시", both, three).doseTimes()).as("때마다 '엔'이면 그 때만")
+                .containsExactly("08:00", "12:00", "21:00");
+        assertThat(ScheduleDraft.slotEdit("아침 7시 말고 8시, 저녁 7시 말고 9시", both, three).doseTimes()).as("'말고'로 고침")
+                .containsExactly("08:00", "12:00", "21:00");
+        assertThat(ScheduleDraft.slotEdit("아침은 8시 저녁 9시", both, three)).as("한 때에만 '은'").isSameAs(both);
+    }
+
+    // 2026-11-08 QA 시나리오 01 다시 돌림: '저녁 약은 7시 말고 9시로 바꿔줘'에 어느 약이냐고 되물음(두 번 중 두 번)
+    @Test
+    void aSlotGroupIsTheDrugsTakenAtThatTime() {
+        assertThat(ScheduleDraft.slotGroup("저녁 약은 7시 말고 9시로 바꿔줘")).isEqualTo("저녁");
+        assertThat(ScheduleDraft.slotGroup("아침에 먹는 약 8시로 해 줘")).isEqualTo("아침");
+        assertThat(ScheduleDraft.slotGroup("점심약 1시로")).isEqualTo("점심");
+        assertThat(ScheduleDraft.slotGroup("아침 약속이 있어서 저녁 9시로")).as("약속").isNull();
+        assertThat(ScheduleDraft.slotGroup("저녁 약국 들르고 9시로")).as("약국").isNull();
+        // PR #77 Codex 리뷰: '저녁 약으로'는 옮겨 갈 곳이라 약목록 전부를 저녁에 먹던 약으로 좁히지 않음
+        assertThat(ScheduleDraft.slotGroup("약목록 전부 저녁 약으로 옮겨줘, 9시에만 먹을게")).as("옮겨 갈 곳").isNull();
+        assertThat(ScheduleDraft.slotGroup("아침 약을 저녁 약으로 바꿔줘")).isEqualTo("아침");
+        assertThat(ScheduleDraft.slotGroup("저녁약 9시로")).isEqualTo("저녁");
+        assertThat(ScheduleDraft.slotGroup("아침 약은 8시, 저녁 약은 9시로")).as("두 때").isNull();
+        assertThat(ScheduleDraft.slotGroup("혈압약 저녁 9시로")).as("약 이름 뒤의 때").isNull();
+        assertThat(ScheduleDraft.slotGroup(null)).isNull();
+        assertThat(ScheduleDraft.takenAt("저녁", "07:00,19:00")).isTrue();
+        assertThat(ScheduleDraft.takenAt("저녁", "08:00, 12:00")).isFalse();
+        assertThat(ScheduleDraft.takenAt("점심", "08:00, 12:00")).isTrue();
+        assertThat(ScheduleDraft.takenAt("아침", "15:00")).isFalse();
+        assertThat(ScheduleDraft.takenAt("아침", null)).as("일정 없는 약").isFalse();
+        assertThat(ScheduleDraft.takenAt("아침", " ")).isFalse();
+    }
+
     @Test
     void unscheduledDrugUsesTheExistingDefaults() {
         assertThat(ScheduleDraft.proposed(said(null, null, null, List.of("21:00", "08:00"), null, null, null), NONE, 1, TODAY))
