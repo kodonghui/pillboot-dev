@@ -132,19 +132,43 @@ public class ScheduleSetInterpreter {
         return LIQUID_FORM.matcher(base).find() || !SOLID_FORM.matcher(base).find();
     }
 
+    // 양 바로 뒤의 말: '10mL로'·'10mL씩으로'는 바꿀 양, '5mL 말고'·'5mL에서'·'5mL 대신'·'5mL가 아니라'는 바꾸기 전 양
+    private static final Pattern TO_AMOUNT = Pattern.compile("\\s*(?:씩\\s*)?(?:으로|로)");
+    private static final Pattern FROM_AMOUNT =
+            Pattern.compile("\\s*(?:씩\\s*)?(?:이|가|은|는)?\\s*(?:말고|대신|에서|아니라|아니고|였는데|이었는데)");
+    static final String MANY_AMOUNTS = "의 1회 양을 하나로 정할 수 없어요(%s). ‘10mL로’처럼 바꿀 양 하나만 말해 주세요.";
+
     /**
      * 2026-11-08 QA(한 약 일정에서 '20미리라고'가 1회 20개로 읽혀 거절, '10미리씩'은 1회 10개로 저장): 글에 시럽 1회 양이
      * 하나만 있으면 그 양('20mL'). 없거나 서로 다른 양이 여럿이면 null(약마다 다른 양은 모델이 약마다 나눈다).
      */
     public static String liquidAmount(String text) {
-        if (text == null) return null;
+        var amounts = liquidAmounts(text);
+        return amounts.size() == 1 ? amounts.getFirst() : null;
+    }
+
+    /**
+     * 글 속 시럽 1회 양들(같은 양은 하나로, 나온 순서). 서로 다른 양이 여럿이면 '로'가 붙은 바꿀 양이 하나일 때 그 양만, 아니면
+     * '말고·대신·에서·아니라'가 붙은 바꾸기 전 양을 뺀 나머지다. PR #77 Codex 리뷰: '5mL 말고 10mL로'를 양이 둘이라 읽지 않아
+     * 적힌 5mL를 그대로 두고 '이미 같은 일정'이라 답했음. 그래도 둘 이상이면 어느 양인지 모르는 것이다.
+     */
+    public static List<String> liquidAmounts(String text) {
+        if (text == null) return List.of();
         var found = new java.util.LinkedHashSet<String>();
+        var to = new java.util.LinkedHashSet<String>();
+        var from = new java.util.LinkedHashSet<String>();
         var matcher = LIQUID.matcher(text);
         while (matcher.find()) {
             String amount = amount(matcher.group(1) + matcher.group(2));
-            if (amount != null) found.add(amount);
+            if (amount == null) continue;
+            found.add(amount);
+            var after = text.substring(matcher.end());
+            if (TO_AMOUNT.matcher(after).lookingAt()) to.add(amount);
+            else if (FROM_AMOUNT.matcher(after).lookingAt()) from.add(amount);
         }
-        return found.size() == 1 ? found.iterator().next() : null;
+        if (found.size() > 1 && to.size() == 1) return List.copyOf(to);
+        if (found.size() > 1) found.removeAll(from);
+        return List.copyOf(found);
     }
 
     /**

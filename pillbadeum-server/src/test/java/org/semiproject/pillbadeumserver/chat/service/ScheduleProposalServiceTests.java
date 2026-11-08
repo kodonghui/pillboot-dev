@@ -135,6 +135,30 @@ class ScheduleProposalServiceTests {
         verify(questions, never()).saveNotice(any(), any(), any(), any(), anyString(), any(), anyBoolean());
     }
 
+    // PR #77 Codex 리뷰: '5mL 말고 10mL로'는 글의 양이 둘이라 읽지 않아, 적힌 5mL를 그대로 두고 '이미 같은 일정'이라 답했음
+    @Test
+    void aCorrectedSyrupAmountTakesTheNewOneAndUnmarkedAmountsAreAsked() {
+        var month = new ScheduleValues(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), List.of("08:00", "20:00"), 1,
+                "식후 30분 · 1회 5mL");
+        var syrup = new MedicationTarget(35L, 10L, "엄마", "PARENT", "가상기침시럽", 1, month.timing(), month.startDate(),
+                month.endDate(), "08:00,20:00", LocalDateTime.of(2026, 11, 1, 9, 0), true);
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(syrup));
+        interpreted(parsed("CREATE_SCHEDULE", null, null, 10));
+        when(proposals.saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), any(), any(),
+                anyBoolean())).thenReturn(notice);
+        assertThat(propose("가상기침시럽", "가상기침시럽 5mL 말고 10mL로 바꿔줘")).isSameAs(notice);
+        verify(proposals).saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND),
+                argThat(rows -> rows.size() == 1 && rows.getFirst().proposed().timing().equals("식후 30분 · 1회 10mL")
+                        && rows.getFirst().proposed().dosePerTime() == 1), any(), eq(false));
+
+        // 어느 양으로 바꿀지 모르면 앞 양을 두지 않고 카드 없이 되묻는다
+        when(questions.saveNotice(any(), any(), any(), any(), anyString(), any(), anyBoolean())).thenReturn(notice);
+        assertThat(propose("가상기침시럽", "가상기침시럽 아침엔 5mL로 저녁엔 10mL로")).isSameAs(notice);
+        verify(questions).saveNotice(eq(42L), eq(7L), eq(10L), eq(question),
+                eq("‘가상기침시럽’" + ScheduleSetInterpreter.MANY_AMOUNTS.formatted("5mL·10mL") + ScheduleProposalService.REJECTED_TAIL),
+                any(), eq(false));
+    }
+
     // PR #77 Codex 리뷰: '뮤코스텐캡슐 200미리 아침 한 알씩'의 '200미리'(함량)를 시럽 양으로 보고 '1회 200mL'를 적었음
     @Test
     void aCapsuleStrengthInTheTextIsNotWrittenAsAnAmount() {

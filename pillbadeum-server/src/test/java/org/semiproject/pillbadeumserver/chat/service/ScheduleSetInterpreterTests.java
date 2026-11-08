@@ -115,6 +115,18 @@ class ScheduleSetInterpreterTests {
         assertThat(ScheduleSetInterpreter.liquidAmount(null)).isNull();
         assertThat(ScheduleSetInterpreter.liquidAmount("가상기침시럽 7.25미리씩")).isEqualTo("7.25mL");
         assertThat(ScheduleSetInterpreter.liquidAmount("20밀리리터로")).isEqualTo("20mL");
+        // PR #77 Codex 리뷰: '5mL 말고 10mL로'는 양이 둘이라 null이 되어 앞 양을 그대로 두었음. '로'가 붙은 양이 바꿀 양이고,
+        // '말고·대신·에서·아니라'가 붙은 양은 바꾸기 전 양이다. 그래도 둘 이상이면 어느 양인지 모르니 모두 돌려준다(카드 대신 되물음).
+        assertThat(ScheduleSetInterpreter.liquidAmount("가상기침시럽 5mL 말고 10mL로 바꿔줘")).isEqualTo("10mL");
+        assertThat(ScheduleSetInterpreter.liquidAmount("5미리에서 7.5미리로 늘려 줘")).isEqualTo("7.5mL");
+        assertThat(ScheduleSetInterpreter.liquidAmount("5mL를 10mL씩으로 바꿔")).isEqualTo("10mL");
+        assertThat(ScheduleSetInterpreter.liquidAmount("10mL 대신 5mL")).isEqualTo("5mL");
+        assertThat(ScheduleSetInterpreter.liquidAmount("5mL가 아니라 10mL")).isEqualTo("10mL");
+        assertThat(ScheduleSetInterpreter.liquidAmounts("시럽은 20미리, 물약은 10미리")).containsExactly("20mL", "10mL");
+        assertThat(ScheduleSetInterpreter.liquidAmounts("아침엔 5mL로 저녁엔 10mL로")).as("때마다 다른 양은 한 칸에 못 적음")
+                .containsExactly("5mL", "10mL");
+        assertThat(ScheduleSetInterpreter.liquidAmounts("20미리 그러니까 20ml")).containsExactly("20mL");
+        assertThat(ScheduleSetInterpreter.liquidAmounts("하루 3번")).isEmpty();
 
         var counted = new ParsedCommand("CREATE_SCHEDULE", 35L, null, null, null, List.of("08:00"), null, 20, null);
         assertThat(ScheduleSetInterpreter.withLiquid(counted, "20mL").dosePerTime()).as("양의 숫자를 개수로 읽음").isEqualTo(1);

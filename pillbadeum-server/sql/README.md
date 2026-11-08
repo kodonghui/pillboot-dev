@@ -37,7 +37,7 @@
 
 ## 기존 데이터를 보존하며 갱신할 때
 
-00~11을 모두 적용한 기존 DB는12 → 13 → 14 → 16 → 17 → 18만 대상 DB에서 실행함. ingredient_text_status·base_consent_status·drug_strength_status·chat_proposal_status·kakao_link_status·chat_proposal_prescription_status의 READY를 확인함(16의 확인 쿼리는 18 전 구조를 보므로 18 뒤에 16을 다시 돌리면 BLOCKED로 나옴). 최신01을 다시 실행해 기존 컬럼이 바뀌기를 기대하지 않음.
+00~11을 모두 적용한 기존 DB는12 → 13 → 14 → 16 → 17 → 18만 대상 DB에서 실행함. ingredient_text_status·base_consent_status·drug_strength_status·chat_proposal_status·kakao_link_status·chat_proposal_prescription_status의 READY를 확인함(16의 확인 쿼리는 18 전·뒤 칸 수를 모두 받아 18 뒤에 16을 다시 돌려도 READY임). 최신01을 다시 실행해 기존 컬럼이 바뀌기를 기대하지 않음.
 
 일부 변경이 빠진 기존 팀 DB는 아래 명령으로03~12 → 13 → 14 → 16 → 17 → 18을 순서대로 적용함. 01·02는 실행하지 않음.
 

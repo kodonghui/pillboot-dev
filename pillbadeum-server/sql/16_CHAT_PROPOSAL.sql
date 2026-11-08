@@ -76,10 +76,12 @@ CREATE TABLE IF NOT EXISTS chat_proposal_schedule (
         REFERENCES my_drug (my_drug_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 18(처방 값 칸·일정 제안 줄 번호) 뒤에는 chat_proposal_item 12칸·chat_proposal_schedule 6칸이며 그 구조는 18의 확인 쿼리가 봄.
+-- 18 뒤에 16을 다시 돌려도(setup-local-db.ps1 -UpgradeExisting 다시 실행) READY여야 함(PR #77 Codex 리뷰).
 SELECT IF(
     (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='chat_proposal')=9
-    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='chat_proposal_item')=8
-    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='chat_proposal_schedule')=4
+    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='chat_proposal_item') IN (8, 12)
+    AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='chat_proposal_schedule') IN (4, 6)
     AND (SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_schema=DATABASE()
         AND table_name IN ('chat_proposal','chat_proposal_item','chat_proposal_schedule') AND constraint_type='FOREIGN KEY')=8
     AND (SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_schema=DATABASE()
