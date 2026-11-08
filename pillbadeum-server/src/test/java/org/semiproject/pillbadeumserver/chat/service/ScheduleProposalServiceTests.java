@@ -374,4 +374,17 @@ class ScheduleProposalServiceTests {
         assertThat(ScheduleProposalService.storedAmount("식후 30분 · 1회 20mL")).isEqualTo("20mL");
         assertThat(ScheduleProposalService.storedAmount("식후 1회 20분")).isNull();
     }
+
+    // PR #77 Codex 리뷰(P2): 처방전 일정은 소수 둘째 자리까지 적음('1회 7.25mL', PrescriptionDose.liquidAmount). 읽는 쪽도 같아야
+    // 복용 때만 바꿀 때 양이 지워지거나 새 양이 덧붙지 않음
+    @Test
+    void aPrescriptionAmountWithTwoDecimalsIsKeptOrReplaced() {
+        var now = new ScheduleValues(TODAY, TODAY, List.of("09:00"), 1, "1회 7.25mL");
+        assertThat(ScheduleProposalService.storedAmount("1회 7.25mL")).isEqualTo("7.25mL");
+        var before = new ScheduleValues(TODAY, TODAY, List.of("09:00"), 1, "식전");
+        assertThat(ScheduleProposalService.amounted(now, before, null).values().timing()).isEqualTo("식전 · 1회 7.25mL");
+        var withTiming = new ScheduleValues(TODAY, TODAY, List.of("09:00"), 1, "식후 · 1회 7.25mL");
+        assertThat(ScheduleProposalService.amounted(withTiming, withTiming, "5mL").values().timing()).as("새 양은 바꿈")
+                .isEqualTo("식후 · 1회 5mL");
+    }
 }

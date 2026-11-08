@@ -227,9 +227,10 @@ public class ScheduleProposalService {
 
     record Amounted(ScheduleValues values, String note) {}
 
-    // 복용 때 칸 끝에 적은 1회 양('식후 30분 · 1회 20mL'·'1회 7.5mL'). 단위는 ScheduleSetInterpreter.amount와 같음
+    // 복용 때 칸 끝에 적은 1회 양('식후 30분 · 1회 20mL'·'1회 7.25mL'). 단위는 ScheduleSetInterpreter.amount와 같고, 소수는
+    // 처방전 일정이 적는 둘째 자리까지(PrescriptionDose.liquidAmount, PR #77 Codex 리뷰)
     private static final java.util.regex.Pattern TIMING_AMOUNT =
-            java.util.regex.Pattern.compile("(?:^|\\s*·\\s*)1회 ([0-9]{1,3}(?:\\.[0-9])?(?:mL|cc|g|mg))$");
+            java.util.regex.Pattern.compile("(?:^|\\s*·\\s*)1회 ([0-9]{1,3}(?:\\.[0-9]{1,2})?(?:mL|cc|g|mg))$");
 
     /** 복용 때 칸에 적힌 1회 양('20mL'). 없으면 null. */
     static String storedAmount(String timing) {
