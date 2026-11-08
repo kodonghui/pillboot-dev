@@ -252,7 +252,9 @@ public class PhotoIdentificationWorkflow {
     String code = medicine.path("insuranceCode").asString("").replaceAll("[\\s-]", "");
     if (!code.matches("[0-9]{9}")) code = null;
     if (name.isEmpty() && code == null) return null;
-    String dose = medicine.path("dosePerTime").asString("").strip();
+    // 숫자 뒤 단위('20ml'·'1정')는 떼고 숫자만 둔다. 물약의 mL는 품목을 고른 뒤 붙인다(PhotoProposalService, 2026-11-08 QA)
+    String dose = medicine.path("dosePerTime").asString("").strip()
+        .replaceFirst("\\s*(?:mL|ml|ML|cc|CC|정|캡슐|알|개|포|T|C|t|c)$", "");
     if (!dose.matches("[0-9]{1,3}(?:\\.[0-9]{1,2})?") || new java.math.BigDecimal(dose).signum() <= 0) dose = null;
     var prescription = PrescriptionDose.of(dose, number(medicine.path("dailyCount"), 24), number(medicine.path("totalDays"), 365));
     boolean unclear = medicine.path("clear").isBoolean() && !medicine.path("clear").asBoolean();

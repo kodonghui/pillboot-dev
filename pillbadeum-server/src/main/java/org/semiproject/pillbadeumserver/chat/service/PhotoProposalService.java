@@ -6,6 +6,7 @@ import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.image.domain.PhotoCandidateData;
 import org.semiproject.pillbadeumserver.image.domain.PhotoIdentificationResponse;
+import org.semiproject.pillbadeumserver.image.domain.PrescriptionDose;
 import org.semiproject.pillbadeumserver.image.service.PhotoIdentificationWorkflow;
 import org.semiproject.pillbadeumserver.image.service.PhotoLifecycleService;
 import org.slf4j.Logger;
@@ -110,8 +111,13 @@ public class PhotoProposalService {
                                 c.printMatched(), c.cancelled()),
                         byCode ? StrengthMatch.MATCH
                                 : similar || unclear || c.strengthMatch() == null ? StrengthMatch.UNKNOWN : c.strengthMatch(),
-                        similar, group.prescription()))
+                        similar, prescription(group.prescription(), c.name())))
                 .toList();
+    }
+
+    /** 처방전 한 줄의 값. 물약 품목이면 1회 투약량을 mL로 본다(2026-11-08 QA: 코대원에스시럽 '1회 20개'). */
+    static PrescriptionDose prescription(PrescriptionDose rx, String productName) {
+        return rx != null && RegistrationCandidates.liquidProduct(productName) ? rx.inMilliliters() : rx;
     }
 
     /** 카드에는 품목코드만 남으므로 사진·후보 행은 바로 지운다. 실패하면 기존 정리 작업이 30분 뒤 지운다. */

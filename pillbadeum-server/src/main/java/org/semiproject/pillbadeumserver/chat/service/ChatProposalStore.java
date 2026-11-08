@@ -295,8 +295,11 @@ public class ChatProposalStore {
         if (rx == null) return null;
         var dose = PrescriptionDose.of(rx.dosePerTime(), rx.dailyCount(), rx.totalDays());
         if (dose == null || !dose.schedulable()) return null;
+        // 시럽 1회 양은 1회 1개와 복용 때 칸 '1회 20mL'로 넣는다(약 여러 개 일정의 1회 양과 같은 규칙, 2026-11-08 QA)
+        String liquid = dose.liquidAmount();
         return new ScheduleRequest(today, today.plusDays(dose.totalDays() - 1L),
-                MyDrug.DEFAULT_DOSE_TIMES.subList(0, dose.dailyCount()), dose.wholeDose(), null);
+                MyDrug.DEFAULT_DOSE_TIMES.subList(0, dose.dailyCount()), liquid != null ? 1 : dose.wholeDose(),
+                liquid != null ? "1회 " + liquid : null);
     }
 
     private static Object[] concat(long first, List<Integer> rest) {

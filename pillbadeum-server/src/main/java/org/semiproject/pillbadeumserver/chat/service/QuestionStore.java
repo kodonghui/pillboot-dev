@@ -64,7 +64,7 @@ public class QuestionStore {
         // 일정 요청(V3-CHAT-007)은 직접 입력한 약도 대상이라 약목록 이름에는 입력한 이름도 넣는다.
         var names = all.stream().map(m -> m.getDrug() != null ? m.getDrug().getName() : m.getCustomName())
                 .filter(Objects::nonNull).toList();
-        return new QuestionClassifier.Context(previous, products, names, recent(history));
+        return new QuestionClassifier.Context(previous, products, names, recent(history), profileId);
     }
 
     /** 의도 가르기에 함께 보내는 턴 수(회원 말·답). 2026-11-08 카톡 기록처럼 두세 번 이어 말한 요청을 잇는 데 쓴다. */

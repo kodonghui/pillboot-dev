@@ -167,4 +167,18 @@ class RegistrationCandidatesTests {
         assertThat(RegistrationCandidates.searchName("가상기침시럽 20미리")).isEqualTo("가상기침시럽 20mL");
         assertThat(RegistrationCandidates.searchName("가상정 5밀리그램")).isEqualTo("가상정 5밀리그램");
     }
+
+    // 2026-11-08 QA: 처방전의 시럽 '20'이 '1회 20개'로 보였음. 단위를 알 수 없는 물약(포 현탁액·점안액·건조시럽)은 그대로 둔다.
+    @Test
+    void onlySyrupProductsReadThePrescriptionDoseInMillilitres() {
+        assertThat(RegistrationCandidates.liquidProduct("가상기침시럽")).isTrue();
+        assertThat(RegistrationCandidates.liquidProduct("가상기침시럽 100밀리리터")).isTrue();
+        assertThat(RegistrationCandidates.liquidProduct("가상해열시럽(가상성분)")).isTrue();
+        assertThat(RegistrationCandidates.liquidProduct("가상위장현탁액")).isFalse();
+        assertThat(RegistrationCandidates.liquidProduct("가상점안액0.1%")).isFalse();
+        assertThat(RegistrationCandidates.liquidProduct("가상항생건조시럽")).isFalse();
+        assertThat(RegistrationCandidates.liquidProduct("가상액티정")).isFalse();
+        assertThat(RegistrationCandidates.liquidProduct("가상스텐캡슐200밀리그램")).isFalse();
+        assertThat(RegistrationCandidates.liquidProduct(null)).isFalse();
+    }
 }

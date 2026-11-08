@@ -282,6 +282,26 @@ class QuestionWebTests {
         verifyNoInteractions(answers);
     }
 
+    // 2026-11-08 QA 시나리오 01 다시 돌림: 약 이름 없이 '저녁 약'을 말하면 의도 읽기가 대상을 못 정해도 저녁에 먹는 약들로 보낸다
+    @Test
+    void aSlotGroupWithoutANamedDrugGoesToTheDrugsTakenThen() throws Exception {
+        String text = "저녁 약은 7시 말고 9시로 바꿔줘";
+        when(classifier.plan(eq(text), any())).thenReturn(plan(QuestionCategory.PASS));
+        when(store.classificationContext(42L, 7L, 10L)).thenReturn(new QuestionClassifier.Context(List.of(), List.of(),
+                List.of("가상혈압정5밀리그램", "가상비타민정")));
+        when(intents.read(eq(text), any(), any(), any())).thenReturn(new QuestionIntent(QuestionIntent.Kind.SCHEDULE_CHANGE,
+                List.of(), List.of(), false, "저녁 9시로 바꿔 줘"));
+        var question = new QuestionResponse.Question(100L, 1);
+        when(store.save(42L, 7L, 10L, text)).thenReturn(question);
+        when(schedules.propose(eq(42L), eq(7L), eq(10L), eq(question), eq(text), eq(List.of()), eq(true), any(), eq(false)))
+                .thenReturn(new QuestionResponse.Answer(101L, 1, "저녁 카드", null,
+                        java.time.OffsetDateTime.parse("2026-11-03T09:00:00+09:00")));
+        mvc.perform(post("/api/chat-sessions/42/messages").header("Authorization", authorization())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"" + text + "\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.answer.content").value("저녁 카드"));
+        verifyNoInteractions(answers, registrations);
+    }
+
     private String authorization() {
         return "Bearer " + tokens.createAccessToken(7L, "fixture@example.test", "ROLE_USER");
     }

@@ -23,4 +23,20 @@ class PrescriptionDoseTests {
         assertThat(new PrescriptionDose("1", 1, 366).schedulable()).isFalse();
         assertThat(new PrescriptionDose("1", null, 5).schedulable()).isFalse();
     }
+
+    // QA 2026-11-08: 처방전의 시럽 '20'이 '1회 20개'로 보였고, '10'이었다면 1회 10개 일정이 될 뻔함.
+    @Test
+    void syrupDosesAreMillilitresAndBecomeOneDoseSchedules() {
+        var syrup = new PrescriptionDose("20", 3, 5).inMilliliters();
+        assertThat(syrup).isEqualTo(new PrescriptionDose("20mL", 3, 5));
+        assertThat(syrup.liquidAmount()).isEqualTo("20mL");
+        assertThat(syrup.wholeDose()).isNull();
+        assertThat(syrup.schedulable()).isTrue();
+        assertThat(new PrescriptionDose("7.50", 2, 3).inMilliliters().dosePerTime()).isEqualTo("7.5mL");
+        assertThat(new PrescriptionDose("20mL", 3, 5).inMilliliters().dosePerTime()).as("이미 단위가 있으면 그대로").isEqualTo("20mL");
+        assertThat(new PrescriptionDose(null, 3, 5).inMilliliters().dosePerTime()).isNull();
+        assertThat(new PrescriptionDose("20mL", 4, 5).schedulable()).as("하루 횟수는 같은 규칙").isFalse();
+        assertThat(new PrescriptionDose("20", 3, 5).liquidAmount()).isNull();
+        assertThat(new PrescriptionDose("20", 3, 5).schedulable()).as("단위 없는 20은 1회 20개라 규칙 밖").isFalse();
+    }
 }

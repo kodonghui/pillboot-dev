@@ -62,7 +62,11 @@ public class ScheduleSetInterpreter {
         var drugs = targets.stream().map(target -> Map.<String, Object>of("myDrugId", target.myDrugId(),
                 "drugName", target.drugName())).toList();
         String input = json.writeValueAsString(Map.of("text", text, "today", today.toString(), "drugs", drugs));
-        var result = ai.createJson(INSTRUCTIONS, List.of(AiMessage.user(input)), 2000, "medication_schedule_set", schema());
+        // 약이 많으면 10초 읽기 한도를 넘김(2026-11-08 QA, 약 7개). 한도는 부르는 쪽 READ_LIMIT(20초)이 정한다.
+        // effort는 질문 의도 읽기처럼 low: 같은 약 7개 글이 공통 effort(max)로는 5.6~19.7초(QA 다시 돌림에서 20초를 넘겨 실패),
+        // low로는 2.1~3.8초에 같은 값을 냈다(2026-11-08, 글 6개 실제 호출 비교)
+        var result = ai.createJsonLongRead(INSTRUCTIONS, List.of(AiMessage.user(input)), 2000, "medication_schedule_set",
+                schema(), "low");
         try {
             return commands(result, targets);
         } catch (RuntimeException invalid) {
@@ -97,6 +101,38 @@ public class ScheduleSetInterpreter {
                     dose, timing), amount));
         }
         return new Result(intent, List.copyOf(commands));
+    }
+
+    // 글 속 시럽 1회 양: '20미리'·'10 mL'·'5cc'. '500밀리그램'·'200mg'은 함량이라 뺀다(2026-11-08 QA)
+    private static final Pattern LIQUID = Pattern.compile(
+            "(?<![0-9.])([0-9]{1,3}(?:\\.[0-9])?)\\s*(mL|ml|ML|cc|CC|미리|밀리)(?!\\s*(?:그램|그람|g|리터))");
+
+    /**
+     * 2026-11-08 QA(한 약 일정에서 '20미리라고'가 1회 20개로 읽혀 거절, '10미리씩'은 1회 10개로 저장): 글에 시럽 1회 양이
+     * 하나만 있으면 그 양('20mL'). 없거나 서로 다른 양이 여럿이면 null(약마다 다른 양은 모델이 약마다 나눈다).
+     */
+    public static String liquidAmount(String text) {
+        if (text == null) return null;
+        var found = new java.util.LinkedHashSet<String>();
+        var matcher = LIQUID.matcher(text);
+        while (matcher.find()) {
+            String amount = amount(matcher.group(1) + matcher.group(2));
+            if (amount != null) found.add(amount);
+        }
+        return found.size() == 1 ? found.iterator().next() : null;
+    }
+
+    /**
+     * 1회 양을 말했으면 1회 개수는 1이다(약 여러 개 일정과 같음). 해석기가 양의 숫자를 개수로 읽었어도('20미리' → 20) 1로 두고,
+     * 양과 다른 개수를 따로 말했으면 그대로 둔다.
+     */
+    public static ParsedCommand withLiquid(ParsedCommand parsed, String amount) {
+        if (amount == null || parsed == null) return parsed;
+        Integer dose = parsed.dosePerTime();
+        var number = new java.math.BigDecimal(amount.replaceAll("[^0-9.]", ""));
+        if (dose != null && number.compareTo(java.math.BigDecimal.valueOf(dose)) != 0) return parsed;
+        return new ParsedCommand(parsed.intent(), parsed.myDrugId(), parsed.startDate(), parsed.endDate(),
+                parsed.durationDays(), parsed.doseTimes(), parsed.dailyCount(), 1, parsed.timing());
     }
 
     /** '20 ml' → '20mL'. 형식 밖이면 null(1회 양을 적지 않음). */

@@ -46,4 +46,15 @@ class PrescriptionRowReadTests {
         assertThat(read(Map.of("readName", "가상시럽", "dosePerTime", "0.5", "dailyCount", "3", "totalDays", "3")).dose())
                 .isEqualTo(new PrescriptionDose("0.5", 3, 3));
     }
+
+    // QA 2026-11-08: 시럽 칸을 '20ml'로 읽으면 숫자 모양이 아니라 버려졌음. 단위는 떼고 물약이면 품목을 고른 뒤 mL를 붙인다.
+    @Test
+    void aUnitAfterTheDoseIsDropped() {
+        assertThat(read(Map.of("readName", "가상기침시럽", "dosePerTime", "20ml", "dailyCount", "3", "totalDays", "5")).dose())
+                .isEqualTo(new PrescriptionDose("20", 3, 5));
+        assertThat(read(Map.of("readName", "가상셀코정", "dosePerTime", "1 정", "dailyCount", "2", "totalDays", "3")).dose())
+                .isEqualTo(new PrescriptionDose("1", 2, 3));
+        assertThat(read(Map.of("readName", "가상셀코정", "dosePerTime", "한 알", "dailyCount", "2", "totalDays", "3")).dose())
+                .as("숫자가 아니면 버림").isEqualTo(new PrescriptionDose(null, 2, 3));
+    }
 }

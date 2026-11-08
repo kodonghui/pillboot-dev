@@ -97,7 +97,14 @@ public class ChatDrugLookup {
             // '내 약'으로 대상을 바꿨으면 직전 검색 제품에 고정하지 않고 현재 등록 목록으로 돌아간다.
             if (question.replaceAll("\\s+", "").matches(".*(내(?:아침|점심|저녁)?약|등록(?:한|된)?약|약목록|내목록|(?:지금|요즘|평소|매일)(?:먹는|먹고있는|복용하는|복용중인)약|복용중인약).*"))
                 return Resolution.none();
-            if (pending != null) return new Resolution(List.of(),previous,pending.sources());
+            if (pending != null) {
+                // 2026-11-08 QA('술은?'·'위가 안 좋은데 괜찮아?'·'고마워'마다 같은 후보 목록을 되풀이): 후보를 다시 보이는 것은
+                // 고를 제품을 가리킬 때('그 약'·'이거'·'성분' 등)만이고, 아니면 함께 확인하던 약(없으면 등록 약)으로 답한다
+                if (PRODUCT_REF.matcher(question).find()) return new Resolution(List.of(),previous,pending.sources());
+                var kept = new LinkedHashMap<String,AnswerInput.Medication>();
+                for (var retained : pending.retained()) kept.put(retained.itemSeq(),byCode(retained.itemSeq(),input,deadline));
+                return new Resolution(List.copyOf(kept.values()),null,List.of());
+            }
             if (last.isPresent() && previous.isBlank() && query.path("names").isArray() && query.path("names").size() == 1) {
                 String name = query.path("names").get(0).path("name").asString("");
                 var owned = exactOwned(input, name, query.path("names").get(0).path("maker").asString(""));
@@ -209,6 +216,9 @@ public class ChatDrugLookup {
                 .map(t -> sources.sources(t.answer())).orElse(List.of());
     }
 
+    // 후보 목록 뒤 이어 묻는 말 중 고를 제품을 가리키는 말(그때만 목록을 다시 보임)
+    private static final java.util.regex.Pattern PRODUCT_REF = java.util.regex.Pattern.compile(
+            "(?:그|이|저)\\s*(?:약|제품|거|것|꺼)|그거|이거|저거|성분|함량|제조사|어느\\s*(?:제품|약|거)|어떤\\s*(?:제품|약|거)");
     // 후보 번호로 보이는 'N번'(뒤에 '약'·'거'·'제품'이 붙어도 됨). 먹는 횟수('하루 2번'·'하루 총 2번'·'1일 2번'·'2번씩'·'2번 먹어')는 뺀다.
     private static final java.util.regex.Pattern CHOICE_REF = java.util.regex.Pattern.compile(
             "(?<![0-9])([1-5])\\s*번(\\s*(?:약|거|꺼|것|제품))?(?![0-9a-zA-Z가-힣]*(?:째|시|일|분))");

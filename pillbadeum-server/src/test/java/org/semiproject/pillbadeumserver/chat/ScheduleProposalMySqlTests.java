@@ -58,7 +58,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @EnabledIfEnvironmentVariable(named = "MYSQL_TEST_URL", matches = ".+")
 class ScheduleProposalMySqlTests {
     private static final String NAME = "가상혈압정5밀리그램";
-    private static final String QUESTION = "가상혈압정 아침 8시 한 알로 바꿔 줘";
+    // 하루 횟수를 말해 시각 전체를 바꾸는 요청(2026-11-08부터 '아침 8시'처럼 한 끼만 말하면 그 끼의 시각만 바뀜)
+    private static final String QUESTION = "가상혈압정 하루 한 번 아침 8시 한 알로 바꿔 줘";
     private static final Map<String, Object> MONTH = Map.of("start_date", LocalDate.of(2026, 11, 1),
             "end_date", LocalDate.of(2026, 11, 30), "dose_times", "07:00,19:00", "dose_per_time", 2, "timing", "식후 30분");
     @Autowired DataSource dataSource;

@@ -51,10 +51,16 @@ function conflictText(items) {
   return `고른 약 중 ${quoted}${iAfter(names.at(-1))} 그사이 약목록에 들어가 있어서 아무것도 넣지 않았어요. 나머지를 확인하고 다시 넣어 주세요.`
 }
 
-// 처방전 한 줄에서 읽은 값(인쇄된 그대로). 읽지 못한 칸은 뺀다. 예) '처방전: 1회 1개 · 하루 3번 · 3일분'
+// 시럽 처방의 1회 양('20mL', 서버 PrescriptionDose.liquidAmount). 아니면 null.
+function liquidAmount(rx) {
+  return /^[0-9]{1,3}(\.[0-9]{1,2})?mL$/.test(rx?.dosePerTime ?? '') ? rx.dosePerTime : null
+}
+
+// 처방전 한 줄에서 읽은 값(인쇄된 그대로). 읽지 못한 칸은 뺀다. 예) '처방전: 1회 1개 · 하루 3번 · 3일분'.
+// 2026-11-08 QA: 시럽은 '1회 20개'가 아니라 '1회 20mL'
 function prescriptionText(rx) {
   const parts = [
-    rx.dosePerTime != null && `1회 ${rx.dosePerTime}개`,
+    rx.dosePerTime != null && `1회 ${liquidAmount(rx) ?? `${rx.dosePerTime}개`}`,
     rx.dailyCount != null && `하루 ${rx.dailyCount}번`,
     rx.totalDays != null && `${rx.totalDays}일분`,
   ].filter(Boolean)
@@ -62,11 +68,13 @@ function prescriptionText(rx) {
 }
 
 // 처방전 값이 일정 저장 규칙(1회 정수 1~10개 · 하루 1~3번 · 1~365일)에 그대로 들어가는지. 서버(PrescriptionDose)와 같은 규칙이다.
-// 0.5처럼 정수가 아닌 1회 투약량은 일정에 넣지 않는다.
+// 0.5처럼 정수가 아닌 1회 투약량은 일정에 넣지 않는다. 시럽의 1회 양('20mL')은 1회 1개와 복용 때 '1회 20mL'로 넣는다.
 function schedulable(rx) {
-  if (!rx || !/^[0-9]+(\.0+)?$/.test(rx.dosePerTime ?? '')) return false
+  if (!rx || !(rx.dailyCount >= 1 && rx.dailyCount <= 3 && rx.totalDays >= 1 && rx.totalDays <= 365)) return false
+  if (liquidAmount(rx)) return true
+  if (!/^[0-9]+(\.0+)?$/.test(rx.dosePerTime ?? '')) return false
   const dose = Number(rx.dosePerTime)
-  return dose >= 1 && dose <= 10 && rx.dailyCount >= 1 && rx.dailyCount <= 3 && rx.totalDays >= 1 && rx.totalDays <= 365
+  return dose >= 1 && dose <= 10
 }
 
 // 후보 한 줄의 이름 · 함량 비교(또는 이미 등록됨) · 제약사 · 처방전 값

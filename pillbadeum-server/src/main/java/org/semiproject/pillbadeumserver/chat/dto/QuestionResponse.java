@@ -10,7 +10,12 @@ public record QuestionResponse(Result result, Question question, Answer answer, 
     }
 
     public static QuestionResponse blocked(QuestionCategory category) {
-        return new QuestionResponse(Result.BLOCKED, null, null, new Notice(category, category.noticeMessage()));
+        return blocked(category, category.noticeMessage());
+    }
+
+    /** 2026-11-08: 응급·자해 안내 뒤 이어 묻는 말은 같은 분류에 이어 말 안내(QuestionCategory.followUpMessage)를 쓴다. */
+    public static QuestionResponse blocked(QuestionCategory category, String message) {
+        return new QuestionResponse(Result.BLOCKED, null, null, new Notice(category, message));
     }
 
     public enum Result { ANSWERED, BLOCKED }

@@ -39,6 +39,17 @@ public class RegistrationCandidates {
     // '200미리'처럼 단위를 줄여 말한 숫자. 정·캡슐이면 mg, 시럽·액이면 mL로 읽는다(2026-11-08 카톡 기록: '뮤코스텐캡슐 200미리').
     private static final Pattern SHORT_UNIT = Pattern.compile("(" + DrugStrength.NUMBER + ")\\s*(?:미리|밀리)(?!그램|그람|리터|미터)");
     private static final Pattern LIQUID = Pattern.compile("시럽|액|현탁|드롭|ml|mL|ML");
+    // 처방전 1회 투약량이 mL인 물약 품목: 괄호·끝의 함량을 뺀 이름이 '시럽'으로 끝남. 포로 주는 현탁액, 방울로 넣는 점안액,
+    // 가루로도 주는 건조시럽은 단위를 알 수 없어 넣지 않는다(개수 그대로 보임)
+    private static final Pattern LIQUID_PRODUCT = Pattern.compile(".*(?<!건조)시럽");
+
+    /** 2026-11-08: 시럽 품목명인지(처방전 1회 투약량의 단위를 mL로 봄). */
+    static boolean liquidProduct(String name) {
+        if (name == null) return false;
+        String plain = name.replaceAll("\\([^)]*\\)", "").replaceAll("\\s+", "")
+                .replaceAll("[0-9.,/]+(?:mg|mL|ml|g|밀리그램|밀리그람|밀리리터|그램|%)?$", "");
+        return LIQUID_PRODUCT.matcher(plain).matches();
+    }
 
     /**
      * 이름 하나의 후보. strength는 그 이름의 함량과 후보 품목명의 함량을 비교한 값(V3-REG-002)이다.

@@ -69,6 +69,7 @@ class MedicationVoiceClientTests {
         assertThat(result.myDrugId()).isNull();
         var body = json.readTree(received.get());
         assertThat(body.path("store").asBoolean()).isFalse();
+        assertThat(body.path("reasoning").path("effort").asString()).as("공통 effort와 따로 medium(2026-11-08 QA)").isEqualTo("medium");
         assertThat(body.path("text").path("format").path("type").asString()).isEqualTo("json_schema");
         assertThat(body.path("text").path("format").path("strict").asBoolean()).isTrue();
         assertThat(body.path("text").path("format").path("schema").path("additionalProperties").asBoolean()).isFalse();

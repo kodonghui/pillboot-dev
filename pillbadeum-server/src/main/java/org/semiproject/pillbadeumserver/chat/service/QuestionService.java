@@ -75,7 +75,10 @@ public class QuestionService {
             reported.stage(ChatStage.UNDERSTANDING);
             var context = store.classificationContext(sessionId, memberId, profileId);
             var plan = classifier.plan(question, context);
-            if (!plan.category().isPassed()) return QuestionResponse.blocked(plan.category());
+            // 2026-11-08 QA: 응급·자해 안내 뒤 30분 안의 이어 말('괜찮겠지?'·'119 안 부르면 안돼?')은 이어 말 안내로 막는다
+            if (!plan.category().isPassed()) return plan.afterEmergency()
+                    ? QuestionResponse.blocked(plan.category(), plan.category().followUpMessage())
+                    : QuestionResponse.blocked(plan.category());
             // V3-CHAT-001: 통과한 질문만 의도를 가른다. 등록 요청은 등록 제안 카드(V3-CHAT-002)로,
             // 일정 요청은 일정 제안 카드(V3-CHAT-007)로 답한다.
             String request = request(sessionId, question, null);
@@ -87,9 +90,8 @@ public class QuestionService {
                 return QuestionResponse.answered(saved, registrations.propose(sessionId, memberId, profileId, saved,
                         intent.drugMentions(), reported, false));
             if (intent.kind() == QuestionIntent.Kind.SCHEDULE_CHANGE)
-                return QuestionResponse.answered(saved, schedules.propose(sessionId, memberId, profileId, saved,
-                        intent.request() == null ? request : intent.request(), intent.targetMyDrugNames(),
-                        intent.allMyDrugs(), reported, false));
+                return QuestionResponse.answered(saved, schedule(sessionId, memberId, profileId, saved, request, intent,
+                        reported, false));
             return QuestionResponse.answered(saved, answers.complete(sessionId, memberId, profileId, saved, reported, plan));
         });
     }
@@ -131,9 +133,8 @@ public class QuestionService {
                 return QuestionResponse.answered(question, registrations.propose(sessionId, memberId, profileId, question,
                         intent.drugMentions(), reported, true));
             if (intent.kind() == QuestionIntent.Kind.SCHEDULE_CHANGE)
-                return QuestionResponse.answered(question, schedules.propose(sessionId, memberId, profileId, question,
-                        intent.request() == null ? request : intent.request(), intent.targetMyDrugNames(),
-                        intent.allMyDrugs(), reported, true));
+                return QuestionResponse.answered(question, schedule(sessionId, memberId, profileId, question, request, intent,
+                        reported, true));
             return QuestionResponse.answered(question, answers.retry(sessionId, memberId, profileId, question, reported));
         });
     }
@@ -147,6 +148,18 @@ public class QuestionService {
         if (question == null || !question.matches("(?s).*[1-5]\\s*번.*")) return question;
         String named = lookup.withChoiceNames(question, store.answerBefore(sessionId, beforeTurn));
         return named == null ? question : named;
+    }
+
+    /**
+     * 일정 요청을 일정 제안으로. 약 이름 없이 '저녁 약은 7시 말고 9시로'처럼 한 때에 먹는 약들을 가리키면 보낸 글 그대로 그 때에
+     * 먹는 약들로 보낸다(2026-11-08 QA 시나리오 01 다시 돌림: 의도 읽기가 대상을 정하지 못해 어느 약이냐고 되물음, 두 번 중 두 번).
+     */
+    private QuestionResponse.Answer schedule(Long sessionId, Long memberId, Long profileId, QuestionResponse.Question question,
+                                             String request, QuestionIntent intent, ChatDeadline deadline, boolean retry) {
+        boolean slotGroup = intent.targetMyDrugNames().isEmpty() && ScheduleDraft.slotGroup(request) != null;
+        String text = slotGroup || intent.request() == null ? request : intent.request();
+        return schedules.propose(sessionId, memberId, profileId, question, text, intent.targetMyDrugNames(),
+                slotGroup || intent.allMyDrugs(), deadline, retry);
     }
 
     private void lock(Long sessionId) {

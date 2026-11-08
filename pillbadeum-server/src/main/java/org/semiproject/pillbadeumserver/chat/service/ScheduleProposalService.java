@@ -102,6 +102,14 @@ public class ScheduleProposalService {
             var drugs = medications.drugs(memberId, profileId);
             if (allDrugs && drugs.isEmpty()) return notice(sessionId, memberId, profileId, question, NO_DRUGS, deadline, retry, "no_drugs");
             var targets = allDrugs ? drugs : targets(drugs, targetNames);
+            String slot = allDrugs ? ScheduleDraft.slotGroup(text) : null;
+            if (slot != null) {  // '저녁 약은 9시로': 저녁에 먹는 약만(아침에만 먹는 약을 21:00으로 옮기지 않음)
+                targets = drugs.stream().filter(drug -> drug.hasSchedule() && ScheduleDraft.takenAt(slot, drug.storedDoseTimes()))
+                        .toList();
+                if (targets.isEmpty())
+                    return notice(sessionId, memberId, profileId, question, slot + "에 먹는 일정이 있는 약이 없어요. " + ASK_DRUG,
+                            deadline, retry, "no_slot_drugs");
+            }
             if (targets.size() > ChatProposalStore.MAX_SCHEDULE_ROWS)
                 return notice(sessionId, memberId, profileId, question, TOO_MANY, deadline, retry, "too_many");
             if (targets.size() > 1) return proposeMany(sessionId, memberId, profileId, question, text, targets, deadline, retry);
@@ -124,7 +132,12 @@ public class ScheduleProposalService {
                 return notice(sessionId, memberId, profileId, question, UNREADABLE, deadline, retry, "unreadable");
             var current = ScheduleDraft.stored(target.startDate(), target.endDate(), target.storedDoseTimes(),
                     target.confirmedDosePerTime(), target.timing());
-            var proposed = ScheduleDraft.proposed(parsed, current, target.dosePerTime(), today);
+            // 2026-11-08 QA: '20미리라고'는 1회 개수가 아니라 시럽 1회 양(복용 때 칸에 적음, 약 여러 개 일정과 같은 규칙),
+            // '저녁 약은 9시로'는 저녁 시각만 바꿈
+            String amount = ScheduleSetInterpreter.liquidAmount(text);
+            var command = ScheduleDraft.slotEdit(text, ScheduleSetInterpreter.withLiquid(parsed, amount), current);
+            var amounted = amounted(current, ScheduleDraft.proposed(command, current, target.dosePerTime(), today), amount);
+            var proposed = amounted.values();
             if (proposed.equals(current)) return notice(sessionId, memberId, profileId, question, SAME, deadline, retry, "same");
             // 확정 때와 같은 저장 규칙(MyDrug)으로 미리 검사한다. 저장하지 않는 검증용 객체다.
             try {
@@ -136,7 +149,7 @@ public class ScheduleProposalService {
             log.info("[일정 제안] result=card");
             var rx = proposals.prescriptions(profileId, List.of(target.myDrugId())).get(target.myDrugId());
             return proposals.saveScheduleSetAnswer(sessionId, memberId, profileId, question, FOUND, List.of(
-                    new ChatProposalStore.ScheduleRow(target.myDrugId(), current, proposed, note(current, proposed, rx, null))),
+                    new ChatProposalStore.ScheduleRow(target.myDrugId(), current, proposed, note(current, proposed, rx, amounted.note()))),
                     deadline, retry);
         } catch (ScheduleDraft.Rejected rejected) {
             return notice(sessionId, memberId, profileId, question, rejected.getMessage() + REJECTED_TAIL, deadline, retry,
@@ -180,8 +193,9 @@ public class ScheduleProposalService {
             ScheduleValues proposed;
             String amountNote;
             try {
-                proposed = ScheduleDraft.proposed(command.command(), current, target.dosePerTime(), today);
-                var withAmount = withAmount(proposed, command.amount());
+                proposed = ScheduleDraft.proposed(ScheduleDraft.slotEdit(text, command.command(), current), current,
+                        target.dosePerTime(), today);
+                var withAmount = amounted(current, proposed, command.amount());
                 proposed = withAmount.values();
                 amountNote = withAmount.note();
                 ScheduleDraft.request(proposed).applyTo(MyDrug.createCustom(profileId, "일정 입력 검증"));
@@ -213,6 +227,29 @@ public class ScheduleProposalService {
 
     record Amounted(ScheduleValues values, String note) {}
 
+    // 복용 때 칸 끝에 적은 1회 양('식후 30분 · 1회 20mL'·'1회 7.5mL'). 단위는 ScheduleSetInterpreter.amount와 같음
+    private static final java.util.regex.Pattern TIMING_AMOUNT =
+            java.util.regex.Pattern.compile("(?:^|\\s*·\\s*)1회 ([0-9]{1,3}(?:\\.[0-9])?(?:mL|cc|g|mg))$");
+
+    /** 복용 때 칸에 적힌 1회 양('20mL'). 없으면 null. */
+    static String storedAmount(String timing) {
+        if (timing == null) return null;
+        var matcher = TIMING_AMOUNT.matcher(timing.strip());
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    /**
+     * 1회 양: 새로 말했으면 그 양을 적고, 말하지 않았으면 지금 복용 때 칸의 양을 그대로 둔다(볼 점 없음, 칸을 넘을 때만 알림).
+     * 2026-11-08 QA 다시 돌림: 시럽 '1회 20mL'를 넣은 뒤 '??'에 이어 만든 카드가 복용 때를 '식후 30분'으로 바꿔 20mL를 지우려 함.
+     */
+    static Amounted amounted(ScheduleValues current, ScheduleValues proposed, String said) {
+        if (said != null) return withAmount(proposed, said);
+        String kept = storedAmount(current.timing());
+        if (kept == null || storedAmount(proposed.timing()) != null) return new Amounted(proposed, null);
+        var amounted = withAmount(proposed, kept);
+        return amounted.values() == proposed ? amounted : new Amounted(amounted.values(), null);
+    }
+
     /**
      * 시럽처럼 mL로 말한 1회 양은 일정의 1회 개수(1~10개)에 넣을 수 없어 복용 때 칸(20자)에 '식후 30분 · 1회 20mL'처럼 적는다.
      * 칸을 넘으면 적지 않고 확정 전에 볼 점에 남긴다.
@@ -220,8 +257,10 @@ public class ScheduleProposalService {
     static Amounted withAmount(ScheduleValues proposed, String amount) {
         if (amount == null) return new Amounted(proposed, null);
         String timing = proposed.timing();
-        if (timing != null && timing.contains(amount)) return new Amounted(proposed, null);
-        String combined = timing == null ? "1회 " + amount : timing + " · 1회 " + amount;
+        if (timing != null && timing.contains("1회 " + amount)) return new Amounted(proposed, null);
+        // 지금 적힌 다른 1회 양은 새 양으로 바꾼다('식후 30분 · 1회 20mL'에 '10미리로' → '식후 30분 · 1회 10mL')
+        String base = timing == null ? "" : TIMING_AMOUNT.matcher(timing).replaceFirst("").strip();
+        String combined = base.isEmpty() ? "1회 " + amount : base + " · 1회 " + amount;
         if (combined.length() > ScheduleDraft.MAX_TIMING)
             return new Amounted(proposed, "1회 " + amount + "는 복용 때 칸(20자)에 다 들어가지 않아 적지 못했어요.");
         return new Amounted(new ScheduleValues(proposed.startDate(), proposed.endDate(), proposed.doseTimes(),
@@ -239,7 +278,10 @@ public class ScheduleProposalService {
         if (rx != null) {
             var differs = new ArrayList<String>();
             Integer dose = rx.wholeDose();
-            if (rx.dosePerTime() != null && (dose == null || !dose.equals(proposed.dosePerTime())))
+            String liquid = rx.liquidAmount();  // 시럽 1회 양은 복용 때 칸에 적으므로 그 칸과 맞춰 본다
+            if (liquid != null) {
+                if (proposed.timing() == null || !proposed.timing().contains(liquid)) differs.add("1회 " + liquid);
+            } else if (rx.dosePerTime() != null && (dose == null || !dose.equals(proposed.dosePerTime())))
                 differs.add("1회 " + rx.dosePerTime() + "개");
             if (rx.dailyCount() != null && rx.dailyCount() != proposed.doseTimes().size()) differs.add("하루 " + rx.dailyCount() + "번");
             long days = ChronoUnit.DAYS.between(proposed.startDate(), proposed.endDate()) + 1;

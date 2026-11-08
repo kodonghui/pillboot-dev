@@ -196,4 +196,16 @@ class PhotoProposalServiceTests {
                 argThat(content -> content.endsWith("약 4줄을 봤는데 1개만 읽었어요. 나머지 약은 이름이나 보험코드(9자리)를 글로 보내 주세요.")),
                 anyList(), eq(deadline));
     }
+
+    // QA 2026-11-08: 처방전의 시럽 '20'이 '1회 20개'로 보였음.
+    @Test
+    void aSyrupProductReadsThePrescriptionDoseInMillilitres() {
+        var rx = new PrescriptionDose("20", 3, 5);
+        assertThat(PhotoProposalService.prescription(rx, "가상기침시럽")).isEqualTo(new PrescriptionDose("20mL", 3, 5));
+        assertThat(PhotoProposalService.prescription(rx, "가상셀코정")).isSameAs(rx);
+        assertThat(PhotoProposalService.prescription(null, "가상기침시럽")).isNull();
+        var syrup = group(1, "가상기침시럽", List.of(candidate("199900041", "가상기침시럽", null)), "640000002", true, false, false, rx);
+        assertThat(PhotoProposalService.candidates(syrup)).singleElement()
+                .satisfies(c -> assertThat(c.prescription()).isEqualTo(new PrescriptionDose("20mL", 3, 5)));
+    }
 }

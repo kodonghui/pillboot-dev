@@ -91,6 +91,85 @@ class QuestionClassifierTests {
         assertThat(classifier.plan("잘못 먹은 게 아니고 스스로 선택해서 약 한 통 먹었어", empty).category()).isEqualTo(QuestionCategory.SELF_HARM);
     }
 
+    // QA 2026-11-08: '타이레놀 20알 먹었어' 뒤 '괜찮겠지?'에 안심시키는 답, '119 안 부르면 안돼?'에 '꼭 부를 필요는 없다',
+    // 자해 말 뒤 '농담이야'에 잡담 안내가 나갔음(막은 질문은 저장하지 않아 분류가 앞 상황을 몰랐음).
+    @Test
+    void followUpsWithin30MinutesOfAnEmergencyGetTheSameNoticeEvenWhenTheModelPassesThem() {
+        var said = new java.util.concurrent.ConcurrentLinkedQueue<JsonNode>();
+        server.createContext("/decisions", exchange -> {
+            calls.incrementAndGet();
+            var request = JSON.readTree(exchange.getRequestBody().readAllBytes());
+            var data = JSON.readTree(request.path("input").asString());
+            said.add(data);
+            String question = data.path("question").asString();
+            String choice = question.contains("20알") ? "SELF_HARM" : question.equals("농담이야") ? "OFF_TOPIC"
+                    : question.contains("일정") ? "PASS_RECORD" : "PASS_OFFICIAL";
+            respond(exchange, 200, answer(choice));
+        });
+        var classifier = classifier("local-test-key", "decision-only", 1000);
+        var mine = new QuestionClassifier.Context(List.of(), List.of(), List.of(), List.of(), 10L);
+        var other = new QuestionClassifier.Context(List.of(), List.of(), List.of(), List.of(), 11L);
+
+        var first = classifier.plan("타이레놀 20알 먹었어", mine);
+        assertThat(first.category()).isEqualTo(QuestionCategory.SELF_HARM);
+        assertThat(first.afterEmergency()).as("처음 막은 질문은 처음 안내").isFalse();
+        for (String followUp : List.of("괜찮겠지?", "119 안 부르면 안돼?", "토할 것 같아", "먹은 건 30분 전이야", "농담이야",
+                "상담 전화 번호 알려줘", "고마워")) {
+            var plan = classifier.plan(followUp, mine);
+            assertThat(plan.category()).as(followUp).isEqualTo(QuestionCategory.SELF_HARM);
+            assertThat(plan.afterEmergency()).as(followUp).isTrue();
+        }
+        assertThat(said).filteredOn(data -> data.path("question").asString().equals("괜찮겠지?"))
+                .singleElement().satisfies(data -> assertThat(data.path("recentEmergency").asString()).isEqualTo("SELF_HARM"));
+        assertThat(said).filteredOn(data -> data.path("question").asString().equals("타이레놀 20알 먹었어"))
+                .singleElement().satisfies(data -> assertThat(data.has("recentEmergency")).isFalse());
+
+        var unrelated = classifier.plan("내 약 일정 보여줘", mine);
+        assertThat(unrelated.category()).as("앞 상황과 상관없는 기록 확인은 통과").isEqualTo(QuestionCategory.PASS);
+        assertThat(unrelated.afterEmergency()).isFalse();
+        assertThat(classifier.plan("괜찮겠지?", other).category()).as("다른 프로필은 상관없음").isEqualTo(QuestionCategory.PASS);
+        assertThat(classifier.plan("괜찮겠지?", QuestionClassifier.Context.empty()).category())
+                .as("프로필을 모르면 기억하지 않음").isEqualTo(QuestionCategory.PASS);
+    }
+
+    @Test
+    void anEmergencyThenSelfHarmKeeps109AndAClassifierOutageStillShowsTheNotice() {
+        var next = new AtomicReference<>("EMERGENCY");
+        server.createContext("/decisions", exchange -> {
+            calls.incrementAndGet();
+            if (next.get() == null) {
+                respond(exchange, 500, "{}");
+                return;
+            }
+            respond(exchange, 200, answer(next.get()));
+        });
+        var classifier = classifier("local-test-key", "decision-only", 1000);
+        var mine = new QuestionClassifier.Context(List.of(), List.of(), List.of(), List.of(), 20L);
+        assertThat(classifier.plan("실수로 두 알 더 먹었어", mine).category()).isEqualTo(QuestionCategory.EMERGENCY);
+        next.set("PASS_OFFICIAL");
+        assertThat(classifier.plan("괜찮겠지?", mine)).extracting(QuestionPlan::category, QuestionPlan::afterEmergency)
+                .containsExactly(QuestionCategory.EMERGENCY, true);
+        next.set("SELF_HARM");
+        assertThat(classifier.plan("사실 죽고 싶었어", mine).category()).isEqualTo(QuestionCategory.SELF_HARM);
+        next.set("EMERGENCY");
+        assertThat(classifier.plan("숨이 차", mine).category()).as("한 번 자해였으면 109 안내를 유지").isEqualTo(QuestionCategory.SELF_HARM);
+        next.set(null);
+        assertThat(classifier.plan("어떡해", mine)).as("분류 장애여도 이 30분 안에서는 안내")
+                .extracting(QuestionPlan::category, QuestionPlan::afterEmergency).containsExactly(QuestionCategory.SELF_HARM, true);
+    }
+
+    @Test
+    void followUpNoticesDoNotAskAgainAndKeepTheirNumbers() {
+        assertThat(QuestionCategory.EMERGENCY.followUpMessage()).contains("늦게 나빠질 수", "119").doesNotContain("109", "드신 시각");
+        assertThat(QuestionCategory.SELF_HARM.followUpMessage()).contains("늦게 나빠질 수", "119", "109");
+        assertThat(QuestionCategory.OFF_TOPIC.followUpMessage()).isEqualTo(QuestionCategory.OFF_TOPIC.noticeMessage());
+        var mapper = new tools.jackson.databind.json.JsonMapper();
+        var body = mapper.readTree(mapper.writeValueAsString(org.semiproject.pillbadeumserver.chat.dto.QuestionResponse
+                .blocked(QuestionCategory.SELF_HARM, QuestionCategory.SELF_HARM.followUpMessage())));
+        assertThat(body.path("notice").path("category").asString()).isEqualTo("EMERGENCY");
+        assertThat(body.path("notice").path("message").asString()).contains("109", "늦게 나빠질 수");
+    }
+
     @Test
     void selfHarmKeepsTheEmergencyValueInThePublicResponse() {
         var mapper = new tools.jackson.databind.json.JsonMapper();

@@ -51,7 +51,11 @@ public class MedicationVoiceInterpreter {
         String input = json.writeValueAsString(Map.of("text", request.text(), "today", today.toString(),
                 "selectedDate", request.selectedDate().toString(), "selectedProfileId", request.selectedProfileId(),
                 "selectedMyDrugId", request.selectedMyDrugId(), "candidates", choices));
-        var result = ai.createJson(INSTRUCTIONS, List.of(AiMessage.user(input)), 1500, "medication_schedule", schema());
+        // effort는 공통 값과 따로 medium(운영 기본값과 같음). 2026-11-08 QA 최종 실행에서 공통 effort(그 환경 max)로 10초 짧은
+        // 읽기 한도를 넘겨 '지금은 일정을 읽을 수 없어요'가 3번 나옴. low로 다시 돌리니 다른 약을 함께 말한 글('뮤코스텐도 같은
+        // 시간으로')에서 약을 못 찾았다고 해 '어느 약이냐'고 2번 되물음. 그런 글 5개를 4번씩 불러 보니 low는 20번 중 1번이 추론
+        // 없이 TARGET_NOT_FOUND를 냈고 medium·max는 20번 모두 맞음. 앞서 잰 글 8개까지 medium 1.6~6.1초, max 2.0~10.5초였다
+        var result = ai.createJson(INSTRUCTIONS, List.of(AiMessage.user(input)), 1500, "medication_schedule", schema(), "medium");
         try {
             if (result == null || !result.isObject()) throw new IllegalArgumentException();
             var command = json.treeToValue(result, ParsedCommand.class);

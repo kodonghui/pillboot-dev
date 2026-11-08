@@ -1029,7 +1029,7 @@ components:
         글로 한 등록 제안이나 값을 읽지 못한 줄은 칸이 없음. 읽지 못한 칸은 null
       required: [applied]
       properties:
-        dosePerTime: { type: [string, 'null'], description: "1회 투약량. 0.5처럼 소수일 수 있어 글자임. 예) '1', '0.5'" }
+        dosePerTime: { type: [string, 'null'], description: "1회 투약량. 0.5처럼 소수일 수 있어 글자임. 예) '1', '0.5'. 2026-11-08: 품목명이 '시럽'으로 끝나면(건조시럽 빼고) mL를 붙임. 예) '20mL'" }
         dailyCount: { type: [integer, 'null'], description: 1일 투여 횟수 }
         totalDays: { type: [integer, 'null'], description: 총 투약 일수 }
         applied: { type: boolean, description: 확정 때 `applyPrescription`으로 이 값의 일정도 저장함 }

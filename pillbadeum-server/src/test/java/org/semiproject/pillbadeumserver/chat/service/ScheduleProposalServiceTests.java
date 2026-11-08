@@ -77,7 +77,11 @@ class ScheduleProposalServiceTests {
     void close() { executor.close(); }
 
     private QuestionResponse.Answer propose(String target) {
-        return service.propose(42L, 7L, 10L, question, "혈압약 아침 8시 한 알로 바꿔 줘", target, ChatDeadline.after(Duration.ofSeconds(5)), false);
+        return propose(target, "혈압약 아침 8시 한 알로 바꿔 줘");
+    }
+
+    private QuestionResponse.Answer propose(String target, String text) {
+        return service.propose(42L, 7L, 10L, question, text, target, ChatDeadline.after(Duration.ofSeconds(5)), false);
     }
 
     private void interpreted(ParsedCommand command) {
@@ -92,11 +96,42 @@ class ScheduleProposalServiceTests {
         assertThat(propose("가상혈압정5밀리그램")).isSameAs(notice);
 
         var month = new ScheduleValues(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), List.of("07:00", "19:00"), 2, "식후 30분");
+        // '아침 8시'처럼 한 끼만 말하면 그 끼의 시각만 바뀐다(2026-11-08 QA 시나리오 01, 앞서는 하루 1번 08:00으로 바뀌었음).
+        verify(proposals).saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND),
+                eq(List.of(new ChatProposalStore.ScheduleRow(30L, month,
+                        new ScheduleValues(month.startDate(), month.endDate(), List.of("08:00", "19:00"), 1, "식후 30분"),
+                        null))), any(), eq(false));
+        verify(questions, never()).saveNotice(any(), any(), any(), any(), anyString(), any(), anyBoolean());
+    }
+
+    @Test
+    void aTimeWithoutAMealReplacesTheTimesAndTellsTheCountChange() {
+        interpreted(parsed("CREATE_SCHEDULE", null, List.of("08:00"), 1));
+        when(proposals.saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), any(), any(),
+                anyBoolean())).thenReturn(notice);
+        propose("가상혈압정5밀리그램", "혈압약 하루 한 번 8시에 한 알로 바꿔 줘");
+        var month = new ScheduleValues(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), List.of("07:00", "19:00"), 2, "식후 30분");
         // 하루 2번이던 약을 1번으로 바꾸면 확정 전에 볼 점으로 알린다(2026-11-08).
         verify(proposals).saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND),
                 eq(List.of(new ChatProposalStore.ScheduleRow(30L, month,
                         new ScheduleValues(month.startDate(), month.endDate(), List.of("08:00"), 1, "식후 30분"),
                         "하루 2번에서 1번으로 바뀌어요."))), any(), eq(false));
+    }
+
+    // QA 2026-11-08: 한 약 일정에서 '20미리라고'가 1회 20개로 읽혀 '1회 개수는 1~10개'로 거절됐음.
+    @Test
+    void aSyrupAmountIsOneDoseAndTheAmountGoesToTheTiming() {
+        var syrup = target(35L, "가상기침시럽", "07:00,19:00");
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(syrup));
+        interpreted(parsed("CREATE_SCHEDULE", null, List.of("08:00", "20:00"), 20));
+        when(proposals.saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), any(), any(),
+                anyBoolean())).thenReturn(notice);
+        assertThat(propose("가상기침시럽", "기침시럽 아침 8시 저녁 8시에 20미리라고")).isSameAs(notice);
+        var month = new ScheduleValues(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), List.of("07:00", "19:00"), 2, "식후 30분");
+        verify(proposals).saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND),
+                eq(List.of(new ChatProposalStore.ScheduleRow(35L, month,
+                        new ScheduleValues(month.startDate(), month.endDate(), List.of("08:00", "20:00"), 1, "식후 30분 · 1회 20mL"),
+                        "1회 20mL는 복용 때 칸에 적었어요."))), any(), eq(false));
         verify(questions, never()).saveNotice(any(), any(), any(), any(), anyString(), any(), anyBoolean());
     }
 
@@ -292,5 +327,51 @@ class ScheduleProposalServiceTests {
         var kept = ScheduleProposalService.withAmount(values, "20mL");
         assertThat(kept.values()).isEqualTo(values);
         assertThat(kept.note()).isEqualTo("1회 20mL는 복용 때 칸(20자)에 다 들어가지 않아 적지 못했어요.");
+    }
+
+    // QA 2026-11-08 다시 돌림 시나리오 01: '저녁 약은 7시 말고 9시로 바꿔줘'는 저녁에 먹는 약만(아침에만 먹는 약을 옮기지 않음)
+    @Test
+    void anEveningGroupIsOnlyTheDrugsTakenInTheEvening() {
+        var morning = target(32L, "가상아침정", "08:00");
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(pressure, vitamin, morning));
+        interpreted(parsed("CREATE_SCHEDULE", null, List.of("21:00"), null));
+        when(proposals.saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), any(), any(), anyBoolean()))
+                .thenReturn(notice);
+        assertThat(proposeAll("저녁 약은 7시 말고 9시로 바꿔줘")).isSameAs(notice);
+        var month = new ScheduleValues(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), List.of("07:00", "19:00"), 2, "식후 30분");
+        verify(proposals).saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND),
+                eq(List.of(new ChatProposalStore.ScheduleRow(30L, month,
+                        new ScheduleValues(month.startDate(), month.endDate(), List.of("07:00", "21:00"), 2, "식후 30분"), null))),
+                any(), eq(false));
+        verify(interpreter).parse(argThat(request -> request.selectedMyDrugId() == 30L), eq(TODAY), any());
+        verifyNoInteractions(setInterpreter);
+
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(vitamin, morning));
+        proposeAll("저녁 약은 9시로");
+        verify(questions).saveNotice(eq(42L), eq(7L), eq(10L), eq(question),
+                eq("저녁에 먹는 일정이 있는 약이 없어요. " + ScheduleProposalService.ASK_DRUG), any(), eq(false));
+    }
+
+    // QA 2026-11-08 다시 돌림 시나리오 11: 시럽 1회 20mL를 넣은 뒤 '??'에 이어 만든 카드가 복용 때를 '식후 30분'으로 바꿔 20mL를 지우려 함
+    @Test
+    void aStoredSyrupAmountStaysUnlessANewAmountIsSaid() {
+        var now = new ScheduleValues(TODAY, TODAY, List.of("09:00"), 1, "식후 30분 · 1회 20mL");
+        var timingOnly = new ScheduleValues(TODAY, TODAY, List.of("09:00"), 1, "식후 30분");
+        var kept = ScheduleProposalService.amounted(now, timingOnly, null);
+        assertThat(kept.values()).as("같은 일정이 되어 카드를 만들지 않음").isEqualTo(now);
+        assertThat(kept.note()).isNull();
+        var before = new ScheduleValues(TODAY, TODAY, List.of("09:00"), 1, "식전");
+        assertThat(ScheduleProposalService.amounted(now, before, null).values().timing()).isEqualTo("식전 · 1회 20mL");
+        var cleared = new ScheduleValues(TODAY, TODAY, List.of("09:00"), 1, null);
+        assertThat(ScheduleProposalService.amounted(now, cleared, null).values().timing()).isEqualTo("1회 20mL");
+        assertThat(ScheduleProposalService.amounted(now, now, "10mL").values().timing()).as("새 양은 바꿈")
+                .isEqualTo("식후 30분 · 1회 10mL");
+        assertThat(ScheduleProposalService.amounted(new ScheduleValues(TODAY, TODAY, List.of("09:00"), 1, "1회 20mL"),
+                cleared, "7.5mL").values().timing()).isEqualTo("1회 7.5mL");
+        var noAmount = new ScheduleValues(TODAY, TODAY, List.of("09:00"), 1, "식후");
+        assertThat(ScheduleProposalService.amounted(noAmount, timingOnly, null).values()).as("양이 없던 약은 그대로")
+                .isEqualTo(timingOnly);
+        assertThat(ScheduleProposalService.storedAmount("식후 30분 · 1회 20mL")).isEqualTo("20mL");
+        assertThat(ScheduleProposalService.storedAmount("식후 1회 20분")).isNull();
     }
 }
