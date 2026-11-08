@@ -79,15 +79,17 @@ public class QuestionService {
             // V3-CHAT-001: 통과한 질문만 의도를 가른다. 등록 요청은 등록 제안 카드(V3-CHAT-002)로,
             // 일정 요청은 일정 제안 카드(V3-CHAT-007)로 답한다.
             String request = request(sessionId, question, null);
-            var intent = intents.read(request, context.myDrugNames(), reported);
+            // 2026-11-08: 바로 앞 대화와 함께 가른다('약목록 전부', '아니 전부 넣어달라고'를 앞 요청에 잇기).
+            var intent = intents.read(request, context.myDrugNames(), context.recentTurns(), reported);
             reported.check();
             var saved = store.save(sessionId, memberId, profileId, question);
             if (intent.kind() == QuestionIntent.Kind.REGISTER_DRUG)
                 return QuestionResponse.answered(saved, registrations.propose(sessionId, memberId, profileId, saved,
                         intent.drugMentions(), reported, false));
             if (intent.kind() == QuestionIntent.Kind.SCHEDULE_CHANGE)
-                return QuestionResponse.answered(saved, schedules.propose(sessionId, memberId, profileId, saved, request,
-                        intent.targetMyDrugName(), reported, false));
+                return QuestionResponse.answered(saved, schedules.propose(sessionId, memberId, profileId, saved,
+                        intent.request() == null ? request : intent.request(), intent.targetMyDrugNames(),
+                        intent.allMyDrugs(), reported, false));
             return QuestionResponse.answered(saved, answers.complete(sessionId, memberId, profileId, saved, reported, plan));
         });
     }
@@ -122,14 +124,16 @@ public class QuestionService {
             // 등록·일정 요청이었던 질문은 다시 보내도 제안 카드로 답한다(V3-CHAT-002·007).
             // 처음 보낼 때처럼 'N번'은 저장된 질문 앞 턴의 후보 목록으로 바꿔 가른다
             String request = request(sessionId, store.questionContent(sessionId, question), question.turnNo());
-            var intent = intents.read(request, store.classificationContext(sessionId, memberId, profileId).myDrugNames(), reported);
+            var intent = intents.read(request, store.classificationContext(sessionId, memberId, profileId).myDrugNames(),
+                    store.recentTurns(sessionId, question.turnNo()), reported);
             reported.check();
             if (intent.kind() == QuestionIntent.Kind.REGISTER_DRUG)
                 return QuestionResponse.answered(question, registrations.propose(sessionId, memberId, profileId, question,
                         intent.drugMentions(), reported, true));
             if (intent.kind() == QuestionIntent.Kind.SCHEDULE_CHANGE)
-                return QuestionResponse.answered(question, schedules.propose(sessionId, memberId, profileId, question, request,
-                        intent.targetMyDrugName(), reported, true));
+                return QuestionResponse.answered(question, schedules.propose(sessionId, memberId, profileId, question,
+                        intent.request() == null ? request : intent.request(), intent.targetMyDrugNames(),
+                        intent.allMyDrugs(), reported, true));
             return QuestionResponse.answered(question, answers.retry(sessionId, memberId, profileId, question, reported));
         });
     }

@@ -45,8 +45,10 @@ public class ChatProposalService {
         if (card.kind() == ChatProposalResponse.Kind.SCHEDULE) return confirmSchedule(card, request, memberId);
         var chosen = chosen(card, request);
         try {
-            var confirmed = proposals.confirmRegister(proposalId, memberId, card.profileId(), chosen);
-            log.info("[제안 확정] kind={} items={}", card.kind(), chosen.size());
+            var confirmed = proposals.confirmRegister(proposalId, memberId, card.profileId(), chosen,
+                    request.prescriptionRequested());
+            log.info("[제안 확정] kind={} items={} rx={}", card.kind(), chosen.size(), confirmed.items().stream()
+                    .filter(item -> item.prescription() != null && item.prescription().applied()).count());
             return confirmed;
         } catch (ChatProposalStore.NotPending changed) {
             refuseDecided(load(proposalId, memberId));

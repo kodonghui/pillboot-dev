@@ -105,7 +105,7 @@ class QuestionStreamWebTests {
     void ownedRoom() {
         when(store.checkAccess(42L, 7L)).thenReturn(10L);
         when(store.classificationContext(42L, 7L, 10L)).thenReturn(QuestionClassifier.Context.empty());
-        when(intents.read(any(), any(), any())).thenReturn(QuestionIntent.question());
+        when(intents.read(any(), any(), any(), any())).thenReturn(QuestionIntent.question());
     }
 
     @Test

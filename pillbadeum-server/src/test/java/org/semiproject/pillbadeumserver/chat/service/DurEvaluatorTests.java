@@ -232,4 +232,18 @@ class DurEvaluatorTests {
         return new AnswerInput.Medication(code, "drug-" + code, "maker", "OTC", 1, "식후", today, today,
                 List.of(LocalTime.of(7, 0)), today);
     }
+
+    // 2026-11-08 카톡 기록: '아침 점심 저녁, 복용할 양은 한알씩'에 '확인하지 못한 약' 카드가 붙어 대화를 끊음
+    @Test
+    void scheduleTalkWithoutWarningsHasNoStatusCardButWarningsAndSafetyQuestionsKeepIt() {
+        var partial = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("PARTIAL", null, 6, List.of("drug-B"), List.of(),
+                "금기 정보를 확인한 약 6개, 확인하지 못한 약: drug-B");
+        var talk = new AnswerInput(1990, "MALE", false, "아침 점심 저녁, 복용할 양은 한알씩", List.of(drug("A")), List.of(), false);
+        assertThat(evaluator.needsExplanation(talk, partial)).isFalse();
+        assertThat(evaluator.cardNotice(talk, partial)).isNull();
+        var warning = new org.semiproject.pillbadeumserver.chat.dto.DurNotice("ALL", "FOUND", 1, List.of(), List.of(), "warning");
+        assertThat(evaluator.cardNotice(talk, warning)).isSameAs(warning);
+        var safety = new AnswerInput(1990, "MALE", false, "아침에 같이 먹어도 돼?", List.of(drug("A")), List.of(), false);
+        assertThat(evaluator.cardNotice(safety, partial)).isSameAs(partial);
+    }
 }

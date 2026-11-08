@@ -10,6 +10,7 @@ import org.semiproject.pillbadeumserver.common.exception.ExternalApiException;
 import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.image.domain.ImagePhotoKind;
 import org.semiproject.pillbadeumserver.image.domain.PhotoIdentificationResponse;
+import org.semiproject.pillbadeumserver.image.domain.PrescriptionDose;
 import org.semiproject.pillbadeumserver.image.service.PhotoIdentificationWorkflow;
 import org.semiproject.pillbadeumserver.image.service.PhotoLifecycleService;
 import org.springframework.mock.web.MockMultipartFile;
@@ -49,6 +50,10 @@ class PhotoProposalServiceTests {
         return new PhotoIdentificationResponse(ImagePhotoKind.PRESCRIPTION, photoId, null, status, null, null, List.of(groups), List.of());
     }
 
+    private static PhotoIdentificationWorkflow.PrescriptionRead read(PhotoIdentificationResponse response, int rows) {
+        return new PhotoIdentificationWorkflow.PrescriptionRead(response, rows);
+    }
+
     private QuestionResponse propose() {
         return service.propose(42L, 7L, 10L, image, deadline);
     }
@@ -57,14 +62,14 @@ class PhotoProposalServiceTests {
     void readNamesWithCandidatesBecomeACardAndThePhotoIsDeleted() {
         var first = candidate("199900001", "가상약정10밀리그램", StrengthMatch.MATCH);
         var second = candidate("199900002", "가상약정20밀리그램", StrengthMatch.DIFFERENT);
-        when(workflow.identify(10L, ImagePhotoKind.PRESCRIPTION, List.of(image))).thenReturn(identified(55L, "OK",
+        when(workflow.readPrescription(10L, image)).thenReturn(read(identified(55L, "OK",
                 new PhotoIdentificationResponse.DrugGroup(1, "가상약정10mg", "OK", List.of(first, second)),
-                new PhotoIdentificationResponse.DrugGroup(2, "없는약", "NOT_FOUND", List.of())));
+                new PhotoIdentificationResponse.DrugGroup(2, "없는약", "NOT_FOUND", List.of())), 2));
         when(store.savePhotoTurn(eq(42L), eq(7L), eq(10L), anyString(), anyString(), anyList(), any())).thenReturn(saved);
 
         assertThat(propose()).isSameAs(saved);
         verify(store).savePhotoTurn(eq(42L), eq(7L), eq(10L), eq(PhotoProposalService.TURN),
-                eq(RegistrationProposalService.FOUND + "\n찾지 못한 이름: '없는약'. 포장에 적힌 제품명과 함량으로 다시 말해 주세요."),
+                eq(RegistrationProposalService.FOUND + "\n찾지 못한 이름: ‘없는약’. 포장에 적힌 제품명과 함량으로 다시 말해 주세요."),
                 argThat(picked -> picked.size() == 2 && picked.get(0).drug().itemSeq().equals("199900001")
                         && picked.get(0).mention().equals("가상약정10mg") && picked.get(0).strength() == StrengthMatch.MATCH
                         && picked.get(1).strength() == StrengthMatch.DIFFERENT),
@@ -74,7 +79,7 @@ class PhotoProposalServiceTests {
 
     @Test
     void unreadablePhotoAsksForANewPhotoWithoutACard() {
-        when(workflow.identify(anyLong(), any(), anyList())).thenReturn(identified(null, "UNREADABLE"));
+        when(workflow.readPrescription(anyLong(), any())).thenReturn(read(identified(null, "UNREADABLE"), 0));
         propose();
         verify(store).savePhotoTurn(eq(42L), eq(7L), eq(10L), eq(PhotoProposalService.TURN), eq(PhotoProposalService.RETAKE),
                 eq(List.of()), eq(deadline));
@@ -83,17 +88,17 @@ class PhotoProposalServiceTests {
 
     @Test
     void namesWithoutCandidatesAskForTheNameInText() {
-        when(workflow.identify(anyLong(), any(), anyList())).thenReturn(identified(null, "NOT_FOUND",
+        when(workflow.readPrescription(anyLong(), any())).thenReturn(read(identified(null, "NOT_FOUND",
                 new PhotoIdentificationResponse.DrugGroup(1, "가상약정", "NOT_FOUND", List.of()),
-                new PhotoIdentificationResponse.DrugGroup(2, "없는약", "NOT_FOUND", List.of())));
+                new PhotoIdentificationResponse.DrugGroup(2, "없는약", "NOT_FOUND", List.of())), 2));
         propose();
         verify(store).savePhotoTurn(eq(42L), eq(7L), eq(10L), eq(PhotoProposalService.TURN),
-                eq(PhotoProposalService.NOT_FOUND + "\n읽은 이름: '가상약정', '없는약'."), eq(List.of()), eq(deadline));
+                eq(PhotoProposalService.NOT_FOUND + "\n읽은 이름: ‘가상약정’, ‘없는약’."), eq(List.of()), eq(deadline));
     }
 
     @Test
     void readingOrPublicDataFailureLeavesAFailureNotice() {
-        when(workflow.identify(anyLong(), any(), anyList())).thenThrow(ExternalApiException.failed("사진 판독", "장애", null));
+        when(workflow.readPrescription(anyLong(), any())).thenThrow(ExternalApiException.failed("사진 판독", "장애", null));
         propose();
         verify(store).savePhotoTurn(eq(42L), eq(7L), eq(10L), eq(PhotoProposalService.TURN), eq(PhotoProposalService.FAILED),
                 eq(List.of()), eq(deadline));
@@ -101,15 +106,15 @@ class PhotoProposalServiceTests {
 
     @Test
     void fileProblemsSaveNothing() {
-        when(workflow.identify(anyLong(), any(), anyList())).thenThrow(new BusinessException(ErrorCode.INVALID_FILE, "형식"));
+        when(workflow.readPrescription(anyLong(), any())).thenThrow(new BusinessException(ErrorCode.INVALID_FILE, "형식"));
         assertThatThrownBy(this::propose).isInstanceOf(BusinessException.class);
         verifyNoInteractions(store, lifecycle);
     }
 
     @Test
     void photoIsDeletedEvenWhenSavingFailsAndCleanupFailureDoesNotHideTheAnswer() {
-        when(workflow.identify(anyLong(), any(), anyList())).thenReturn(identified(55L, "OK",
-                new PhotoIdentificationResponse.DrugGroup(1, "가상약정", "OK", List.of(candidate("199900001", "가상약정", null)))));
+        when(workflow.readPrescription(anyLong(), any())).thenReturn(read(identified(55L, "OK",
+                new PhotoIdentificationResponse.DrugGroup(1, "가상약정", "OK", List.of(candidate("199900001", "가상약정", null)))), 1));
         when(store.savePhotoTurn(any(), any(), any(), anyString(), anyString(), anyList(), any()))
                 .thenThrow(new BusinessException(ErrorCode.DUPLICATE_REQUEST, "진행 중")).thenReturn(saved);
         assertThatThrownBy(this::propose).isInstanceOf(BusinessException.class);
@@ -129,5 +134,66 @@ class PhotoProposalServiceTests {
         assertThat(picked).hasSize(RegistrationCandidates.PER_MENTION)
                 .extracting(c -> c.drug().itemSeq()).startsWith("199900001");
         assertThat(picked).allSatisfy(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.UNKNOWN));
+    }
+
+    // ---- 2026-11-08 카톡 기록: 처방전 7줄 중 3개만 읽고, '룩펠정'을 '록펠정'으로 읽었는데 알리지 않음 ----
+
+    private static PhotoIdentificationResponse.DrugGroup group(int no, String name, List<PhotoIdentificationResponse.Candidate> found,
+                                                               String code, boolean byCode, boolean similar, boolean unclear,
+                                                               PrescriptionDose dose) {
+        return new PhotoIdentificationResponse.DrugGroup(no, name, found.isEmpty() ? "NOT_FOUND" : "OK", found)
+                .withReading(code, byCode, similar, unclear, dose);
+    }
+
+    @Test
+    void partialAndUnclearReadingsAreToldUnderTheCard() {
+        var groups = List.of(
+                group(1, "가상셀정", List.of(candidate("199900011", "가상셀정", StrengthMatch.UNKNOWN)), null, false, false, false, null),
+                group(2, "가상록정", List.of(candidate("199900012", "가상룩정", StrengthMatch.UNKNOWN)), null, false, true, true, null),
+                group(3, "가상시럽", List.of(), null, false, false, false, null));
+        assertThat(PhotoProposalService.notes(groups, 7)).isEqualTo(
+                "\n" + PhotoProposalService.PARTIAL + " 약 7줄을 봤는데 3개만 읽었어요. 나머지 약은 이름이나 보험코드(9자리)를 글로 보내 주세요."
+                        + "\n" + PhotoProposalService.UNCLEAR + " ‘가상록정’. 고르기 전에 포장과 맞는지 봐 주세요.");
+        assertThat(PhotoProposalService.notes(groups, 3)).isEqualTo(
+                "\n" + PhotoProposalService.UNCLEAR + " ‘가상록정’. 고르기 전에 포장과 맞는지 봐 주세요.");
+        assertThat(PhotoProposalService.notes(List.of(), 7)).isEmpty();
+    }
+
+    @Test
+    void aSingleCandidateMatchedByInsuranceCodeIsPreselectedAndCarriesThePrescription() {
+        var dose = new PrescriptionDose("1", 3, 5);
+        var byCode = group(1, "가상스텐캡슐", List.of(candidate("199900021", "가상스텐캡슐200밀리그램", null)),
+                "640000001", true, false, false, dose);
+        assertThat(byCode.autoSelectItemSeq()).isEqualTo("199900021");
+        assertThat(PhotoProposalService.candidates(byCode)).singleElement().satisfies(c -> {
+            assertThat(c.strength()).isEqualTo(StrengthMatch.MATCH);
+            assertThat(c.prescription()).isEqualTo(dose);
+            assertThat(c.similar()).isFalse();
+        });
+    }
+
+    @Test
+    void similarOrUnclearCandidatesAreNeverPreselected() {
+        var similar = group(1, "가상유코스텐스캡슐", List.of(candidate("199900031", "가상뮤코스텐캡슐", StrengthMatch.MATCH)),
+                null, false, true, false, null);
+        assertThat(similar.autoSelectItemSeq()).isNull();
+        assertThat(PhotoProposalService.candidates(similar)).singleElement().satisfies(c -> {
+            assertThat(c.strength()).isEqualTo(StrengthMatch.UNKNOWN);
+            assertThat(c.similar()).isTrue();
+        });
+        var unclear = group(2, "가상록정", List.of(candidate("199900032", "가상룩정", StrengthMatch.MATCH)), null, false, false, true, null);
+        assertThat(PhotoProposalService.candidates(unclear)).singleElement()
+                .satisfies(c -> assertThat(c.strength()).isEqualTo(StrengthMatch.UNKNOWN));
+    }
+
+    @Test
+    void theNotesAreAddedToTheSavedAnswer() {
+        when(workflow.readPrescription(anyLong(), any())).thenReturn(read(identified(55L, "OK",
+                new PhotoIdentificationResponse.DrugGroup(1, "가상약정", "OK", List.of(candidate("199900001", "가상약정", null)))), 4));
+        when(store.savePhotoTurn(any(), any(), any(), anyString(), anyString(), anyList(), any())).thenReturn(saved);
+        propose();
+        verify(store).savePhotoTurn(eq(42L), eq(7L), eq(10L), eq(PhotoProposalService.TURN),
+                argThat(content -> content.endsWith("약 4줄을 봤는데 1개만 읽었어요. 나머지 약은 이름이나 보험코드(9자리)를 글로 보내 주세요.")),
+                anyList(), eq(deadline));
     }
 }

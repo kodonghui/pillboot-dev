@@ -189,3 +189,20 @@
 .chat-proposal--done .mt-btn {
   align-self: flex-start;
 }
+
+/* 2026-11-08: 처방전 값으로 일정도 넣기(처방전 사진 카드) */
+.chat-proposal__rx {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  cursor: pointer;
+}
+
+.chat-proposal__rx input {
+  flex: none;
+  margin-top: var(--space-4);
+}
+
+.chat-proposal__rx-help {
+  display: block;
+}

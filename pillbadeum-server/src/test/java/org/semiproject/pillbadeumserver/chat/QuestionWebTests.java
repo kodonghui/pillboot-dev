@@ -72,7 +72,7 @@ class QuestionWebTests {
     void ownedRoom() {
         when(store.checkAccess(42L, 7L)).thenReturn(10L);
         when(store.classificationContext(42L, 7L, 10L)).thenReturn(QuestionClassifier.Context.empty());
-        when(intents.read(any(), any(), any())).thenReturn(QuestionIntent.question());
+        when(intents.read(any(), any(), any(), any())).thenReturn(QuestionIntent.question());
     }
 
     @Test
@@ -190,7 +190,7 @@ class QuestionWebTests {
         when(classifier.plan(eq("타이레놀 500 등록해 줘"), any())).thenReturn(plan(QuestionCategory.PASS));
         when(store.classificationContext(42L, 7L, 10L)).thenReturn(new QuestionClassifier.Context(List.of(), List.of(),
                 List.of("가상혈압정")));
-        when(intents.read(eq("타이레놀 500 등록해 줘"), eq(List.of("가상혈압정")), any())).thenReturn(
+        when(intents.read(eq("타이레놀 500 등록해 줘"), eq(List.of("가상혈압정")), any(), any())).thenReturn(
                 new QuestionIntent(QuestionIntent.Kind.REGISTER_DRUG, List.of("타이레놀 500"), null));
         var question = new QuestionResponse.Question(100L, 1);
         when(store.save(42L, 7L, 10L, "타이레놀 500 등록해 줘")).thenReturn(question);
@@ -225,7 +225,7 @@ class QuestionWebTests {
         var question = new QuestionResponse.Question(100L, 1);
         when(store.retryQuestion(42L, 7L, 10L, 100L)).thenReturn(question);
         when(store.questionContent(42L, question)).thenReturn("타이레놀 등록해 줘");
-        when(intents.read(eq("타이레놀 등록해 줘"), any(), any())).thenReturn(
+        when(intents.read(eq("타이레놀 등록해 줘"), any(), any(), any())).thenReturn(
                 new QuestionIntent(QuestionIntent.Kind.REGISTER_DRUG, List.of("타이레놀"), null));
         when(registrations.propose(eq(42L), eq(7L), eq(10L), eq(question), eq(List.of("타이레놀")), any(), eq(true)))
                 .thenReturn(new QuestionResponse.Answer(101L, 1, "후보 없음", null,
@@ -244,7 +244,7 @@ class QuestionWebTests {
         when(store.questionContent(42L, question)).thenReturn("1번 등록해 줘");
         when(store.answerBefore(42L, 3)).thenReturn("검색된 제품이 여러 개예요.");
         when(lookup.withChoiceNames("1번 등록해 줘", "검색된 제품이 여러 개예요.")).thenReturn("가상약정500밀리그람 등록해 줘");
-        when(intents.read(eq("가상약정500밀리그람 등록해 줘"), any(), any())).thenReturn(
+        when(intents.read(eq("가상약정500밀리그람 등록해 줘"), any(), any(), any())).thenReturn(
                 new QuestionIntent(QuestionIntent.Kind.REGISTER_DRUG, List.of("가상약정500밀리그람"), null));
         when(registrations.propose(eq(42L), eq(7L), eq(10L), eq(question), eq(List.of("가상약정500밀리그람")), any(), eq(true)))
                 .thenReturn(new QuestionResponse.Answer(101L, 3, "다시 후보", null,
@@ -260,12 +260,12 @@ class QuestionWebTests {
         when(classifier.plan(eq("가상혈압정 아침 8시로 바꿔 줘"), any())).thenReturn(plan(QuestionCategory.PASS));
         when(store.classificationContext(42L, 7L, 10L)).thenReturn(new QuestionClassifier.Context(List.of(), List.of(),
                 List.of("가상혈압정5밀리그램")));
-        when(intents.read(eq("가상혈압정 아침 8시로 바꿔 줘"), eq(List.of("가상혈압정5밀리그램")), any())).thenReturn(
+        when(intents.read(eq("가상혈압정 아침 8시로 바꿔 줘"), eq(List.of("가상혈압정5밀리그램")), any(), any())).thenReturn(
                 new QuestionIntent(QuestionIntent.Kind.SCHEDULE_CHANGE, List.of(), "가상혈압정5밀리그램"));
         var question = new QuestionResponse.Question(100L, 1);
         when(store.save(42L, 7L, 10L, "가상혈압정 아침 8시로 바꿔 줘")).thenReturn(question);
         when(schedules.propose(eq(42L), eq(7L), eq(10L), eq(question), eq("가상혈압정 아침 8시로 바꿔 줘"),
-                eq("가상혈압정5밀리그램"), any(), eq(false))).thenReturn(new QuestionResponse.Answer(101L, 1, "카드", null,
+                eq(List.of("가상혈압정5밀리그램")), eq(false), any(), eq(false))).thenReturn(new QuestionResponse.Answer(101L, 1, "카드", null,
                         java.time.OffsetDateTime.parse("2026-11-03T09:00:00+09:00")));
         mvc.perform(post("/api/chat-sessions/42/messages").header("Authorization", authorization())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"가상혈압정 아침 8시로 바꿔 줘\"}"))
@@ -275,7 +275,7 @@ class QuestionWebTests {
         when(store.retryQuestion(42L, 7L, 10L, 100L)).thenReturn(question);
         when(store.questionContent(42L, question)).thenReturn("가상혈압정 아침 8시로 바꿔 줘");
         when(schedules.propose(eq(42L), eq(7L), eq(10L), eq(question), eq("가상혈압정 아침 8시로 바꿔 줘"),
-                eq("가상혈압정5밀리그램"), any(), eq(true))).thenReturn(new QuestionResponse.Answer(101L, 1, "다시 카드", null,
+                eq(List.of("가상혈압정5밀리그램")), eq(false), any(), eq(true))).thenReturn(new QuestionResponse.Answer(101L, 1, "다시 카드", null,
                         java.time.OffsetDateTime.parse("2026-11-03T09:00:00+09:00")));
         mvc.perform(post("/api/chat-sessions/42/messages/100/retry").header("Authorization", authorization()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.answer.content").value("다시 카드"));

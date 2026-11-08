@@ -14,5 +14,17 @@ public record ChatProposalConfirmRequest(
         @Size(min = 1, max = 10, message = "약목록에 넣을 약을 1~10개 골라 주세요.")
         List<@NotNull(message = "고른 항목 번호가 비어 있어요.")
              @Min(value = 1, message = "카드에 있는 항목 번호를 골라 주세요.")
-             @Max(value = 10, message = "카드에 있는 항목 번호를 골라 주세요.") Integer> itemNos) {
+             @Max(value = 10, message = "카드에 있는 항목 번호를 골라 주세요.") Integer> itemNos,
+        Boolean applyPrescription) {
+    public ChatProposalConfirmRequest(List<Integer> itemNos) {
+        this(itemNos, null);
+    }
+
+    /**
+     * 2026-11-08: 등록 제안을 확정하면서 처방전에서 읽은 1회 투약량·1일 횟수·총 일수로 일정도 넣을지. 보내지 않으면 넣지 않음.
+     * 웹 카드는 '처방전 값으로 일정도 넣기' 체크(기본 켬)로, 카톡 다리는 회원이 '모두 등록'을 고르면 true('약만 등록'이면 보내지 않음).
+     */
+    public boolean prescriptionRequested() {
+        return Boolean.TRUE.equals(applyPrescription);
+    }
 }

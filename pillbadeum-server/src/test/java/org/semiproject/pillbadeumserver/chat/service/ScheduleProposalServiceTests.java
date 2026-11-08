@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
@@ -44,6 +45,7 @@ class ScheduleProposalServiceTests {
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 3);
     private final MedicationRepository medications = mock(MedicationRepository.class);
     private final MedicationVoiceInterpreter interpreter = mock(MedicationVoiceInterpreter.class);
+    private final ScheduleSetInterpreter setInterpreter = mock(ScheduleSetInterpreter.class);
     private final QuestionStore questions = mock(QuestionStore.class);
     private final ChatProposalStore proposals = mock(ChatProposalStore.class);
     private final QuestionResponse.Question question = new QuestionResponse.Question(100L, 3);
@@ -65,7 +67,7 @@ class ScheduleProposalServiceTests {
     void setup() {
         executor = new SimpleAsyncTaskExecutor();
         executor.setVirtualThreads(true);
-        service = new ScheduleProposalService(medications, interpreter, questions, proposals, executor,
+        service = new ScheduleProposalService(medications, interpreter, setInterpreter, questions, proposals, executor,
                 Clock.fixed(TODAY.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant(), ZoneId.of("Asia/Seoul")));
         when(medications.drugs(7L, 10L)).thenReturn(List.of(pressure, target(31L, "가상비타민정", null)));
         when(questions.saveNotice(eq(42L), eq(7L), eq(10L), eq(question), anyString(), any(), anyBoolean())).thenReturn(notice);
@@ -85,14 +87,16 @@ class ScheduleProposalServiceTests {
     @Test
     void readValuesBecomeACardWithTheCurrentAndProposedSchedule() {
         interpreted(parsed("CREATE_SCHEDULE", null, List.of("08:00"), 1));
-        when(proposals.saveScheduleAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), anyLong(), any(), any(), any(),
+        when(proposals.saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), any(), any(),
                 anyBoolean())).thenReturn(notice);
         assertThat(propose("가상혈압정5밀리그램")).isSameAs(notice);
 
         var month = new ScheduleValues(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), List.of("07:00", "19:00"), 2, "식후 30분");
-        verify(proposals).saveScheduleAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND), eq(30L),
-                eq(month), eq(new ScheduleValues(month.startDate(), month.endDate(), List.of("08:00"), 1, "식후 30분")), any(),
-                eq(false));
+        // 하루 2번이던 약을 1번으로 바꾸면 확정 전에 볼 점으로 알린다(2026-11-08).
+        verify(proposals).saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND),
+                eq(List.of(new ChatProposalStore.ScheduleRow(30L, month,
+                        new ScheduleValues(month.startDate(), month.endDate(), List.of("08:00"), 1, "식후 30분"),
+                        "하루 2번에서 1번으로 바뀌어요."))), any(), eq(false));
         verify(questions, never()).saveNotice(any(), any(), any(), any(), anyString(), any(), anyBoolean());
     }
 
@@ -138,11 +142,11 @@ class ScheduleProposalServiceTests {
     void withOnlyOneDrugAScheduleWithoutANameIsForThatDrug() {
         when(medications.drugs(7L, 10L)).thenReturn(List.of(pressure));
         interpreted(parsed("CREATE_SCHEDULE", null, List.of("08:00"), 1));
-        when(proposals.saveScheduleAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), anyLong(), any(), any(), any(),
+        when(proposals.saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), any(), any(),
                 anyBoolean())).thenReturn(notice);
         assertThat(propose(null)).isSameAs(notice);
-        verify(proposals).saveScheduleAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND), eq(30L),
-                any(), any(), any(), eq(false));
+        verify(proposals).saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.FOUND),
+                argThat(rows -> rows.size() == 1 && rows.getFirst().myDrugId() == 30L), any(), eq(false));
     }
 
     @Test
@@ -183,5 +187,110 @@ class ScheduleProposalServiceTests {
                         failed -> assertThat(failed.getQuestionMessageId()).isEqualTo(100L));
         verify(questions, never()).saveNotice(any(), any(), any(), any(), anyString(), any(), anyBoolean());
         verifyNoInteractions(proposals);
+    }
+
+    // ---- 2026-11-08 카톡 기록: '나 먹는 약들 3일간 오늘부터 9시·13시·19시 식후 30분 한 알씩, 시럽은 20미리' ----
+
+    private final MedicationTarget vitamin = target(31L, "가상비타민정", null);
+    private final MedicationTarget syrup = new MedicationTarget(35L, 10L, "엄마", "PARENT", "가상기침시럽", 1, null, null, null,
+            null, LocalDateTime.of(2026, 11, 1, 9, 0), false);
+
+    private QuestionResponse.Answer proposeAll(String text) {
+        return service.propose(42L, 7L, 10L, question, text, List.of(), true, ChatDeadline.after(Duration.ofSeconds(5)), false);
+    }
+
+    private static ScheduleSetInterpreter.DrugCommand command(long myDrugId, Integer dose, String timing, String amount) {
+        return new ScheduleSetInterpreter.DrugCommand(new ParsedCommand("CREATE_SCHEDULE", myDrugId, "2026-11-03", null, 3,
+                List.of("09:00", "13:00", "19:00"), 3, dose, timing), amount);
+    }
+
+    @Test
+    void allDrugsBecomeOneCardWithANoteForTheSyrupAmountAndThePrescription() {
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(pressure, vitamin, syrup));
+        when(setInterpreter.parse(eq("약목록 전부 오늘부터 3일간 9시, 13시, 19시 식후 30분 한 알씩, 가상기침시럽은 20미리"), eq(TODAY), any()))
+                .thenReturn(new ScheduleSetInterpreter.Result("CREATE_SCHEDULE", List.of(command(30L, 1, "식후 30분", null),
+                        command(31L, 1, "식후 30분", null), command(35L, 1, "식후 30분", "20mL"))));
+        when(proposals.prescriptions(10L, List.of(30L, 31L, 35L))).thenReturn(java.util.Map.of(31L,
+                new org.semiproject.pillbadeumserver.image.domain.PrescriptionDose("1", 2, 5)));
+        when(proposals.saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), anyString(), any(), any(), anyBoolean()))
+                .thenReturn(notice);
+        assertThat(proposeAll("약목록 전부 오늘부터 3일간 9시, 13시, 19시 식후 30분 한 알씩, 가상기침시럽은 20미리")).isSameAs(notice);
+
+        var three = List.of("09:00", "13:00", "19:00");
+        var end = TODAY.plusDays(2);
+        verify(proposals).saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.foundMany(3, List.of())),
+                eq(List.of(
+                        new ChatProposalStore.ScheduleRow(30L, new ScheduleValues(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30),
+                                List.of("07:00", "19:00"), 2, "식후 30분"), new ScheduleValues(TODAY, end, three, 1, "식후 30분"),
+                                "하루 2번에서 3번으로 바뀌어요."),
+                        new ChatProposalStore.ScheduleRow(31L, new ScheduleValues(null, null, null, 2, "식후 30분"),
+                                new ScheduleValues(TODAY, end, three, 1, "식후 30분"),
+                                "처방전 값: 하루 2번·5일분. 처방과 다르게 먹으려면 의사·약사와 먼저 상의해 주세요."),
+                        new ChatProposalStore.ScheduleRow(35L, new ScheduleValues(null, null, null, null, null),
+                                new ScheduleValues(TODAY, end, three, 1, "식후 30분 · 1회 20mL"), "1회 20mL는 복용 때 칸에 적었어요."))),
+                any(), eq(false));
+        // 해석기에는 프로필 이름을 빼고 대상 약만 보낸다(8.4).
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<MedicationTarget>> sent = ArgumentCaptor.forClass(List.class);
+        verify(setInterpreter).parse(anyString(), eq(TODAY), sent.capture());
+        assertThat(sent.getValue()).extracting(MedicationTarget::myDrugId).containsExactly(30L, 31L, 35L);
+        assertThat(sent.getValue()).allSatisfy(target -> assertThat(target.profileName()).isEmpty());
+        verifyNoInteractions(interpreter);
+    }
+
+    @Test
+    void drugsAlreadyOnTheSameScheduleAreLeftOutAndNamed() {
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(pressure, vitamin));
+        var keep = new ScheduleSetInterpreter.DrugCommand(new ParsedCommand("CREATE_SCHEDULE", 30L, null, null, null,
+                List.of("07:00", "19:00"), null, 2, null), null);
+        when(setInterpreter.parse(anyString(), eq(TODAY), any())).thenReturn(new ScheduleSetInterpreter.Result("CREATE_SCHEDULE",
+                List.of(keep, command(31L, 1, null, null))));
+        proposeAll("전부 바꿔 줘");
+        verify(proposals).saveScheduleSetAnswer(eq(42L), eq(7L), eq(10L), eq(question),
+                eq(ScheduleProposalService.foundMany(1, List.of("가상혈압정5밀리그램"))),
+                argThat(rows -> rows.size() == 1 && rows.getFirst().myDrugId() == 31L), any(), eq(false));
+        assertThat(ScheduleProposalService.foundMany(1, List.of("가상혈압정5밀리그램")))
+                .endsWith("\n" + ScheduleProposalService.SAME_SKIPPED + " ‘가상혈압정5밀리그램’.");
+    }
+
+    @Test
+    void oneDrugOutsideTheRulesStopsTheCardAndNamesThatDrug() {
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(pressure, vitamin));
+        when(setInterpreter.parse(anyString(), eq(TODAY), any())).thenReturn(new ScheduleSetInterpreter.Result("CREATE_SCHEDULE",
+                List.of(command(30L, 1, null, null), command(31L, 11, null, null))));
+        proposeAll("전부 바꿔 줘");
+        verify(questions).saveNotice(eq(42L), eq(7L), eq(10L), eq(question),
+                eq("‘가상비타민정’: 1회 개수는 1~10개로 말해 주세요." + ScheduleProposalService.REJECTED_TAIL), any(), eq(false));
+        verify(proposals, never()).saveScheduleSetAnswer(any(), any(), any(), any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void anEmptyListOrMoreThanTenDrugsAnswerWithANoticeWithoutReading() {
+        when(medications.drugs(7L, 10L)).thenReturn(List.of());
+        proposeAll("전부 3일간");
+        verify(questions).saveNotice(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.NO_DRUGS), any(), eq(false));
+        var eleven = new java.util.ArrayList<MedicationTarget>();
+        for (long id = 1; id <= 11; id++) eleven.add(target(id, "가상약" + id + "정", null));
+        when(medications.drugs(7L, 10L)).thenReturn(eleven);
+        proposeAll("전부 3일간");
+        verify(questions).saveNotice(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.TOO_MANY), any(), eq(false));
+        verifyNoInteractions(setInterpreter, proposals);
+    }
+
+    @Test
+    void namedDrugsMustEachBeOnTheListOrTheBotAsksWhichDrug() {
+        when(medications.drugs(7L, 10L)).thenReturn(List.of(pressure, vitamin));
+        service.propose(42L, 7L, 10L, question, "혈압약이랑 없는약 바꿔 줘", List.of("가상혈압정5밀리그램", "없는약"), false,
+                ChatDeadline.after(Duration.ofSeconds(5)), false);
+        verify(questions).saveNotice(eq(42L), eq(7L), eq(10L), eq(question), eq(ScheduleProposalService.ASK_DRUG), any(), eq(false));
+        verifyNoInteractions(setInterpreter, interpreter, proposals);
+    }
+
+    @Test
+    void anAmountThatDoesNotFitTheTimingFieldIsLeftAsANote() {
+        var values = new ScheduleValues(TODAY, TODAY, List.of("09:00"), 1, "식후 30분 미지근한 물과 함께");
+        var kept = ScheduleProposalService.withAmount(values, "20mL");
+        assertThat(kept.values()).isEqualTo(values);
+        assertThat(kept.note()).isEqualTo("1회 20mL는 복용 때 칸(20자)에 다 들어가지 않아 적지 못했어요.");
     }
 }

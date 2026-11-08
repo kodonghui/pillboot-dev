@@ -87,25 +87,63 @@ function summaryOf(schedule) {
   return `${schedule.drugName ? `${schedule.drugName} ` : ''}${[...doseTimes, doseText(dosePerTime)].join(' · ')}`
 }
 
+// 카드의 약 줄들(카드 순서). 2026-11-08부터 일정 카드 하나에 약 여러 개(schedules)가 올 수 있다.
+// schedules 가 없는 이전 응답은 schedule 하나를 쓴다.
+function rowsOf(proposal) {
+  if (proposal.schedules?.length) return proposal.schedules
+  return proposal.schedule ? [proposal.schedule] : []
+}
+
+// 카드를 만든 뒤 약목록에서 지운 약이 있는지. 한 약이라도 지웠으면 카드 전체를 확정할 수 없다.
+function hasDeleted(proposal) {
+  return rowsOf(proposal).some((row) => row.myDrugId == null)
+}
+
+// 약 줄의 키. 지운 약은 myDrugId 가 없어 카드 순서를 함께 쓴다(카드의 줄 순서는 바뀌지 않음).
+function rowKey(row, index) {
+  return `${index}-${row.myDrugId ?? 'deleted'}`
+}
+
+// 확정 전에 볼 점(서버가 정한 글: 하루 횟수가 바뀜 · 처방전 값과 다름 · 1회 양을 적은 곳). 없으면 그리지 않는다.
+function RowNote({ note }) {
+  if (!note) return null
+  return <Notice>{note}</Notice>
+}
+
 // 확정한 카드: 바뀐 뒤 일정과 복용 달력 링크. notice: 다른 화면에서 이미 확정한 카드일 때 위에 두는 안내
 function DoneCard({ proposal, titleId, announce, notice }) {
-  const { myDrugId, drugName, current, proposed } = proposal.schedule
+  const rows = rowsOf(proposal)
+  const single = rows.length === 1
+  const { myDrugId, drugName, proposed } = rows[0]
+  // 약 여러 개면 약을 정하지 않고 첫 줄의 달로 연다.
   const calendarLink = `${paths.calendar}?${new URLSearchParams({
     month: calendarMonth(proposed.startDate, proposed.endDate, todayKst()),
     profile: proposal.profileId,
-    drug: myDrugId,
+    ...(single ? { drug: myDrugId } : {}),
   })}`
+  const title = single ? (drugName ? `${drugName} 일정을 바꿨어요` : '일정을 바꿨어요') : `약 ${rows.length}개 일정을 바꿨어요`
   return (
     <section className="chat-proposal chat-proposal--done chat-schedule" aria-labelledby={titleId}>
       {notice && <Notice variant="info">{notice}</Notice>}
       <div className="chat-proposal__result" role={announce ? 'status' : undefined}>
         <Icon name="checkCircle" size="l" />
         <h3 className="screen-item" id={titleId}>
-          {drugName ? `${drugName} 일정을 바꿨어요` : '일정을 바꿨어요'}
+          {title}
         </h3>
       </div>
       {/* 연도는 대기 카드와 같이 '지금'까지 맞춰 봐, 연도를 보이던 카드가 확정 뒤에도 연도를 보인다. */}
-      <ValueList values={proposed} badges year={spansYears(current, proposed)} />
+      {single ? (
+        <ValueList values={proposed} badges year={spansYears(rows[0].current, proposed)} />
+      ) : (
+        <div className="chat-schedule__rows">
+          {rows.map((row, index) => (
+            <div className="chat-schedule__row" key={rowKey(row, index)}>
+              <p className="screen-body chat-schedule__name">{row.drugName ?? '약목록에서 지운 약'}</p>
+              <ValueList values={row.proposed} badges year={spansYears(row.current, row.proposed)} />
+            </div>
+          ))}
+        </div>
+      )}
       <p className="screen-caption chat-proposal__muted">
         {hourMinute(proposal.decidedAt)} 확정 · 복용 알림을 켰다면 바뀐 시간에 와요.
       </p>
@@ -131,11 +169,18 @@ const closedTexts = {
     title: '확정할 수 있는 시간이 지났어요',
     body: `카드는 30분 동안만 쓸 수 있어 ${hourMinute(proposal.expiresAt)}에 끝났어요. 일정은 그대로예요. 바꾸려면 원하는 일정을 다시 말해 주세요.`,
   }),
-  deleted: () => ({
-    icon: 'trash',
-    title: '약목록에서 지운 약이에요',
-    body: '카드를 만든 뒤 이 약을 약목록에서 지워서 일정을 바꿀 수 없어요. 아무것도 바꾸지 않았어요.',
-  }),
+  deleted: (proposal) =>
+    rowsOf(proposal).length === 1
+      ? {
+          icon: 'trash',
+          title: '약목록에서 지운 약이에요',
+          body: '카드를 만든 뒤 이 약을 약목록에서 지워서 일정을 바꿀 수 없어요. 아무것도 바꾸지 않았어요.',
+        }
+      : {
+          icon: 'trash',
+          title: '약목록에서 지운 약이 있어요',
+          body: '카드를 만든 뒤 카드의 약 중 하나를 약목록에서 지워서 일정을 바꿀 수 없어요. 아무것도 바꾸지 않았어요.',
+        },
 }
 
 function ClosedCard({ proposal, reason, titleId, announce }) {
@@ -149,7 +194,9 @@ function ClosedCard({ proposal, reason, titleId, announce }) {
         </h3>
       </div>
       <p className="screen-body chat-proposal__muted">{body}</p>
-      <p className="screen-caption chat-proposal__muted">바꾸려던 일정: {summaryOf(proposal.schedule)}</p>
+      <p className="screen-caption chat-proposal__muted">
+        바꾸려던 일정: {rowsOf(proposal).map(summaryOf).join(' / ')}
+      </p>
     </section>
   )
 }
@@ -175,6 +222,62 @@ function ChangeRow({ field, current, proposed, year }) {
       </dd>
     </div>
   )
+}
+
+// 약 한 줄의 '지금 → 바뀐 뒤'. 일정이 있던 약은 바뀌는 값과 그대로 두는 값, 없던 약은 새로 넣을 일정이다.
+function RowBody({ row }) {
+  const { current, proposed } = row
+  const scheduled = current.startDate != null
+  const changes = fields.filter((field) => !field.same(current, proposed))
+  const kept = fields.filter((field) => field.same(current, proposed))
+  const year = spansYears(current, proposed)
+  return (
+    <>
+      <div className="chat-schedule__drug">
+        <DrugThumb size="sm" />
+        <p className="screen-body chat-schedule__name">{row.drugName}</p>
+      </div>
+      {scheduled ? (
+        <>
+          <p className="screen-label chat-schedule__section">바뀌는 값</p>
+          <dl className="chat-schedule__changes">
+            {changes.map((field) => (
+              <ChangeRow key={field.key} field={field} current={current} proposed={proposed} year={year} />
+            ))}
+          </dl>
+          {kept.length > 0 && (
+            <>
+              <p className="screen-label chat-schedule__section">그대로 두는 값</p>
+              <dl className="chat-schedule__same">
+                {kept.map((field) => (
+                  <div key={field.key}>
+                    <dt className="screen-caption">{field.label}</dt>
+                    <dd className="screen-caption">{fieldValue(field.key, proposed, { year }) ?? <NoValue />}</dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="screen-label chat-schedule__section">지금은 일정이 없어요 · 새로 넣을 일정</p>
+          <ValueList values={proposed} fresh year={year} />
+        </>
+      )}
+      <RowNote note={row.note} />
+    </>
+  )
+}
+
+// 말하지 않은 값을 어떻게 채웠는지(카드 아래 안내). 약마다 일정이 있었는지에 따라 다르다.
+function fillText(rows) {
+  const scheduled = rows.filter((row) => row.current.startDate != null).length
+  const kept = '말씀하지 않은 값이 있으면 지금 일정 그대로 뒀어요.'
+  const fresh = '말씀하지 않은 값이 있으면 기본 일정(오늘 하루, 07:00 · 12:00 · 17:00)으로 채웠어요.'
+  if (scheduled === rows.length) return kept
+  if (scheduled === 0) return `지금은 일정이 없어서 ${fresh}`
+  return `일정이 있던 약은 ${kept} 일정이 없던 약은 ${fresh}`
 }
 
 // 대화 속 일정 바꾸기 카드(V3-CHAT-007, design/v3-2-chat-schedule.md B안, DEC-025). '지금 → 바뀐 뒤'를 보이고
@@ -211,7 +314,7 @@ function ChatSchedule({ proposal, onChange }) {
     return () => clearTimeout(timer)
   }, [pending, proposal.expiresAt])
 
-  const { schedule } = proposal
+  const rows = rowsOf(proposal)
   if (proposal.status === 'CONFIRMED') {
     return <DoneCard proposal={proposal} titleId={titleId} announce={announce} notice={notice} />
   }
@@ -219,19 +322,14 @@ function ChatSchedule({ proposal, onChange }) {
     const reason = proposal.status === 'CANCELLED' ? 'cancelled' : 'expired'
     return <ClosedCard proposal={proposal} reason={reason} titleId={titleId} announce={announce} />
   }
-  if (schedule.myDrugId == null) {
+  if (hasDeleted(proposal)) {
     return <ClosedCard proposal={proposal} reason="deleted" titleId={titleId} announce={announce} />
   }
-
-  const { current, proposed } = schedule
-  const scheduled = current.startDate != null
-  const changes = fields.filter((field) => !field.same(current, proposed))
-  const kept = fields.filter((field) => field.same(current, proposed))
-  const year = spansYears(current, proposed)
+  const single = rows.length === 1
 
   // 서버 상태가 바뀐 카드를 받았다. 결과 · 닫힌 카드(약을 지운 카드 포함)로 바뀌면 제목을 읽어 준다.
   const settle = (next) => {
-    if (next.status !== 'PENDING' || next.schedule.myDrugId == null) setAnnounce(true)
+    if (next.status !== 'PENDING' || hasDeleted(next)) setAnnounce(true)
     onChange(next)
   }
 
@@ -261,11 +359,14 @@ function ChatSchedule({ proposal, onChange }) {
         const { status, code, message } = errorOf(error)
         const latest = error.response?.data?.proposal
         if (status === 409 && latest) {
-          if (code === 'SCHEDULE_CHANGED' && latest.schedule.myDrugId != null) {
+          if (code === 'SCHEDULE_CHANGED' && !hasDeleted(latest)) {
             // 카드는 대기 그대로이고 '지금'은 카드 값 그대로 둔다. 안내 문구는 화면이 정한다.
+            // 약 여러 개 카드는 한 약이라도 바뀌었으면 아무 약도 바꾸지 않는다(서버가 함께 되돌림).
             setChanged(true)
             setProblem(
-              `카드를 만든 뒤 ${latest.schedule.drugName ?? schedule.drugName} 일정이 바뀌어서 바꾸지 않았어요. 지금 일정에서 바꾸려면 원하는 일정을 다시 말해 주세요.`,
+              single
+                ? `카드를 만든 뒤 ${rowsOf(latest)[0].drugName ?? rows[0].drugName} 일정이 바뀌어서 바꾸지 않았어요. 지금 일정에서 바꾸려면 원하는 일정을 다시 말해 주세요.`
+                : '카드를 만든 뒤 일정이 바뀐 약이 있어서 아무 약도 바꾸지 않았어요. 지금 일정에서 바꾸려면 원하는 일정을 다시 말해 주세요.',
             )
           } else if (code === 'PROPOSAL_ALREADY_CONFIRMED') {
             setNotice('다른 화면에서 이미 바꾼 카드예요. 더 바꾸지 않았어요.')
@@ -312,53 +413,28 @@ function ChatSchedule({ proposal, onChange }) {
     <section className="chat-proposal chat-schedule" aria-labelledby={titleId}>
       <div className="chat-proposal__head">
         <h3 className="screen-item" id={titleId}>
-          복용 일정 바꾸기
+          {single ? '복용 일정 바꾸기' : `복용 일정 바꾸기 · 약 ${rows.length}개`}
         </h3>
         <span className="screen-caption chat-proposal__until">
           <Icon name="clock" size="s" />
           {hourMinute(proposal.expiresAt)}까지 확정할 수 있어요
         </span>
       </div>
-      <div className="chat-schedule__drug">
-        <DrugThumb size="sm" />
-        <p className="screen-body chat-schedule__name">{schedule.drugName}</p>
-      </div>
-      {scheduled ? (
-        <>
-          <p className="screen-label chat-schedule__section">바뀌는 값</p>
-          <dl className="chat-schedule__changes">
-            {changes.map((field) => (
-              <ChangeRow key={field.key} field={field} current={current} proposed={proposed} year={year} />
-            ))}
-          </dl>
-          {kept.length > 0 && (
-            <>
-              <p className="screen-label chat-schedule__section">그대로 두는 값</p>
-              <dl className="chat-schedule__same">
-                {kept.map((field) => (
-                  <div key={field.key}>
-                    <dt className="screen-caption">{field.label}</dt>
-                    <dd className="screen-caption">{fieldValue(field.key, proposed, { year }) ?? <NoValue />}</dd>
-                  </div>
-                ))}
-              </dl>
-            </>
-          )}
-        </>
+      {single ? (
+        <RowBody row={rows[0]} />
       ) : (
-        <>
-          <p className="screen-label chat-schedule__section">지금은 일정이 없어요 · 새로 넣을 일정</p>
-          <ValueList values={proposed} fresh year={year} />
-        </>
+        <div className="chat-schedule__rows">
+          {rows.map((row, index) => (
+            <div className="chat-schedule__row" key={rowKey(row, index)}>
+              <RowBody row={row} />
+            </div>
+          ))}
+        </div>
       )}
       {!problem && (
         <p className="screen-caption chat-schedule__note">
           <Icon name="info" size="s" />
-          <span>
-            {scheduled
-              ? '말씀하지 않은 값이 있으면 지금 일정 그대로 뒀어요.'
-              : '지금은 일정이 없어서 말씀하지 않은 값이 있으면 기본 일정(오늘 하루, 07:00 · 12:00 · 17:00)으로 채웠어요.'}
-          </span>
+          <span>{fillText(rows)}</span>
         </p>
       )}
       {problem && (
@@ -372,7 +448,7 @@ function ChatSchedule({ proposal, onChange }) {
             name={busy === 'confirm' ? 'loader' : 'calendarCheck'}
             className={busy === 'confirm' ? 'icon--spin' : undefined}
           />
-          {busy === 'confirm' ? '바꾸는 중…' : '이 일정으로 바꾸기'}
+          {busy === 'confirm' ? '바꾸는 중…' : single ? '이 일정으로 바꾸기' : `약 ${rows.length}개 일정 바꾸기`}
         </button>
         <button className="mt-btn mt-btn--assistive" type="button" disabled={busy !== null} onClick={cancel}>
           {busy === 'cancel' && <Icon name="loader" className="icon--spin" />}

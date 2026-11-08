@@ -63,7 +63,15 @@ public class QuestionClassifier {
             """;
 
     /** myDrugNames: 의도 가르기(V3-CHAT-001)에만 보내는 약목록 이름. 안전 분류 호출에는 넣지 않는다. */
-    public record Context(List<String> previousQuestions, List<String> products, List<String> myDrugNames) {
+    /** @param recentTurns 2026-11-08: 의도 가르기에만 보내는 바로 앞 메시지(최근 3턴, 오래된 것부터). 안전 분류에는 보내지 않는다 */
+    public record Context(List<String> previousQuestions, List<String> products, List<String> myDrugNames,
+                          List<RecentTurn> recentTurns) {
+        public Context {
+            recentTurns = recentTurns == null ? List.of() : List.copyOf(recentTurns);
+        }
+        public Context(List<String> previousQuestions, List<String> products, List<String> myDrugNames) {
+            this(previousQuestions, products, myDrugNames, List.of());
+        }
         public Context(List<String> previousQuestions, List<String> products) {
             this(previousQuestions, products, List.of());
         }

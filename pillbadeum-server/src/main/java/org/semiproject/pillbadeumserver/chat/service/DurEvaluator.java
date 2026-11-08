@@ -109,6 +109,9 @@ public class DurEvaluator {
     /** 정상 무경고 결과는 DUR·병용 질문에만 안내함. 실제 경고·미확인은 질문과 무관하게 유지함. */
     public boolean needsExplanation(AnswerInput input, DurNotice notice) {
         if ("NO_DRUG".equals(notice.lookup())) return false;
+        // 2026-11-08 카톡 기록: 일정 이야기 답에 조회 범위만 알리는 카드(확인하지 못한 약)가 붙어 대화를 끊음. 발견한 경고
+        // 항목이 없고 금기를 묻지 않은 일정 이야기에는 붙이지 않는다. 경고 항목이 있으면(FOUND) 그대로 보인다.
+        if (notice.items().isEmpty() && ChatQuestionPurpose.scheduleTalk(input.question())) return false;
         if (!"ALL".equals(notice.lookup()) || !"NONE".equals(notice.result()) || !notice.items().isEmpty()) return true;
         if (ChatQuestionPurpose.recordOnly(input.question())) return false;
         return asksContraindication(input.question());

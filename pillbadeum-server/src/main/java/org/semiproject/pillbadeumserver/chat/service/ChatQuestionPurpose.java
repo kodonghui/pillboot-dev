@@ -66,6 +66,18 @@ final class ChatQuestionPurpose {
         return more && asking || q.matches(".*더(먹으면|먹어도|먹을까|복용하면|복용해도|드시면|드셔도|드려도).*");
     }
 
+    /**
+     * 2026-11-08 카톡 기록('아침 점심 저녁, 복용할 양은 한알씩' 답에 '확인하지 못한 약' 금기 카드가 붙음): 시각·양·기간을
+     * 정하는 말. 먹어도 되는지·같이 먹는지·부작용처럼 안전을 묻는 말이 섞이면 들지 않는다.
+     */
+    static boolean scheduleTalk(String question) {
+        String q = normalized(question);
+        if (coadministration(q) || q.matches(".*(먹어도|먹으면|복용해도|복용하면|괜찮|부작용|이상반응|주의|안전|위험|금기|상호작용|병용"
+                + "|임신|임산부|수유|알레르기|음주|술|dur|DUR).*")) return false;
+        return q.matches(".*([0-9]+시|아침|점심|저녁|자기전|일정|[0-9]+일(?:간|동안)|오늘부터|내일부터|한알|두알|세알"
+                + "|[0-9]+(?:알|정|개|포|mL|ml|미리|cc)씩?|하루[0-9한두세]+번).*");
+    }
+
     static boolean coadministration(String question) {
         String q = question.replaceAll("\\s+", "");
         return q.matches(".*(같이|함께|동시에)(먹|복용|사용|마시|마셔|드셔|드려).*" )

@@ -12,7 +12,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -39,6 +42,7 @@ import org.semiproject.pillbadeumserver.common.exception.NotFoundException;
 import org.semiproject.pillbadeumserver.common.security.CustomUserDetails;
 import org.semiproject.pillbadeumserver.drug.domain.StrengthMatch;
 import org.semiproject.pillbadeumserver.image.domain.PhotoCandidateData;
+import org.semiproject.pillbadeumserver.image.domain.PrescriptionDose;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -270,6 +274,63 @@ class ChatProposalDecisionMySqlTests {
         assertThatThrownBy(() -> service.confirm(proposalId, choose(2))).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> service.cancel(proposalId)).isInstanceOf(NotFoundException.class);
         assertThat(storedStatus()).isEqualTo("PENDING");
+    }
+
+    @Test
+    void prescriptionValuesBecomeTheScheduleOnlyForWholeDosesWhenAsked() {
+        // 2026-11-08: 처방전 사진에서 읽은 1회 투약량·1일 횟수·총 일수. 0.5정은 일정 칸(1회 1~10개)에 넣지 않음.
+        long card = prescriptionCard();
+        var shown = service.get(card);
+        assertThat(shown.items()).extracting(ChatProposalResponse.Item::prescription).containsExactly(
+                new ChatProposalResponse.Prescription("1", 3, 3, false), new ChatProposalResponse.Prescription("0.5", 2, 5, false));
+
+        var confirmed = service.confirm(card, new ChatProposalConfirmRequest(List.of(1, 2), true));
+        assertThat(confirmed.items()).extracting(item -> item.prescription().applied()).containsExactly(true, false);
+        var today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        long whole = confirmed.items().get(0).myDrugId();
+        assertThat(scheduleOf(whole)).containsEntry("start_date", today).containsEntry("end_date", today.plusDays(2))
+                .containsEntry("dose_times", "07:00,12:00,17:00").containsEntry("dose_per_time", 1)
+                .containsEntry("dose_confirmed", true).containsEntry("timing", null);
+        assertThat(scheduleOf(confirmed.items().get(1).myDrugId())).as("반 알은 약만 넣음")
+                .containsEntry("start_date", null).containsEntry("dose_times", null).containsEntry("dose_confirmed", false);
+        assertThat(store.prescriptions(profile, List.of(whole, confirmed.items().get(1).myDrugId())))
+                .as("일정 제안의 '처방과 다름'에 쓰는 값")
+                .containsEntry(whole, new PrescriptionDose("1", 3, 3))
+                .containsEntry(confirmed.items().get(1).myDrugId(), new PrescriptionDose("0.5", 2, 5));
+    }
+
+    @Test
+    void withoutTheFlagPrescriptionValuesAreOnlyShown() {
+        long card = prescriptionCard();
+        var confirmed = service.confirm(card, choose(1));
+        assertThat(confirmed.items().get(0).prescription()).isEqualTo(new ChatProposalResponse.Prescription("1", 3, 3, false));
+        assertThat(scheduleOf(confirmed.items().get(0).myDrugId())).containsEntry("start_date", null)
+                .containsEntry("dose_times", null).containsEntry("dose_confirmed", false);
+    }
+
+    /** 처방전 사진으로 만든 모양의 카드: 1정·하루 3번·3일분인 줄과 0.5정·하루 2번·5일분인 줄. */
+    private long prescriptionCard() {
+        var question = questions.save(session, member, profile, "처방전·약봉투 사진을 보냈어요");
+        return store.saveRegisterAnswer(session, member, profile, question, "후보",
+                List.of(new RegistrationCandidates.Candidate("가상약정", candidate("가상약정", first, "가상약정10밀리그램").drug(),
+                                StrengthMatch.UNKNOWN, false, new PrescriptionDose("1", 3, 3)),
+                        new RegistrationCandidates.Candidate("가상약정", candidate("가상약정", second, "가상약정20밀리그램").drug(),
+                                StrengthMatch.UNKNOWN, false, new PrescriptionDose("0.5", 2, 5))),
+                ChatDeadline.after(Duration.ofSeconds(30)), false).proposal().proposalId();
+    }
+
+    private java.util.Map<String, Object> scheduleOf(long myDrugId) {
+        return jdbc.queryForObject("SELECT start_date, end_date, dose_times, dose_per_time, dose_confirmed, timing "
+                + "FROM my_drug WHERE my_drug_id=?", (row, rowNum) -> {
+            var values = new HashMap<String, Object>();
+            values.put("start_date", row.getObject("start_date", LocalDate.class));
+            values.put("end_date", row.getObject("end_date", LocalDate.class));
+            values.put("dose_times", row.getString("dose_times"));
+            values.put("dose_per_time", row.getInt("dose_per_time"));
+            values.put("dose_confirmed", row.getBoolean("dose_confirmed"));
+            values.put("timing", row.getString("timing"));
+            return values;
+        }, myDrugId);
     }
 
     private static ChatProposalConfirmRequest choose(Integer... itemNos) {

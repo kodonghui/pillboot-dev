@@ -214,7 +214,10 @@ public class OpenAiClient {
         List<Map<String, Object>> content = new ArrayList<>();
         content.add(Map.<String, Object>of("type", "input_text", "text", prompt));
         for (String imageDataUrl : imageDataUrls) {
-            content.add(Map.<String, Object>of("type", "input_image", "image_url", imageDataUrl));
+            // 2026-11-08: 처방전의 작은 글자(보험코드·투약량 칸, '룩'과 '록')를 줄여 읽지 않게 처방전만 high로 보낸다.
+            content.add(prescription
+                    ? Map.<String, Object>of("type", "input_image", "image_url", imageDataUrl, "detail", "high")
+                    : Map.<String, Object>of("type", "input_image", "image_url", imageDataUrl));
         }
         List<Map<String, Object>> input = List.of(Map.<String, Object>of("role", "user", "content", content));
 

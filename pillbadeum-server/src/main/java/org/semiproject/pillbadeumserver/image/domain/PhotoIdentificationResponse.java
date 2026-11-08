@@ -36,11 +36,34 @@ public record PhotoIdentificationResponse(
   @Schema(name = "PillRegistrationReceipt", description = "최초 등록의 HTTP 상태와 saved/skipped 본문. 재전송 시 같은 영수증을 사용함.")
   public record RegistrationReceipt(int httpStatus, PhotoDrugSelectionRequest.Result body) {}
 
-  /** V3-REG-002: autoSelectItemSeq는 처방전에서 함량 일치 후보가 하나이고 아직 등록되지 않았을 때만 있음. */
+  /**
+   * V3-REG-002: autoSelectItemSeq는 처방전에서 함량 일치 후보가 하나이고 아직 등록되지 않았을 때만 있음.
+   * 2026-11-08(처방전 줄 전체 읽기): insuranceCode는 그 줄에 인쇄된 9자리 보험코드, codeMatched는 그 코드로 찾은 품목이
+   * 하나이고 읽은 이름과 맞음, similar는 이름이 꼭 맞는 품목이 없어 비슷한 이름으로 찾은 후보, unclear는 이름 글자가 흐려
+   * 확실하지 않음, prescription은 1회 투약량·1일 횟수·총 일수. 모두 처방전에서 읽었을 때만 있음(없으면 응답에 칸이 없음).
+   */
   public record DrugGroup(int readNo, String readName, String lookup, List<Candidate> candidates,
-      @JsonInclude(JsonInclude.Include.NON_NULL) String autoSelectItemSeq) {
+      @JsonInclude(JsonInclude.Include.NON_NULL) String autoSelectItemSeq,
+      @JsonInclude(JsonInclude.Include.NON_NULL) String insuranceCode,
+      @JsonInclude(JsonInclude.Include.NON_NULL) Boolean codeMatched,
+      @JsonInclude(JsonInclude.Include.NON_NULL) Boolean similar,
+      @JsonInclude(JsonInclude.Include.NON_NULL) Boolean unclear,
+      @JsonInclude(JsonInclude.Include.NON_NULL) PrescriptionDose prescription) {
     public DrugGroup(int readNo, String readName, String lookup, List<Candidate> candidates) {
       this(readNo, readName, lookup, candidates, null);
+    }
+    public DrugGroup(int readNo, String readName, String lookup, List<Candidate> candidates, String autoSelectItemSeq) {
+      this(readNo, readName, lookup, candidates, autoSelectItemSeq, null, null, null, null, null);
+    }
+    /**
+     * 판독 때 읽은 값(보험코드·처방 칸)을 붙인다. 코드로 맞춘 하나뿐인 후보는 아직 등록되지 않았으면 미리 고르고,
+     * 비슷한 이름 후보나 흐리게 읽은 이름은 미리 고르지 않는다.
+     */
+    public DrugGroup withReading(String code, boolean byCode, boolean similarName, boolean unclearName, PrescriptionDose dose) {
+      String auto = similarName || unclearName ? null : autoSelectItemSeq;
+      if (byCode && candidates.size() == 1 && !candidates.getFirst().alreadyRegistered()) auto = candidates.getFirst().itemSeq();
+      return new DrugGroup(readNo, readName, lookup, candidates, auto, code, byCode ? Boolean.TRUE : null,
+          similarName ? Boolean.TRUE : null, unclearName ? Boolean.TRUE : null, dose);
     }
   }
   /** V3-REG-002: 함량 칸(baseName · strengthText · strengthMatch)은 처방전 후보에만 있음. 알약 응답은 그대로임. */
