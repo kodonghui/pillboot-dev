@@ -375,6 +375,25 @@ class ScheduleProposalServiceTests {
         assertThat(ScheduleProposalService.storedAmount("식후 1회 20분")).isNull();
     }
 
+    // PR #77 Codex 리뷰: 처방 5mL와 일정 1회 15mL·7.5mL를 글자 포함으로 같다고 봐서 처방과 다르다는 말이 빠졌음
+    @Test
+    void aLiquidDoseIsComparedWithThePrescriptionByItsWholeAmount() {
+        var rx = new org.semiproject.pillbadeumserver.image.domain.PrescriptionDose("5mL", 2, 3);
+        var current = new ScheduleValues(null, null, null, 1, null);
+        var twice = List.of("09:00", "19:00");
+        for (String timing : List.of("식후 · 1회 15mL", "1회 7.5mL", "식후")) {
+            var proposed = new ScheduleValues(TODAY, TODAY.plusDays(2), twice, 1, timing);
+            assertThat(ScheduleProposalService.note(current, proposed, rx, null)).as(timing)
+                    .isEqualTo("처방전 값: 1회 5mL. 처방과 다르게 먹으려면 의사·약사와 먼저 상의해 주세요.");
+        }
+        for (String timing : List.of("식후 · 1회 5mL", "1회 5.0mL", "1회 5cc")) {
+            var proposed = new ScheduleValues(TODAY, TODAY.plusDays(2), twice, 1, timing);
+            assertThat(ScheduleProposalService.note(current, proposed, rx, null)).as(timing).isNull();
+        }
+        assertThat(ScheduleProposalService.sameAmount("5mL", "5g")).isFalse();
+        assertThat(ScheduleProposalService.sameAmount("5mL", null)).isFalse();
+    }
+
     // PR #77 Codex 리뷰(P2): 처방전 일정은 소수 둘째 자리까지 적음('1회 7.25mL', PrescriptionDose.liquidAmount). 읽는 쪽도 같아야
     // 복용 때만 바꿀 때 양이 지워지거나 새 양이 덧붙지 않음
     @Test

@@ -239,6 +239,26 @@ public class ScheduleProposalService {
         return matcher.find() ? matcher.group(1) : null;
     }
 
+    private static final java.util.regex.Pattern AMOUNT =
+            java.util.regex.Pattern.compile("([0-9]{1,3}(?:\\.[0-9]{1,2})?)(mL|cc|g|mg)");
+
+    /**
+     * 1회 양 두 개가 같은 양인지(값과 단위로 보고 cc는 mL로 봄, '5mL'·'5.0mL'·'5cc'는 같음). 하나라도 없거나 읽지 못하면 다르다.
+     * PR #77 Codex 리뷰: 글자 포함으로 봐서 처방 '5mL'와 일정 '1회 15mL'·'1회 7.5mL'를 같다고 했음.
+     */
+    static boolean sameAmount(String left, String right) {
+        if (left == null || right == null) return false;
+        var a = AMOUNT.matcher(left.strip());
+        var b = AMOUNT.matcher(right.strip());
+        if (!a.matches() || !b.matches()) return false;
+        return unit(a.group(2)).equals(unit(b.group(2)))
+                && new java.math.BigDecimal(a.group(1)).compareTo(new java.math.BigDecimal(b.group(1))) == 0;
+    }
+
+    private static String unit(String unit) {
+        return "cc".equals(unit) ? "mL" : unit;
+    }
+
     /**
      * 1회 양: 새로 말했으면 그 양을 적고, 말하지 않았으면 지금 복용 때 칸의 양을 그대로 둔다(볼 점 없음, 칸을 넘을 때만 알림).
      * 2026-11-08 QA 다시 돌림: 시럽 '1회 20mL'를 넣은 뒤 '??'에 이어 만든 카드가 복용 때를 '식후 30분'으로 바꿔 20mL를 지우려 함.
@@ -279,9 +299,9 @@ public class ScheduleProposalService {
         if (rx != null) {
             var differs = new ArrayList<String>();
             Integer dose = rx.wholeDose();
-            String liquid = rx.liquidAmount();  // 시럽 1회 양은 복용 때 칸에 적으므로 그 칸과 맞춰 본다
+            String liquid = rx.liquidAmount();  // 시럽 1회 양은 복용 때 칸에 적으므로 그 칸의 양과 값으로 맞춰 본다
             if (liquid != null) {
-                if (proposed.timing() == null || !proposed.timing().contains(liquid)) differs.add("1회 " + liquid);
+                if (!sameAmount(liquid, storedAmount(proposed.timing()))) differs.add("1회 " + liquid);
             } else if (rx.dosePerTime() != null && (dose == null || !dose.equals(proposed.dosePerTime())))
                 differs.add("1회 " + rx.dosePerTime() + "개");
             if (rx.dailyCount() != null && rx.dailyCount() != proposed.doseTimes().size()) differs.add("하루 " + rx.dailyCount() + "번");
